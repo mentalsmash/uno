@@ -36,7 +36,7 @@ configuration.
 The easiest way to install UNO is via the simplified installation script:
 
 ```sh
-curl -sSL https://raw.githubusercontent.com/asorbini/uno/master/bin/install.sh?token=AAKLA5IHD5KHZMYXYH2ALMC74UJQ2 | sh
+curl -sSL https://raw.githubusercontent.com/mentalsmash/uno/master/bin/install.sh | sh
 ```
 
 If you have a pre-built wheel file for `connextdds-py` (e.g. if installing on
@@ -63,18 +63,19 @@ the next section to perform the installation manually.
 4. Clone this repository:
 
    ```sh
-   git clone https://github.com/asorbini/uno.git
+   git clone https://github.com/mentalsmash/uno.git
    ```
 
 5. Install **uno** and the `uvn` command with `pip`:
 
    ```sh
-   pip install -e /path/to/uno
+   pip install -e uno/
    ```
 
    You can omit the `-e` option if you don't plan on making changes to the
    source code, and don't need them to be automatically propagated to your
-   environment.
+   environment. If you don't specify `-e`, you will need to reinstall **uno**
+   every time you update the repository's clone.
 
 ### System Dependencies
 
