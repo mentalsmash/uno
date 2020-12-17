@@ -230,8 +230,15 @@ class Uvn(UvnFn):
         return UvnFn._registry_create(dir_uvn, **registry_dict)
     
     def registry_load(self):
-        return UvnFn._registry_load(self.paths.basedir)
-    
+        try:
+            return UvnFn._registry_load(self.paths.basedir)
+        except Exception as e:
+            if self.args.verbose:
+                logger.exception(e)
+            logger.error("failed to load UVN registry.")
+            logger.warning("Are you sure {} contains a UVN configuration?", basedir)
+            self.error()
+
     def registry_add(self, registry, **cell_dict):
         return UvnFn._registry_add(registry, **cell_dict)
 
