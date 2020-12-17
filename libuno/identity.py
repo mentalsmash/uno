@@ -981,7 +981,15 @@ class UvnIdentityDatabase:
             basedir = pathlib.Path(basedir).resolve()
             passphrase = UvnIdentityDatabase.load_secret()
             db_dir = basedir / data_dir_rel
-            gpg = gnupg.GPG(gnupghome=str(db_dir))
+            try:
+                gpg = gnupg.GPG(gnupghome=str(db_dir))
+            except Exception as e:
+                logger.error("failed to load key database.")
+                if str(e).startswith("ValueError: gnupghome should be a directory"):
+                    logger.warning("Are you sure {} contains a UVN configuration?", basedir)
+                else:
+                    logger.exception(e)
+                raise (e)
             gpg.encoding = key_encoding
         else:
             basedir = identity_db.registry_id.basedir
