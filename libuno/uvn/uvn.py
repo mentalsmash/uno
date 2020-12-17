@@ -236,7 +236,7 @@ class Uvn(UvnFn):
             if self.args.verbose:
                 logger.exception(e)
             logger.error("failed to load UVN registry.")
-            logger.warning("Are you sure {} contains a UVN configuration?", basedir)
+            logger.warning("Are you sure {} contains a UVN configuration?", self.paths.basedir)
             self.error()
 
     def registry_add(self, registry, **cell_dict):
