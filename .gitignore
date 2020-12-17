@@ -1,0 +1,10 @@
+__pycache__
+tmp
+libuno.egg-info/
+uvn-test
+cell-test
+.uvn*
+.vscode
+mayhem.foundation
+mayhem.foundation.cells
+*.whl

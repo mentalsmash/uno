@@ -1,0 +1,4 @@
+# Cell, Nic, Subnet, Mask, Endpoint, Gw, Route Nic, Route Gw, Route Peer,
+{% for s in sites %}
+{{s.cell}}, {{s.nic}}, {{s.subnet}}, {{s.mask}}, {{s.endpoint}}, {{s.gw}}
+{%- if s.route -%}, {{s.route.nic}}, {{s.route.gw}}, {{s.route.peer}}{% endif %}{% endfor %}
