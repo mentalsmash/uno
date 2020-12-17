@@ -101,7 +101,7 @@ Before we continue, here's some useful information that was automatically detect
 
 Host: ${UNO_HOST:=$(hostname)} (${UNO_PLATFORM})
 User: ${UNO_USER}:${UNO_USER_GROUP:=$(groups | cut -d" " -f1)}
-Source Repository: ${UNO_URL:=https://ecf8dc2bd075e6ee5b6710b39c7cde1f2fd57529:x-oauth-basic@github.com/asorbini/uno.git} (${UNO_BRANCH:=master})
+Source Repository: ${UNO_URL:=https://github.com/mentalsmash/uno} (${UNO_BRANCH:=master})
 Installation Target: ${UNO_DIR:=/opt/uno}
 
 Continue with the installation?" \
