@@ -633,7 +633,7 @@ fi
 # Done
 ################################################################################
 whiptail --title "UNO installed" \
-         --infobox \
+         --msgbox \
          "Congratulations, you have successfully installed UNO on ${UNO_HOST}.
 
 Run \`uvn -h\` to get started." \
