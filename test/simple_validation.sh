@@ -16,7 +16,7 @@
 # along with this program. If not, see <https://www.gnu.org/licenses/>.
 ###############################################################################
 
-UVN_ADDRESS=${UVN_ADDRESS:-mayhem.foundation}
+UVN_ADDRESS=${UVN_ADDRESS:-test-uvn.localhost}
 UVN_CELLS="cell1 cell2 cell3"
 [ -z "${VERBOSE}" ] || VERBOSE="-vv"
 [ -z "${KEEP}" ] || KEEP="-k"

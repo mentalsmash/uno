@@ -583,7 +583,7 @@ _installer_cleanup()
 {
     # Delete files generate by simple_validation.sh
     # Use UVN_ADDRESS in case user customized the value
-    local test_uvn=$"{UVN_ADDRESS:-mayhem.foundation}"
+    local test_uvn=$"{UVN_ADDRESS:-test-uvn.localhost}"
     rm -rf ${test_uvn} ${test_uvn}-cells
 }
 
