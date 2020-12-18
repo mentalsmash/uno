@@ -89,7 +89,7 @@ class DefaultDeploymentStrategy(DeploymentStrategy):
         
         def peer_3(cell_i):
             # 3rd peer is set to the cell "opposite" to this
-            # one, i.e. with index: current.n + floor(len(cells_len)/2)
+            # one, i.e. with index: current.n + floor(len(cells)/2)
             offset = (cells_len // 2)
             if (cell_i <= (offset - 1)):
                 return (cell_i + offset) % cells_len
