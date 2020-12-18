@@ -44,7 +44,7 @@ a Raspberry Pi), place it in the directory where you are running the
 script, and it will be automatically detected and installed.
 
 If a wheel file is not available, the script will try to clone and 
-build `connextdds-py` from source. [RTI Connext DDS](https://github.com/mentalsmash/uno/wiki/Installation#rti-connext-dds)
+build `connextdds-py` from source. [RTI Connext DDS](https://github.com/mentalsmash/uno/wiki/Installation#rti-connext-dds) 6.x must
 be installed on the system, and available via `NDDSHOME` for this to succeed.
 
 Consult the [Installation](https://github.com/mentalsmash/uno/wiki/Installation)
