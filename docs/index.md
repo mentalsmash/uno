@@ -17,3 +17,7 @@ curl -sSL https://uno.mentalsmash.org/install | sh
 ## Learn More
 
 Visit the [GitHub repository](https://github.com/mentalsmash/uno/), and consult the available documentation in the [wiki](https://github.com/mentalsmash/uno/wiki).
+
+## Contribute
+
+**uno** is licensed under the [GNU Affero General Public License v3](https://tldrlegal.com/license/gnu-affero-general-public-license-v3-(agpl-3.0)). [Forks](https://github.com/mentalsmash/uno/fork) and [PRs](https://github.com/mentalsmash/uno/pulls) welcome!
