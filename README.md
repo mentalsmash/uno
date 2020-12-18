@@ -148,6 +148,13 @@ ssh pi@myrpi
 pip3 install rti-0.0.1-cp37-cp37m-linux_armv7.whl
 ```
 
+Or, using the provided `install.sh` script, install wheel automatically along with **uno**:
+
+```sh
+scp rti-0.0.1-cp37-cp37m-linux_armv7l.whl pi@myrpi:~/
+ssh pi@myrpi sh -c "curl -sSL https://raw.githubusercontent.com/mentalsmash/uno/master/bin/install.sh | sh"
+```
+
 ### Docker
 
 **uno** supports deploying *agents* inside a Docker container, and the `uvn`
@@ -187,11 +194,12 @@ The domain identifies the *UVN*, and it specifies the address that *agents* will
 use to connect to the *registry*.
 
 A *UVN*'s configuration consists of a few files YAML files and a database
-of PGP keys. These should be stored in a dedicated directory with appropriate
+of PGP/GPG keys. These should be stored in a dedicated directory with appropriate
 permissions that prevent unauthorized access to the *UVN*'s secrets.
 
-These files must be stored on the *registry* node, which is responsible for
-generating new deployment configurations, and must be able to access
+During deployment, these configuration files must be stored on the *registry*
+node and available to the the registry's *agent* (or "root" *agent*), who is
+responsible for generating new deployment configurations, and must be able to access
 confidential information in order to configure the *UVN*'s encrypted links.
 
 A new *UVN* configuration can be generated with `uvn create`, e.g.:
@@ -208,39 +216,79 @@ The new directory will contain a `registry.yml` file, describing the registry's
 configuration, and signed with the registry's own private key.
 
 This key is automatically generated and stored in a GPG key database inside the
-*UVN* directory. The key is protected by a random password, whose value can
-be retrieved from `<uvn-dir>/.uvn-auth`.
+*UVN* directory. The key is protected by a randomly generated password.
 
-All commands that manipulate the *UVN* registry must provide this secret, or
-fail with an authentication error. `uvn` will load the secret from environment
-variable `AUTH`, and fall back to a file `.uvn-auth` in the current directory,
-if the variable is not set.
-
-For the moment, `uvn create` will store the registry's random password in
-`<uvn-root>/.uvn-auth`. This makes it possible to perform operations by first
-`cd`'ing into the *UVN* directory. The file should be deleted from the directory
-before the registry's *agent* (or "root" *agent*) is deployed.
-
-The root *agent* must be listen for connection's on the *UVN*'s address,
-and the following ports must be forwarded to its process:
+The root *agent* must be configured to listen for connections on the *UVN*'s
+own address, and the following ports must be forwarded to it:
 
 | Port | Protocol | Description    |
 |------|----------|----------------|
 |63550 | UDP      |Port used by the root *agent* to listen for initial connections from cell *agents*|
 |33000-35000|UDP  |Ports used by the root *agent* to establish routing links with each cell *agent*|
 
+### Manipulating the UVN registry
+
+All commands that manipulate the *UVN* registry must provide the registry's key
+secret, or fail with an authentication error. `uvn` will load the secret from
+the environment via variable `AUTH`, and fall back to file `.uvn-auth` in the
+current directory, if the variable is not set.
+
+For the moment, `uvn create` will store the registry's random password in
+`<uvn-root>/.uvn-auth`. This makes it possible to perform operations simply by
+first `cd`'ing into the *UVN*'s directory. The file should be deleted from the
+directory before the root *agent* is deployed in a public setting.
+
+You can display summary information about a *UVN* directory using `uvn info`:
+
+```sh
+(cd test-uvn.localhost && uvn i -v)
+```
+
+Since the command must load `.uvn-auth`, you can run it in a subshell to avoid
+changing your current directory.
+
+This can get tedious, and you might prefer to move your *UVN* configuration to
+some "stable" location (e.g. `/opt/uvn`), and define a shell function to
+automatically enter that directory before running `uvn`.
+
+For example, you could add this to your `~/.profile` file:
+
+```sh
+uvnd()
+{
+    local uvn_dir="${UVN_DIR:-/opt/uvn}"
+    (cd uvn_dir && uvn $@)
+}
+```
+
+You will then be able to manipulate the *UVN* in `/opt/uvn` without the need
+to `cd` to the directory first, e.g. to display summary information:
+
+```sh
+uvnd i -v
+```
+
+Arbitrary *UVN* directories can be accessed by setting `UVN_DIR`:
+
+```sh
+# Access $(pwd)/test-uvn.localhost/
+UVN_DIR=test-uvn.localhost uvnd i -v
+
+# Make $(pwd)/test-uvn.localhost the default UVN directory
+export UVN_DIR=$(pwd)/test-uvn.localhost
+uvnd i -v
+```
+
 ### Attach cells to the UVN
 
 In order to attach private networks to the *UVN*, one must first define *cell*
-configurations for each *agents* that will be deployed within the LANs.
+configurations for each *agents* that will be deployed within each LAN.
 
 Each *cell* contains an *agent*, and it must choose a unique name which will
-identify it within the *UVN*. A public domain name or IP address must also be
-provided in order to allow other *agents* to connect to the *cell*.
+identify them within the *UVN*. A public domain name or IP address must also be
+provided so that other *agents* may connect to the *cell*.
 
-*Cells* can be defined using the `uvn attach` command. Since the command
-must load `.uvn-auth`, you can run it in a subshell to avoid changing your
-current directory:
+*Cells* can be defined using the `uvn attach` command:
 
 ```sh
 (cd test-uvn.localhost && uvn a -n cell1)
@@ -250,8 +298,9 @@ This command will define a new *cell* called `cell1` whose address is
 `cell1.test-uvn.localhost`. You can specify an arbitrary address with option
 `--address ADDRESS`.
 
-By default, **uno** requires *cells* to enable forwarding of UDP ports
-63450, 63451, and 63452 to their *agents*. These will be used to establish
-the routing links that make up the *UVN*'s *backbone*. Custom values can
-be specified using option `--peer-ports PORTS`. The `PORTS` valus must be a valid
-YAML/JSON array value, e.g. `"[ 1, 2, 3 ]"`
+By default, **uno** requires *cells* to enable forwarding to their *agents* of
+UDP ports 63450, 63451, and 63452.
+
+These will be used to establish the routing links that make up the *UVN*'s
+*backbone*. Custom values can be specified using option `--peer-ports PORTS`.
+The `PORTS` valus must be a valid YAML/JSON array value, e.g. `"[ 1, 2, 3 ]"`
