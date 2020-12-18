@@ -8,12 +8,12 @@
 
 **uno** supports any Debian-based `x86_64` or `armv7l` target (e.g. Ubuntu 18.04, Debian/Raspbian Buster).
 
-To install a local copy of the `uvn` script, use **uno**'s `install.sh` script:
+To install a local copy of the `uvn` script, use **uno**'s installation helper script:
 
 ```sh
-curl -sSL https://raw.githubusercontent.com/mentalsmash/uno/master/bin/install.sh | sh
+curl -sSL https://uno.mentalsmash.org/install | sh
 ```
 
 ## Learn More
 
-Visit the [GitHub repository](https://github.com/mentalsmash/uno/), and consult the documentation available in the [wiki](https://github.com/mentalsmash/uno/wiki).
+Visit the [GitHub repository](https://github.com/mentalsmash/uno/), and consult the available documentation in the [wiki](https://github.com/mentalsmash/uno/wiki).
