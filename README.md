@@ -36,7 +36,7 @@ configuration.
 The easiest way to install UNO is via the simplified installation script:
 
 ```sh
-curl -sSL https://raw.githubusercontent.com/mentalsmash/uno/master/bin/install.sh | sh
+curl -sSL https://uno.mentalsmash.org/install | sh
 ```
 
 If you have a pre-built wheel file for `connextdds-py` (e.g. if installing on
