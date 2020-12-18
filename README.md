@@ -50,3 +50,11 @@ be installed on the system, and available via `NDDSHOME` for this to succeed.
 Consult the [Installation](https://github.com/mentalsmash/uno/wiki/Installation)
 section of the wiki for more information on each installation step performed
 by the script.
+
+## Documentation
+
+Visit the [wiki](https://github.com/mentalsmash/uno/wiki) for more information
+about **uno**.
+
+You might want to start from [Hello UVN](https://github.com/mentalsmash/uno/wiki/Hello-UVN), which gives an overview of **uno**'s
+features, and the structure of a *UVN*.
