@@ -189,12 +189,12 @@ rm -r test-uvn.localhost test-uvn.localhost-cells
 
 ### Create a new UVN configuration
 
-A *UVN* must be associated with a unique domain name, e.g. `test-vpn.localhost`.
+A *UVN* must be associated with a unique domain name, e.g. `test-uvn.localhost`.
 The domain identifies the *UVN*, and it specifies the address that *agents* will
 use to connect to the *registry*.
 
-A *UVN*'s configuration consists of a few files YAML files and a database
-of PGP/GPG keys. These should be stored in a dedicated directory with appropriate
+A *UVN*'s configuration consists of a few YAML files and a database of PGP/GPG
+keys. These should be stored in a dedicated directory with appropriate
 permissions that prevent unauthorized access to the *UVN*'s secrets.
 
 During deployment, these configuration files must be stored on the *registry*
@@ -205,18 +205,18 @@ confidential information in order to configure the *UVN*'s encrypted links.
 A new *UVN* configuration can be generated with `uvn create`, e.g.:
 
 ```sh
-uvn create test-vpn.localhost
+uvn create test-uvn.localhost
 ```
 
-This command will create a new directory `test-vpn.localhost/`, containing *UVN*
-`test-vpn.localhost`. The *UVN* is still empty, since no *cells* have been
+This command will create a new directory `test-uvn.localhost/`, containing *UVN*
+`test-uvn.localhost`. The *UVN* is still empty, since no *cell* has been
 attached to it yet.
 
 The new directory will contain a `registry.yml` file, describing the registry's
-configuration, and signed with the registry's own private key.
-
-This key is automatically generated and stored in a GPG key database inside the
-*UVN* directory. The key is protected by a randomly generated password.
+configuration, and signed with the registry's own private key, and a `keys/`
+directory, which stores the registry's GPG key database. The database is
+initialized only with the registry's private and public key pair. The private
+key is protected by a randomly generated password (see [Manipulating the UVN registry](#manipulating-the-uvn-registry)).
 
 The root *agent* must be configured to listen for connections on the *UVN*'s
 own address, and the following ports must be forwarded to it:
@@ -228,30 +228,33 @@ own address, and the following ports must be forwarded to it:
 
 ### Manipulating the UVN registry
 
-All commands that manipulate the *UVN* registry must provide the registry's key
-secret, or fail with an authentication error. `uvn` will load the secret from
-the environment via variable `AUTH`, and fall back to file `.uvn-auth` in the
-current directory, if the variable is not set.
+All commands that manipulate the *UVN* registry must provide the secret for the
+registry's private key, or fail with an authentication error.
+
+`uvn` will load the secret from the environment via variable `AUTH`, or fall
+back to file `.uvn-auth` in the current directory, if the variable is not set.
 
 For the moment, `uvn create` will store the registry's random password in
-`<uvn-root>/.uvn-auth`. This makes it possible to perform operations simply by
-first `cd`'ing into the *UVN*'s directory. The file should be deleted from the
-directory before the root *agent* is deployed in a public setting.
+`<uvn-root>/.uvn-auth`. This makes testing easier, since `uvn` can be invoked
+simply by first `cd`'ing into the *UVN*'s directory.
 
-You can display summary information about a *UVN* directory using `uvn info`:
+File `.uvn-auth` (and other files storing *cell* secrets) should be deleted
+from the *UVN* directory before the root *agent* is deployed to a public setting.
+
+Since all commands must load `.uvn-auth`, you can run them in a subshell to avoid
+changing your current directory.
+
+For example, you can display summary information about a *UVN* using `uvn info`:
 
 ```sh
 (cd test-uvn.localhost && uvn i -v)
 ```
 
-Since the command must load `.uvn-auth`, you can run it in a subshell to avoid
-changing your current directory.
-
 This can get tedious, and you might prefer to move your *UVN* configuration to
 some "stable" location (e.g. `/opt/uvn`), and define a shell function to
 automatically enter that directory before running `uvn`.
 
-For example, you could add this to your `~/.profile` file:
+For example, you could add this shell function to your `~/.profile` file:
 
 ```sh
 uvnd()
@@ -261,8 +264,10 @@ uvnd()
 }
 ```
 
-You will then be able to manipulate the *UVN* in `/opt/uvn` without the need
-to `cd` to the directory first, e.g. to display summary information:
+Using `uvnd` instead of `uvn`, you will then be able to manipulate the *UVN* in
+`/opt/uvn` without the need to `cd` to the directory first.
+
+E.g. to display summary information:
 
 ```sh
 uvnd i -v
@@ -273,7 +278,12 @@ Arbitrary *UVN* directories can be accessed by setting `UVN_DIR`:
 ```sh
 # Access $(pwd)/test-uvn.localhost/
 UVN_DIR=test-uvn.localhost uvnd i -v
+```
 
+Setting the value of `UVN_DIR` modifies the default *UVN* directory. Use
+absolute paths to be able to issue commands from anywhere in the filesystem.
+
+```sh
 # Make $(pwd)/test-uvn.localhost the default UVN directory
 export UVN_DIR=$(pwd)/test-uvn.localhost
 uvnd i -v
