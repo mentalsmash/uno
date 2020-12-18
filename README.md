@@ -40,13 +40,12 @@ curl -sSL https://raw.githubusercontent.com/mentalsmash/uno/master/bin/install.s
 ```
 
 If you have a pre-built wheel file for `connextdds-py` (e.g. if installing on
-a Raspberry Pi), place the file in the directory where you are running the
-installation script, and the script will automatically detect it and offer to
-use it.
+a Raspberry Pi), place it in the directory where you are running the
+script, and it will be automatically detected and installed.
 
-If a wheel file is not available, the script will automatically clone and 
+If a wheel file is not available, the script will try to clone and 
 build `connextdds-py` from source. [RTI Connext DDS](https://github.com/mentalsmash/uno/wiki/Installation#rti-connext-dds)
-must have beeen already installed on the system, and available via `NDDSHOME`.
+be installed on the system, and available via `NDDSHOME` for this to succeed.
 
 Consult the [Installation](https://github.com/mentalsmash/uno/wiki/Installation)
 section of the wiki for more information on each installation step performed
