@@ -168,9 +168,21 @@ curl -sSL https://get.docker.com | sh
 **uno** provides the `uvn` command line tool for configuring a *UVN* and its
 *cells*, and for instantiating *agents* to deploy it.
 
-### Create a new *UVN* configuration
+This section describes the main steps involved in the configuration and
+deployment of a *UVN*.
 
-A *UVN* must be associated with a unique domain name, e.g. `myuvn.foo.bar`.
+For a quick test of this process, run [test/simple_validation.sh](test/simple_validation.sh):
+
+```sh
+# Generate a test UVN and spawn the registry agent
+uno/test/simple_validation.sh
+# Delete generated files
+rm -r test-uvn.localhost test-uvn.localhost-cells
+```
+
+### Create a new UVN configuration
+
+A *UVN* must be associated with a unique domain name, e.g. `test-vpn.localhost`.
 The domain identifies the *UVN*, and it specifies the address that *agents* will
 use to connect to the *registry*.
 
@@ -185,10 +197,61 @@ confidential information in order to configure the *UVN*'s encrypted links.
 A new *UVN* configuration can be generated with `uvn create`, e.g.:
 
 ```sh
-uvn create myuvn.foo.bar
+uvn create test-vpn.localhost
 ```
 
-This will create a new directory `myuvn.foo.bar/`, initialized with an empty
-UVN configuration (since it still has no *cells* attached to it).
+This command will create a new directory `test-vpn.localhost/`, containing *UVN*
+`test-vpn.localhost`. The *UVN* is still empty, since no *cells* have been
+attached to it yet.
 
-...
+The new directory will contain a `registry.yml` file, describing the registry's
+configuration, and signed with the registry's own private key.
+
+This key is automatically generated and stored in a GPG key database inside the
+*UVN* directory. The key is protected by a random password, whose value can
+be retrieved from `<uvn-dir>/.uvn-auth`.
+
+All commands that manipulate the *UVN* registry must provide this secret, or
+fail with an authentication error. `uvn` will load the secret from environment
+variable `AUTH`, and fall back to a file `.uvn-auth` in the current directory,
+if the variable is not set.
+
+For the moment, `uvn create` will store the registry's random password in
+`<uvn-root>/.uvn-auth`. This makes it possible to perform operations by first
+`cd`'ing into the *UVN* directory. The file should be deleted from the directory
+before the registry's *agent* (or "root" *agent*) is deployed.
+
+The root *agent* must be listen for connection's on the *UVN*'s address,
+and the following ports must be forwarded to its process:
+
+| Port | Protocol | Description    |
+|------|----------|----------------|
+|63550 | UDP      |Port used by the root *agent* to listen for initial connections from cell *agents*|
+|33000-35000|UDP  |Ports used by the root *agent* to establish routing links with each cell *agent*|
+
+### Attach cells to the UVN
+
+In order to attach private networks to the *UVN*, one must first define *cell*
+configurations for each *agents* that will be deployed within the LANs.
+
+Each *cell* contains an *agent*, and it must choose a unique name which will
+identify it within the *UVN*. A public domain name or IP address must also be
+provided in order to allow other *agents* to connect to the *cell*.
+
+*Cells* can be defined using the `uvn attach` command. Since the command
+must load `.uvn-auth`, you can run it in a subshell to avoid changing your
+current directory:
+
+```sh
+(cd test-uvn.localhost && uvn a -n cell1)
+```
+
+This command will define a new *cell* called `cell1` whose address is
+`cell1.test-uvn.localhost`. You can specify an arbitrary address with option
+`--address ADDRESS`.
+
+By default, **uno** requires *cells* to enable forwarding of UDP ports
+63450, 63451, and 63452 to their *agents*. These will be used to establish
+the routing links that make up the *UVN*'s *backbone*. Custom values can
+be specified using option `--peer-ports PORTS`. The `PORTS` valus must be a valid
+YAML/JSON array value, e.g. `"[ 1, 2, 3 ]"`
