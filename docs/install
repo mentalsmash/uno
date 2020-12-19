@@ -861,8 +861,8 @@ Run the test?
         return
     fi
 
-    rm -rf ${_test_dir}
-    mkdir ${_test_dir}
+    ${SUDO} rm -rf ${_test_dir}
+    uno_mkdir ${_test_dir}
     trap uno_test_interrupted INT TERM
     cd ${_test_dir}
     # disable exit on error
@@ -904,6 +904,7 @@ uno_test_run
 # experiment_local.sh
 ################################################################################
 EXPLOC_NETS=4
+EXPLOC_DEPLOY=yes
 
 _experiment_local()
 {
@@ -912,10 +913,27 @@ _experiment_local()
 
 Current value" \
         ${EXPLOC_NETS})
+    
+    local exp_deploy=$(uno_select "generate deployment configuration" \
+        "The test can optionally generate a deployment configuration before starting the nodes.
+If you skip this step, the UVN will be launched without a backbone.
+You can generate a deployment at any time by navigating to the root agent's container, and using alias \`uvnd_deploy\`.
+
+Current value (leave empty to disable)" \
+        ${EXPLOC_DEPLOY})
+    
+    uno_msgbox "One more thing before we start..." \
+"The test uses tmux to display terminals to each containers.
+
+You can navigate between tmux panels using CTRL+B and the arrow keys.
+To switch between windows press CTRL+B then P or N.
+
+All panels display either one of the container's logs, or a control shell inside it."
 
     (
         cd ${_test_dir}
-        NETS=${exp_nets} VERBOSE=y ${UNO_DIR}/test/local_deploy/experiment_local.sh
+        NETS=${exp_nets} PREDEPLOY=${exp_deploy} VERBOSE=y \
+            ${UNO_DIR}/test/local_deploy/experiment_local.sh
     )
 }
 
