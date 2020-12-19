@@ -484,19 +484,22 @@ Make sure to include libraries for target $(uno_connext_arch) in your installati
 ################################################################################
 # Clone connextdds-py
 ################################################################################
-uno_connextddspy_wheel()
+uno_connextddspy_wheel_name()
+{
+    case "${UNO_PLATFORM}" in
+    Ubuntu|Debian)
+        printf "rti-0.0.1-cp36-cp36m-linux_x86_64.whl"
+        ;;
+    Raspbian)
+        printf "rti-0.0.1-cp37-cp37m-linux_armv7l.whl"
+        ;;
+    esac
+}
+
+uno_connextddspy_wheel_find()
 {
     local tgt_dir="${1}"
-    local _whl=$(
-        case "${UNO_PLATFORM}" in
-        Ubuntu|Debian)
-            printf "rti-0.0.1-cp36-cp36m-linux_x86_64.whl"
-            ;;
-        Raspbian)
-            printf "rti-0.0.1-cp37-cp37m-linux_armv7l.whl"
-            ;;
-        esac
-    )
+    local _whl=$(uno_connextddspy_wheel_name)
     
     if [ -f "${_whl}" ]; then
         printf "${_whl}"
@@ -515,7 +518,8 @@ uno_connextddspy_install()
     local tgt_dir="$(uno_select "connextdds-py source directory" \
         "connextdds-py will be cloned in directory" \
         "${DDSPY_DIR}")"
-    local whl=$(uno_connextddspy_wheel ${tgt_dir}) \
+    DDSPY_DIR="${tgt_dir}"
+    local whl=$(uno_connextddspy_wheel_find ${tgt_dir}) \
           use_whl=
 
     if [ -f "${whl}" ]; then
@@ -531,17 +535,14 @@ Would you like to install it?"
         pip3 install ${whl}
         sudo pip3 install ${whl}
     else
-        uno_connextddspy_wheel_generate "${tgt_dir}" "${whl}"
+        uno_connextddspy_wheel_generate "${tgt_dir}"
     fi
 
 }
 
 uno_connextddspy_wheel_generate()
 {
-    local tgt_dir="${1}" \
-          whl="${2}" \
-          uno_dir="${UNO_DIR}/libuno/data/dds"
-    local whl_base=$(basename ${whl})
+    local tgt_dir="${1}"
 
     uno_info "Building connextdds-py from source..."
 
@@ -572,8 +573,10 @@ Would you like to try building connextdds-py from source anyway?"
                   https://github.com/rticommunity/connextdds-py master
 
 
-    if [ ! -f "${whl}" ]; then
-        uno_warning "Overwriting existing connextdds-py wheel: ${whl}"
+    local b_whl=${tgt_dir}/$(uno_connextddspy_wheel_name)
+
+    if [ ! -f "${b_whl}" ]; then
+        uno_warning "Overwriting existing connextdds-py wheel: ${b_whl}"
     fi
 
     (
@@ -585,15 +588,28 @@ Would you like to try building connextdds-py from source anyway?"
         CONNEXTDDS_ARCH=${connext_arch} pip3 wheel .
     )
     
+    local whl=$(uno_connextddspy_wheel_find ${tgt_dir})
+
+    if [ -z "${whl}" -o "${whl}" != "${b_whl}" ]; then
+        uno_error "failed to load connextdds-py wheel: ${b_whl}"
+    fi
+
     # Install connextdds-py for user and root to using the generated wheel
-    uno_info "Installing connextdds-py for ${UNO_USER}"
+    uno_info "Installing connextdds-py for ${UNO_USER} from: ${whl}"
     pip3 install ${whl}
 
-    uno_info "Installing connextdds-py for root"
+    uno_info "Installing connextdds-py for root from: ${whl}"
     sudo pip3 install ${whl}
 
-    uno_info "Caching ${whl_base} in ${uno_dir}"
-    cp ${whl} ${uno_dir}
+    uno_connextddspy_wheel_install ${whl}
+}
+
+uno_connextddspy_wheel_install()
+{
+    local whl="${1}"
+    local whl_base=$(basename ${whl})
+    uno_info "Caching ${whl_base} in ${UNO_WHL_DIR}"
+    cp ${whl} ${UNO_WHL_DIR}
 }
 
 
@@ -640,7 +656,7 @@ DDSPY_DEPS_PIP="wheel
                 cmake
                 patchelf-wrapper"
 DDSPY_DEPS=build-essential
-
+UNO_WHL_DIR="${UNO_DIR}/libuno/data/dds"
 ################################################################################
 ################################################################################
 # BEGIN ACTUAL SCRIPT
@@ -769,7 +785,23 @@ fi
 ################################################################################
 # Clone and build connextdds-py
 ################################################################################
-if ! uno_python_check rti.connextdds; then
+_connextddspy_whl=$(uno_connextddspy_wheel_find ${DDSPY_DIR})
+_uno_whl=${UNO_WHL_DIR}/$(uno_connextddspy_wheel_name)
+_build_wheel=
+
+if [ ! -f "${_uno_whl}" ]; then
+    if [ -z "${_connextddspy_whl}" ]; then
+        uno_yesno "Build connextdds-py wheel" \
+"In order to build uno's agent container image, a pre-built wheel of connextdds-py must be available.
+
+Would you like to generate one from source?"
+        uno_wprc_no || _build_wheel=yes
+    else
+        uno_connextddspy_wheel_install "${_connextddspy_whl}"
+    fi
+fi
+
+if ! uno_python_check rti.connextdds || [ -n "${_build_wheel}" ]; then
     uno_connextddspy_install
 fi
 
@@ -927,6 +959,8 @@ Current value (leave empty to disable)" \
 
 You can navigate between tmux panels using CTRL+B and the arrow keys.
 To switch between windows press CTRL+B then P or N.
+
+Try CTRL+A if CTRL+B doesn't seem to work.
 
 All panels display either one of the container's logs, or a control shell inside it."
 
