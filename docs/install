@@ -142,12 +142,9 @@ uno_git_clone()
 
     uno_mkdir ${tgt_dir}
     (
+        cd ${tgt_dir}/..
+        ${GIT} clone -b ${tgt_branch} --depth 1 --recurse-submodules ${tgt_url} $(basename ${tgt_dir})
         cd ${tgt_dir}
-        ${GIT} init
-        ${GIT} remote add uno-setup ${tgt_url}
-        ${GIT} pull --depth 1 uno-setup ${tgt_branch}
-        ${GIT} checkout ${tgt_branch}
-        ${GIT} submodule update --init --recursive
     )
 }
 
@@ -161,14 +158,10 @@ uno_git_update()
 
     uno_info "Updating ${what} (${tgt_branch}) in ${tgt_dir}"
 
-    if [ -z "$(cd ${tgt_dir}; ${GIT} remote 2>/dev/null | grep uno-setup)" ]; then
-        uno_error "Repository not initialized by this script: ${tgt_dir}"
-    fi
     (
         cd ${tgt_dir}
-        ${GIT} pull --depth 1 uno-setup ${tgt_branch}
+        ${GIT} pull origin ${tgt_branch}
         ${GIT} checkout ${tgt_branch}
-        ${GIT} submodule update --recursive
     )
 }
 
