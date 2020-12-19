@@ -17,6 +17,7 @@
 from libuno.cfg import UvnDefaults
 import shutil
 import pathlib
+import sys
 
 ################################################################################
 # Import importlib.resources (importlib_resources shim)
@@ -93,7 +94,8 @@ def script(file, binary=True):
 ################################################################################
 class ConnextDdsWheel:
     def __init__(self, arch, base_name=UvnDefaults["docker"]["context"]["connextdds_wheel_fmt"]):
-        self.name = base_name.format(arch)
+        py_vers = "{}{}".format(sys.version_info.major, sys.version_info.minor)
+        self.name = base_name.format(py_vers, py_vers, arch)
         self.path = pkg_resources.files(dds) / self.name
     
     def copy_to(self, dst_path):

@@ -1,5 +1,6 @@
 
 from sh import grep, cut
+import sys
 import os
 import pathlib
 import types
@@ -98,7 +99,9 @@ def build_connextddspy(nddshome, dst_dir, arch, keep=False):
             fail_msg="failed to clone git repository: {}".format(repo_url))
 
         # Copy wheel to destination directory:
-        whl_name = self.name = UvnDefaults["docker"]["context"]["connextdds_wheel_fmt"].format(arch)
+        py_vers = "{}{}".format(sys.version_info.major, sys.version_info.minor)
+        whl_name = self.name = UvnDefaults["docker"]["context"]["connextdds_wheel_fmt"].format(
+            py_vers, py_vers, arch)
         whl_path = repo_dir / whl_name
         shutil.copy2(str(whl_path), str(dst_dir))
 
