@@ -82,7 +82,7 @@ RUN pip3 install pyyaml \
                  sh
 
 {% if rpi_extra %}
-Install additional apt dependencies for Raspberry Pi
+# Install additional apt dependencies for Raspberry Pi
 RUN apt-get install libatlas-base-dev \
                     libopenjp2-7 \
                     libtiff5
