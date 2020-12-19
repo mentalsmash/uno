@@ -463,19 +463,129 @@ uno_connext_arch()
             ;;
     esac
 }
+
+uno_connext_host()
+{
+    case "${UNO_PLATFORM}" in
+        Ubuntu|Debian)
+            printf "rti_connext_dds-6.0.1-pro-host-x64Linux.run"
+            ;;
+        Raspbian)
+            printf "rti_connext_dds-6.0.1-pro-armv8Linux4gcc7.3.0.tar.gz"
+            ;;
+    esac
+}
+
+uno_connext_target()
+{
+    return rti_connext_dds-6.0.1-pro-target-$(uno_connext_arch).rtipkg
+}
+
+uno_connext_install_host()
+{
+    local host_file="${1}"
+
+    if [ ! -f "${host_file}" ]; then
+        uno_error "Required host bundle not found: ${host_file}"
+    fi
+
+    uno_mkdir ${NDDSHOME}
+
+    uno_info "Installing RTI Connext DDS host bundle ${host_file} in ${NDDSHOME}"
+
+    case "${host_file}" in
+    *.run)
+        ${host_file} --mode unattended --prefix ${NDDSHOME}
+        ;;
+    *.tar.gz)
+        (
+            host_file=$(realpath ${host_file})
+            cd ${NDDSHOME}
+            tar xzf ${host_file}
+            mv rti_connext_dds-6.0.1/* .
+        )
+        ;;
+    esac
+}
+
+uno_connext_install_target()
+{
+    local tgt_file="${1}"
+
+    if [ ! -f "${tgt_file}" ]; then
+        uno_error "Required target bundle not found: ${tgt_file}"
+    fi
+
+    if [ ! -d "${NDDSHOME}" ]; then
+        uno_error "NDDSHOME not found: ${NDDSHOME}"
+    fi
+
+    uno_info "Installing RTI Connext DDS target bundle ${tgt_file} in ${NDDSHOME}"
+
+    # check if we have rtipkginstall
+    local rtipkginstall="${NDDSHOME}/bin/rtipkginstall"
+
+    if [ -x "${rtipkginstall}" ]; then
+        ${rtipkginstall} -u ${tgt_file}
+    else
+        local tmp_dir=/tmp/rtipkginstall-${RANDOM}
+        tgt_file=$(realpath ${tgt_file})
+        mkdir ${tmp_dir}
+        cd ${tmp_dir}
+        unzip ${tgt_file}
+        unzip $(basename ${tgt-file} | sed 's/\.rtipkg/.zip/')
+        rsync -ra rti_connext_dds-6.0.1/ ${NDDSHOME}/
+    fi
+}
+
+uno_connext_install()
+{
+    local install_host= \
+          install_tgt=
+    
+    if [ ! -d "${NDDSHOME}" ]; then
+        install_host=$(uno_connext_host)
+    fi
+
+    if [ ! -d "${NDDSHOME}/lib/$(uno_connext_arch)" ]; then
+        install_tgt=$(uno_connext_target)
+    fi
+
+    local nddshome=$(uno_select "RTI Connext DDS Installation Directory" \
+        "RTI Connext DDS will be installed in" \
+        "${NDDSHOME:-${NDDSHOME_DEFAULT}}")
+    
+    export NDDSHOME="${nddshome}"
+
+    if [ -n "${install_host}" ]; then
+        uno_connext_install_host "${install_host}"
+    fi
+
+    if [ -n "${install_tgt}" ]; then
+        uno_connext_install_target "${install_tgt}"
+    fi
+
+    if [ ! -d "${NDDSHOME}" -o ! -d "${NDDSHOME}/lib/$(uno_connext_arch)" ]; then
+        uno_error "failed to install RTI Connext DDS"
+    fi
+}
+
 uno_connext_check()
 {
     if [ ! -d "${NDDSHOME}" -o ! -d "${NDDSHOME}/lib/$(uno_connext_arch)" ]; then
-        uno_msgbox "RTI Connext DDS not found" \
-"UNO requires RTI Connext DDS to be installed and configured via the NDDSHOME variable.
+        uno_connext_install || (
+            uno_msgbox "RTI Connext DDS not found" \
+"uno requires RTI Connext DDS to be installed and configured via the NDDSHOME variable.
 
-It doesn't look like NDDSHOME ('${NDDSHOME}') is properly configured, or you might have not yet installed RTI Connext DDS.
+If you have installer files, place them in the current directory, then restart the script to install them automatically.
+You must provide:
 
-Please visit https://www.rti.com/free-trial for a free copy.
+- $(uno_connext_host)
+- $(uno_connext_target)
 
-Make sure to include libraries for target $(uno_connext_arch) in your installation." \
-                ${r} ${c}
-        uno_error "RTI Connext DDS not found."
+You can visit https://www.rti.com/free-trial for a free copy."
+            uno_error "RTI Connext DDS not found."
+        )
     else
         uno_info "RTI Connext DDS found: ${NDDSHOME}"
     fi
@@ -531,9 +641,7 @@ Would you like to install it?"
     fi
 
     if [ -n "${use_whl}" ]; then
-        uno_info "Instaling connextdds-py with ${whl}"
-        pip3 install ${whl}
-        sudo pip3 install ${whl}
+        uno_connextddspy_wheel_install "${whl}"
     else
         uno_connextddspy_wheel_generate "${tgt_dir}"
     fi
@@ -594,6 +702,14 @@ Would you like to try building connextdds-py from source anyway?"
         uno_error "failed to load connextdds-py wheel: ${b_whl}"
     fi
 
+    uno_connextddspy_wheel_install "${whl}"
+}
+
+uno_connextddspy_wheel_install()
+{
+    local whl="${1}"
+    local whl_base=$(basename ${whl})
+
     # Install connextdds-py for user and root to using the generated wheel
     uno_info "Installing connextdds-py for ${UNO_USER} from: ${whl}"
     pip3 install ${whl}
@@ -602,12 +718,7 @@ Would you like to try building connextdds-py from source anyway?"
     sudo pip3 install ${whl}
 
     uno_connextddspy_wheel_install ${whl}
-}
-
-uno_connextddspy_wheel_install()
-{
-    local whl="${1}"
-    local whl_base=$(basename ${whl})
+    
     uno_info "Caching ${whl_base} in ${UNO_WHL_DIR}"
     cp ${whl} ${UNO_WHL_DIR}
 }
@@ -657,6 +768,7 @@ DDSPY_DEPS_PIP="wheel
                 patchelf-wrapper"
 DDSPY_DEPS=build-essential
 UNO_WHL_DIR="${UNO_DIR}/libuno/data/dds"
+NDDSHOME_DEFAULT=/opt/rti/ndds
 ################################################################################
 ################################################################################
 # BEGIN ACTUAL SCRIPT
