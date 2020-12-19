@@ -499,7 +499,10 @@ uno_connext_install_host()
 
     case "${host_file}" in
     *.run)
-        ${host_file} --mode unattended --prefix ${NDDSHOME}
+        (
+            cd $(dirname ${host_file})
+            ./$(basename ${host_file}) --mode unattended --prefix ${NDDSHOME}
+        )
         ;;
     *.tar.gz)
         (
