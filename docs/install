@@ -494,6 +494,7 @@ uno_connext_install_host()
     fi
 
     uno_mkdir ${NDDSHOME}
+    local base_dir=$(dirname ${NDDSHOME})
 
     uno_info "Installing RTI Connext DDS host bundle ${host_file} in ${NDDSHOME}"
 
@@ -501,21 +502,24 @@ uno_connext_install_host()
     *.run)
         (
             cd $(dirname ${host_file})
-            ./$(basename ${host_file}) --mode unattended --prefix ${NDDSHOME} ||
+            ./$(basename ${host_file}) --mode unattended --prefix ${base_dir} ||
                 install_rc=$?
             if [ -n "${install_rc}" ]; then
                 uno_error "installer failed with rc: ${install_rc}"
             fi
-            rsync -ra ${NDDSHOME}/rti_connext_dds-6.0.1/ ${NDDSHOME}/
-            rm -fr ${NDDSHOME}/rti_connext_dds-6.0.1
+            if [ "${base_dir}/rti_connext_dds-6.0.1" != "${NDDSHOME}" ]; then
+                ln -s ${base_dir}/rti_connext_dds-6.0.1 ${NDDSHOME}
+            fi
         )
         ;;
     *.tar.gz)
         (
             host_file=$(realpath ${host_file})
-            cd ${NDDSHOME}
+            cd ${NDDSHOME}/..
             tar xzf ${host_file}
-            mv rti_connext_dds-6.0.1/* .
+            if [ "rti_connext_dds-6.0.1" != "$(basename ${NDDSHOME})" ]; then
+                ln -s rti_connext_dds-6.0.1 $(basename ${NDDSHOME})
+            fi
         )
         ;;
     esac
