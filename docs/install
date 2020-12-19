@@ -808,6 +808,15 @@ UNO_DIR=$(uno_select "uno installation directory" \
 uno_info "uno installation directory: ${UNO_DIR}"
 
 ################################################################################
+# Update apt
+################################################################################
+# Set apt interface to non-interactive
+export DEBIAN_FRONTEND=noninteractive
+
+uno_info "updating apt database"
+${APT_GET} update
+
+################################################################################
 # Install Git
 ################################################################################
 if [ ! -x "${GIT}" ]; then
