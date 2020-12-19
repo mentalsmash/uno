@@ -49,6 +49,14 @@ RUN apt-get install -y iputils-ping \
                        inetutils-traceroute \
                        ${APT_EXTRAS}
 
+{% if rpi_extra %}
+# Install additional apt dependencies for Raspberry Pi
+RUN apt-get install libatlas-base-dev \
+                    libopenjp2-7 \
+                    libtiff5 \
+                    libxcb1
+{% endif %}
+
 # Manually install Cython to fix build on Raspberry Pi
 RUN pip3 install cython
 
@@ -80,13 +88,6 @@ RUN pip3 install pyyaml \
                  python-daemon \
                  lockfile \
                  sh
-
-{% if rpi_extra %}
-# Install additional apt dependencies for Raspberry Pi
-RUN apt-get install libatlas-base-dev \
-                    libopenjp2-7 \
-                    libtiff5
-{% endif %}
 
 
 {% if dev %}
