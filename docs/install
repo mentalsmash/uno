@@ -794,10 +794,11 @@ fi
 ################################################################################
 # Install UNO with pip
 ################################################################################
-uno_info "Installing uno from ${UVN_DIR}"
+uno_info "Installing uno for ${UNO_USER}"
 # Install uno for current user
 pip3 install -e ${UNO_DIR}
 
+uno_info "Installing uno for root"
 # Install uno for root
 sudo pip3 install -e ${UNO_DIR}
 
