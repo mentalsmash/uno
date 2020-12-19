@@ -482,7 +482,7 @@ uno_connext_host()
 
 uno_connext_target()
 {
-    return rti_connext_dds-6.0.1-pro-target-$(uno_connext_arch).rtipkg
+    printf "rti_connext_dds-6.0.1-pro-target-$(uno_connext_arch).rtipkg"
 }
 
 uno_connext_install_host()
