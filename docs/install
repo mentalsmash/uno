@@ -496,7 +496,7 @@ uno_connext_install_host()
     uno_mkdir ${NDDSHOME}
 
     uno_info "Installing RTI Connext DDS host bundle ${host_file} in ${NDDSHOME}"
-    set -x
+
     case "${host_file}" in
     *.run)
         (
@@ -519,7 +519,6 @@ uno_connext_install_host()
         )
         ;;
     esac
-    set +x
 }
 
 uno_connext_install_target()
