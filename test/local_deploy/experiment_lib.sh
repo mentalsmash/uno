@@ -261,7 +261,7 @@ uvn_attach()
         set -x
         ${UVN} attach \
             --name ${cell_name} \
-            --addres ${cell_address} \
+            --address ${cell_address} \
             --admin ${cell_admin} \
             --admin-name "${cell_admin_name}" \
             ${UVN_EXTRA_ARGS}
