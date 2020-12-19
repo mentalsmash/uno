@@ -21,10 +21,8 @@ RUN apt-get install -y gpg \
 # Add debian repository then install wireguard
 RUN apt-key adv --keyserver hkp://p80.pool.sks-keyservers.net:80 \
                 --recv-keys 04EE7237B7D453EC 648ACFD622F3D138 && \
-    echo 'deb http://deb.debian.org/debian/ unstable main' > \
-        /etc/apt/sources.list.d/debian-unstable.list && \
-    printf 'Package: *\nPin: release a=unstable\nPin-Priority: 90\n' > \
-        /etc/apt/preferences.d/limit-debian-unstable && \
+    sh -c "echo 'deb http://deb.debian.org/debian/ unstable main' > /etc/apt/sources.list.d/debian-unstable.list" && \
+    sh -c "printf 'Package: *\nPin: release a=unstable\nPin-Priority: 90\n' > /etc/apt/preferences.d/limit-debian-unstable" && \
     apt-get update && \
     apt-get install -y wireguard raspberrypi-kernel-headers
 {% else %}
