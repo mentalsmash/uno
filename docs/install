@@ -16,25 +16,59 @@
 # along with this program. If not, see <https://www.gnu.org/licenses/>.
 ###############################################################################
 set -e
+[ -z "${DEBUG}" ] || set -x
 
 ################################################################################
 # Logging helpers
 ################################################################################
 uno_error()
 {
+    printf "${COLOR_RED_BOLD}"
     echo ERROR: $@ >&2
+    printf "${COLOR_RESET}"
+    printf "${_log_color}"
     exit 1
 }
 
 uno_warning()
 {
+    printf "${COLOR_YELLOW_BOLD}"
     echo WARNING: $@ >&2
+    printf "${COLOR_RESET}"
+    printf "${_log_color}"
 }
 
 uno_info()
 {
+    printf "${COLOR_BLUE_BOLD}"
     echo I: $@
+    printf "${COLOR_RESET}"
+    printf "${_log_color}"
 }
+
+if [ -z "${NOCOLOR}" ]; then
+    export COLOR_RESET='\033[0m' \
+           COLOR_BLACK='\033[0;30m' \
+           COLOR_GRAY='\033[1;30m' \
+           COLOR_RED='\033[0;31m' \
+           COLOR_RED_BOLD='\033[1;31m' \
+           COLOR_GREEN='\033[0;32m' \
+           COLOR_GREEN_BOLD='\033[1;32m' \
+           COLOR_YELLOW='\033[0;33m' \
+           COLOR_YELLOW_BOLD='\033[1;33m' \
+           COLOR_BLUE='\033[0;34m' \
+           COLOR_BLUE_BOLD='\033[1;34m' \
+           COLOR_PURPLE='\033[0;35m' \
+           COLOR_PURPLE_BOLD='\033[1;35m' \
+           COLOR_CYAN='\033[0;36m' \
+           COLOR_CYAN_BOLD='\033[1;36m' \
+           COLOR_LIGHT_GRAY='\033[0;37m' \
+           COLOR_WHITE='\033[1;37m'
+fi
+
+# Set a default color for script's output
+_log_color=${COLOR_CYAN}
+printf "${_log_color}"
 
 ################################################################################
 # Installation Environment Helpers
@@ -43,22 +77,41 @@ uno_detect_os()
 {
     local uno_platform=
     if [ -x "$(which lsb_release)" ]; then
-        uno_platform=$(lsb_release -si)
+        uno_platform=$(lsb_release -si 2>/dev/null)
     elif [ -d /etc/os-release ]; then
-        uno_platform=$(
-            (. /etc/os-release
-             echo ${NAME} ) | awk '{ print $1 }' )
+        uno_platform=$(. /etc/os-release 1>/dev/null 2>&1;
+            printf "%s" "${NAME}" | awk '{ print $1 }')
     else
+        printf ""
         return
     fi
 
     case "${uno_platform}" in
         Ubuntu|Raspbian|Debian)
-            echo "${uno_platform}"
+            printf "%s" "${uno_platform}"
             ;;
         *)
+            printf ""
             ;;
     esac
+}
+
+uno_mkdir()
+{
+    # Try to create directory as user, then fall back to root if needed
+    mkdir -p ${1} || local root_path=y
+    [ -z "${root_path}" ] || (
+        ${SUDO} mkdir -p "${1}"
+        # TODO chown the whole ${1} hierarchy, not just the leaf directory
+        ${SUDO} chown ${UNO_USER}:${UNO_USER_GROUP} "${1}"
+    )
+}
+
+uno_python_check()
+{
+    # Check if a python module is already installed
+    python3 -c "import ${1}; print(${1}.__name__)" 1>/dev/null || return 0
+    sudo python3 -c "import ${1}; print(${1}.__name__)" 1>/dev/null || return 0
 }
 
 ################################################################################
@@ -76,9 +129,10 @@ uno_git_clone()
     if [ -d "${tgt_dir}" ]; then
         uno_warning "Directory already exists: ${tgt_dir}"
 
-        if uno_yesno "Update repository ${tgt_dir}" \
+        uno_yesno "Update repository ${tgt_dir}" \
 "Would you like to update repository ${tgt_dir} to the latest version of branch ${tgt_branch} from ${tgt_url}?" \
-                    ${r} ${c}; then
+--defaultno
+        if uno_wprc_yes; then
             uno_git_update "${what}" "${tgt_dir}" ${tgt_branch}
         else
             uno_warning "Directory non updated: ${tgt_dir}"
@@ -86,12 +140,15 @@ uno_git_clone()
         return
     fi
 
-    mkdir -p ${tgt_dir}
-    ${SUDO} chown ${UNO_USER}:${UNO_USER_GROUP} "${UNO_DIR}"
-    ${GIT} init
-    ${GIT} remote add uno-setup ${tgt_url}
-    ${GIT} pull --depth 1 uno-setup ${tgt_branch}
-    ${GIT} checkout ${tgt_branch}
+    uno_mkdir ${tgt_dir}
+    (
+        cd ${tgt_dir}
+        ${GIT} init
+        ${GIT} remote add uno-setup ${tgt_url}
+        ${GIT} pull --depth 1 uno-setup ${tgt_branch}
+        ${GIT} checkout ${tgt_branch}
+        ${GIT} submodule update --init --recursive
+    )
 }
 
 uno_git_update()
@@ -100,14 +157,19 @@ uno_git_update()
           tgt_dir="${2}" \
           tgt_branch="${3}"
     
+    [ -d "${tgt_dir}" ] || uno_error "${what} not found: ${tgt_dir}"
+
     uno_info "Updating ${what} (${tgt_branch}) in ${tgt_dir}"
 
-    cd ${tgt_dir}
-    if [ -z "$(${GIT} remote 2>/dev/null | grep uno-setup)" ]; then
+    if [ -z "$(cd ${tgt_dir}; ${GIT} remote 2>/dev/null | grep uno-setup)" ]; then
         uno_error "Repository not initialized by this script: ${tgt_dir}"
     fi
-    ${GIT} pull --depth 1 uno-setup ${tgt_branch}
-    ${GIT} checkout ${tgt_branch}
+    (
+        cd ${tgt_dir}
+        ${GIT} pull --depth 1 uno-setup ${tgt_branch}
+        ${GIT} checkout ${tgt_branch}
+        ${GIT} submodule update --recursive
+    )
 }
 
 ################################################################################
@@ -125,17 +187,50 @@ c=$(( columns / 2 ))
 r=$(( r < 20 ? 20 : r ))
 c=$(( c < 70 ? 70 : c ))
 
+
+# Global variable used to store the last retcode from whiptail
+WPRC=0
+
+# Constants used to check whiptail retcodes
+WPRC_YES=0
+WPRC_NO=1
+WPRC_EXIT=255
+
+uno_wprc_yes()
+{
+    [ ${WPRC} -eq ${WPRC_YES} ]
+}
+
+uno_wprc_no()
+{
+    [ ${WPRC} -eq ${WPRC_NO} ]
+}
+
+uno_wprc_exit()
+{
+    [ ${WPRC} -eq ${WPRC_EXIT} ]
+}
+
+uno_wprc_check()
+{
+    if uno_wprc_exit; then
+        uno_error "Installer interrupted"
+    fi
+}
+
 uno_yesno()
 {
     local title="${1}" \
           text="${2}" \
           extra_args="${3}"
 
+    WPRC=0
     whiptail --title "${title}" \
-             --yesno \
-             ${extra_args} \
-             "${text}" \
-             ${r} ${c} 1>/dev/null 2>&1
+          --yesno \
+          ${extra_args} \
+          "${text}" \
+          ${r} ${c} || WPRC=$?
+    uno_wprc_check
 }
 
 uno_inputbox()
@@ -144,10 +239,13 @@ uno_inputbox()
           prompt="${2}" \
           default="${3}"
     
+    WPRC=0
     whiptail --title "${title}" \
-             --inputbox \
-             "${prompt}" \
-             ${r} ${c} ${default} 1>/dev/null
+          --inputbox \
+          "${prompt}" \
+          ${r} ${c} \
+          ${default} 3>&1 1>&2 2>&3 || WPRC=$?
+    uno_wprc_check
 }
 
 uno_msgbox()
@@ -155,10 +253,12 @@ uno_msgbox()
     local title="${1}" \
           text="${2}"
     
+    WPRC=0
     whiptail --title "${title}" \
-             --msgbox \
-             "${text}" \
-             ${r} ${c} 1>/dev/null 2>&1
+          --msgbox \
+          "${text}" \
+          ${r} ${c} || WPRC=$?
+    uno_wprc_check
 }
 
 uno_select()
@@ -171,22 +271,22 @@ uno_select()
           i=0
 
     while [ ${i} -lt ${max_tries} ]; do
-        if ! uno_yesno "Select ${what}" \
+        uno_yesno "Select ${what}" \
 "${prompt}: ${result}
 
-Continue with this value?"; then
-            result=$(uno_inputbox "Specify ${what}" \
-                                  "${what}:"
-                                  "${default}")
-        else
+Continue with this value?" 3>&1 1>&2 2>&3
+        if uno_wprc_yes; then
             break
         fi
-        i=$(expr ${i} + ${max_tries})
+        result=$(uno_inputbox "Specify ${what}" \
+                              "${what}:" \
+                              "${default}") 
+        i=$(expr ${i} + 1)
     done
     if [ ${i} -ge ${max_tries} ]; then
         uno_error "Failed to select: ${what}"
     fi
-    print "%s" "${result}"
+    printf "%s" "${result}"
 }
 
 
@@ -226,10 +326,11 @@ uno_wireguard_build()
     ${APT_GET} install -y -qq ${WG_DEPS}
     
     uno_info "Cloning WireGuard to ${wg_dir}..."
-    ${SUDO} mkdir -p ${wg_dir}
-    ${SUDO} chown ${UNO_USER}:${UNO_USER_GROUP} "${wg_dir}"
-    uno_git_clone "${wg_dir}/wireguard-linux-compat" ${WG_URL} ${WG_BRANCH}
-    uno_git_clone "${wg_dir}/wireguard-tools" ${WG_URL_TOOLS} ${WG_BRANCH}
+    uno_mkdir ${wg_dir}
+    uno_git_clone "wireguard kernel module" 
+                  "${wg_dir}/wireguard-linux-compat" ${WG_URL} ${WG_BRANCH}
+    uno_git_clone "wireguard tools" \
+                  "${wg_dir}/wireguard-tools" ${WG_URL_TOOLS} ${WG_BRANCH}
     
     uno_info "Building WireGuard kernel module..."
     make -C "${wg_dir}/wireguard-linux-compat/src" -j$(nproc)
@@ -273,12 +374,13 @@ We will try to install it from binary packages, or build it from source if that 
 
     # Try to install wireguard from packages
     if [ -z "${wireguard_pkg}" ]; then
-        if ! uno_yesno "Build WireGuard from source?" \
+        uno_yesno "Build WireGuard from source?" \
 "Failed to install WireGuard from binary packages.
 
 Would you like to try building it from source?
 
-The kernel headers are required to do this, and they will be automatically installed."; then
+The kernel headers are required to do this, and they will be automatically installed."
+        if uno_wprc_no; then
             uno_error "WireGuard must be installed to run uno"
         fi
         uno_wireguard_build
@@ -366,9 +468,9 @@ uno_connext_check()
 
 It doesn't look like NDDSHOME ('${NDDSHOME}') is properly configured, or you might have not yet installed RTI Connext DDS.
 
-Please visit https://www.rti.com/free-trial to retrieve a free copy.
+Please visit https://www.rti.com/free-trial for a free copy.
 
- Make sure to include libraries for target $(uno_connext_arch) in your installation." \
+Make sure to include libraries for target $(uno_connext_arch) in your installation." \
                 ${r} ${c}
         uno_error "RTI Connext DDS not found."
     else
@@ -379,15 +481,9 @@ Please visit https://www.rti.com/free-trial to retrieve a free copy.
 ################################################################################
 # Clone connextdds-py
 ################################################################################
-uno_connextddspy_check()
-{
-    # Check if connextdds-py is already installed
-    python3 -c "import rti.connextdds" &&
-    sudo python3 -c "import rti.connextdds"
-}
-
 uno_connextddspy_wheel()
 {
+    local tgt_dir="${1}"
     local _whl=$(
         case "${UNO_PLATFORM}" in
         Ubuntu|Debian)
@@ -404,57 +500,96 @@ uno_connextddspy_wheel()
         return
     fi
 
-    _whl="${DDSPY_DIR}/${_whl}"
+    _whl="${tgt_dir}/${_whl}"
     if [ -f "${_whl}" ]; then
         printf "${_whl}"
         return
     fi
 }
 
-uno_connextddspy_build()
+uno_connextddspy_install()
 {
-    local tgt_dir="${1}"
+    local tgt_dir="$(uno_select "connextdds-py source directory" \
+        "connextdds-py will be cloned in directory" \
+        "${DDSPY_DIR}")"
+    local whl=$(uno_connextddspy_wheel ${tgt_dir}) \
+          use_whl=
+
+    if [ -f "${whl}" ]; then
+       uno_yesno "Install connextdds-py from wheel" \
+"Pre-built wheel for connextdds-py found: ${whl}
+
+Would you like to install it?"
+        uno_wprc_no || use_whl=y
+    fi
+
+    if [ -n "${use_whl}" ]; then
+        uno_info "Instaling connextdds-py with ${whl}"
+        pip3 install ${whl}
+        sudo pip3 install ${whl}
+    else
+        uno_connextddspy_wheel_generate "${tgt_dir}" "${whl}"
+    fi
+
+}
+
+uno_connextddspy_wheel_generate()
+{
+    local tgt_dir="${1}" \
+          whl="${2}" \
+          uno_dir="${UNO_DIR}/libuno/data/dds"
+    local whl_base=$(basename ${whl})
+
+    uno_info "Building connextdds-py from source..."
 
     case "${UNO_PLATFORM}" in
         Raspbian)
-            if ! uno_yesno "Building connextdds-py on Raspberry Pi" \
+            uno_yesno "Building connextdds-py on Raspberry Pi" \
 "connextdds-py requires large amounts of memory to build, and compilation will likely fail on Raspberry Pi 3 or earlier.
 
-Would you still like to try building connextdds-py from source?" \
-                     ${r} ${c}; then
-                uno_error "Please install connextdds-py manually then try again."
+Would you like to try building connextdds-py from source anyway?"
+            if uno_wprc_no; then
+                uno_error "Please install connextdds-py manually for users ${UNO_USER} and root, then run this script again."
                 exit 1
             fi
             ;;
         *)
             ;;
     esac
-
-    uno_check_connext
-
-    uno_info "Installing dependencies for connextdds-py"
-    pip3 install -q -U wheel \
-               setuptools \
-               cmake \
-               patchelf-wrapper
-    ${APT_GET} install -y -qq build-essential
     
-    uno_info "Cloning connextdds-py..."
-    uno_git_clone "${tgt_dir}" https://github.com/rticommunity/connextdds-py master
+    uno_connext_check
+
+    uno_info "Installing Python dependencies for connextdds-py: ${DDSPY_DEPS_PIP}"
+    pip3 install -q -U ${DDSPY_DEPS_PIP}
+    uno_info "Installing system dependencies for connextdds-py: ${DDSPY_DEPS}"
+    ${APT_GET} install -y -qq ${DDSPY_DEPS}
+    
+    uno_git_clone "connextdds-py"\
+                  "${tgt_dir}" \
+                  https://github.com/rticommunity/connextdds-py master
+
+
+    if [ ! -f "${whl}" ]; then
+        uno_warning "Overwriting existing connextdds-py wheel: ${whl}"
+    fi
+
     (
         cd ${tgt_dir}
-        uno_info "Configuring connextdds-py for $(uno_connext_arch)..."
-        python3 configure.py $(uno_connext_arch)
-        uno_info "Installing connextdds-py (this might take a while)..."
-        CONNEXTDDS_ARCH=$(uno_connext_arch) pip3 install .
+        connext_arch=$(uno_connext_arch)
+        uno_info "Configuring connextdds-py for ${connext_arch}..."
+        python3 configure.py -j$(nproc) ${connext_arch}
+        uno_info "Generating connextdds-py wheel (this might take a while): ${whl_base}"
+        CONNEXTDDS_ARCH=${connext_arch} pip3 wheel .
     )
-    local whl=$(uno_connextddspy_wheel) \
-          uno_dir="${UNO_DIR}/libuno/data/dds"
     
-    # Install connextdds-py for root to using the generated wheel
+    # Install connextdds-py for user and root to using the generated wheel
+    uno_info "Installing connextdds-py for ${UNO_USER}"
+    pip3 install ${whl}
+
+    uno_info "Installing connextdds-py for root"
     sudo pip3 install ${whl}
 
-    uno_info "Caching $(basename ${whl}) in ${uno_dir}"
+    uno_info "Caching ${whl_base} in ${uno_dir}"
     cp ${whl} ${uno_dir}
 }
 
@@ -467,7 +602,8 @@ UNO_USER=${UNO_USER:-$(whoami)}
 UNO_HOST=${UNO_HOST:-$(hostname)}
 UNO_BRANCH=${UNO_BRANCH:-master}
 UNO_URL=${UNO_URL:-https://github.com/mentalsmash/uno}
-UNO_DIR="${UNO_DIR:-/opt/uvn}"
+UNO_WEB=https://uno.mentalsmash.org
+UNO_DIR="${UNO_DIR:-/opt/uno}"
 UNO_DEPS_SYS="iproute2
               python3-pip
               gnupg2
@@ -487,6 +623,7 @@ UNO_DEPS_RPI="libatlas-base-dev
 SUDO=$([ "$(id -u)" = 0 ] || printf sudo)
 APT_GET="${SUDO} apt-get"
 GIT=$(which git)
+WG_DIR=/opt/wg
 WG_DEPS="libelf-dev
          linux-headers-$(uname -r)
          build-essential
@@ -494,6 +631,12 @@ WG_DEPS="libelf-dev
 WG_URL=https://git.zx2c4.com/wireguard-linux-compat \
 WG_URL_TOOLS=https://git.zx2c4.com/wireguard-tools \
 WG_BRANCH=master
+DDSPY_DIR=/opt/rti/connextdds-py
+DDSPY_DEPS_PIP="wheel
+                setuptools
+                cmake
+                patchelf-wrapper"
+DDSPY_DEPS=build-essential
 
 ################################################################################
 ################################################################################
@@ -507,13 +650,19 @@ WG_BRANCH=master
 [ -n "${UNO_PLATFORM}" ] ||
     uno_error "Failed to detect host OS, or OS not supported by this script."
 [ -z "${SUDO}" ] ||
-    uno_warning "This script requires root privileges. User ${UNO_USER} must be able to use sudo"
+    _root_warning="This script requires root privileges. User ${UNO_USER} must be able to use sudo"
+    uno_warning "${_root_warning}"
+    _root_warning="\n${_root_warning}\n"
+    
 
-uno_yesno "Welcome to uno" \
-"This script will install uno for ${UNO_PLATFORM} on ${UNO_HOST} using branch ${UNO_BRANCH} of ${UNO_URL}.
+uno_yesno "Install uno for ${UNO_PLATFORM}" \
+"This script will install uno for user ${UNO_USER} on host ${UNO_HOST} using branch ${UNO_BRANCH} of repository ${UNO_URL}.
+${_root_warning}
+Would you like to continue with the installation?
 
-Would you like to continue with the installation?" ||
-    uno_error "Installation cancelled"
+(Press ESC at any time to exit)"
+
+uno_wprc_yes || uno_error "Installation cancelled"
 
 ################################################################################
 # Select root installation directory for uno
@@ -522,6 +671,8 @@ UNO_DIR=$(uno_select "uno installation directory" \
            "uno will be installed in the following directory" \
            "${UNO_DIR}")
 
+uno_info "uno installation directory: ${UNO_DIR}"
+
 ################################################################################
 # Install Git
 ################################################################################
@@ -529,30 +680,33 @@ if [ ! -x "${GIT}" ]; then
     uno_info "git not found in PATH, installing it"
     ${APT_GET} install -y -qq git
     GIT=$(which git)
+else
+    uno_info "git found: ${GIT}"
 fi
 
 ################################################################################
 # Check if UNO is already installed
 ################################################################################
-if [ -d "${UNO_DIR}" ] &&
+if [ -d "${UNO_DIR}" ]; then
     uno_yesno "Detected existing uno installation" \
 "UNO seems to be already installed under ${UNO_DIR}.
 
-Would you like to delete it and re-install it?" \
-        --defaultno; then
-    uno_info "Deleting existing uno instalation: ${UNO_DIR}"
-    ${SUDO} rm -rf "${UNO_DIR}"
+Would you like to delete it and re-install it from scratch?" \
+        --defaultno
+    uno_wprc_no || (
+        uno_info "Deleting existing uno instalation: ${UNO_DIR}"
+        ${SUDO} rm -rf "${UNO_DIR}"
+    )
 fi
 
 ################################################################################
 # Initialize uno directory by cloning git repository
 ################################################################################
-uno_git_clone "${UNO_DIR}" "${UNO_URL}" "${UNO_BRANCH}"
+uno_git_clone "uno" "${UNO_DIR}" "${UNO_URL}" "${UNO_BRANCH}"
 
 ################################################################################
 # System Dependencies
 ################################################################################
-uno_info "Installing uno's system dependencies"
 
 _uno_deps="${UNO_DEPS_SYS}"
 case "${UNO_PLATFORM}" in
@@ -563,6 +717,7 @@ case "${UNO_PLATFORM}" in
         ;;
 esac
 
+uno_info "Installing uno's system dependencies: ${_uno_deps}"
 ${APT_GET} install -y -qq ${_uno_deps}
 
 ################################################################################
@@ -584,11 +739,11 @@ fi
 
 # Check if docker is installed (naive check for 'docker' in PATH)
 if ! uno_docker_check; then
-    if uno_yesno "Run uno with Docker" \
+    uno_yesno "Run uno with Docker" \
 "UNO's agent may be deployed inside a Docker container.
 
-Would you like to install Docker on the current host?" \
-                ${r} ${c}; then
+Would you like to install Docker on the current host?"
+    if uno_wprc_yes; then
         case "${UNO_PLATFORM}" in
             Ubuntu|Debian)
                 uno_docker_install
@@ -597,6 +752,8 @@ Would you like to install Docker on the current host?" \
                 uno_docker_install_sh
                 ;;
         esac
+    else
+        uno_warning "Docker not installed"
     fi
 else
     uno_info "Docker already installed: $(${SUDO} docker --version)"
@@ -608,48 +765,49 @@ if ! docker ps -a 2>/dev/null 1>&2; then
         uno_error "current user is part of the docker group but can't run docker. Please check your installation."
     fi
 
-    if uno_yesno "Configure Docker for user" \
+    uno_yesno "Configure Docker for user" \
 "User '${UNO_USER}' is not configured to access the Docker daemon. All Docker operations will required the use of 'sudo'.
 
-Would you like to add '${UNO_USER}' to group 'docker' to enable access to the Docker daemon?" \
-                ${r} ${c}; then
+Would you like to add '${UNO_USER}' to group 'docker' to enable access to the Docker daemon?"
+    if uno_wprc_yes; then
         ${SUDO} usermod -a -G docker ${UNO_USER}
         
         uno_warning "Log out and back in again to enable new user credentials for Docker."
     fi
+else
+    uno_info "Docker enabled for ${UNO_USER}"
 fi
 
 ################################################################################
 # Clone and build connextdds-py
 ################################################################################
-if ! uno_connextddspy_check; then
-    DDSPY_DIR="${DDSPY_DIR:=/opt/rti/connextdds-py}"
-    _connextddspy_whl=$(uno_connextddspy_wheel)
-    if [ -f "${_connextddspy_whl}" ] &&
-        uno_yesno "Install connextdds-py from pre-built wheel" \
-"Pre-built wheel for connextdds-py found at: $(uno_connextddspy_wheel)
+if ! uno_python_check rti.connextdds; then
+    uno_connextddspy_install
+fi
 
-Would you like to install it?" \
-                 ${r} ${c}; then
-        uno_info "Instaling connextdds-py with ${_connextddspy_whl}"
-        pip3 install ${_connextddspy_whl}
-        sudo pip3 install ${_connextddspy_whl}
-    else
-        uno_info "connextdds-py not found. Building it from source..."
-        uno_connextddspy_build "${DDSPY_DIR}"
-    fi
+if ! uno_python_check rti.connextdds; then
+    uno_error "Failed to load connextdds-py"
+else
+    uno_info "installed: connextdds-py"
 fi
 
 ################################################################################
 # Install UNO with pip
 ################################################################################
-uno_info "Installing UNO..."
-# Install uno for current user
-pip3 install -e ${UNO_DIR}
+if ! uno_python_check libuno; then
+    uno_info "Installing uno from ${UVN_DIR}"
+    # Install uno for current user
+    pip3 install -e ${UNO_DIR}
 
-# Install uno for root
-sudo pip3 install -e ${UNO_DIR}
+    # Install uno for root
+    sudo pip3 install -e ${UNO_DIR}
+fi
 
+if ! uno_python_check libuno; then
+    uno_error "Failed to load libuno"
+else
+    uno_info "installed: uno"
+fi
 
 ################################################################################
 # Test uvn command
@@ -675,43 +833,115 @@ _installer_cleanup()
 trap _installer_cleanup EXIT
 
 ################################################################################
-# Optionally run simple_validation.sh
+# Optionally run the included tests
 ################################################################################
 _test_interrupted=
-_test_check_exit()
+_test_rc=
+_test_dir=
+_test=
+_test_path=
+_test_desc=
+_test_do_run=
+
+uno_test_interrupted()
 {
     _test_interrupted=y
 }
 
-_test_dir=$(pwd)/uno-install-test
+uno_test_check()
+{
+    local what="${1}"
+    if [ -n "${_test_interrupted}" ]; then
+        uno_info "test ${what} succeeded!"
+    elif [ "${_test_rc}" -ne 0 ]; then
+        uno_error "test ${what} FAILED (${test_rc})"
+    fi
+}
 
-if uno_yesno "Validate UNO installation" \
-"UNO has been successfully installed on the system.
-            
-Would you like to test the installation by generating a demo UVN configuration?
+uno_test_run()
+{
 
-This might take a few minutes. Directory ${_test_dir} will be deleted if it already exists.
+    [ -z "${_test_do_run}" ] || uno_yesno "Run test ${_test}" \
+"${_test} ${_test_desc}
 
-After generating a mock uvn configuration, the test will spawn the root registry agent to verify that you can actually run uno on the system.
+Directory ${_test_dir} will be created (and deleted if it already exists).
 
-Once the agent has started, you can resume this script by terminating the agent process with CTRL+C." \
-            ${r} ${c}; then
+Run the test?
+
+(${_test_exit})"
+
+    if [ -z "${_test_do_run}" ] || uno_wprc_no; then
+        uno_info "test skipped: ${_test}"
+        return
+    fi
+
     rm -rf ${_test_dir}
     mkdir ${_test_dir}
+    trap uno_test_interrupted INT TERM
     cd ${_test_dir}
-    trap _test_check_exit INT TERM
     # disable exit on error
     set +e
-    ${UNO_DIR}/test/simple_validation.sh
-    test_rc=$?
-    if [ -n "${_test_interrupted}" ]; then
-        uno_info "UNO validation succeeded!"
-    elif [ "${test_rc}" -ne 0 ]; then
-        uno_error "UNO validation FAILED (${test_rc})"
-    else
-        uno_error "uvn agent terminated before signal"
-    fi
-fi
+    ${_test_run}
+    _test_rc=$?
+    # re-enable exit on error
+    set -e
+    cd -
+    uno_test_check ${_test_rc}
+}
+
+uno_yesno "Validate uno installation" \
+"uno has been successfully installed on the system.
+
+Would you like to run some demo scenarios to verify that it actually works?"
+
+uno_wprc_no || _test_do_run=y
+
+################################################################################
+# simple_validation.sh
+################################################################################
+
+_test_dir=$(pwd)/uno-test-simple
+_test=simple_validation.sh
+_test_run=${UNO_DIR}/test/simple_validation.sh
+_test_desc="performs a basic validation of the uno installation:
+
+  - It creates a new UVN configuration.
+  - It attaches 3 cells to the UVN.
+  - It generates a new deployment.
+  - It installs the generated deployment packages.
+  - It starts the root agent."
+_test_exit="You can exit the test at any time by pressing CTRL+C."
+
+uno_test_run
+
+################################################################################
+# experiment_local.sh
+################################################################################
+EXPLOC_NETS=4
+
+_experiment_local()
+{
+    local exp_nets=$(uno_select "number of private networks" \
+        "Select the number of private networks that the test will attach to the UVN.
+
+Current value" \
+        ${EXPLOC_NETS})
+
+    (
+        cd ${_test_dir}
+        NETS=${exp_nets} VERBOSE=y ${UNO_DIR}/test/simple_validation.sh
+    )
+}
+
+_test_dir=$(pwd)/uno-test-local
+_test=experiment_local.sh
+_test_run=_experiment_local
+_test_desc="is a more advanced test which simulates a uvn locally using Docker containers.
+The test creates an arbitrary number of private networks, each one containing 3 hosts (a gateway, a cell, and regular host).
+All LANs are connected to a common \"internet\" which contains the UVN registry, and a \"roaming\" cell."
+_test_exit="Use CTRL+C to interrupt the test while loading. Exit tmux by pressing CTRL+B, and typing ':kill-session'"
+
+uno_test_run
 
 ################################################################################
 # Done
@@ -719,7 +949,7 @@ fi
 uno_msgbox "UNO installed" \
 "Congratulations, you have successfully installed UNO on ${UNO_HOST}.
 
-Run \`uvn -h\` for a list of available commands." \
+Run \`uvn -h\` to get started with a list of available commands or visit ${UNO_WEB} to consult the documentation." \
             ${r} ${c}
 
 uno_info "UNO successfully installed."
