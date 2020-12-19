@@ -1056,6 +1056,8 @@ uno_test_run
 EXPLOC_NETS=4
 EXPLOC_DEPLOY=yes
 
+_tmux_escape="CTRL+B"
+
 _tmux_check_escape()
 {
     local tmux_conf="${HOME}/.tmux.conf"
@@ -1075,6 +1077,7 @@ Would you like to install rule '${tmux_cfg}' in ${tmux_conf} to modify the escap
 ${tmux_cfg}
 " >> ${tmux_conf}
             uno_warning "Enabled CTRL+A as tmux escape sequence"
+            _tmux_escape="CTRL+A"
         fi
     fi
 }
@@ -1105,8 +1108,8 @@ Current value (leave empty to disable)" \
     uno_msgbox "One more thing before we start..." \
 "The test uses tmux to display terminals to each containers.
 
-You can navigate between tmux panels using CTRL+B and the arrow keys.
-To switch between windows press CTRL+B then P or N.
+You can navigate between tmux panels using ${_tmux_escape} and the arrow keys.
+To switch between windows press ${_tmux_escape} then P or N.
 
 All panels display either one of the container's logs, or a control shell inside it."
 
@@ -1123,7 +1126,7 @@ _test_run=_experiment_local
 _test_desc="is a more advanced test which simulates a uvn locally using Docker containers.
 The test creates an arbitrary number of private networks, each one containing 3 hosts (a gateway, a cell, and regular host).
 All LANs are connected to a common \"internet\" which contains the UVN registry, and a \"roaming\" cell."
-_test_exit="Use CTRL+C to interrupt the test while loading. Exit tmux by pressing CTRL+B, and typing ':kill-session'"
+_test_exit="Use CTRL+C to interrupt the test while loading. Exit tmux by pressing ${_tmux_escape}, and typing ':kill-session'"
 
 uno_test_run
 
