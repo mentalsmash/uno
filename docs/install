@@ -717,8 +717,6 @@ uno_connextddspy_wheel_install()
     uno_info "Installing connextdds-py for root from: ${whl}"
     sudo pip3 install ${whl}
 
-    uno_connextddspy_wheel_install ${whl}
-    
     uno_info "Caching ${whl_base} in ${UNO_WHL_DIR}"
     cp ${whl} ${UNO_WHL_DIR}
 }
