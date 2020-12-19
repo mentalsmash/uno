@@ -501,7 +501,13 @@ uno_connext_install_host()
     *.run)
         (
             cd $(dirname ${host_file})
-            ./$(basename ${host_file}) --mode unattended --prefix ${NDDSHOME}
+            ./$(basename ${host_file}) --mode unattended --prefix ${NDDSHOME} ||
+                install_rc=$?
+            if [ -n "${install_rc}" ]; then
+                uno_error "installer failed with rc: ${install_rc}"
+            fi
+            mv ${NDDSHOME}/rti_connext_dds-6.0.1/* ${NDDSHOME}
+            rm -r ${NDDSHOME}/rti_connext_dds-6.0.1
         )
         ;;
     *.tar.gz)
