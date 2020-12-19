@@ -485,7 +485,13 @@ class UvnRegistry:
             # Delete unencrypted archive
             archive_path.unlink()
             # Delete staging directory
-            shutil.rmtree(str(pkg_dir))
+            try:
+                # For some reason, this call succeeds on x86_64, but fails
+                # on RPi with error: "No such file or directory: 'S.gpg-agent.ssh'"
+                shutil.rmtree(str(pkg_dir))
+            except Exception as e:
+                logger.exception(e)
+                logger.warning("failed to remove build directory: {}", pkg_dir)
         else:
             logger.warning("[tmp] not deleted: {}", archive_path)
             logger.warning("[tmp] not deleted: {}", pkg_dir)
