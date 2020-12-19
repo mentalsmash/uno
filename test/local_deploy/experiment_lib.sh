@@ -193,8 +193,13 @@ docker_start()
 docker_wipe_containers()
 {
     log_debug " wiping all docker containers..."
-    (${DOCKER} rm -f $@ || [ -n some_containers_didnt_exists ]) \
-        >> ${EXPERIMENT_LOG} 2>&1
+    # (${DOCKER} rm -f $@ || [ -n some_containers_didnt_exists ]) \
+    #     >> ${EXPERIMENT_LOG} 2>&1
+    # Delete containers one by one to avoid crashing Raspberry Pi
+    for d in $@; do
+        (${DOCKER} rm -f $d || [ -n some_containers_didnt_exists ]) \
+            >> ${EXPERIMENT_LOG} 2>&1
+    done
     # ${DOCKER} rm -f $@
     log_info "[wiped] all docker containers"
 }
