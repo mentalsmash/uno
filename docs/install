@@ -1056,6 +1056,29 @@ uno_test_run
 EXPLOC_NETS=4
 EXPLOC_DEPLOY=yes
 
+_tmux_check_escape()
+{
+    local tmux_conf="${HOME}/.tmux.conf"
+    local tmux_cfg="set -g prefix C-a"
+
+    if [ ! -f "${tmux_conf}" ] || ! grep "${tmux_cfg}" ${tmux_conf}; then
+        uno_yesno "Update tmux escape sequence" \
+"It looks like you are using tmux's default escape sequence, CTRL+B.
+This sequence must be typed to perform any command, and it's a bit awkward.
+
+Taking inspiration from the \`screen\` utility, we think CTRL+A is a more natural mapping.
+
+Would you like to install rule '${tmux_cfg}' in ${tmux_conf} to modify the escape sequence to CTRL+A?"
+
+        if uno_wprc_yes; then
+            printf "# make ctrl-a the default key to get to \"meta\" mode instead of ctrl-b
+${tmux_cfg}
+" >> ${tmux_conf}
+            uno_warning "Enabled CTRL+A as tmux escape sequence"
+        fi
+    fi
+}
+
 _experiment_local()
 {
     case "${UNO_PLATFORM}" in
@@ -1077,13 +1100,13 @@ You can generate a deployment at any time by navigating to the root agent's cont
 Current value (leave empty to disable)" \
         ${EXPLOC_DEPLOY})
     
+    _tmux_check_escape
+
     uno_msgbox "One more thing before we start..." \
 "The test uses tmux to display terminals to each containers.
 
 You can navigate between tmux panels using CTRL+B and the arrow keys.
 To switch between windows press CTRL+B then P or N.
-
-Try CTRL+A if CTRL+B doesn't seem to work.
 
 All panels display either one of the container's logs, or a control shell inside it."
 
