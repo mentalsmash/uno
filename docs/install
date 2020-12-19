@@ -915,12 +915,12 @@ Current value" \
 
     (
         cd ${_test_dir}
-        NETS=${exp_nets} VERBOSE=y ${UNO_DIR}/test/experiment_local.sh
+        NETS=${exp_nets} VERBOSE=y ${UNO_DIR}/test/local_deploy/experiment_local.sh
     )
 }
 
 _test_dir=$(pwd)/uno-test-local
-_test=experiment_local.sh
+_test=local_deploy
 _test_run=_experiment_local
 _test_desc="is a more advanced test which simulates a uvn locally using Docker containers.
 The test creates an arbitrary number of private networks, each one containing 3 hosts (a gateway, a cell, and regular host).
