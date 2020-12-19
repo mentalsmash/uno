@@ -794,14 +794,12 @@ fi
 ################################################################################
 # Install UNO with pip
 ################################################################################
-if ! uno_python_check libuno; then
-    uno_info "Installing uno from ${UVN_DIR}"
-    # Install uno for current user
-    pip3 install -e ${UNO_DIR}
+uno_info "Installing uno from ${UVN_DIR}"
+# Install uno for current user
+pip3 install -e ${UNO_DIR}
 
-    # Install uno for root
-    sudo pip3 install -e ${UNO_DIR}
-fi
+# Install uno for root
+sudo pip3 install -e ${UNO_DIR}
 
 if ! uno_python_check libuno; then
     uno_error "Failed to load libuno"
