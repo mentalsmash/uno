@@ -596,7 +596,7 @@ You can visit https://www.rti.com/free-trial for a free copy."
 ################################################################################
 uno_connextddspy_wheel_name()
 {
-    local pyv=$(python --version | awk '{print $2;}' | cut -d. -f1,2 | tr -d .) \
+    local pyv=$(python3 --version | awk '{print $2;}' | cut -d. -f1,2 | tr -d .) \
           pya=
 
     case "${UNO_PLATFORM}" in
