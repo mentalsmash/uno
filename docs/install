@@ -129,15 +129,25 @@ uno_git_clone()
     if [ -d "${tgt_dir}" ]; then
         uno_warning "Directory already exists: ${tgt_dir}"
 
-        uno_yesno "Update repository ${tgt_dir}" \
-"Would you like to update repository ${tgt_dir} to the latest version of branch ${tgt_branch} from ${tgt_url}?" \
+        uno_yesno "Cloning ${tgt_url}" \
+"Directory ${tgt_dir} already exists.
+
+Would you like to delete it, and replace it with the latest version of branch ${tgt_branch} from ${tgt_url}?" \
 --defaultno
         if uno_wprc_yes; then
-            uno_git_update "${what}" "${tgt_dir}" ${tgt_branch}
+            uno_warning "Deleting existing clone: ${tgt_dir}"
+            ${SUDO} rm -rf ${tgt_dir}
         else
-            uno_warning "Directory non updated: ${tgt_dir}"
+            uno_yesno "Update repository ${tgt_dir}" \
+    "Would you like to update the repository in ${tgt_dir} by pulling the latest version of branch ${tgt_branch}?" \
+    --defaultno
+            if uno_wprc_yes; then
+                uno_git_update "${what}" "${tgt_dir}" ${tgt_branch}
+            else
+                uno_warning "Directory non updated: ${tgt_dir}"
+            fi
+            return
         fi
-        return
     fi
 
     uno_mkdir ${tgt_dir}
@@ -675,21 +685,6 @@ if [ ! -x "${GIT}" ]; then
     GIT=$(which git)
 else
     uno_info "git found: ${GIT}"
-fi
-
-################################################################################
-# Check if UNO is already installed
-################################################################################
-if [ -d "${UNO_DIR}" ]; then
-    uno_yesno "Detected existing uno installation" \
-"UNO seems to be already installed under ${UNO_DIR}.
-
-Would you like to delete it and re-install it from scratch?" \
-        --defaultno
-    uno_wprc_no || (
-        uno_info "Deleting existing uno instalation: ${UNO_DIR}"
-        ${SUDO} rm -rf "${UNO_DIR}"
-    )
 fi
 
 ################################################################################
