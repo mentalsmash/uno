@@ -1058,9 +1058,14 @@ EXPLOC_DEPLOY=yes
 
 _experiment_local()
 {
+    case "${UNO_PLATFORM}" in
+    Raspbian)
+        local rpi_warning="\nSince you are running on a Raspberry Pi, you should keep this number low or risk running out of memory (e.g. 2-3 networks).\n"
+    esac
+
     local exp_nets=$(uno_select "number of private networks" \
         "Select the number of private networks that the test will attach to the UVN.
-
+${rpi_warning}
 Current value" \
         ${EXPLOC_NETS})
     

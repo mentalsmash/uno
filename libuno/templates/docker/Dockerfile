@@ -68,7 +68,7 @@ RUN pip3 install /opt/${CONNEXTDDS_WHEEL}
 
 {% if ndds %}
 # Copy Connext DDS
-# COPY ndds /opt/ndds
+COPY ndds /opt/ndds
 {% endif %}
 
 # Install uno's Python dependencies explicitly.
