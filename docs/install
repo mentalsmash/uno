@@ -740,7 +740,7 @@ fi
 # Check if docker is installed (naive check for 'docker' in PATH)
 if ! uno_docker_check; then
     uno_yesno "Run uno with Docker" \
-"UNO's agent may be deployed inside a Docker container.
+"UNO's agent may be deployed inside Docker containers.
 
 Would you like to install Docker on the current host?"
     if uno_wprc_yes; then
@@ -850,11 +850,10 @@ uno_test_interrupted()
 
 uno_test_check()
 {
-    local what="${1}"
-    if [ -n "${_test_interrupted}" ]; then
-        uno_info "test ${what} succeeded!"
-    elif [ "${_test_rc}" -ne 0 ]; then
-        uno_error "test ${what} FAILED (${test_rc})"
+    if [ -n "${_test_interrupted}" -o ${_test_rc} -eq 0 ]; then
+        uno_info "test ${_test} succeeded!"
+    elif [ ${_test_rc} -ne 0 ]; then
+        uno_error "test ${_test} FAILED (${_test_rc})"
     fi
 }
 
@@ -929,7 +928,7 @@ Current value" \
 
     (
         cd ${_test_dir}
-        NETS=${exp_nets} VERBOSE=y ${UNO_DIR}/test/simple_validation.sh
+        NETS=${exp_nets} VERBOSE=y ${UNO_DIR}/test/experiment_local.sh
     )
 }
 
