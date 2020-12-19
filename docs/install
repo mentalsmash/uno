@@ -18,9 +18,8 @@
 set -e
 
 ################################################################################
-# General Helper Functions
+# Logging helpers
 ################################################################################
-
 uno_error()
 {
     echo ERROR: $@ >&2
@@ -37,6 +36,9 @@ uno_info()
     echo I: $@
 }
 
+################################################################################
+# Installation Environment Helpers
+################################################################################
 uno_detect_os()
 {
     local uno_platform=
@@ -59,20 +61,63 @@ uno_detect_os()
     esac
 }
 
-_is_root()
+################################################################################
+# Git helpers
+################################################################################
+uno_git_clone()
 {
-    [ "$(id -u)" = 0 ]
+    local what="${1}" \
+          tgt_dir="${2}" \
+          tgt_url="${3}" \
+          tgt_branch="${4}"
+
+    uno_info "Cloning ${what} (${tgt_branch}) from ${tgt_url} to ${tgt_dir}"
+
+    if [ -d "${tgt_dir}" ]; then
+        uno_warning "Directory already exists: ${tgt_dir}"
+
+        if uno_yesno "Update repository ${tgt_dir}" \
+"Would you like to update repository ${tgt_dir} to the latest version of branch ${tgt_branch} from ${tgt_url}?" \
+                    ${r} ${c}; then
+            uno_git_update "${what}" "${tgt_dir}" ${tgt_branch}
+        else
+            uno_warning "Directory non updated: ${tgt_dir}"
+        fi
+        return
+    fi
+
+    mkdir -p ${tgt_dir}
+    ${SUDO} chown ${UNO_USER}:${UNO_USER_GROUP} "${UNO_DIR}"
+    ${GIT} init
+    ${GIT} remote add uno-setup ${tgt_url}
+    ${GIT} pull --depth 1 uno-setup ${tgt_branch}
+    ${GIT} checkout ${tgt_branch}
+}
+
+uno_git_update()
+{
+    local what="${1}" \
+          tgt_dir="${2}" \
+          tgt_branch="${3}"
+    
+    uno_info "Updating ${what} (${tgt_branch}) in ${tgt_dir}"
+
+    cd ${tgt_dir}
+    if [ -z "$(${GIT} remote 2>/dev/null | grep uno-setup)" ]; then
+        uno_error "Repository not initialized by this script: ${tgt_dir}"
+    fi
+    ${GIT} pull --depth 1 uno-setup ${tgt_branch}
+    ${GIT} checkout ${tgt_branch}
 }
 
 ################################################################################
-# Configure screen for whiptail
+# User Dialog helpers
 ################################################################################
-
+# Configure screen for whiptail
 # Find the rows and columns. Will default to 80x24 if it can not be detected.
 screen_size=$(stty size 2>/dev/null || echo 24 80)
-rows=$(echo $screen_size | awk '{print $1}')
-columns=$(echo $screen_size | awk '{print $2}')
-
+rows=$(echo ${screen_size} | awk '{print $1}')
+columns=$(echo ${screen_size} | awk '{print $2}')
 # Divide by two so the dialogs take up half of the screen, which looks nice.
 r=$(( rows / 2 ))
 c=$(( columns / 2 ))
@@ -80,256 +125,181 @@ c=$(( columns / 2 ))
 r=$(( r < 20 ? 20 : r ))
 c=$(( c < 70 ? 70 : c ))
 
-################################################################################
-# Detect system and greet user
-################################################################################
-
-if [ -z "${UNO_PLATFORM:=$(uno_detect_os)}" ]; then
-    uno_error "failed to detect host OS, or OS not supported by this script."
-fi
-
-if ! _is_root; then
-    uno_warning "this script requires root privileges. User ${UNO_USER:=$(whoami)} must be able to use sudo"
-    SUDO=sudo
-fi
-
-if ! whiptail --title "Welcome to UNO Installer" \
-            --yesno \
-            "This script will install UNO on the current system.
-
-Before we continue, here's some useful information that was automatically detected:
-
-Host: ${UNO_HOST:=$(hostname)} (${UNO_PLATFORM})
-User: ${UNO_USER}:${UNO_USER_GROUP:=$(groups | cut -d" " -f1)}
-Source Repository: ${UNO_URL:=https://github.com/mentalsmash/uno} (${UNO_BRANCH:=master})
-Installation Target: ${UNO_DIR:=/opt/uno}
-
-Continue with the installation?" \
-            ${r} ${c}; then
-    echo "Someone is having cold feet"
-    exit 1
-fi
-
-################################################################################
-# Install Git
-################################################################################
-
-uno_git_clone()
+uno_yesno()
 {
-    local tgt_dir="${1}" \
-          tgt_url="${2}" \
-          tgt_branch="${3}"
+    local title="${1}" \
+          text="${2}" \
+          extra_args="${3}"
 
-    uno_info "Cloning ${UNO_URL} (${UNO_BRANCH}) to ${tgt_dir}"
-
-    cd ${tgt_dir}
-    if [ ! -z "$(${GIT} remote 2>/dev/null | grep uno)" ]; then
-        uno_info "Repository already initialized: ${tgt_dir}"
-        return
-    fi
-    ${GIT} init
-    ${GIT} remote add uno ${tgt_url}
-    ${GIT} pull --depth 1 uno ${tgt_branch}
-    ${GIT} checkout ${tgt_branch}
+    whiptail --title "${title}" \
+             --yesno \
+             ${extra_args} \
+             "${text}" \
+             ${r} ${c} 1>/dev/null 2>&1
 }
 
-APT_GET="${SUDO} apt-get"
-
-if [ ! -x "${GIT:=$(which git)}" ]; then
-    uno_info "git not found in PATH, installing it"
-    ${APT_GET} install -y -qq git
-    GIT=$(which git)
-fi
-
-################################################################################
-# Check if UNO is already installed
-################################################################################
-
-if [ -d "${UNO_DIR}" ]; then
-    if whiptail --title "Detected existing UNO installation" \
-                 --yesno \
-                 --defaultno \
-                 "UNO seems to be already installed under ${UNO_DIR}. Would you like to delete it?" \
-                 ${r} ${c}; then
-        ${SUDO} rm -rf "${UNO_DIR}"
-    else
-        if whiptail --title "Update UNO repository" \
-                    --yesno \
-                    "Would you like to update UNO's git repository in ${UNO_DIR} to the latest version?" \
-                    ${r} ${c}; then
-            uno_info "Updating UNO repository..."
-            (
-                cd ${UNO_DIR}
-                ${GIT} pull uno ${UNO_BRANCH}
-            )
-        else
-            uno_warning "UNO not updated: ${UNO_DIR}"
-        fi
-    fi
-fi
-
-################################################################################
-# Clone Git Repository
-################################################################################
-if [ ! -d "${UNO_DIR}" ]; then
-    uno_info "Creating base installation directory: ${UNO_DIR}"
-    ${SUDO} mkdir -p "${UNO_DIR}"
-
-    uno_info "Setting permission to: ${UNO_USER}:${UNO_USER_GROUP}"
-    ${SUDO} chown ${UNO_USER}:${UNO_USER_GROUP} "${UNO_DIR}"
-
-    uno_git_clone "${UNO_DIR}" "${UNO_URL}" "${UNO_BRANCH}"
-else
-    uno_info "UNO already installed under ${UNO_DIR}"
-fi
-
-################################################################################
-# System Dependencies
-################################################################################
-
-uno_info "Installing common system dependencies..."
-
-${APT_GET} install -y -qq iproute2 \
-                      python3-pip \
-                      gnupg2 \
-                      dnsmasq \
-                      quagga \
-                      iputils-ping \
-                      inetutils-traceroute \
-                      dnsutils
-
-case "${UNO_PLATFORM}" in
-    Raspbian)
-        ${APT_GET} install -y -qq libatlas-base-dev \
-                              libopenjp2-7 \
-                              libtiff5
-        ;;
-    *)
-        ;;
-esac
-
-################################################################################
-# WireGuard Installation
-################################################################################
-
-uno_install_wireguard_src()
+uno_inputbox()
 {
-    local wg_dir=${WG_DIR:=/opt/wg}
-    if ! whiptail --title "Build WireGuard from source?" \
-                  --yesno \
-                  "It looks like we failed to install WireGuard from one of the known binary sources.
+    local title="${1}" \
+          prompt="${2}" \
+          default="${3}"
+    
+    whiptail --title "${title}" \
+             --inputbox \
+             "${prompt}" \
+             ${r} ${c} ${default} 1>/dev/null
+}
 
-Would you like to try building WireGuard from source?
+uno_msgbox()
+{
+    local title="${1}" \
+          text="${2}"
+    
+    whiptail --title "${title}" \
+             --msgbox \
+             "${text}" \
+             ${r} ${c} 1>/dev/null 2>&1
+}
 
-(Sources will be cloned under ${wg_dir})" \
-                  ${r} ${c}; then
-        uno_error "FAILED to install WireGuard"
+uno_select()
+{
+    local what="${1}" \
+          prompt="${2}" \
+          default="${3}"
+    local result=${default} \
+          max_tries=100 \
+          i=0
+
+    while [ ${i} -lt ${max_tries} ]; do
+        if ! uno_yesno "Select ${what}" \
+"${prompt}: ${result}
+
+Continue with this value?"; then
+            result=$(uno_inputbox "Specify ${what}" \
+                                  "${what}:"
+                                  "${default}")
+        else
+            break
+        fi
+        i=$(expr ${i} + ${max_tries})
+    done
+    if [ ${i} -ge ${max_tries} ]; then
+        uno_error "Failed to select: ${what}"
     fi
+    print "%s" "${result}"
+}
+
+
+################################################################################
+# apt helpers
+################################################################################
+uno_apt_sources_add_debian_unstable()
+{
+    local sources_tgt=/etc/apt/sources.list.d/debian-unstable.list \
+          prefs_tgt=/etc/apt/preferences.d/limit-debian-unstable
+
+    uno_info "Adding Debian's unstable apt repository to ${sources_tgt}"
+    # Trust debian's apt repository
+    ${SUDO} apt-key adv --keyserver hkp://p80.pool.sks-keyservers.net:80 \
+                        --recv-keys 04EE7237B7D453EC 648ACFD622F3D138
+    # Add debian's apt repository
+    if [ ! -f ${sources_tgt}; then
+        ${SUDO} sh -c "echo 'deb http://deb.debian.org/debian/ unstable main' > ${sources_tgt}"
+    fi
+    if [ ! -f ${prefs_tgt} ]; then
+        ${SUDO} sh -c "printf 'Package: *\nPin: release a=unstable\nPin-Priority: 90\n' > ${prefs_tgt}"
+    fi
+    uno_info "Updating apt database..."
+    ${APT_GET} update
+}
+
+################################################################################
+# WireGuard helpers
+################################################################################
+uno_wireguard_build()
+{
+    local wg_dir=$(uno_select "WireGuard source directory" \
+                              "WireGuard will be cloned in directory" \
+                              ${WG_DIR})
+    
     uno_info "Installing WireGuard's build dependencies..."
-    ${APT_GET} install -y -qq libelf-dev \
-                          linux-headers-$(uname -r) \
-                          build-essential \
-                          pkg-config
+    ${APT_GET} install -y -qq ${WG_DEPS}
     
     uno_info "Cloning WireGuard to ${wg_dir}..."
     ${SUDO} mkdir -p ${wg_dir}
     ${SUDO} chown ${UNO_USER}:${UNO_USER_GROUP} "${wg_dir}"
-    ${GIT} clone https://git.zx2c4.com/wireguard-linux-compat \
-                 ${wg_dir}/wireguard-linux-compat
-    ${GIT} clone https://git.zx2c4.com/wireguard-tools \
-                 ${wg_dir}/wireguard-tools
+    uno_git_clone "${wg_dir}/wireguard-linux-compat" ${WG_URL} ${WG_BRANCH}
+    uno_git_clone "${wg_dir}/wireguard-tools" ${WG_URL_TOOLS} ${WG_BRANCH}
     
     uno_info "Building WireGuard kernel module..."
-    make -C ${wg_dir}/wireguard-linux-compat/src -j$(nproc)
-    ${SUDO} make -C ${wg_dir}/wireguard-linux-compat/src install
+    make -C "${wg_dir}/wireguard-linux-compat/src" -j$(nproc)
+    ${SUDO} make -C "${wg_dir}/wireguard-linux-compat/src" install
 
     uno_info "Building wg tool..."
-    make -C ${wg_dir}/wireguard-tools/src -j$(nproc)
-    ${SUDO} make -C ${wg_dir}/wireguard-tools/src install
+    make -C "${wg_dir}/wireguard-tools/src" -j$(nproc)
+    ${SUDO} make -C "${wg_dir}/wireguard-tools/src" install
 }
 
-
-uno_install_wireguard_ubuntu()
+uno_wireguard_install()
 {
+    uno_msgbox "Installing WireGuard" \
+"UNO requires WireGuard to create VPN links.
+
+We will try to install it from binary packages, or build it from source if that fails."
+
+    local wireguard_pkg=
+    
     uno_info "Installing WireGuard..."
-    # Try to install wireguard from packages
-    if ! ${APT_GET} install -y -qq wireguard; then
-        uno_install_wireguard_src
-    fi
-}
 
-uno_install_wireguard_rpi()
-{
-    uno_info "Adding Debian apt repository for WireGuard packages..."
-    # Trust debian's apt repository
-    ${SUDO} apt-key adv --keyserver hkp://p80.pool.sks-keyservers.net:80 --recv-keys 04EE7237B7D453EC 648ACFD622F3D138
-    # Add debian's apt repository
-    if [ ! -f /etc/apt/sources.list.d/unstable.list -o \
-         -z "$(cat /etc/apt/sources.list.d/unstable.list |
-                grep "http://deb.debian.org/debian/ unstable main")" ]; then
-        ${SUDO} sh -c "echo 'deb http://deb.debian.org/debian/ unstable main' >> /etc/apt/sources.list.d/unstable.list"
-    fi
-    if [ ! -f /etc/apt/preferences.d/limit-unstable -o \
-         -z "$(cat /etc/apt/preferences.d/limit-unstable |
-                grep "^Pin: release a=unstable$")" ]; then
-        ${SUDO} sh -c "printf 'Package: *\nPin: release a=unstable\nPin-Priority: 90\n' >> /etc/apt/preferences.d/limit-unstable"
-    fi
-    uno_info "Updating apt database..."
-    ${APT_GET} update
-    uno_info "Installing WireGuard..."
-    ${APT_GET} install -y -qq wireguard raspberrypi-kernel-headers
-}
-
-uno_install_wireguard_debian()
-{
-    uno_info "Installing WireGuard..."
-    # Try to install wireguard from packages
-    if ! ${APT_GET} install -y -qq wireguard; then
-        uno_install_wireguard_src
-    fi
-}
-
-uno_check_wireguard()
-{
-    [ -n "$(lsmod | grep wireguard)" ] &&
-    ${SUDO} modprobe wireguard &&
-    [ -x "$(which wg)" ]
-}
-
-if ! uno_check_wireguard; then
-    whiptail --title "Install WireGuard" \
-             --msgbox \
-             "UNO requires WireGuard to create VPN links, but it looks like its kernel module is not available in the current kernel.
-
-    We will try to install it from a binary package, or build it from source if that fails." \
-             ${r} ${c};
-
-    case "${UNO_PLATFORM}" in
-        Ubuntu)
-            uno_install_wireguard_ubuntu
+    case ${UNO_PLATFORM} in
+        Ubuntu|Debian)
+            wireguard_pkg=wireguard
             ;;
         Raspbian)
-            uno_install_wireguard_rpi
-            ;;
-        Debian)
-            uno_install_wireguard_debian
+            uno_apt_sources_add_debian_unstable
+            wireguard_pkg="wireguard raspberrypi-kernel-headers"
+        *)
             ;;
     esac
 
-    ${SUDO} modprobe wireguard
+    if [ -n "${wireguard_pkg}" ]; then
+        uno_info "Installing WireGuard from binary packages"
+        if ! ${APT_GET} install -y -qq ${wireguard_pkg}; then
+            uno_warning "Failed to install WireGuard from binary packages."
+            wireguard_pkg=
+        fi
+    fi 
 
-    if ! uno_check_wireguard; then
-        uno_error "FAILED to detect WireGuard after installation."
+    # Try to install wireguard from packages
+    if [ -z "${wireguard_pkg}" ]; then
+        if ! uno_yesno "Build WireGuard from source?" \
+"Failed to install WireGuard from binary packages.
+
+Would you like to try building it from source?
+
+The kernel headers are required to do this, and they will be automatically installed."; then
+            uno_error "WireGuard must be installed to run uno"
+        fi
+        uno_wireguard_build
     fi
-else
-    uno_info "WireGuard already installed: $(wg --version)"
-fi
+}
+
+uno_wireguard_check()
+{
+    # Try to load wireguard module (noop if already loaded)
+    ${SUDO} modprobe wireguard &&
+    # check that it's loaded
+    [ -n "$(lsmod | grep wireguard)" ] &&
+    # Check that wireguard-tools are also installed
+    [ -x "$(which wg)" ]
+}
+
 
 ################################################################################
-# Install Docker
+# Docker helpers
 ################################################################################
 
-uno_install_docker()
+uno_docker_install()
 {
     local docker_arch=
     case "${UNO_PLATFORM}" in
@@ -362,57 +332,16 @@ uno_install_docker()
     ${APT_GET} install -y -qq docker-ce docker-ce-cli containerd.io
 }
 
-uno_install_docker_sh()
+uno_docker_install_sh()
 {
     uno_info "Install Docker with convenience script..."
     curl -sSL https://get.docker.com | sh
 }
 
-uno_check_docker()
+uno_docker_check()
 {
     [  -x "$(which docker)" ] && ${SUDO} docker ps -a 2>/dev/null 1>&2
 }
-
-# Check if docker is installed (naive check for 'docker' in PATH)
-if ! uno_check_docker; then
-    if whiptail --title "Run uno with Docker" \
-                --yesno \
-                "UNO's agent may be deployed inside a Docker container.
-
-Would you like to install Docker on the current host?" \
-                ${r} ${c}; then
-        case "${UNO_PLATFORM}" in
-            Ubuntu|Debian)
-                uno_install_docker
-                ;;
-            Raspbian)
-                uno_install_docker_sh
-                ;;
-        esac
-    else
-        uno_error "Please delete directory ${UNO_DIR} before running this script again."
-    fi
-else
-    uno_info "Docker already installed: $(${SUDO} docker --version)"
-fi
-
-# Check if user can run docker
-if ! docker ps -a 2>/dev/null 1>&2; then
-    if [ -n "$(groups | tr ' ' '\n' | grep ^docker)" ]; then
-        uno_error "current user is part of the docker group but can't run docker. Please check your installation."
-    fi
-
-    if whiptail --title "Configure Docker for user" \
-                --yesno \
-                "User '${UNO_USER}' is not configured to access the Docker daemon. All Docker operations will required the use of 'sudo'.
-
-Would you like to add '${UNO_USER}' to group 'docker' to enable access to the Docker daemon?" \
-                ${r} ${c}; then
-        ${SUDO} usermod -a -G docker ${UNO_USER}
-        
-        uno_warning "Log out and back in again to enable new user credentials for Docker use."
-    fi
-fi
 
 ################################################################################
 # Detect RTI Connext DDS
@@ -428,18 +357,17 @@ uno_connext_arch()
             ;;
     esac
 }
-uno_check_connext()
+uno_connext_check()
 {
     if [ ! -d "${NDDSHOME}" -o ! -d "${NDDSHOME}/lib/$(uno_connext_arch)" ]; then
-        whiptail --title "RTI Connext DDS not found" \
-                --msgbox \
-                "UNO requires RTI Connext DDS to be installed and configured via the NDDSHOME variable.
+        uno_msgbox "RTI Connext DDS not found" \
+"UNO requires RTI Connext DDS to be installed and configured via the NDDSHOME variable.
 
-    It doesn't look like NDDSHOME ('${NDDSHOME}') is properly configured, or you might have not yet installed RTI Connext DDS.
+It doesn't look like NDDSHOME ('${NDDSHOME}') is properly configured, or you might have not yet installed RTI Connext DDS.
 
-    Please visit https://www.rti.com/free-trial to retrieve a free copy.
+Please visit https://www.rti.com/free-trial to retrieve a free copy.
 
-    Make sure to include libraries for target $(uno_connext_arch) in your installation." \
+ Make sure to include libraries for target $(uno_connext_arch) in your installation." \
                 ${r} ${c}
         uno_error "RTI Connext DDS not found."
     else
@@ -488,9 +416,8 @@ uno_connextddspy_build()
 
     case "${UNO_PLATFORM}" in
         Raspbian)
-            if ! whiptail --title "Building connextdds-py on Raspberry Pi" \
-                     --yesno \
-                     "connextdds-py requires large amounts of memory to build, and compilation will likely fail on Raspberry Pi 3 or earlier.
+            if ! uno_yesno "Building connextdds-py on Raspberry Pi" \
+"connextdds-py requires large amounts of memory to build, and compilation will likely fail on Raspberry Pi 3 or earlier.
 
 Would you still like to try building connextdds-py from source?" \
                      ${r} ${c}; then
@@ -512,8 +439,6 @@ Would you still like to try building connextdds-py from source?" \
     ${APT_GET} install -y -qq build-essential
     
     uno_info "Cloning connextdds-py..."
-    ${SUDO} mkdir -p ${tgt_dir}
-    ${SUDO} chown ${UNO_USER}:${UNO_USER_GROUP} "${tgt_dir}"
     uno_git_clone "${tgt_dir}" https://github.com/rticommunity/connextdds-py master
     (
         cd ${tgt_dir}
@@ -533,13 +458,175 @@ Would you still like to try building connextdds-py from source?" \
 }
 
 
+################################################################################
+# Global configuration variables
+################################################################################
+UNO_PLATFORM=${UNO_PLATFORM:-$(uno_detect_os)}
+UNO_USER=${UNO_USER:-$(whoami)}
+UNO_HOST=${UNO_HOST:-$(hostname)}
+UNO_BRANCH=${UNO_BRANCH:-master}
+UNO_URL=${UNO_URL:-https://github.com/mentalsmash/uno}
+UNO_DIR="${UNO_DIR:-/opt/uvn}"
+UNO_DEPS_SYS="iproute2
+              python3-pip
+              gnupg2
+              dnsmasq
+              quagga
+              iputils-ping
+              inetutils-traceroute
+              dnsutils
+              tmux"
+UNO_DEPS_RPI="libatlas-base-dev
+              libopenjp2-7
+              libtiff5"
+
+################################################################################
+# Internal global variables
+################################################################################
+SUDO=$([ "$(id -u)" = 0 ] || printf sudo)
+APT_GET="${SUDO} apt-get"
+GIT=$(which git)
+WG_DEPS="libelf-dev
+         linux-headers-$(uname -r)
+         build-essential
+         pkg-config" \
+WG_URL=https://git.zx2c4.com/wireguard-linux-compat \
+WG_URL_TOOLS=https://git.zx2c4.com/wireguard-tools \
+WG_BRANCH=master
+
+################################################################################
+################################################################################
+# BEGIN ACTUAL SCRIPT
+################################################################################
+################################################################################
+
+################################################################################
+# Detect system and greet user
+################################################################################}
+[ -n "${UNO_PLATFORM}" ] ||
+    uno_error "Failed to detect host OS, or OS not supported by this script."
+[ -z "${SUDO}" ] ||
+    uno_warning "This script requires root privileges. User ${UNO_USER} must be able to use sudo"
+
+uno_yesno "Welcome to uno" \
+"This script will install uno for ${UNO_PLATFORM} on ${UNO_HOST} using branch ${UNO_BRANCH} of ${UNO_URL}.
+
+Would you like to continue with the installation?" ||
+    uno_error "Installation cancelled"
+
+################################################################################
+# Select root installation directory for uno
+################################################################################
+UNO_DIR=$(uno_select "uno installation directory" \
+           "uno will be installed in the following directory" \
+           "${UNO_DIR}")
+
+################################################################################
+# Install Git
+################################################################################
+if [ ! -x "${GIT}" ]; then
+    uno_info "git not found in PATH, installing it"
+    ${APT_GET} install -y -qq git
+    GIT=$(which git)
+fi
+
+################################################################################
+# Check if UNO is already installed
+################################################################################
+if [ -d "${UNO_DIR}" ] &&
+    uno_yesno "Detected existing uno installation" \
+"UNO seems to be already installed under ${UNO_DIR}.
+
+Would you like to delete it and re-install it?" \
+        --defaultno; then
+    uno_info "Deleting existing uno instalation: ${UNO_DIR}"
+    ${SUDO} rm -rf "${UNO_DIR}"
+fi
+
+################################################################################
+# Initialize uno directory by cloning git repository
+################################################################################
+uno_git_clone "${UNO_DIR}" "${UNO_URL}" "${UNO_BRANCH}"
+
+################################################################################
+# System Dependencies
+################################################################################
+uno_info "Installing uno's system dependencies"
+
+_uno_deps="${UNO_DEPS_SYS}"
+case "${UNO_PLATFORM}" in
+    Raspbian)
+        _uno_deps="${_uno_deps} ${UNO_DEPS_RPI}"
+        ;;
+    *)
+        ;;
+esac
+
+${APT_GET} install -y -qq ${_uno_deps}
+
+################################################################################
+# WireGuard Installation
+################################################################################
+if ! uno_wireguard_check; then
+    uno_wireguard_install
+
+    if ! uno_wireguard_check; then
+        uno_error "Failed to detect WireGuard after installation."
+    fi
+else
+    uno_info "WireGuard already installed: $(wg --version)"
+fi
+
+################################################################################
+# Install Docker
+################################################################################
+
+# Check if docker is installed (naive check for 'docker' in PATH)
+if ! uno_docker_check; then
+    if uno_yesno "Run uno with Docker" \
+"UNO's agent may be deployed inside a Docker container.
+
+Would you like to install Docker on the current host?" \
+                ${r} ${c}; then
+        case "${UNO_PLATFORM}" in
+            Ubuntu|Debian)
+                uno_docker_install
+                ;;
+            Raspbian)
+                uno_docker_install_sh
+                ;;
+        esac
+    fi
+else
+    uno_info "Docker already installed: $(${SUDO} docker --version)"
+fi
+
+# Check if user can run docker
+if ! docker ps -a 2>/dev/null 1>&2; then
+    if [ -n "$(groups | tr ' ' '\n' | grep ^docker)" ]; then
+        uno_error "current user is part of the docker group but can't run docker. Please check your installation."
+    fi
+
+    if uno_yesno "Configure Docker for user" \
+"User '${UNO_USER}' is not configured to access the Docker daemon. All Docker operations will required the use of 'sudo'.
+
+Would you like to add '${UNO_USER}' to group 'docker' to enable access to the Docker daemon?" \
+                ${r} ${c}; then
+        ${SUDO} usermod -a -G docker ${UNO_USER}
+        
+        uno_warning "Log out and back in again to enable new user credentials for Docker."
+    fi
+fi
+
+################################################################################
+# Clone and build connextdds-py
+################################################################################
 if ! uno_connextddspy_check; then
     DDSPY_DIR="${DDSPY_DIR:=/opt/rti/connextdds-py}"
     _connextddspy_whl=$(uno_connextddspy_wheel)
     if [ -f "${_connextddspy_whl}" ] &&
-        whiptail --title "Install connextdds-py from pre-built wheel" \
-                 --yesno \
-                 "Pre-built wheel for connextdds-py found at: $(uno_connextddspy_wheel)
+        uno_yesno "Install connextdds-py from pre-built wheel" \
+"Pre-built wheel for connextdds-py found at: $(uno_connextddspy_wheel)
 
 Would you like to install it?" \
                  ${r} ${c}; then
@@ -550,10 +637,7 @@ Would you like to install it?" \
         uno_info "connextdds-py not found. Building it from source..."
         uno_connextddspy_build "${DDSPY_DIR}"
     fi
-else
-    uno_info "connextdds-py already installed"
 fi
-
 
 ################################################################################
 # Install UNO with pip
@@ -569,7 +653,6 @@ sudo pip3 install -e ${UNO_DIR}
 ################################################################################
 # Test uvn command
 ################################################################################
-
 uno_info "Testing uvn command for ${UNO_USER}..."
 uvn --version
 
@@ -600,9 +683,9 @@ _test_check_exit()
 }
 
 _test_dir=$(pwd)/uno-install-test
-if whiptail --title "Validate UNO installation" \
-            --yesno \
-            "UNO has been successfully installed on the system.
+
+if uno_yesno "Validate UNO installation" \
+"UNO has been successfully installed on the system.
             
 Would you like to test the installation by generating a demo UVN configuration?
 
@@ -632,11 +715,10 @@ fi
 ################################################################################
 # Done
 ################################################################################
-whiptail --title "UNO installed" \
-         --msgbox \
-         "Congratulations, you have successfully installed UNO on ${UNO_HOST}.
+uno_msgbox "UNO installed" \
+"Congratulations, you have successfully installed UNO on ${UNO_HOST}.
 
-Run \`uvn -h\` to get started." \
+Run \`uvn -h\` for a list of available commands." \
             ${r} ${c}
 
 uno_info "UNO successfully installed."
