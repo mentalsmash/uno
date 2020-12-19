@@ -99,11 +99,15 @@ uno_detect_os()
 uno_mkdir()
 {
     # Try to create directory as user, then fall back to root if needed
+    [ -d "${1}" ] || uno_info "creating directory: ${1}"
     mkdir -p ${1} || local root_path=y
     [ -z "${root_path}" ] || (
+        uno_warning "root path: ${1}"
         ${SUDO} mkdir -p "${1}"
         # TODO chown the whole ${1} hierarchy, not just the leaf directory
-        ${SUDO} chown ${UNO_USER}:${UNO_USER_GROUP} "${1}"
+        local user_perm="${UNO_USER}:${UNO_USER_GROUP}"
+        uno_info "setting permissions for ${1} to ${user_perm}"
+        ${SUDO} chown ${user_perm} "${1}"
     )
 }
 
