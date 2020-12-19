@@ -596,14 +596,19 @@ You can visit https://www.rti.com/free-trial for a free copy."
 ################################################################################
 uno_connextddspy_wheel_name()
 {
+    local pyv=$(python --version | awk '{print $2;}' | cut -d. -f1,2 | tr -d .) \
+          pya=
+
     case "${UNO_PLATFORM}" in
     Ubuntu|Debian)
-        printf "rti-0.0.1-cp36-cp36m-linux_x86_64.whl"
+        pya=x86_64
         ;;
     Raspbian)
-        printf "rti-0.0.1-cp37-cp37m-linux_armv7l.whl"
+        pya=armv7l
         ;;
     esac
+
+    printf "rti-0.0.1-cp${pyv}-cp${pyv}m-linux_${pya}.whl"
 }
 
 uno_connextddspy_wheel_find()
