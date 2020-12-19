@@ -586,7 +586,7 @@ uno_connext_install()
 uno_connext_check()
 {
     if [ ! -d "${NDDSHOME}" -o ! -d "${NDDSHOME}/lib/$(uno_connext_arch)" ]; then
-        uno_connext_install || (
+        (uno_connext_install) || (
             uno_msgbox "RTI Connext DDS not found" \
 "uno requires RTI Connext DDS to be installed and configured via the NDDSHOME variable.
 
