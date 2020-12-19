@@ -17,7 +17,7 @@ RUN apt-get install -y python3-pip
 RUN apt-get install -y gpg \
                        gnupg2
 # Install wireguard to implement the uvn connections
-{% if rpi_extras %}
+{% if rpi_extra %}
 # Add debian repository then install wireguard
 RUN apt-key adv --keyserver hkp://p80.pool.sks-keyservers.net:80 \
                 --recv-keys 04EE7237B7D453EC 648ACFD622F3D138 && \
@@ -83,7 +83,7 @@ RUN pip3 install pyyaml \
                  lockfile \
                  sh
 
-{% if rpi_extras %}
+{% if rpi_extra %}
 Install additional apt dependencies for Raspberry Pi
 RUN apt-get install libatlas-base-dev \
                     libopenjp2-7 \
