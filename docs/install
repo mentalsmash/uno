@@ -258,6 +258,7 @@ We will try to install it from binary packages, or build it from source if that 
         Raspbian)
             uno_apt_sources_add_debian_unstable
             wireguard_pkg="wireguard raspberrypi-kernel-headers"
+            ;;
         *)
             ;;
     esac
