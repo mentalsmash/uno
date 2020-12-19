@@ -506,7 +506,7 @@ uno_connext_install_host()
             if [ -n "${install_rc}" ]; then
                 uno_error "installer failed with rc: ${install_rc}"
             fi
-            rsync ${NDDSHOME}/rti_connext_dds-6.0.1/ ${NDDSHOME}/
+            rsync -ra ${NDDSHOME}/rti_connext_dds-6.0.1/ ${NDDSHOME}/
             rm -fr ${NDDSHOME}/rti_connext_dds-6.0.1
         )
         ;;
@@ -566,7 +566,7 @@ uno_connext_install()
     fi
 
     local nddshome=$(uno_select "RTI Connext DDS Installation Directory" \
-        "RTI Connext DDS will be installed in" \
+        "RTI Connext DDS [$(uno_connext_arch)] will be installed in" \
         "${NDDSHOME:-${NDDSHOME_DEFAULT}}")
     
     export NDDSHOME="${nddshome}"
