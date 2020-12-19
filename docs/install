@@ -496,7 +496,7 @@ uno_connext_install_host()
     uno_mkdir ${NDDSHOME}
 
     uno_info "Installing RTI Connext DDS host bundle ${host_file} in ${NDDSHOME}"
-
+    set -x
     case "${host_file}" in
     *.run)
         (
@@ -506,8 +506,8 @@ uno_connext_install_host()
             if [ -n "${install_rc}" ]; then
                 uno_error "installer failed with rc: ${install_rc}"
             fi
-            mv ${NDDSHOME}/rti_connext_dds-6.0.1/* ${NDDSHOME}
-            rm -r ${NDDSHOME}/rti_connext_dds-6.0.1
+            rsync ${NDDSHOME}/rti_connext_dds-6.0.1/ ${NDDSHOME}/
+            rm -fr ${NDDSHOME}/rti_connext_dds-6.0.1
         )
         ;;
     *.tar.gz)
@@ -519,6 +519,7 @@ uno_connext_install_host()
         )
         ;;
     esac
+    set +x
 }
 
 uno_connext_install_target()
@@ -758,7 +759,8 @@ UNO_DEPS_SYS="iproute2
               iputils-ping
               inetutils-traceroute
               dnsutils
-              tmux"
+              tmux
+              rsync"
 UNO_DEPS_RPI="libatlas-base-dev
               libopenjp2-7
               libtiff5"
