@@ -28,9 +28,32 @@ from libuno.identity import UvnIdentityDatabase
 from libuno.helpers import Timestamp
 from libuno.exec import exec_command
 from libuno.connext import NddshomeInfoDescriptor
+from libuno.yml import YamlSerializer, repr_yml, repr_py, yml_obj, yml
+from libuno.tmplt import TemplateRepresentation, render
 
 import libuno.log
 logger = libuno.log.logger("uvn.docker")
+
+@TemplateRepresentation("Dockerfile", "docker/Dockerfile")
+class Dockerfile:
+    def __init__(self, base_image, dev, ndds, rpi_extra):
+        self.base_image = base_image
+        self.dev = dev
+        self.ndds = ndds
+        self.rpi_extra = rpi_extra
+
+    class _YamlSerializer(YamlSerializer):
+        def repr_yml(self, py_repr, **kwargs):
+            return {
+                "base_image": py_repr.base_image,
+                "dev": py_repr.dev,
+                "ndds": py_repr.ndds,
+                "rpi_extra": py_repr.rpi_extra
+            }
+    
+        def repr_py(self, yml_repr, **kwargs):
+            raise NotImplementedError()
+
 
 class DockerController:
 
@@ -481,9 +504,18 @@ class DockerController:
         
         # Instantiate Dockerfile
         dockerfile_path = tmp_dir / "Dockerfile"
-        with dockerfile_path.open("w") as output:
-            dockerfile_stream = StaticData.dockerfile(dockerfile, binary=False)
-            shutil.copyfileobj(dockerfile_stream, output)
+        if container_arch == "x86_64":
+            base_image = "ubuntu:18.04"
+        elif container_arch == "armv7l":
+            base_image = "balenalib/raspberry-pi-debian:latest"
+        else:
+             raise ValueError(container_arch)
+        dockerfile_tmplt = Dockerfile(
+            base_image=base_image,
+            dev=dev,
+            ndds=False,
+            rpi_extra=container_arch == "armv7l")
+        render(dockerfile_tmplt,"Dockerfile", to_file=dockerfile_path)
         context_data.append("Dockerfile")
         
         # Instantiate entrypoint script
