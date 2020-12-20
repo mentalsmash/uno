@@ -7,12 +7,12 @@ via dynamically managed VPN links.
 
 ## Install uno
 
-**uno** should work on any Debian-based target.
+**uno** should work on any Debian-based Linux target.
 
 So far, it has been successfully tested on Ubuntu 18.04/20.04 (`x86_64`), and
-Raspbian Buster (`armv7l`)
+Raspbian Buster (`armv7l`).
 
-To install a local copy of the `uvn` script, use **uno**'s installation helper script:
+To install a local copy, use **uno**'s installer script:
 
 ```sh
 curl -sSL https://uno.mentalsmash.org/install | sh
