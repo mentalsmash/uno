@@ -500,6 +500,7 @@ uno_connext_install_host()
 
     uno_mkdir ${NDDSHOME}
     local base_dir=$(dirname ${NDDSHOME})
+    uno_chown "${base_dir}"
 
     uno_info "Installing RTI Connext DDS host bundle ${host_file} in ${NDDSHOME}"
 
@@ -507,7 +508,6 @@ uno_connext_install_host()
     *.run)
         (
             cd $(dirname ${host_file})
-            uno_chown "$(pwd)"
             ./$(basename ${host_file}) --mode unattended --prefix ${base_dir} ||
                 install_rc=$?
             if [ -n "${install_rc}" ]; then
@@ -521,8 +521,7 @@ uno_connext_install_host()
     *.tar.gz)
         (
             host_file=$(realpath ${host_file})
-            cd ${NDDSHOME}/..
-            uno_chown "$(pwd)"
+            cd ${base_dir}
             tar xzf ${host_file}
             if [ "rti_connext_dds-6.0.1" != "$(basename ${NDDSHOME})" ]; then
                 ln -s rti_connext_dds-6.0.1 $(basename ${NDDSHOME})
