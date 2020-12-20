@@ -1,6 +1,6 @@
 ## Welcome to uno
 
-**uno** is a tool for interconnecting private LANs into a single **unified virtual network**, or *UVN*, which support fully routed, site-to-site communications over the Internet
+**uno** is a tool for interconnecting private LANs into a single **unified virtual network**, or *UVN*, which supports fully routed, site-to-site communication over the Internet
 via dynamically managed VPN links.
 
 **uno** provides the `uvn` script to configure, deploy, and administer a *UVN*, using [WireGuard](https://www.wireguard.com/), [Quagga](https://www.nongnu.org/quagga/), and [RTI Connext DDS](https://www.rti.com/products/connext-dds-professional).
