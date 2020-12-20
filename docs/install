@@ -651,7 +651,7 @@ uno_connextddspy_wheel_find()
 
 uno_connextddspy_install()
 {
-    uno_msgbox "Building connextdds-py from source" \
+    uno_msgbox "Install connextdds-py" \
 "uno requires the connextdds-py DDS API for Python to run.
 
 If you have wheel file $(uno_connextddspy_wheel_name) at hand, place it in the current directory, then restart the script to install it automatically.
@@ -969,17 +969,10 @@ _build_wheel=
 
 if [ ! -f "${_uno_whl}" ]; then
     if [ -z "${_connextddspy_whl}" ]; then
-        uno_yesno "Build connextdds-py wheel" \
-"In order to build uno's agent container image, uno needs wheel $(uno_connextddspy_wheel_name) to be be available.
-
-If you have it, place is in the current directory, and restart the script.
-Alternatively, you can build it from source.
-
-Would you like to generate $(uno_connextddspy_wheel_name) from source?"
-        uno_wprc_no || _build_wheel=yes
+        _build_wheel=yes
     else
-        uno_connextddspy_wheel_install "${_connextddspy_whl}"
     fi
+    uno_connextddspy_wheel_install "${_connextddspy_whl}"
 else
     uno_info "connextdds-py already installed in ${_uno_whl}"
 fi
