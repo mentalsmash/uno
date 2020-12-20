@@ -395,7 +395,7 @@ We will try to install it from binary packages, or build it from source if that 
 
     case ${UNO_PLATFORM} in
         Ubuntu|Debian)
-            wireguard_pkg=wireguard
+            wireguard_pkg="wireguard linux-headers-$(uname -r)"
             ;;
         Raspbian)
             uno_apt_sources_add_debian_unstable
