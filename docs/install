@@ -461,6 +461,23 @@ uno_docker_check()
 ################################################################################
 # Detect RTI Connext DDS
 ################################################################################
+uno_nddshome_check()
+{
+    [ ! -d "${NDDSHOME}" -o ! -h "${NDDSHOME}" ]
+}
+
+uno_connext_target_check()
+{
+    [ ! -d "${NDDSHOME}/lib/$(uno_connext_arch)" -o \
+      ! -h "${NDDSHOME}/lib/$(uno_connext_arch)" ]
+}
+
+uno_connext_check()
+{
+    uno_nddshome_check &&
+        uno_connext_target_check
+}
+
 uno_connext_arch()
 {
     case "${UNO_PLATFORM}" in
@@ -502,7 +519,7 @@ uno_connext_install_host()
     local base_dir=$(dirname ${NDDSHOME})
     local install_dir="${base_dir}/rti_connext_dds-6.0.1"
     host_file=$(realpath ${host_file})
-    
+
     uno_chown "${base_dir}"
 
     uno_info "Installing RTI Connext DDS host bundle ${host_file} in ${NDDSHOME}"
@@ -549,8 +566,10 @@ uno_connext_install_target()
     local rtipkginstall="${NDDSHOME}/bin/rtipkginstall"
 
     if [ -x "${rtipkginstall}" ]; then
+        uno_info "installing with rtpkginstall: $(basename ${tgt_file})"
         ${rtipkginstall} -u ${tgt_file}
     else
+        uno_info "install manually: $(basename ${tgt_file})"
         local tmp_dir=/tmp/rtipkginstall-${RANDOM}
         tgt_file=$(realpath ${tgt_file})
         mkdir ${tmp_dir}
@@ -590,27 +609,6 @@ uno_connext_install()
 
     if [ ! -d "${NDDSHOME}" -o ! -d "${NDDSHOME}/lib/$(uno_connext_arch)" ]; then
         uno_error "failed to install RTI Connext DDS"
-    fi
-}
-
-uno_connext_check()
-{
-    if [ ! -d "${NDDSHOME}" -o ! -d "${NDDSHOME}/lib/$(uno_connext_arch)" ]; then
-        (uno_connext_install) || (
-            uno_msgbox "RTI Connext DDS not found" \
-"uno requires RTI Connext DDS to be installed and configured via the NDDSHOME variable.
-
-If you have installer files, place them in the current directory, then restart the script to install them automatically.
-You must provide:
-
-- $(uno_connext_host)
-- $(uno_connext_target)
-
-You can visit https://www.rti.com/free-trial for a free copy."
-            uno_error "RTI Connext DDS not found."
-        )
-    else
-        uno_info "RTI Connext DDS found: ${NDDSHOME}"
     fi
 }
 
@@ -666,6 +664,15 @@ uno_connextddspy_install()
 
 Would you like to install it?"
         uno_wprc_no || use_whl=y
+    else
+        uno_msgbox "Building connextdds-py wheel from source" \
+"uno requires the connextdds-py DDS API for Python to run.
+
+If you have wheel file $(uno_connextddspy_wheel_name) at hand, place it in the current directory, then restart the script to install it automatically.
+
+We will now try to build a copy from source.
+
+Exit the script if that's not what you want to do"
     fi
 
     if [ -n "${use_whl}" ]; then
@@ -696,8 +703,25 @@ Would you like to try building connextdds-py from source anyway?"
         *)
             ;;
     esac
-    
-    uno_connext_check
+
+    if ! uno_connext_check; then
+
+        uno_msgbox "RTI Connext DDS not found" \
+"connextdds-py requires RTI Connext DDS to be installed and configured via the NDDSHOME variable in order to build.
+
+If you have the following installer files, place them in the current directory, then restart the script to install them automatically:
+
+- $(uno_connext_host)
+- $(uno_connext_target)
+
+You can visit https://www.rti.com/free-trial for a free copy.
+
+We will now try to perform the installation for you."
+
+        uno_connext_install
+    else
+        uno_info "RTI Connext DDS found: ${NDDSHOME}"
+    fi
 
     uno_info "Installing Python dependencies for connextdds-py: ${DDSPY_DEPS_PIP}"
     pip3 install -q -U ${DDSPY_DEPS_PIP}
