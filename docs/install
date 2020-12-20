@@ -507,6 +507,21 @@ uno_connext_target()
     printf "rti_connext_dds-6.0.1-pro-target-$(uno_connext_arch).rtipkg"
 }
 
+uno_connext_configure_nddshome()
+{
+    local user_profile="${HOME}/.profile"
+
+    uno_yesno "Configure NDDSHOME for user ${UNO_USER}" \
+"Now that RTI Connext DDS has been installed on ${UNO_HOST}, you should configure variable NDDSHOME for user ${UNO_USER} to point to ${NDDSHOME}.
+
+Would you like to add an entry for this in ${user_profile}?"
+
+    if uno_wprc_yes; then
+        uno_info "enabling NDDSHOME for user ${UNO_USER}"
+        printf "export NDDSHOME=%s\n" "${NDDSHOME}" >> ${user_profile}
+    fi
+}
+
 uno_connext_install_host()
 {
     local host_file="${1}"
@@ -543,7 +558,7 @@ uno_connext_install_host()
 
     if [ "${install_dir}" != "${NDDSHOME}" ]; then
         # refuse to delete a directory, we expect a symlink
-        ${SUDO} rm "${NDDSHOME}"
+        ${SUDO} rm -f "${NDDSHOME}"
         ${SUDO} ln -s ${install_dir} ${NDDSHOME}
         uno_chown "${NDDSHOME}"
     fi
