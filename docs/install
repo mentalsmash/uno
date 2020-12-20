@@ -651,6 +651,13 @@ uno_connextddspy_wheel_find()
 
 uno_connextddspy_install()
 {
+    uno_msgbox "Building connextdds-py from source" \
+"uno requires the connextdds-py DDS API for Python to run.
+
+If you have wheel file $(uno_connextddspy_wheel_name) at hand, place it in the current directory, then restart the script to install it automatically.
+
+We will now try to build a copy from source."
+
     local tgt_dir="$(uno_select "connextdds-py source directory" \
         "connextdds-py will be cloned in directory" \
         "${DDSPY_DIR}")"
@@ -664,15 +671,6 @@ uno_connextddspy_install()
 
 Would you like to install it?"
         uno_wprc_no || use_whl=y
-    else
-        uno_msgbox "Building connextdds-py wheel from source" \
-"uno requires the connextdds-py DDS API for Python to run.
-
-If you have wheel file $(uno_connextddspy_wheel_name) at hand, place it in the current directory, then restart the script to install it automatically.
-
-We will now try to build a copy from source.
-
-Exit the script if that's not what you want to do"
     fi
 
     if [ -n "${use_whl}" ]; then
@@ -913,6 +911,7 @@ fi
 ################################################################################
 # Install Docker
 ################################################################################
+_docker_avail=
 
 # Check if docker is installed (naive check for 'docker' in PATH)
 if ! uno_docker_check; then
@@ -929,30 +928,36 @@ Would you like to install Docker on the current host?"
                 uno_docker_install_sh
                 ;;
         esac
+        uno_docker_check ||
+            uno_error "Docker not available after installation"
+        _docker_avail=y
     else
         uno_warning "Docker not installed"
     fi
 else
     uno_info "Docker already installed: $(${SUDO} docker --version)"
+    _docker_avail=y
 fi
 
 # Check if user can run docker
-if ! docker ps -a 2>/dev/null 1>&2; then
-    if [ -n "$(groups | tr ' ' '\n' | grep ^docker)" ]; then
-        uno_error "current user is part of the docker group but can't run docker. Please check your installation."
-    fi
+if [ -n "${_docker_avail}" ]; then
+    if ! docker ps -a 2>/dev/null 1>&2; then
+        if [ -n "$(groups | tr ' ' '\n' | grep ^docker)" ]; then
+            uno_error "current user is part of the docker group but can't run docker. Please check your installation."
+        fi
 
-    uno_yesno "Configure Docker for user" \
-"User '${UNO_USER}' is not configured to access the Docker daemon. All Docker operations will required the use of 'sudo'.
+        uno_yesno "Configure Docker for user" \
+    "User '${UNO_USER}' is not configured to access the Docker daemon. All Docker operations will required the use of 'sudo'.
 
-Would you like to add '${UNO_USER}' to group 'docker' to enable access to the Docker daemon?"
-    if uno_wprc_yes; then
-        ${SUDO} usermod -a -G docker ${UNO_USER}
-        
-        uno_warning "Log out and back in again to enable new user credentials for Docker."
+    Would you like to add '${UNO_USER}' to group 'docker' to enable access to the Docker daemon?"
+        if uno_wprc_yes; then
+            ${SUDO} usermod -a -G docker ${UNO_USER}
+            
+            uno_warning "Log out and back in again to enable new user credentials for Docker."
+        fi
+    else
+        uno_info "Docker enabled for ${UNO_USER}"
     fi
-else
-    uno_info "Docker enabled for ${UNO_USER}"
 fi
 
 ################################################################################
@@ -975,6 +980,8 @@ Would you like to generate $(uno_connextddspy_wheel_name) from source?"
     else
         uno_connextddspy_wheel_install "${_connextddspy_whl}"
     fi
+else
+    uno_info "connextdds-py already installed in ${_uno_whl}"
 fi
 
 if ! uno_python_check rti.connextdds || [ -n "${_build_wheel}" ]; then
