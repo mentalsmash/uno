@@ -19,6 +19,7 @@ import shutil
 import tempfile
 import docker
 import os
+import sys
 import subprocess
 import platform
 
@@ -505,7 +506,10 @@ class DockerController:
         # Instantiate Dockerfile
         dockerfile_path = tmp_dir / "Dockerfile"
         if container_arch == "x86_64":
-            base_image = "ubuntu:18.04"
+            if sys.version_info.minor == 6:
+                base_image = "ubuntu:18.04"
+            if sys.version_info.minor == 8:
+                base_image = "ubuntu:20.04"
         elif container_arch == "armv7l":
             base_image = "balenalib/raspberry-pi-debian:latest"
         else:
