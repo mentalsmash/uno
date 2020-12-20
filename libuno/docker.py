@@ -505,15 +505,19 @@ class DockerController:
         
         # Instantiate Dockerfile
         dockerfile_path = tmp_dir / "Dockerfile"
+        base_image = None
         if container_arch == "x86_64":
             if sys.version_info.minor == 6:
                 base_image = "ubuntu:18.04"
-            if sys.version_info.minor == 8:
+            elif sys.version_info.minor == 8:
                 base_image = "ubuntu:20.04"
         elif container_arch == "armv7l":
-            base_image = "balenalib/raspberry-pi-debian:latest"
+            if sys.version_info.minor == 7
+                base_image = "balenalib/raspberry-pi-debian:latest"
         else:
-             raise ValueError(container_arch)
+             raise ValueError(f"unsupported container architecture: {container_arch}")
+        if not base_image:
+            raise RuntimeError(f"Python 3.{sys.version_info.minor} not supported in {container_arch} uno containers yet")
         dockerfile_tmplt = Dockerfile(
             base_image=base_image,
             dev=dev,
