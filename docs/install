@@ -543,6 +543,8 @@ uno_connext_install_host()
     fi
 
     if [ "${install_dir}" != "${NDDSHOME}" ]; then
+        # refuse to delete a directory, we expect a symlink
+        ${SUDO} rm "${NDDSHOME}"
         ${SUDO} ln -s ${install_dir} ${NDDSHOME}
         uno_chown "${NDDSHOME}"
     fi
@@ -556,7 +558,7 @@ uno_connext_install_target()
         uno_error "Required target bundle not found: ${tgt_file}"
     fi
 
-    if [ ! -d "${NDDSHOME}" ]; then
+    if ! uno_nddshome_check; then
         uno_error "NDDSHOME not found: ${NDDSHOME}"
     fi
 
