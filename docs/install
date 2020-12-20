@@ -54,7 +54,7 @@ uno_info()
     printf "${_log_color}"
 }
 
-if [ -z "${NOCOLOR}" ]; then
+if [ -z "${NOCOLOR}" -a -z "${NONINTERACTIVE}" ]; then
     export COLOR_RESET='\033[0m' \
            COLOR_BLACK='\033[0;30m' \
            COLOR_GRAY='\033[1;30m' \
@@ -238,13 +238,20 @@ uno_wprc_check()
     fi
 }
 
+uno_nonint()
+{
+    [ -n "${NONINTERACTIVE}" ]
+}
+
 uno_yesno()
 {
     local title="${1}" \
           text="${2}" \
           extra_args="${3}"
 
+
     WPRC=0
+    uno_nonint || return
     whiptail --title "${title}" \
           --yesno \
           ${extra_args} \
@@ -260,6 +267,10 @@ uno_inputbox()
           default="${3}"
     
     WPRC=0
+    if uno_nonint; then
+        printf "${default}" >&2
+        return
+    fi
     whiptail --title "${title}" \
           --inputbox \
           "${prompt}" \
@@ -274,6 +285,7 @@ uno_msgbox()
           text="${2}"
     
     WPRC=0
+    uno_nonint || return
     whiptail --title "${title}" \
           --msgbox \
           "${text}" \
@@ -289,6 +301,11 @@ uno_select()
     local result=${default} \
           max_tries=100 \
           i=0
+
+    if uno_nonint; then
+        printf "${default}" >&2
+        return
+    fi
 
     while [ ${i} -lt ${max_tries} ]; do
         uno_yesno "Select ${what}" \
@@ -807,11 +824,19 @@ We will now try to perform the installation for you."
         uno_warning "Overwriting existing connextdds-py wheel: ${b_whl}"
     fi
 
+    local njobs=$(uno_select "Number of build jobs for connextdds-py" \
+"connextdds-py is a C++ wrapper layer that exposes the C++11 DDS API to Python.
+C++ takes a long time to build, and a lot of memory too.
+You should run more than one build job in order to speed up the process, but keep in mind your system might run out of memory with too many parallel jobs.
+
+Number of parallel build jobs to spawn"
+2)
+
     (
         cd ${tgt_dir}
         connext_arch=$(uno_connext_arch)
         uno_info "Configuring connextdds-py for ${connext_arch}..."
-        python3 configure.py -j$(nproc) ${connext_arch}
+        python3 configure.py -j${njobs} ${connext_arch}
         uno_info "Generating connextdds-py wheel (this might take a while): ${whl_base}"
         CONNEXTDDS_ARCH=${connext_arch} pip3 wheel .
     )
