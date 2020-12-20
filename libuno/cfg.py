@@ -72,7 +72,7 @@ UvnDefaults = {
                 "interface": "uwg-b{}"
             },
             "backbone2": {
-                "base_ip": "10.255.196.0",
+                "base_ip": "10.255.192.0",
                 "netmask": 31,
                 "interface": "uwg-b{}"
             },
