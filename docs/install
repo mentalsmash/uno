@@ -1187,8 +1187,9 @@ _tmux_check_escape()
 {
     local tmux_conf="${HOME}/.tmux.conf"
     local tmux_cfg="set -g prefix C-a"
+    ! grep "${tmux_cfg}" ${tmux_conf} || local already_enabled=y
 
-    if [ ! -f "${tmux_conf}" ] || ! grep "${tmux_cfg}" ${tmux_conf}; then
+    if [ ! -f "${tmux_conf}" -o -z "${already_enabled}" ] ; then
         uno_yesno "Update tmux escape sequence" \
 "It looks like you are using tmux's default escape sequence, CTRL+B.
 This sequence must be typed to perform any command, and it's a bit awkward.
@@ -1204,6 +1205,8 @@ ${tmux_cfg}
             uno_warning "Enabled CTRL+A as tmux escape sequence"
             _tmux_escape="CTRL+A"
         fi
+    elif [ -z "${already_enabled}" ]; then
+        _tmux_escape="CTRL+A"
     fi
 }
 
