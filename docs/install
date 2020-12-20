@@ -1192,7 +1192,7 @@ uno_test_run
 # experiment_local.sh
 ################################################################################
 EXPLOC_NETS=4
-EXPLOC_DEPLOY=yes
+EXPLOC_DEPLOY="generate deployment"
 
 _tmux_escape="CTRL+B"
 
