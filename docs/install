@@ -346,7 +346,7 @@ uno_apt_sources_add_debian_unstable()
 uno_apt_sources_add_docker()
 {
     uno_info "adding Docker repository to apt sources"
-    uno_apt_sources_deps
+    # uno_apt_sources_deps
     curl -fsSL https://download.docker.com/linux/ubuntu/gpg | ${SUDO} apt-key add -
     ${SUDO} add-apt-repository \
         "deb [arch=${docker_arch}] https://download.docker.com/linux/${docker_os} \
