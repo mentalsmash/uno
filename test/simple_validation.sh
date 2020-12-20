@@ -73,7 +73,7 @@ UVN_CELLS="cell1 cell2 cell3"
     cd ${UVN_ADDRESS}
     
     # Test root UVN agent. Enter directory to load secret from file
-    sudo ${uvn_bin} A ${VERBOSE} ${KEEP}
+    [ -n "${NONINTERACTIVE}" ] || sudo ${uvn_bin} A ${VERBOSE} ${KEEP}
 
     # Build Docker images
     sudo ${uvn_bin} R b -D ${VERBOSE}
