@@ -270,7 +270,7 @@ uno_inputbox()
     
     WPRC=0
     if uno_nonint; then
-        printf "${default}" >&2
+        printf "${default}"
         return
     fi
     whiptail --title "${title}" \
@@ -307,7 +307,7 @@ uno_select()
           i=0
 
     if uno_nonint; then
-        printf "${default}" >&2
+        printf "${default}"
         return
     fi
 
