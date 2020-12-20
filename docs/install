@@ -96,6 +96,13 @@ uno_detect_os()
     esac
 }
 
+uno_chown()
+{
+    local user_perm="${UNO_USER}:${UNO_GROUP}"
+    uno_info "setting permissions for ${1} to ${user_perm}"
+    ${SUDO} chown ${user_perm} "${1}"
+}
+
 uno_mkdir()
 {
     # Try to create directory as user, then fall back to root if needed
@@ -105,9 +112,7 @@ uno_mkdir()
         uno_warning "root path: ${1}"
         ${SUDO} mkdir -p "${1}"
         # TODO chown the whole ${1} hierarchy, not just the leaf directory
-        local user_perm="${UNO_USER}:${UNO_USER_GROUP}"
-        uno_info "setting permissions for ${1} to ${user_perm}"
-        ${SUDO} chown ${user_perm} "${1}"
+        uno_chown "${1}"
     )
 }
 
@@ -502,6 +507,7 @@ uno_connext_install_host()
     *.run)
         (
             cd $(dirname ${host_file})
+            uno_chown "$(pwd)"
             ./$(basename ${host_file}) --mode unattended --prefix ${base_dir} ||
                 install_rc=$?
             if [ -n "${install_rc}" ]; then
@@ -516,6 +522,7 @@ uno_connext_install_host()
         (
             host_file=$(realpath ${host_file})
             cd ${NDDSHOME}/..
+            uno_chown "$(pwd)"
             tar xzf ${host_file}
             if [ "rti_connext_dds-6.0.1" != "$(basename ${NDDSHOME})" ]; then
                 ln -s rti_connext_dds-6.0.1 $(basename ${NDDSHOME})
@@ -749,6 +756,7 @@ uno_connextddspy_wheel_install()
 ################################################################################
 UNO_PLATFORM=${UNO_PLATFORM:-$(uno_detect_os)}
 UNO_USER=${UNO_USER:-$(whoami)}
+UNO_GROUP=${UNO_GROUP:-${UNO_USER}}
 UNO_HOST=${UNO_HOST:-$(hostname)}
 UNO_BRANCH=${UNO_BRANCH:-master}
 UNO_URL=${UNO_URL:-https://github.com/mentalsmash/uno}
