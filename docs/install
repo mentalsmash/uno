@@ -1047,7 +1047,7 @@ _missing_whl=$(
 )
 _build_wheel=
 
-if [ ! -n "${_missing_whl}" ]; then
+if [ -n "${_missing_whl}" ]; then
     if [ -z "${_connextddspy_whl}" ]; then
         _build_wheel=yes
     else
