@@ -515,12 +515,11 @@ uno_connext_install_host()
         uno_error "Required host bundle not found: ${host_file}"
     fi
 
-    uno_mkdir ${NDDSHOME}
     local base_dir=$(dirname ${NDDSHOME})
     local install_dir="${base_dir}/rti_connext_dds-6.0.1"
     host_file=$(realpath ${host_file})
 
-    uno_chown "${base_dir}"
+    uno_mkdir ${base_dir}
 
     uno_info "Installing RTI Connext DDS host bundle ${host_file} in ${NDDSHOME}"
 
