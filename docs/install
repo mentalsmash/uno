@@ -240,7 +240,7 @@ uno_wprc_check()
 
 uno_nonint()
 {
-    [ -z "${NONINTERACTIVE}" ]
+    [ -n "${NONINTERACTIVE}" ]
 }
 
 uno_yesno()
@@ -251,7 +251,9 @@ uno_yesno()
 
 
     WPRC=0
-    uno_nonint || return
+    if uno_nonint; then
+        return
+    fi
     whiptail --title "${title}" \
           --yesno \
           ${extra_args} \
@@ -285,7 +287,9 @@ uno_msgbox()
           text="${2}"
     
     WPRC=0
-    uno_nonint || return
+    if uno_nonint; then
+        return
+    fi
     whiptail --title "${title}" \
           --msgbox \
           "${text}" \
