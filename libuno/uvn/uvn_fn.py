@@ -56,10 +56,10 @@ class UvnFn:
         registry = UvnRegistry(identity_db=identity_db)
         
         for c in registry_dict.get("cells",[]):
-            registry_add(registry, **c)
+            UvnFn._registry_add(registry, **c)
 
         if registry_dict.get("deploy"):
-            registry_deploy(registry,
+            UvnFn._registry_deploy(registry,
                 strategy = registry_dict.get("deployment_strategy"))
 
         logger.activity("initialized UVN {} in {}", registry.address, dir_uvn)
