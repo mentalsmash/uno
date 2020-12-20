@@ -500,37 +500,35 @@ uno_connext_install_host()
 
     uno_mkdir ${NDDSHOME}
     local base_dir=$(dirname ${NDDSHOME})
+    local install_dir="${base_dir}/rti_connext_dds-6.0.1"
+    host_file=$(realpath ${host_file})
+    
     uno_chown "${base_dir}"
 
     uno_info "Installing RTI Connext DDS host bundle ${host_file} in ${NDDSHOME}"
 
-    case "${host_file}" in
-    *.run)
-        (
-            cd $(dirname ${host_file})
-            ./$(basename ${host_file}) --mode unattended --prefix ${base_dir} ||
-                install_rc=$?
-            if [ -n "${install_rc}" ]; then
-                uno_error "installer failed with rc: ${install_rc}"
-            fi
-            if [ "${base_dir}/rti_connext_dds-6.0.1" != "${NDDSHOME}" ]; then
-                ${SUDO} ln -s ${base_dir}/rti_connext_dds-6.0.1 ${NDDSHOME}
-                uno_chown "${NDDSHOME}"
-            fi
-        )
-        ;;
-    *.tar.gz)
-        (
-            host_file=$(realpath ${host_file})
-            cd ${base_dir}
-            tar xzf ${host_file}
-            if [ "rti_connext_dds-6.0.1" != "$(basename ${NDDSHOME})" ]; then
-                ${SUDO} ln -s rti_connext_dds-6.0.1 $(basename ${NDDSHOME})
-                uno_chown "${NDDSHOME}"
-            fi
-        )
-        ;;
-    esac
+    if [ ! -d "${install_dir}" ]; then
+        case "${host_file}" in
+        *.run)
+            (
+                cd $(dirname ${host_file})
+                ./$(basename ${host_file}) --mode unattended --prefix ${base_dir} ||
+                    uno_error "Connext host installer failed with rc: $?"
+            )
+            ;;
+        *.tar.gz)
+            (
+                cd ${base_dir}
+                tar xzf ${host_file}
+            )
+            ;;
+        esac
+    fi
+
+    if [ "${install_dir}" != "${NDDSHOME}" ]; then
+        ${SUDO} ln -s ${install_dir} ${NDDSHOME}
+        uno_chown "${NDDSHOME}"
+    fi
 }
 
 uno_connext_install_target()
