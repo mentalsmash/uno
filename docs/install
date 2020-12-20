@@ -522,13 +522,13 @@ uno_connext_configure_nddshome()
 Would you like to add an entry for this in ${user_profile}?"
 
     if uno_wprc_yes; then
-        uno_info "enabling NDDSHOME for user ${UNO_USER}"
         printf "# Load RTI Connext DDS in the environment
 export NDDSHOME=${NDDSHOME}
 
 # Uncomment the following line on Bash to also configure LD_LIBRARY_PATH
 # source ${NDDSHOME}/resource/scripts/rtisetenv_$(uno_connext_arch).bash
 " >> ${user_profile}
+        uno_info "enabled NDDSHOME for user ${UNO_USER}: ${NDDSHOME}"
     fi
 }
 
@@ -657,7 +657,7 @@ uno_connextddspy_wheel_name()
         ;;
     esac
 
-    printf "rti-0.0.1-cp${pyv}-cp${pyv}m-linux_${pya}.whl"
+    printf "rti-0.0.1-cp${pyv}-cp${pyv}*-linux_${pya}.whl"
 }
 
 uno_connextddspy_wheel_find()
@@ -665,14 +665,14 @@ uno_connextddspy_wheel_find()
     local tgt_dir="${1}"
     local _whl=$(uno_connextddspy_wheel_name)
     
-    if [ -f "${_whl}" ]; then
-        printf "${_whl}"
+    if [ -f ${_whl} ]; then
+        ls ${_whl}
         return
     fi
 
     _whl="${tgt_dir}/${_whl}"
-    if [ -f "${_whl}" ]; then
-        printf "${_whl}"
+    if [ -f ${_whl} ]; then
+        ls ${_whl}
         return
     fi
 }
@@ -693,7 +693,7 @@ We will now try to build a copy from source."
     local whl=$(uno_connextddspy_wheel_find ${tgt_dir}) \
           use_whl=
 
-    if [ -f "${whl}" ]; then
+    if [ -f ${whl} ]; then
        uno_yesno "Install connextdds-py from wheel" \
 "Pre-built wheel for connextdds-py found: ${whl}
 
@@ -702,7 +702,7 @@ Would you like to install it?"
     fi
 
     if [ -n "${use_whl}" ]; then
-        uno_connextddspy_wheel_install "${whl}"
+        uno_connextddspy_wheel_install ${whl}
     else
         uno_connextddspy_wheel_generate "${tgt_dir}"
     fi
@@ -776,7 +776,7 @@ We will now try to perform the installation for you."
     
     local whl=$(uno_connextddspy_wheel_find ${tgt_dir})
 
-    if [ -z "${whl}" -o "${whl}" != "${b_whl}" ]; then
+    if [ -z "${whl}" -o ${whl} != ${b_whl} ]; then
         uno_error "failed to load connextdds-py wheel: ${b_whl}"
     fi
 
