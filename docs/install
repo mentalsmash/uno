@@ -678,26 +678,11 @@ uno_connextddspy_wheel_name()
         ;;
     esac
 
-    printf "rti-0.0.1-cp${pyv}-cp${pyv}*-linux_${pya}.whl"
-}
+    if [ "${pyv}" = "37" -o "${pyv}" = "36" ]; then
+        local pextra=m
+    fi
 
-# This is an ugly mess
-uno_connextddspy_wheel_names()
-{
-    local pyv=$(python3 --version | awk '{print $2;}' | cut -d. -f1,2 | tr -d .) \
-          pya=
-
-    case "${UNO_PLATFORM}" in
-    Ubuntu|Debian)
-        pya=x86_64
-        ;;
-    Raspbian)
-        pya=armv7l
-        ;;
-    esac
-
-    printf "rti-0.0.1-cp${pyv}-cp${pyv}m-linux_${pya}.whl" \
-           "rti-0.0.1-cp${pyv}-cp${pyv}-linux_${pya}.whl"
+    printf "rti-0.0.1-cp${pyv}-cp${pyv}${pextra}-linux_${pya}.whl"
 }
 
 uno_connextddspy_wheel_find()
@@ -836,12 +821,7 @@ uno_connextddspy_wheel_install()
     sudo pip3 install ${whl}
 
     uno_info "Caching ${whl_base} in ${UNO_WHL_DIR}"
-    # This is ugly, but we copy to multiple names because the Python
-    # code always expects "cNN-cNNm" in the name, and some python's don't
-    # add the "m" in the wheel name.
-    for n in $(uno_connextddspy_wheel_names); do
-        cp ${whl} ${UNO_WHL_DIR}/${n}
-    done
+    cp ${whl} ${UNO_WHL_DIR}/$(uno_connextddspy_wheel_name)
 }
 
 ################################################################################
@@ -1039,11 +1019,9 @@ fi
 ################################################################################
 _connextddspy_whl=$(uno_connextddspy_wheel_find ${DDSPY_DIR})
 _missing_whl=$(
-    for n in $(uno_connextddspy_wheel_names); do
-        if [ ! -f "${UNO_WHL_DIR}/${n}" ]; then
-            printf "${UNO_WHL_DIR}/${n}"
-        fi
-    done
+    if [ ! -f "${UNO_WHL_DIR}/${n}" ]; then
+        printf "${UNO_WHL_DIR}/$(uno_connextddspy_wheel_name)"
+    fi
 )
 _build_wheel=
 

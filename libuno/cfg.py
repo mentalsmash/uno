@@ -190,7 +190,7 @@ UvnDefaults = {
             "repo_url_base": "github.com/mentalsmash/uno.git",
             "repo_url_fmt": "{}://{}:x-oauth-basic@{}",
             "uvn_dir": "uvn",
-            "connextdds_wheel_fmt": "rti-0.0.1-cp{}-cp{}m-linux_{}.whl"
+            "connextdds_wheel_fmt": "rti-0.0.1-cp{}-cp{}{}-linux_{}.whl"
         }
     },
     "ping": {
