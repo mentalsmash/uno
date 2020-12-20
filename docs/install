@@ -735,7 +735,7 @@ We will now try to build a copy from source."
 
     local use_whl=
 
-    if [ -f ${_connextddspy_whl} ]; then
+    if [ -f "${_connextddspy_whl}" ]; then
        uno_yesno "Install connextdds-py from wheel" \
 "Pre-built wheel for connextdds-py found: ${_connextddspy_whl}
 
