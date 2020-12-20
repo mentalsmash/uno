@@ -430,9 +430,10 @@ uno_docker_install()
             return 1
             ;;
     esac
-    uno_info "Installing Docker..."
-    ${APT_GET} remove -y docker docker-engine docker.io containerd runc
-    ${APT_GET} update
+    uno_info "removing older Docker versions..."
+    ${APT_GET} remove -y docker docker-engine docker.io containerd runc >/dev/null 2>&1 ||
+        [ -n "some_packages_not_installed" ]
+    uno_info "adding Docker repository to apt sources"
     ${APT_GET} install -y -qq apt-transport-https \
                             ca-certificates \
                             curl \
@@ -443,6 +444,7 @@ uno_docker_install()
         "deb [arch=${docker_arch}] https://download.docker.com/linux/${docker_os} \
         $(lsb_release -cs) \
         stable"
+    uno_info "installing Docker..."
     ${APT_GET} update
     ${APT_GET} install -y -qq docker-ce docker-ce-cli containerd.io
 }
