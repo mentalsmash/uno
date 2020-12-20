@@ -96,7 +96,7 @@ class ConnextDdsWheel:
     def __init__(self, arch, base_name=UvnDefaults["docker"]["context"]["connextdds_wheel_fmt"]):
         py_vers = "{}{}".format(sys.version_info.major, sys.version_info.minor)
         self.name = base_name.format(py_vers, py_vers,
-            "m" if (sys.version_info.minor == 6 || sys.version_info.minor == 7)
+            "m" if (sys.version_info.minor == 6 or sys.version_info.minor == 7)
             else "",
             arch)
         self.path = pkg_resources.files(dds) / self.name
