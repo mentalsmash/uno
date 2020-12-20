@@ -1167,14 +1167,14 @@ uno_test_run \
     simple_validation \
     ${UNO_DIR}/test/simple_validation.sh \
     $(pwd)/uno-test-simple \
-    "performs a basic validation of the uno installation:
+"performs a basic validation of the uno installation:
 
-    - It creates a new UVN configuration.
-    - It attaches 3 cells to the UVN.
-    - It generates a new deployment.
-    - It installs the generated deployment packages.
-    - It starts the root agent." \
-    "You can exit the test at any time by pressing CTRL+C."
+  - It creates a new UVN configuration.
+  - It attaches 3 cells to the UVN.
+  - It generates a new deployment.
+  - It installs the generated deployment packages.
+  - It starts the root agent." \
+"You can exit the test at any time by pressing CTRL+C."
 
 ################################################################################
 # experiment_local.sh
@@ -1251,10 +1251,10 @@ uno_test_run \
     local_deploy \
     _experiment_local \
     $(pwd)/uno-test-local \
-    "is a more advanced test which simulates a uvn locally using Docker containers.
-    The test creates an arbitrary number of private networks, each one containing 3 hosts (a gateway, a cell, and regular host).
-    All LANs are connected to a common \"internet\" which contains the UVN registry, and a \"roaming\" cell." \
-    "Use CTRL+C to interrupt the test while loading. Exit tmux by pressing ${_tmux_escape}, and typing ':kill-session'" \
+"is a more advanced test which simulates a uvn locally using Docker containers.
+The test creates an arbitrary number of private networks, each one containing 3 hosts (a gateway, a cell, and regular host).
+All LANs are connected to a common \"internet\" which contains the UVN registry, and a \"roaming\" cell." \
+"Use CTRL+C to interrupt the test while loading. Exit tmux by pressing ${_tmux_escape}, and typing ':kill-session'" \
     $([ -n "${_docker_avail}" ] || printf test_disabled)
 
 ################################################################################
