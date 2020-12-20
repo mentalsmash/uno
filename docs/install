@@ -240,7 +240,7 @@ uno_wprc_check()
 
 uno_nonint()
 {
-    [ -n "${NONINTERACTIVE}" ]
+    [ -z "${NONINTERACTIVE}" ]
 }
 
 uno_yesno()
