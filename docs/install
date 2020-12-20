@@ -1114,8 +1114,8 @@ _test_interrupted=
 _test_rc=
 _test_dir=
 _test=
-_test_path=
 _test_desc=
+_test_disabled=
 _test_do_run=
 
 uno_test_interrupted()
@@ -1134,8 +1134,20 @@ uno_test_check()
 
 uno_test_run()
 {
+    _test="${1}"
+    _test_run="${2}"
+    _test_dir="${3}"
+    _test_desc="${4}"
+    _test_exit="${5}"
+    _test_disabled="${6}"
 
-    [ -z "${_test_do_run}" ] || uno_yesno "Run test ${_test}" \
+    local test_disabled=$(
+        if [ -z "${_test_do_run}" ] || [ -z "${_test_disabled}" ]; then
+            printf disabled
+        fi
+    )
+
+    [ -n "${test_disabled}" ] || uno_yesno "Run test ${_test}" \
 "${_test} ${_test_desc}
 
 Directory ${_test_dir} will be created (and deleted if it already exists).
@@ -1144,7 +1156,7 @@ Run the test?
 
 (${_test_exit})"
 
-    if [ -z "${_test_do_run}" ] || uno_wprc_no; then
+    if [ -n "${test_disabled}" ] || uno_wprc_no; then
         uno_info "test skipped: ${_test}"
         return
     fi
@@ -1173,27 +1185,24 @@ uno_wprc_no || _test_do_run=y
 ################################################################################
 # simple_validation.sh
 ################################################################################
+uno_test_run \
+    simple_validation \
+    ${UNO_DIR}/test/simple_validation.sh \
+    $(pwd)/uno-test-simple \
+    "performs a basic validation of the uno installation:
 
-_test_dir=$(pwd)/uno-test-simple
-_test=simple_validation.sh
-_test_run=${UNO_DIR}/test/simple_validation.sh
-_test_desc="performs a basic validation of the uno installation:
-
-  - It creates a new UVN configuration.
-  - It attaches 3 cells to the UVN.
-  - It generates a new deployment.
-  - It installs the generated deployment packages.
-  - It starts the root agent."
-_test_exit="You can exit the test at any time by pressing CTRL+C."
-
-uno_test_run
+    - It creates a new UVN configuration.
+    - It attaches 3 cells to the UVN.
+    - It generates a new deployment.
+    - It installs the generated deployment packages.
+    - It starts the root agent." \
+    "You can exit the test at any time by pressing CTRL+C."
 
 ################################################################################
 # experiment_local.sh
 ################################################################################
-EXPLOC_NETS=4
-EXPLOC_DEPLOY="generate deployment"
-
+_experiment_local_nets=4
+_experiment_local_deploy="generate deployment"
 _tmux_escape="CTRL+B"
 
 _tmux_check_escape()
@@ -1227,19 +1236,19 @@ _experiment_local()
         local rpi_warning="\nSince you are running on a Raspberry Pi, you should keep this number low or risk running out of memory (e.g. 2-3 networks).\n"
     esac
 
-    local exp_nets=$(uno_select "number of private networks" \
+    _experiment_local_nets=$(uno_select "number of private networks" \
         "Select the number of private networks that the test will attach to the UVN.
 ${rpi_warning}
 Current value" \
-        ${EXPLOC_NETS})
+        ${_experiment_local_nets})
     
-    local exp_deploy=$(uno_select "generate deployment configuration" \
+    _experiment_local_deploy=$(uno_select "generate deployment configuration" \
         "The test can optionally generate a deployment configuration before starting the nodes.
 If you skip this step, the UVN will be launched without a backbone.
 You can generate a deployment at any time by navigating to the root agent's container, and using alias \`uvnd_deploy\`.
 
 Current value (leave empty to disable)" \
-        ${EXPLOC_DEPLOY})
+        ${_experiment_local_deploy})
     
     _tmux_check_escape
 
@@ -1253,20 +1262,22 @@ All panels display either one of the container's logs, or a control shell inside
 
     (
         cd ${_test_dir}
-        NETS=${exp_nets} PREDEPLOY=${exp_deploy} VERBOSE=y \
+        NETS=${_experiment_local_nets} \
+        PREDEPLOY=${_experiment_local_deploy} \
+        VERBOSE=y \
             ${UNO_DIR}/test/local_deploy/experiment_local.sh
     )
 }
 
-_test_dir=$(pwd)/uno-test-local
-_test=local_deploy
-_test_run=_experiment_local
-_test_desc="is a more advanced test which simulates a uvn locally using Docker containers.
-The test creates an arbitrary number of private networks, each one containing 3 hosts (a gateway, a cell, and regular host).
-All LANs are connected to a common \"internet\" which contains the UVN registry, and a \"roaming\" cell."
-_test_exit="Use CTRL+C to interrupt the test while loading. Exit tmux by pressing ${_tmux_escape}, and typing ':kill-session'"
-
-uno_test_run
+uno_test_run \
+    local_deploy \
+    _experiment_local \
+    $(pwd)/uno-test-local \
+    "is a more advanced test which simulates a uvn locally using Docker containers.
+    The test creates an arbitrary number of private networks, each one containing 3 hosts (a gateway, a cell, and regular host).
+    All LANs are connected to a common \"internet\" which contains the UVN registry, and a \"roaming\" cell." \
+    "Use CTRL+C to interrupt the test while loading. Exit tmux by pressing ${_tmux_escape}, and typing ':kill-session'" \
+    $([ -n "${_docker_avail}" ] || printf test_disabled)
 
 ################################################################################
 # Done
