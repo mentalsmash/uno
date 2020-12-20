@@ -19,12 +19,20 @@ set -e
 [ -z "${DEBUG}" ] || set -x
 
 ################################################################################
+# Store logs in a file
+################################################################################
+uno_log()
+{
+    cat - | tee -a $(pwd)/uno-install.log
+}
+
+################################################################################
 # Logging helpers
 ################################################################################
 uno_error()
 {
     printf "${COLOR_RED_BOLD}"
-    echo ERROR: $@ >&2
+    echo ERROR: $@ | uno_log >&2
     printf "${COLOR_RESET}"
     printf "${_log_color}"
     exit 1
@@ -33,7 +41,7 @@ uno_error()
 uno_warning()
 {
     printf "${COLOR_YELLOW_BOLD}"
-    echo WARNING: $@ >&2
+    echo WARNING: $@ | uno_log >&2
     printf "${COLOR_RESET}"
     printf "${_log_color}"
 }
@@ -41,7 +49,7 @@ uno_warning()
 uno_info()
 {
     printf "${COLOR_BLUE_BOLD}"
-    echo I: $@
+    echo I: $@ | uno_log
     printf "${COLOR_RESET}"
     printf "${_log_color}"
 }
@@ -812,6 +820,13 @@ uno_connextddspy_wheel_install()
     cp ${whl} ${UNO_WHL_DIR}
 }
 
+################################################################################
+################################################################################
+# BEGIN ACTUAL SCRIPT
+################################################################################
+################################################################################
+
+uno_info "uno installer started: $(date)"
 
 ################################################################################
 # Global configuration variables
@@ -860,11 +875,6 @@ DDSPY_DEPS_PIP="wheel
 DDSPY_DEPS=build-essential
 UNO_WHL_DIR="${UNO_DIR}/libuno/data/dds"
 NDDSHOME_DEFAULT=/opt/rti/ndds
-################################################################################
-################################################################################
-# BEGIN ACTUAL SCRIPT
-################################################################################
-################################################################################
 
 ################################################################################
 # Detect system and greet user
@@ -993,8 +1003,7 @@ if [ -n "${_docker_avail}" ]; then
     Would you like to add '${UNO_USER}' to group 'docker' to enable access to the Docker daemon?"
         if uno_wprc_yes; then
             ${SUDO} usermod -a -G docker ${UNO_USER}
-            
-            uno_warning "Log out and back in again to enable new user credentials for Docker."
+            uno_warning "New user credentials for user ${UNO_USER} will be enable on the next login."
         fi
     else
         uno_info "Docker enabled for ${UNO_USER}"
