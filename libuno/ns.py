@@ -46,6 +46,26 @@ def dnsmasq_reload():
         root=True,
         fail_msg="failed to reload dnsmasq")
 
+def systemd_resolved_running():
+    res = exec_command(["killall", "-0", "systemd-resolved"],
+        root=True,
+        noexcept=True,
+        fail_msg="failed to check systemd-resolved status")
+    return res.returncode == 0
+
+def systemd_resolved_disable():
+    if systemd_resolved_running():
+        exec_command(["systemctl", "disable", "--now", "systemd-resolved"],
+            root=True,
+            fail_msg="failed to disable systemd-resolved")
+        return True
+    return False
+
+def systemd_resolved_enable():
+    exec_command(["systemctl", "enable", "--now", "systemd-resolved"],
+        root=True,
+        fail_msg="failed to re-enable systemd-resolved")
+
 
 class DnsmasqMonitor(MonitorThread):
     def __init__(self, ns):
@@ -109,6 +129,7 @@ class UvnNameserver:
         self.noupstream = False
         self.localhost_only = False
         self._basedir = None
+        self._systemdresolved_disabled = False
 
     def _generate_dnsmasq_config(self,
             db_only=False,
@@ -157,6 +178,7 @@ class UvnNameserver:
         dnsmasq_stop()
         self._basedir = pathlib.Path(basedir)
         self._generate_dnsmasq_config(*args, **kwargs)
+        self._systemdresolved_disabled = systemd_resolved_disable()
         dnsmasq_start()
         self.dnsmaq_monitor.start()
         self.dnsmasq_enabled = True
@@ -170,6 +192,8 @@ class UvnNameserver:
         self.upstream_servers = []
         self.noupstream = False
         self.localhost_only = False
+        if self._systemdresolved_disabled:
+            systemd_resolved_enable()
         logger.trace("[dnsmasq] disabled")
     
     def reload(self):

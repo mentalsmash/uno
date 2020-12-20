@@ -104,6 +104,11 @@ uno_detect_os()
     esac
 }
 
+uno_ubuntu_release()
+{
+    lsb_release -r | awk '{print $2;}'
+}
+
 uno_chown()
 {
     local user_perm="${UNO_USER}:${UNO_GROUP}"
@@ -869,6 +874,7 @@ uno_connextddspy_wheel_install()
     uno_info "Caching ${whl_base} in ${UNO_WHL_DIR}"
     cp ${whl} ${UNO_WHL_DIR}/$(uno_connextddspy_wheel_name)
 }
+
 
 ################################################################################
 ################################################################################
