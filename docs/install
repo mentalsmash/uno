@@ -874,6 +874,8 @@ uno_connextddspy_wheel_install()
 
 uno_info "uno installer started: $(date)"
 
+uno_nonint || uno_info "running in non-interactive mode"
+
 ################################################################################
 # Global configuration variables
 ################################################################################
