@@ -1003,7 +1003,7 @@ if [ -n "${_docker_avail}" ]; then
     Would you like to add '${UNO_USER}' to group 'docker' to enable access to the Docker daemon?"
         if uno_wprc_yes; then
             ${SUDO} usermod -a -G docker ${UNO_USER}
-            uno_warning "New user credentials for user ${UNO_USER} will be enable on the next login."
+            uno_warning "New credentials for user ${UNO_USER} will be enabled on the next login."
         fi
     else
         uno_info "Docker enabled for ${UNO_USER}"
