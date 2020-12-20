@@ -668,6 +668,8 @@ uno_connext_install()
 ################################################################################
 # Clone connextdds-py
 ################################################################################
+_connextddspy_whl=
+
 uno_connextddspy_wheel_name()
 {
     local pyv=$(python3 --version | awk '{print $2;}' | cut -d. -f1,2 | tr -d .) \
@@ -692,17 +694,27 @@ uno_connextddspy_wheel_name()
 uno_connextddspy_wheel_find()
 {
     local tgt_dir="${1}"
-    local _whl=$(uno_connextddspy_wheel_name)
+    local whl_name=$(uno_connextddspy_wheel_name)
+    local whl="$(pwd)/${whl_name}"
     
-    if [ -f ${_whl} ]; then
-        ls ${_whl}
-        return
+    uno_info "searching for ${whl_name} in $(pwd)"
+    
+    _connextddspy_whl=
+    
+    if [ -f "${whl}" ]; then
+        _connextddspy_whl="${whl}"
+    elif [ -n "${tgt_dir}" ]; then
+        uno_info "searching for ${whl_name} in ${tgt_dir}"
+        whl="${tgt_dir}/${whl_name}"
+        if [ -f "${whl}" ]; then
+            _connextddspy_whl="${whl}"
+        fi
     fi
 
-    _whl="${tgt_dir}/${_whl}"
-    if [ -f ${_whl} ]; then
-        ls ${_whl}
-        return
+    if [ -z "${_connextddspy_whl}" ]; then
+        uno_warning "${whl_name} not found"
+    else
+        uno_info "found ${whl_name} in $(dirname ${_connextddspy_whl})"
     fi
 }
 
@@ -718,20 +730,21 @@ We will now try to build a copy from source."
     local tgt_dir="$(uno_select "connextdds-py source directory" \
         "connextdds-py will be cloned in directory" \
         "${DDSPY_DIR}")"
-    DDSPY_DIR="${tgt_dir}"
-    local whl=$(uno_connextddspy_wheel_find ${tgt_dir}) \
-          use_whl=
+    
+    uno_connextddspy_wheel_find ${tgt_dir}
 
-    if [ -f ${whl} ]; then
+    local use_whl=
+
+    if [ -f ${_connextddspy_whl} ]; then
        uno_yesno "Install connextdds-py from wheel" \
-"Pre-built wheel for connextdds-py found: ${whl}
+"Pre-built wheel for connextdds-py found: ${_connextddspy_whl}
 
 Would you like to install it?"
         uno_wprc_no || use_whl=y
     fi
 
     if [ -n "${use_whl}" ]; then
-        uno_connextddspy_wheel_install ${whl}
+        uno_connextddspy_wheel_install ${_connextddspy_whl}
     else
         uno_connextddspy_wheel_generate "${tgt_dir}"
     fi
@@ -803,13 +816,13 @@ We will now try to perform the installation for you."
         CONNEXTDDS_ARCH=${connext_arch} pip3 wheel .
     )
     
-    local whl=$(uno_connextddspy_wheel_find ${tgt_dir})
+    uno_connextddspy_wheel_find ${tgt_dir}
 
-    if [ -z "${whl}" -o ${whl} != ${b_whl} ]; then
-        uno_error "failed to load connextdds-py wheel: ${b_whl}"
+    if [ -z "${_connextddspy_whl}" -o "${_connextddspy_whl}" != "${b_whl}" ]; then
+        uno_error "failed to load built connextdds-py wheel: ${b_whl}"
     fi
 
-    uno_connextddspy_wheel_install "${whl}"
+    uno_connextddspy_wheel_install "${_connextddspy_whl}"
 }
 
 uno_connextddspy_wheel_install()
@@ -1021,16 +1034,18 @@ fi
 ################################################################################
 # Clone and build connextdds-py
 ################################################################################
-_connextddspy_whl=$(uno_connextddspy_wheel_find ${DDSPY_DIR})
 _missing_whl=$(
-    if [ ! -f "${UNO_WHL_DIR}/${n}" ]; then
+    if [ ! -f "${UNO_WHL_DIR}/$(uno_connextddspy_wheel_name)" ]; then
         printf "${UNO_WHL_DIR}/$(uno_connextddspy_wheel_name)"
     fi
 )
 _build_wheel=
 
 if [ -n "${_missing_whl}" ]; then
+    uno_info "installing connextdds-py to ${_missing_whl}"
+    uno_connextddspy_wheel_find
     if [ -z "${_connextddspy_whl}" ]; then
+        uno_info "must build connextdds-py wheel from source"
         _build_wheel=yes
     else
         uno_connextddspy_wheel_install "${_connextddspy_whl}"
