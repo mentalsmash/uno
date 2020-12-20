@@ -971,8 +971,8 @@ if [ ! -f "${_uno_whl}" ]; then
     if [ -z "${_connextddspy_whl}" ]; then
         _build_wheel=yes
     else
+        uno_connextddspy_wheel_install "${_connextddspy_whl}"
     fi
-    uno_connextddspy_wheel_install "${_connextddspy_whl}"
 else
     uno_info "connextdds-py already installed in ${_uno_whl}"
 fi
