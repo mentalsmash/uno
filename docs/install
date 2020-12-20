@@ -463,19 +463,19 @@ uno_docker_check()
 ################################################################################
 uno_nddshome_check()
 {
-    [ ! -d "${NDDSHOME}" -o ! -h "${NDDSHOME}" ]
+    [ -n "${NDDSHOME}" ] && [ -d "${NDDSHOME}" -o -h "${NDDSHOME}" ]
 }
 
 uno_connext_target_check()
 {
-    [ ! -d "${NDDSHOME}/lib/$(uno_connext_arch)" -o \
-      ! -h "${NDDSHOME}/lib/$(uno_connext_arch)" ]
+    uno_nddshome_check &&
+        [ -d "${NDDSHOME}/lib/$(uno_connext_arch)" -o \
+          -h "${NDDSHOME}/lib/$(uno_connext_arch)" ]
 }
 
 uno_connext_check()
 {
-    uno_nddshome_check &&
-        uno_connext_target_check
+    uno_connext_target_check
 }
 
 uno_connext_arch()
