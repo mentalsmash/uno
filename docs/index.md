@@ -7,7 +7,7 @@ via dynamically managed VPN links.
 
 ## Install uno
 
-**uno** should work on any Debian-based Linux target.
+**uno** is written in Python, and it should work on any Debian-based Linux target.
 
 So far, it has been successfully tested on Ubuntu 18.04/20.04 (`x86_64`), and
 Raspbian Buster (`armv7l`).
