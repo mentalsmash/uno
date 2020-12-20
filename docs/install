@@ -511,6 +511,11 @@ uno_connext_configure_nddshome()
 {
     local user_profile="${HOME}/.profile"
 
+    if (grep "NDDSHOME=${NDDSHOME}" ${user_profile} ||
+        grep ${NDDSHOME}/resource/scripts/rtisetenv_$(uno_connext_arch)) >/dev/null 2>&1; then
+        uno_info "NDDSHOME already configured in ${user_profile}"
+    fi
+
     uno_yesno "Configure NDDSHOME for user ${UNO_USER}" \
 "Now that RTI Connext DDS has been installed on ${UNO_HOST}, you should configure variable NDDSHOME for user ${UNO_USER} to point to ${NDDSHOME}.
 
@@ -518,7 +523,12 @@ Would you like to add an entry for this in ${user_profile}?"
 
     if uno_wprc_yes; then
         uno_info "enabling NDDSHOME for user ${UNO_USER}"
-        printf "export NDDSHOME=%s\n" "${NDDSHOME}" >> ${user_profile}
+        printf "# Load RTI Connext DDS in the environment
+export NDDSHOME=${NDDSHOME}
+
+# Uncomment the following line on Bash to also configure LD_LIBRARY_PATH
+# source ${NDDSHOME}/resource/scripts/rtisetenv_$(uno_connext_arch).bash
+" >> ${user_profile}
     fi
 }
 
@@ -623,9 +633,11 @@ uno_connext_install()
         uno_connext_install_target "${install_tgt}"
     fi
 
-    if [ ! -d "${NDDSHOME}" -o ! -d "${NDDSHOME}/lib/$(uno_connext_arch)" ]; then
+    if ! uno_connext_check; then
         uno_error "failed to install RTI Connext DDS"
     fi
+
+    uno_connext_configure_nddshome
 }
 
 ################################################################################
