@@ -1170,7 +1170,9 @@ uno_test_run()
     _test_disabled="${6}"
 
     local test_disabled=$(
-        if [ -z "${_test_do_run}" ] || [ -n "${_test_disabled}" ]; then
+        if uno_nonint ||
+           [ -z "${_test_do_run}" ] ||
+           [ -n "${_test_disabled}" ]; then
             printf disabled
         fi
     )
