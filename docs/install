@@ -681,6 +681,25 @@ uno_connextddspy_wheel_name()
     printf "rti-0.0.1-cp${pyv}-cp${pyv}*-linux_${pya}.whl"
 }
 
+# This is an ugly mess
+uno_connextddspy_wheel_names()
+{
+    local pyv=$(python3 --version | awk '{print $2;}' | cut -d. -f1,2 | tr -d .) \
+          pya=
+
+    case "${UNO_PLATFORM}" in
+    Ubuntu|Debian)
+        pya=x86_64
+        ;;
+    Raspbian)
+        pya=armv7l
+        ;;
+    esac
+
+    printf "rti-0.0.1-cp${pyv}-cp${pyv}m-linux_${pya}.whl" \
+           "rti-0.0.1-cp${pyv}-cp${pyv}-linux_${pya}.whl"
+}
+
 uno_connextddspy_wheel_find()
 {
     local tgt_dir="${1}"
@@ -817,7 +836,12 @@ uno_connextddspy_wheel_install()
     sudo pip3 install ${whl}
 
     uno_info "Caching ${whl_base} in ${UNO_WHL_DIR}"
-    cp ${whl} ${UNO_WHL_DIR}
+    # This is ugly, but we copy to multiple names because the Python
+    # code always expects "cNN-cNNm" in the name, and some python's don't
+    # add the "m" in the wheel name.
+    for n in $(uno_connextddspy_wheel_names); do
+        cp ${whl} ${UNO_WHL_DIR}/${n}
+    done
 }
 
 ################################################################################
@@ -1014,17 +1038,23 @@ fi
 # Clone and build connextdds-py
 ################################################################################
 _connextddspy_whl=$(uno_connextddspy_wheel_find ${DDSPY_DIR})
-_uno_whl=${UNO_WHL_DIR}/$(uno_connextddspy_wheel_name)
+_missing_whl=$(
+    for n in $(uno_connextddspy_wheel_names); do
+        if [ ! -f "${UNO_WHL_DIR}/${n}" ]; then
+            printf "${UNO_WHL_DIR}/${n}"
+        fi
+    done
+)
 _build_wheel=
 
-if [ ! -f "${_uno_whl}" ]; then
+if [ ! -n "${_missing_whl}" ]; then
     if [ -z "${_connextddspy_whl}" ]; then
         _build_wheel=yes
     else
         uno_connextddspy_wheel_install "${_connextddspy_whl}"
     fi
 else
-    uno_info "connextdds-py already installed in ${_uno_whl}"
+    uno_info "connextdds-py already installed in ${UNO_WHL_DIR}"
 fi
 
 if ! uno_python_check rti.connextdds || [ -n "${_build_wheel}" ]; then
