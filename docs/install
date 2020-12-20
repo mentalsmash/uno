@@ -514,7 +514,8 @@ uno_connext_install_host()
                 uno_error "installer failed with rc: ${install_rc}"
             fi
             if [ "${base_dir}/rti_connext_dds-6.0.1" != "${NDDSHOME}" ]; then
-                ln -s ${base_dir}/rti_connext_dds-6.0.1 ${NDDSHOME}
+                ${SUDO} ln -s ${base_dir}/rti_connext_dds-6.0.1 ${NDDSHOME}
+                uno_chown "${NDDSHOME}"
             fi
         )
         ;;
@@ -524,7 +525,8 @@ uno_connext_install_host()
             cd ${base_dir}
             tar xzf ${host_file}
             if [ "rti_connext_dds-6.0.1" != "$(basename ${NDDSHOME})" ]; then
-                ln -s rti_connext_dds-6.0.1 $(basename ${NDDSHOME})
+                ${SUDO} ln -s rti_connext_dds-6.0.1 $(basename ${NDDSHOME})
+                uno_chown "${NDDSHOME}"
             fi
         )
         ;;
