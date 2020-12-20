@@ -1002,7 +1002,7 @@ if [ -n "${_docker_avail}" ]; then
         fi
 
         uno_yesno "Configure Docker for user" \
-    "User '${UNO_USER}' is not configured to access the Docker daemon. All Docker operations will required the use of 'sudo'.
+    "User '${UNO_USER}' is not configured to access the Docker daemon. All Docker operations will require the use of 'sudo'.
 
     Would you like to add '${UNO_USER}' to group 'docker' to enable access to the Docker daemon?"
         if uno_wprc_yes; then

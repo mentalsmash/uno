@@ -512,7 +512,7 @@ class DockerController:
             elif sys.version_info.minor == 8:
                 base_image = "ubuntu:20.04"
         elif container_arch == "armv7l":
-            if sys.version_info.minor == 7
+            if sys.version_info.minor == 7:
                 base_image = "balenalib/raspberry-pi-debian:latest"
         else:
              raise ValueError(f"unsupported container architecture: {container_arch}")
