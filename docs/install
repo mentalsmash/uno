@@ -862,7 +862,7 @@ UNO_DEPS_RPI="libatlas-base-dev
 ################################################################################
 SUDO=$([ "$(id -u)" = 0 ] || printf sudo)
 APT_GET="${SUDO} apt-get"
-GIT=$(which git || print)
+GIT=$(which git || printf)
 WG_DIR=/opt/wg
 WG_DEPS="libelf-dev
          linux-headers-$(uname -r)
