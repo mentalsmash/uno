@@ -58,6 +58,13 @@ class UvnFn:
         for c in registry_dict.get("cells",[]):
             UvnFn._registry_add(registry, **c)
 
+        for p in registry_dict.get("particles",[]):
+            name = p["name"]
+            contact = p.get("contact")
+            p = registry.register_particle(name, contact)
+            logger.activity("added particle {} ({}) to UVN {}",
+                p.name, p.contact, registry.address)
+
         if registry_dict.get("deploy"):
             UvnFn._registry_deploy(registry,
                 strategy = registry_dict.get("deployment_strategy"))

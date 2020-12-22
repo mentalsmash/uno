@@ -38,8 +38,7 @@ setuptools.setup(
             "www/static/**/*"
     ]},
     scripts=[
-        "bin/uvn",
-        "bin/uvnd"
+        "bin/uvn"
     ],
     classifiers=[
         "Development Status :: 3 - Alpha",

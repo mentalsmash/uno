@@ -51,6 +51,9 @@ class UvnCommandCreate(UvnCommand):
         cfg_opts.add_argument("-c", "--cells",
             help="Initialize cells from configuration file")
         
+        cfg_opts.add_argument("-p", "--particles",
+            help="Initialize particles from configuration file")
+        
         cfg_opts.add_argument("-d", "--deploy",
             action="store_true",
             default=False,
@@ -61,7 +64,7 @@ class UvnCommandCreate(UvnCommand):
         
         extra_opts = parser.add_argument_group("Additional Option")
 
-        extra_opts.add_argument("-p","--print",
+        extra_opts.add_argument("-P","--print",
             action="store_true",
             default=False,
             help="Print information about the generated UVN")
@@ -110,6 +113,10 @@ class UvnCommandCreate(UvnCommand):
                             list,
                             self._args.cells,
                             from_file=True) if self.uvn.args.cells else [],
+                "particles": libuno.yml.yml_obj(
+                            list,
+                            self._args.particles,
+                            from_file=True) if self.uvn.args.particles else [],
                 "deploy": self.uvn.args.deploy,
                 "deployment_strategy": self.uvn.args.deployment_strategy
             }
