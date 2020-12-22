@@ -30,11 +30,11 @@ from .router import RemoteSiteClashException
 
 class RootAgent(UvnAgent):
     
-    def __init__(self, registry_dir, keep=False,
+    def __init__(self, registry_dir, keep=False, daemon=False,
             assert_period=UvnDefaults["registry"]["agent"]["assert"]["cell"]):
         self._cells = {}
         UvnAgent.__init__(self, registry_dir,
-            keep=keep, assert_period=assert_period)
+            keep=keep, assert_period=assert_period, daemon=daemon)
     
     ################################################################################
     # UvnAgent implementation

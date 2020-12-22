@@ -15,7 +15,11 @@
 # along with this program. If not, see <https://www.gnu.org/licenses/>.
 ###############################################################################
 import daemon
-import lockfile
+from daemon import pidfile as daemon_pidfile
+# import lockfile
+import pathlib
+import signal
+
 from libuno.uvn.cmd import UvnCommand
 from libuno.agent import UvnAgent
 from libuno.cfg import UvnDefaults
@@ -51,32 +55,71 @@ class UvnCommandAgent(UvnCommand):
         else:
             self._exec()
 
-    def _exec(self):
+    def _create_agent(self, daemon=False):
         dir_uvn = self.uvn.paths.basedir
         logger.debug("creating UVN agent from {}", dir_uvn)
         agent = UvnAgent.load(
                     registry_dir=dir_uvn,
                     keep=self.uvn.args.keep,
-                    roaming=self.uvn.args.roaming)
+                    roaming=self.uvn.args.roaming,
+                    daemon=daemon)
         logger.activity("created UVN agent: {}", agent.registry.address)
+        return agent
+
+    def _exec(self):
+        agent = self._create_agent()
         agent.start(nameserver=self.uvn.args.nameserver)
-        agent.main(daemon=self.uvn.daemon)
+        agent.main(daemon=False)
         
     def _exec_daemon(self):
-        context = daemon.DaemonContext(
-            working_directory=str(self.uvn.paths.basedir),
-            umask=0o077,
-            pidfile=lockfile.FileLock(UvnDefaults["registry"]["agent"]["pid"]),
-        )
+        agent_basedir = pathlib.Path(UvnDefaults["registry"]["agent"]["basedir"])
+        pidfile = agent_basedir / UvnDefaults["registry"]["agent"]["pid"]
+        logfile = agent_basedir / UvnDefaults["registry"]["agent"]["log_file"]
 
-        # context.signal_map = {
-        #     signal.SIGTERM: program_cleanup,
-        #     signal.SIGHUP: 'terminate',
-        #     signal.SIGUSR1: reload_program_config,
-        #     }
-        # context.gid = ...
-        # context.uid = ...
+        logger.activity("starting uvn daemon: basedir={}, pid={}, log={}",
+            self.uvn.paths.basedir, pidfile, logfile)
 
-        with context:
-            self._exec()
+        # Disable colored output since we'll be logging to a file
+        libuno.log.set_color(False)
+        
+        logfile.parent.mkdir(exist_ok=True, parents=True)
 
+        agent = None
+
+        def _process_deploy(sig, frame):
+            if agent:
+                agent._request_deploy()
+        
+        def _process_reload(sig, frame):
+            if agent:
+                agent._request_reload()
+        
+        def _process_exit(sig, frame):
+            if agent:
+                agent._request_exit()
+
+        with logfile.open("ab", 0) as logout:
+            daemon_ctx = daemon.DaemonContext(
+                working_directory=self.uvn.paths.basedir,
+                umask=0o002,
+                pidfile=daemon_pidfile.TimeoutPIDLockFile(str(pidfile)),
+                stdout=logout,
+                stderr=logout,
+                signal_map={
+                        signal.SIGTERM: _process_exit,
+                        signal.SIGHUP: _process_exit,
+                        signal.SIGINT: _process_exit,
+                        signal.SIGUSR1: _process_reload,
+                        signal.SIGUSR2: _process_deploy,
+                    },
+                # gid=... ,
+                # uid=... ,
+                )
+
+            try:
+                with daemon_ctx:
+                    agent = self._create_agent()
+                    agent.start(nameserver=self.uvn.args.nameserver)
+                    agent.main(daemon=True)
+            except Exception as e:
+                logger.error("failed to run uvnd or uvnd already running: {}", e)

@@ -60,7 +60,7 @@ class UvnAgent(UvnParticipantListener,
     publish = ExtraClassMethods(publish_fns)
 
     @staticmethod
-    def load(registry_dir, keep=False, roaming=False):
+    def load(registry_dir, keep=False, roaming=False, daemon=False):
         from .agent_cell import CellAgent
         from .agent_root import RootAgent
         
@@ -69,24 +69,23 @@ class UvnAgent(UvnParticipantListener,
         registry = UvnRegistry.load(identity_db)
         
         if registry.packaged:
-            return CellAgent(registry, keep=keep, roaming=roaming)
+            return CellAgent(registry, keep=keep, roaming=roaming, daemon=daemon)
         else:
             if roaming:
                 raise UvnException("roaming mode not supported for root agent")
-            return RootAgent(registry, keep=keep)
+            return RootAgent(registry, keep=keep, daemon=daemon)
     
-    def __init__(self, registry, assert_period, keep=False,
+    def __init__(self, registry, assert_period, keep=False, daemon=False,
             basedir=UvnDefaults["registry"]["agent"]["basedir"],
-            pidfile=UvnDefaults["registry"]["agent"]["pid"],
             logfile=UvnDefaults["registry"]["agent"]["log_file"]):
         # Try to create and lock a pid file to guarantee that only one
         # uvn agent is running on the system
         self.registry = registry
         self._basedir = pathlib.Path(basedir)
-        pidfile = self._basedir / pidfile
-        self._pidfile = lockfile.FileLock(pidfile)
         self._logfile = self._basedir / logfile
-        libuno.log.output_file(self._logfile)
+        self._daemon = daemon
+        if not daemon:
+            libuno.log.output_file(self._logfile)
         self._keep = keep
         self._loaded = False
         self._started = False
@@ -376,27 +375,28 @@ class UvnAgent(UvnParticipantListener,
     # Agent main()
     ############################################################################
     def main(self, daemon=False):
-        with self.pidfile:
-            try:
-                while True:
-                    if daemon:
-                        self._sem_wait.acquire()
-                    else:
-                        wait_for_signals(self._sem_wait, signals={
-                            "SIGINT": self._request_exit,
-                            "SIGUSR1": self._request_reload,
-                            "SIGUSR2": self._request_deploy
-                        }, logger=logger)
-                    logger.trace("main thread awaken")
-                    if self._sem_exit.acquire(blocking=False):
-                        return
-                    while self._sem_deploy.acquire(blocking=False):
-                        self._process_deploy_requests()
-                    while self._sem_reload.acquire(blocking=False):
-                        self._process_reload_requests()
-            finally:
-                self.stop()
-                logger.info("[main] agent done")
+        try:
+            while True:
+                if daemon:
+                    logger.debug("uvnd waiting...")
+                    self._sem_wait.acquire()
+                else:
+                    logger.debug("uvn agent waiting...")
+                    wait_for_signals(self._sem_wait, signals={
+                        "SIGINT": self._request_exit,
+                        "SIGUSR1": self._request_reload,
+                        "SIGUSR2": self._request_deploy
+                    }, logger=logger)
+                logger.trace("main thread awaken")
+                if self._sem_exit.acquire(blocking=False):
+                    return
+                while self._sem_deploy.acquire(blocking=False):
+                    self._process_deploy_requests()
+                while self._sem_reload.acquire(blocking=False):
+                    self._process_reload_requests()
+        finally:
+            self.stop()
+            logger.info("[main] agent done")
 
     def _process_reload_requests(self):
         return process_queue(

@@ -17,6 +17,8 @@
 import argparse
 import pathlib
 import sys
+import daemon
+import lockfile
 
 import libuno
 from libuno.cfg import UvnDefaults
@@ -176,6 +178,9 @@ class Uvn(UvnFn):
 
         self.daemon = daemon
         self.cli = cli
+
+        if (self.daemon and self.cli) or (not self.daemon and not self.cli):
+            raise ValueError(self.daemon, self.cli)
 
         commands = list(commands)   
         command_mappings = dict(command_mappings)

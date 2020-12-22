@@ -41,6 +41,7 @@ uvnd_stop()
 
 UVND_SESSION=${UVND_SESSION:-uvnd}
 UVND_PROFILE_SH=$(which uvnd.profile.sh)
+UVND_PID=${UVND_PID:-/var/run/uvn/uvnd.pid}
 
 if [ ! -x "${UVND_PROFILE_SH}" ]; then
     echo "WARNING: uvnd.profile.sh not found in PATH."

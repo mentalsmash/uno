@@ -73,6 +73,7 @@ _LOGGERS = {}
 _LOGGER_LOCK = threading.RLock()
 _LOGGER_FILE = None
 _LOGGER_PREFIX = ""
+_LOGGER_NOCOLOR = False
 
 def context_enabled(context):
     if _LOGGER_CONTEXT is None:
@@ -97,6 +98,18 @@ def set_context(context):
         global _LOGGER_CONTEXT
         _LOGGER_CONTEXT = re.compile(context)
 
+def set_color(enabled=True):
+    global _LOGGER_LOCK
+    with _LOGGER_LOCK:
+        global _LOGGER_NOCOLOR
+        _LOGGER_NOCOLOR = not enabled
+
+def color_enabled():
+    global _LOGGER_LOCK
+    with _LOGGER_LOCK:
+        global _LOGGER_NOCOLOR
+        return not _LOGGER_NOCOLOR
+
 def logger(context, no_prefix=False):
     global _LOGGER_LOCK
     with _LOGGER_LOCK:
@@ -119,25 +132,35 @@ def global_prefix(pfx):
     with _LOGGER_LOCK:
         _LOGGER_PREFIX = pfx
 
+def _colorize(lvl, line):
+    if lvl >= level.trace:
+        return colored(line, "white")
+    elif lvl >= level.debug:
+        return colored(line, "magenta")
+    elif lvl >= level.activity:
+        return colored(line, "cyan")
+    elif lvl >= level.info:
+        return colored(line, "green")
+    elif lvl >= level.warning:
+        return colored(line, "yellow")
+    elif lvl >= level.error:
+        return colored(line, "red")
+    else:
+        return line
+
 def _emit_default(logger, context, lvl, line, **kwargs):
     file = kwargs.get("file", sys.stdout)
     outfile = kwargs.get("outfile", None)
-    if lvl >= level.trace:
-        line = colored(line, "white")
-    elif lvl >= level.debug:
-        line = colored(line, "magenta")
-    elif lvl >= level.activity:
-        line = colored(line, "cyan")
-    elif lvl >= level.info:
-        line = colored(line, "green")
-    elif lvl >= level.warning:
-        line = colored(line, "yellow")
-    elif lvl >= level.error:
-        line = colored(line, "red")
-    if outfile:
-        print(line, file=outfile)
-        outfile.flush()
-    print(line, file=file)
+    if color_enabled():
+        line = _colorize(lvl, line)
+    # serialize writing to output
+    global _LOGGER_LOCK
+    with _LOGGER_LOCK:
+        if outfile:
+            print(line, file=outfile)
+            outfile.flush()
+        print(line, file=file)
+        file.flush()
 
 def _format_default(logger, context, lvl, fmt, *args, **kwargs):
     global _LOGGER_LOCK
