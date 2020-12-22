@@ -108,7 +108,7 @@ class UvnNameserver:
                     identity_db=identity_db,
                     **args)
 
-    def __init__(self, identity_db, db=None):
+    def __init__(self, identity_db, db=None, noupstream=False):
         self.identity_db = identity_db
         if db is None:
             self.db = {}
@@ -127,7 +127,7 @@ class UvnNameserver:
         self.dnsmaq_monitor = DnsmasqMonitor(self)
         self.except_interfaces = []
         self.upstream_servers = []
-        self.noupstream = False
+        self.noupstream = noupstream
         self.localhost_only = False
         self._basedir = None
         self._systemdresolved_disabled = False
@@ -137,7 +137,7 @@ class UvnNameserver:
             upstream_servers=UvnDefaults["nameserver"]["upstream_servers"],
             localhost_only=False,
             except_interfaces=[],
-            noupstream=True):
+            noupstream=False):
         db_dir = self._basedir / UvnDefaults["nameserver"]["db_dir"]
         hosts_dir = self._basedir / UvnDefaults["nameserver"]["hosts_dir"]
         hosts_file = hosts_dir / UvnDefaults["nameserver"]["hosts_file"]
@@ -178,6 +178,7 @@ class UvnNameserver:
             return
         dnsmasq_stop()
         self._basedir = pathlib.Path(basedir)
+        kwargs["noupstream"] = self.noupstream
         self._generate_dnsmasq_config(*args, **kwargs)
         self._systemdresolved_disabled = systemd_resolved_disable()
         dnsmasq_start()
