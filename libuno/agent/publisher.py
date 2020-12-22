@@ -46,8 +46,9 @@ def uvn_info(agent):
     if agent.registry.router_subnet:
         uvn_info["router_subnet.address.value"] = ip.ipv4_to_bytes(
             agent.registry.router_subnet.network_address)
-        uvn_info["router_subnet.mask"] = ip.ipv4_netmask_to_cidr(
-            agent.registry.router_subnet.netmask)
+        # uvn_info["router_subnet.mask"] = ip.ipv4_netmask_to_cidr(
+        #     agent.registry.router_subnet.netmask)
+        uvn_info["router_subnet.mask"] = agent.registry.router_subnet.prefixlen
     if agent.registry.backbone_subnet:
         uvn_info["backbone_subnet.address.value"] = ip.ipv4_to_bytes(
             agent.registry.backbone_subnet.network_address)
