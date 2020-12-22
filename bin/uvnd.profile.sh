@@ -17,7 +17,8 @@ uvnd_start()
         set -e
 	set -x
         screen -S ${UVND_SESSION} -d -m 
-        screen -S ${UVND_SESSION} -p 0 -X stuff ". ${UVND_PROFILE_SH}^Muvnds A -v $@^M"
+        screen -S ${UVND_SESSION} -p 0 -X stuff \
+            "export UVN_DIR=${UVN_DIR}^M. ${UVND_PROFILE_SH}^Muvnds A -v $@^M"
         screen -r ${UVND_SESSION}
     )
 }
