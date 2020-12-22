@@ -376,26 +376,27 @@ class UvnAgent(UvnParticipantListener,
     # Agent main()
     ############################################################################
     def main(self, daemon=False):
-        try:
-            while True:
-                if daemon:
-                    self._sem_wait.acquire()
-                else:
-                    wait_for_signals(self._sem_wait, signals={
-                        "SIGINT": self._request_exit,
-                        "SIGUSR1": self._request_reload,
-                        "SIGUSR2": self._request_deploy
-                    }, logger=logger)
-                logger.trace("main thread awaken")
-                if self._sem_exit.acquire(blocking=False):
-                    return
-                while self._sem_deploy.acquire(blocking=False):
-                    self._process_deploy_requests()
-                while self._sem_reload.acquire(blocking=False):
-                    self._process_reload_requests()
-        finally:
-            self.stop()
-            logger.info("[main] agent done")
+        with self.pidfile:
+            try:
+                while True:
+                    if daemon:
+                        self._sem_wait.acquire()
+                    else:
+                        wait_for_signals(self._sem_wait, signals={
+                            "SIGINT": self._request_exit,
+                            "SIGUSR1": self._request_reload,
+                            "SIGUSR2": self._request_deploy
+                        }, logger=logger)
+                    logger.trace("main thread awaken")
+                    if self._sem_exit.acquire(blocking=False):
+                        return
+                    while self._sem_deploy.acquire(blocking=False):
+                        self._process_deploy_requests()
+                    while self._sem_reload.acquire(blocking=False):
+                        self._process_reload_requests()
+            finally:
+                self.stop()
+                logger.info("[main] agent done")
 
     def _process_reload_requests(self):
         return process_queue(
