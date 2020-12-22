@@ -151,14 +151,15 @@ def _colorize(lvl, line):
 def _emit_default(logger, context, lvl, line, **kwargs):
     file = kwargs.get("file", sys.stdout)
     outfile = kwargs.get("outfile", None)
-    if color_enabled():
-        line = _colorize(lvl, line)
     # serialize writing to output
     global _LOGGER_LOCK
+    global _LOGGER_NOCOLOR
     with _LOGGER_LOCK:
         if outfile:
             print(line, file=outfile)
             outfile.flush()
+        if not _LOGGER_NOCOLOR:
+            line = _colorize(lvl, line)
         print(line, file=file)
         file.flush()
 
