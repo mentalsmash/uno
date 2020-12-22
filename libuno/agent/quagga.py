@@ -427,6 +427,8 @@ class Vtysh:
         cmd = ["vtysh", "-E"]
         for c in cmds:
             cmd.extend(["-c", str(c)])
-        result = exec_command(cmd, fail_msg="failed to perform vtysh command")
+        result = exec_command(cmd,
+            fail_msg="failed to perform vtysh command",
+            root=True)
         return result.stdout.decode("utf-8")
 
