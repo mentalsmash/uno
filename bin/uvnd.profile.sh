@@ -17,7 +17,7 @@ uvnd_start()
         set -e
 	set -x
         screen -S ${UVND_SESSION} -d -m 
-        screen -S ${UVND_SESSION} -p 0 -X stuff ". $(which uvnd.profile)^Muvnds A -v $@^M"
+        screen -S ${UVND_SESSION} -p 0 -X stuff ". ${UVND_PROFILE_SH}^Muvnds A -v $@^M"
         screen -r ${UVND_SESSION}
     )
 }
@@ -39,14 +39,22 @@ uvnd_stop()
 }
 
 UVND_SESSION=${UVND_SESSION:-uvnd}
+UVND_PROFILE_SH=$(which uvnd.profile.sh)
 
-if [ -d "${UVN_DIR}" ]; then
+if [ ! -x "${UVND_PROFILE_SH}" ]; then
+    echo "WARNING: uvnd.profile.sh not found in PATH."
+    echo "WARNING: \`uvnd_start\`, and \`uvnd_stop\` will not work as expected."
+    UVND_INVALID=y
+fi
+
+if [ ! -d "${UVN_DIR}" ]; then
+    echo "WARNING: invalid UVN_DIR '${UVN_DIR}'" >&2
+    echo "WARNING: uvn helper aliases will not be available."
+    UVND_INVALID=y
+fi
+
+if [ -z "${UVND_INVALID}" ]; then
     echo "Loaded UVN: ${UVN_DIR}"
     echo "Use \`uvnd\`, or \`uvnds\` to run \`uvn\` in ${UVN_DIR}"
     echo "Use \`uvnd_start\`, and \`uvnd_stop\` to start/stop an agent inside screen session <${UVND_SESSION}>"
-else
-    echo "WARNING: invalid UVN_DIR '${UVN_DIR}'" >&2
-    echo "WARNING: uvn helper aliases will not be available."
 fi
-
-
