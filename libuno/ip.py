@@ -278,10 +278,12 @@ import math
 def ipv4_range_subnet(ip_start, ip_end):
     subnet_hosts = int(ip_end) - int(ip_start)
     if subnet_hosts <= 0:
-        return None
-    subnet_size = 32 - math.ceil(math.sqrt(subnet_hosts))
+        raise ValueError(ip_start, ip_end)
+    # Find the first power of 2 big enough to
+    host_bits = math.ceil(math.log(subnet_hosts, 2))
+    subnet_size = 32 - host_bits
     if subnet_size < 0:
-        raise ValueError()
+        raise ValueError(ip_start, ip_end)
     subnet = ipv4_nic_network(ip_start, nic_cidr=subnet_size)
     return subnet
 
