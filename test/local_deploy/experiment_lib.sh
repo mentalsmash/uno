@@ -264,7 +264,7 @@ uvn_attach()
     (
         cd ${UVN_DIR}
         set -x
-        ${UVN} attach \
+        ${UVN} attach cell \
             --name ${cell_name} \
             --address ${cell_address} \
             --admin ${cell_admin} \
@@ -272,6 +272,21 @@ uvn_attach()
             ${UVN_EXTRA_ARGS}
     )
     log_info "[created] UVN cell: ${cell_name}"
+}
+
+uvn_particle()
+{
+    local particle_name="${1}" \
+          particle_contact="${2}"
+
+    (
+        cd ${UVN_DIR}
+        set -x
+        ${UVN} attach particle ${particle_name} \
+            --contact ${particle_contact} \
+            ${UVN_EXTRA_ARGS}
+    )
+    log_info "[created] UVN particle: ${particle_name}"
 }
 
 uvn_ns()

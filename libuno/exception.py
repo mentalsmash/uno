@@ -24,3 +24,9 @@ class UnknownCellException(UvnException):
     def __init__(self, name):
         self.name = name
         UvnException.__init__(self, f"unknown cell: {name}")
+
+class UnknownParticleException(UvnException):
+    
+    def __init__(self, name):
+        self.name = name
+        UvnException.__init__(self, f"unknown particle: {name}")

@@ -24,6 +24,10 @@ import libuno.log
 logger = libuno.log.logger("uvn.backbone")
 
 def deploy(registry, strategy):
+
+    for c in registry.cells.values():
+        c.id.keymat.rekey()
+
     (cells,
      cells_len,
      cell_peers_count,

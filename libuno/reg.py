@@ -27,6 +27,7 @@ from libuno import wg
 from libuno import ip
 from libuno.wg import WireGuardKeyPair
 from libuno.cell import CellKeyMaterial, CellIdentity, Cell
+from libuno.particle import Particle
 from libuno.helpers import Timestamp, ListLastElementDescriptor, ValuesRange
 from libuno.yml import YamlSerializer, repr_yml, repr_py, yml_obj, yml
 from libuno.tmplt import TemplateRepresentation, render
@@ -36,7 +37,7 @@ from libuno.psk import PresharedKeys
 from libuno.cell_cfg import CellDeployment
 from libuno.strategy import DeploymentStrategy
 from libuno.identity import UvnIdentityDatabase, UvnCellRecord, PackagedDescriptor, DisabledIfPackaged
-from libuno.exception import UvnException, UnknownCellException
+from libuno.exception import UvnException, UnknownCellException, UnknownParticleException
 from libuno.install import UvnCellInstaller
 from libuno.ns import UvnNameserver
 from libuno.router_port import RegistryRouterPorts
@@ -159,6 +160,7 @@ class UvnRegistry:
                  identity_db,
                  ports=UvnDefaults["registry"]["ports"],
                  cells=None,
+                 particles=None,
                  keymat=None,
                  deployments=None,
                  loaded=False,
@@ -178,13 +180,15 @@ class UvnRegistry:
             self.cells = {}
         else:
             self.cells = cells
+        if particles is None:
+            self.particles = {}
+        else:
+            self.particles = particles
         if keymat is None:
             self.keymat = WireGuardKeyPair.generate()
         else:
             self.keymat = keymat
         self.loaded = loaded
-        for c in self.cells.values():
-            c.loaded = self.loaded
         self.dirty = False
         self.pkg_cell = pkg_cell
         self.deployment_id = deployment_id
@@ -197,6 +201,12 @@ class UvnRegistry:
             self.router_ports = router_ports
         else:
             self.router_ports = RegistryRouterPorts()
+    
+    def particle(self, name, noexcept=False):
+        particle = self.particle.get(name)
+        if not particle and not noexcept:
+            raise UnknownParticleException(name)
+        return particle
     
     def cell(self, name, noexcept=False):
         cell = self.cells.get(name)
@@ -220,6 +230,9 @@ class UvnRegistry:
                       admin_name=None,
                       location=None,
                       peer_ports=None):
+        if name in self.cells:
+            raise UvnException(f"cell name already in use : '{name}'")
+
         if address is None:
             address = "{}.{}".format(name, self.identity_db.registry_id.address)
 
@@ -242,9 +255,6 @@ class UvnRegistry:
             admin_name=admin_name,
             generate=True)
 
-        if name in self.cells.keys():
-            raise UvnException(f"cell name already in use : '{name}'")
-
         keymat = CellKeyMaterial()
         cell_id = CellIdentity(
                     name=name,
@@ -264,62 +274,36 @@ class UvnRegistry:
 
         self._generate_vpn_config()
         self._generate_router_ports()
+        self._generate_particles()
         
         self.dirty = True
         
         return cell
     
-    def _deploy_strategy(self, strategy):
-        (cells,
-         cells_len,
-         cell_peers_count,
-         peer_generators) = strategy.deploy_cells(self.cells.values())
-
-        psks = PresharedKeys()
-
-        def generate_peer(n, i):
-            peer_i = peer_generators[i](n)
-            peer_cell = cells[peer_i]
-            psks.assert_psk(n, peer_i)
-            return CellDeployment.Peer(deploy_id=peer_i, cell=peer_cell)
-
-        # Iterate over cells, asserting peers.Given N cells, we should end up
-        # with floor(N * 3/2) pairs.
-        deployed_cells = [
-            CellDeployment(
-                cell=cells[n],
-                deploy_id=n,
-                psks=psks,
-                peers=[generate_peer(n, i)
-                            for i in range(cell_peers_count(n, cells_len))])
-            for n in range(cells_len)]
-
-        # Make sure that all cell configurations have the correct remote peer
-        # configuration, which reflects the correct remote port number, and
-        # actually matches the entry in the remote cell's configuration.
-        peers_len_max = 0
-        backbones = {}
-        server_connections = {}
-
-        # Assert server connection
-        for cell_cfg in deployed_cells:
-            cell_cfg.validate_peers(deployed_cells)
-            cell_cfg.backbone = []
-            bb = self._generate_vpn_config_cell_to_cell(
-                    cell_cfg, 0, deployed_cells, server_connections)
-            if bb is None:
-                raise UvnException("failed to allocate master backbone connection")
-            server_connections[cell_cfg.deploy_id] = bb
-            cell_cfg.backbone.append(bb)
+    @DisabledIfPackaged
+    def register_particle(self, name, contact=None):
+        if name in self.particles:
+            raise UvnException(f"particle name already in use : '{name}'")
+    
+        if contact is None:
+            contact = "{}@{}".format(name, self.address)
+            
+        particle = Particle(
+            name=name,
+            n=len(self.particles) + 1,
+            contact=contact)
         
-        for cell_cfg in deployed_cells:
-            for i in range(1,len(cell_cfg.peers)):
-                bb = self._generate_vpn_config_cell_to_cell(
-                        cell_cfg, i, deployed_cells, server_connections)
-                if bb is not None:
-                    cell_cfg.backbone.append(bb)
+        self.particles[particle.name] = particle
 
-        return (cells, psks, deployed_cells)
+        logger.debug("registered particle: {} ({})",
+            particle.name, particle.contact)
+        
+        self._generate_particles()
+        
+        self.dirty = True
+
+        return particle
+
 
     @DisabledIfPackaged
     def deploy(self, strategy=None):
@@ -327,15 +311,14 @@ class UvnRegistry:
             strategy = DeploymentStrategy.strategies()[0]
         elif (isinstance(strategy, str)):
             strategy = DeploymentStrategy.by_name(strategy)
+        
         strategy = strategy()
+
         (cells,
          psks,
          deployed_cells,
          address_range) = deploy_backbone(self, strategy)
-         
-        # (cells,
-        #  psks,
-        #  deployed_cells) = self._deploy_strategy(strategy)
+
         deploy_time = Timestamp.now()
         deployment = UvnDeployment(
                     strategy=strategy,
@@ -355,7 +338,7 @@ class UvnRegistry:
                drop_stale_deployments=False,
                force=False,
                keep=False):
-        if (drop_old_deployments or drop_stale_deployments):
+        if drop_old_deployments or drop_stale_deployments:
             self._drop_deployments(
                         keep_last=drop_old_deployments,
                         stale_only=drop_stale_deployments)
@@ -373,6 +356,11 @@ class UvnRegistry:
             logger.debug("exporting registry to {}", outfile)
             db_args = self.identity_db.get_export_args()
             yml(self, to_file=outfile, owner_cell=cell, **db_args)
+
+            # Export particle packages
+            for p in self.particles.values():
+                pkg_dir = self.paths.dir_particles(p.name)
+                self._export_particle_package(pkg_dir, particle=p, keep=keep)
         else:
             logger.debug("skipping exporting registry to {}", outfile)
 
@@ -466,10 +454,6 @@ class UvnRegistry:
                 tgt_cell_cfg=cell_cfg,
                 deployment_id=deployment.id,
                 **db_args)
-            db_export_args = {
-                "tgt_cell_cfg": cell_cfg,
-                "deployment": deployment
-            }
         
         # Create package archive
         archive_path = self._zip_cell_pkg(
@@ -517,6 +501,25 @@ class UvnRegistry:
         
         basedir = self.paths.basedir / UvnDefaults["registry"]["installers_dir"]
         installer.export(basedir=basedir, keep=keep)
+
+    def _export_particle_package(self, pkg_dir, particle, keep=False):
+
+        logger.debug("Generating package for particle {} in {}", particle.name, pkg_dir)
+
+        # Generate WireGuard configurations for every cell
+        particle.render(pkg_dir)
+
+        # Create package archive
+        archive_path = self._zip_particle_pkg(
+                        particle_name=particle.name,
+                        particle_pkg_dir=pkg_dir,
+                        archive_out_dir=self.paths.dir_particles())
+        
+        if not keep:
+            # Delete staging directory
+            shutil.rmtree(str(pkg_dir))
+        else:
+            logger.warning("[tmp] not deleted: {}", pkg_dir)
 
     def _list_deployment_installers(self, deployment, with_dirs=False):
         path_glob = self.paths.basedir / UvnDefaults["registry"]["installers_dir"]
@@ -587,8 +590,26 @@ class UvnRegistry:
             UvnDefaults["cell"]["pkg"]["clear_format"],
             root_dir=cell_pkg_dir)
         archive_path_zip.rename(archive_path_full)
-        logger.debug("Generated archive for {}: {}",
+        logger.debug("generated cell archive: {} -> {}",
                         cell_name, archive_path_full)
+        return archive_path_full
+
+    def _zip_particle_pkg(self,
+            particle_name,
+            particle_pkg_dir,
+            archive_out_dir):
+        archive_name = "uvn-{}-{}".format(self.address, particle_name)
+        archive_path = archive_out_dir / archive_name
+        archive_path.parent.mkdir(parents=True, exist_ok=True)
+        shutil.make_archive(
+            str(archive_path),
+            UvnDefaults["cell"]["pkg"]["clear_format"],
+            root_dir=particle_pkg_dir)
+        archive_path_full = "{}.{}".format(
+            archive_path,
+            UvnDefaults["cell"]["pkg"]["clear_format"])
+        logger.debug("generated particle archive: {} -> {}",
+                        particle_name, archive_path_full)
         return archive_path_full
         
     def _encrypt_file_for_cell(self, cell_name, archive_path):
@@ -809,6 +830,21 @@ class UvnRegistry:
             logger.debug("generating router port for {}", c.id.name)
             c.router_port = self.router_ports.assert_cell(c)
     
+    def _generate_particles(self):
+        for p in self.particles.values():
+            p.clear()
+            for c in self.cells.values():
+                p.generate_config(self, c)
+    
+    def _register_particles(self, cell):
+        for p in self.particles.values():
+            cfg = p.generate_config(self, cell)
+            cell.particles_vpn.add_particle(
+                name=p.name,
+                address=cfg.address,
+                pubkey=p.keymat.pubkey,
+                psk=cfg.cell_psk)
+    
     @staticmethod
     def load(identity_db):
         args = UvnIdentityDatabase.get_load_args(identity_db=identity_db)
@@ -870,6 +906,8 @@ class UvnRegistry:
             yml_repr["ports"] = py_repr.ports
             yml_repr["cells"] = [repr_yml(c, **kwargs) 
                                     for c in py_repr.cells.values()]
+            yml_repr["particles"] = [repr_yml(p, **kwargs)
+                                    for p in py_repr.particles.values()]
             # yml_repr["ns"] = repr_yml(py_repr.nameserver, **kwargs)
             yml_repr["keymat"] = repr_yml(py_repr.keymat, **kwargs)
             if py_repr.vpn_config is not None and not public_only:
@@ -889,6 +927,8 @@ class UvnRegistry:
             deployments = kwargs.get("deployments")
             cells = {c["id"]["name"]: repr_py(Cell, c, **kwargs)
                         for c in yml_repr["cells"]}
+            particles = {p["name"]: repr_py(Particle, p, **kwargs)
+                        for p in yml_repr["particles"]}
             keymat = repr_py(WireGuardKeyPair, yml_repr["keymat"], **kwargs)
             
             if "vpn_config" in yml_repr:
@@ -902,20 +942,20 @@ class UvnRegistry:
                                 yml_repr["router_ports"], **kwargs)
             else:
                 router_ports = None
-            
-            
+
             py_repr = UvnRegistry(
                         identity_db=identity_db,
                         cells=cells,
+                        particles=particles,
                         keymat=keymat,
                         ports=yml_repr["ports"],
-                        loaded=bool(kwargs.get("from_file")),
+                        loaded=True,
                         pkg_cell=yml_repr.get("pkg_cell", None),
                         deployment_id=yml_repr.get("deployment_id", None),
                         vpn_config=vpn_config,
                         nameserver=nameserver,
                         router_ports=router_ports)
-            
+
             # Register cells with identity_db
             for c in py_repr.cells.values():
                 with_secret = (py_repr.packaged and c.id.name == py_repr.pkg_cell)
@@ -944,7 +984,10 @@ class UvnRegistry:
                         logger.warning(
                             "failed to load deployment {}: {}", d, e)
 
-            if py_repr.packaged:
+            if not py_repr.packaged:
+                # Generate particle configurations
+                py_repr._generate_particles()
+            else:
                 if (py_repr.deployment_id != UvnDefaults["registry"]["deployment_bootstrap"] and
                     not deployment_loaded):
                     raise UvnException(f"required deployment not loaded: {py_repr.deployment_id}")
@@ -956,6 +999,8 @@ class UvnRegistry:
                     if cell.id.name != py_repr.pkg_cell:
                         raise UvnException(f"invalid UVN package: expected={py_repr.pkg_cell}, found={cell.id.name}")
                     py_repr.cells[cell.id.name] = cell
+                    # Generate particle server
+                    py_repr._register_particles(py_repr.deployed_cell)
                     # logger.activity("[loaded] UVN package for {} [{}]",
                     #     cell.id.name, py_repr.deployment_id)
                 except Exception as e:
@@ -965,6 +1010,7 @@ class UvnRegistry:
                 py_repr.pkg_cell if py_repr.packaged else "root",
                 f"[{py_repr.deployment_id}]" if py_repr.packaged else "",
                 py_repr.identity_db.registry_id.address)
+
             return py_repr
         
         def _file_format_out(self, yml_str, **kwargs):

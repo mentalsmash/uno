@@ -241,6 +241,15 @@ test_rc_uvn_ns()
     done
 }
 
+test_rc_uvn_particles()
+{
+    local i=1
+    for n in ${TEST_NETWORKS_PRIVATE}; do
+        uvn_particle particle${i} particle@${n}
+        i=$(expr ${i} + 1)
+    done
+}
+
 # Create deployment
 test_rc_uvn_deploy()
 {
@@ -663,6 +672,7 @@ rc_init UVN \
         UVN_CREATE \
         UVN_ATTACH \
         UVN_NS \
+        UVN_PARTICLES \
         ${deploy_stages} \
         UVN_BACKUP \
         UVN_DONE \
@@ -688,6 +698,7 @@ else
     ! rc_check UVN_CREATE       || test_rc_uvn_create
     ! rc_check UVN_ATTACH       || test_rc_uvn_attach
     ! rc_check UVN_NS           || test_rc_uvn_ns
+    ! rc_check UVN_PARTICLES    || test_rc_uvn_particles
     if [ -n "${PREDEPLOY}" ]; then
     ! rc_check UVN_DEPLOY       || test_rc_uvn_deploy
     ! rc_check UVN_INSTALL      || test_rc_uvn_install

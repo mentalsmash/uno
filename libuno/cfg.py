@@ -53,6 +53,7 @@ UvnDefaults = {
         "deployment_file_fmt": "{}.yml",
         "bootstrap_dir": "bootstrap",
         "deployment_dir": "deployments",
+        "particles_dir": "particles",
         "deployment_dir_fmt": "deployment-{}",
         "deployment_packages": "package",
         "cell_cfg_fmt": "backbone.{}.yml",
@@ -88,6 +89,14 @@ UvnDefaults = {
                     "224.0.0.5/32",
                     "224.0.0.6/32"
                 ]
+            },
+            "particles": {
+                "base_ip": "10.254.0.0",
+                "netmask": 16,
+                "interface": "uwg-p{}",
+                "port": 63449,
+                "particle_cfg_fmt": "{}_{}_{}.conf",
+                "particle_qr_fmt": "{}_{}_{}.png"
             }
         },
         "config": {
@@ -349,6 +358,12 @@ class UvnPaths:
         basedir = self.basedir / UvnDefaults["registry"]["bootstrap_dir"]
         if cell_name:
             return basedir / cell_name
+        return basedir
+    
+    def dir_particles(self, particle_name=None):
+        basedir = self.basedir / UvnDefaults["registry"]["particles_dir"]
+        if particle_name:
+            return basedir / particle_name
         return basedir
     
     def dir_config(self, basedir=None):

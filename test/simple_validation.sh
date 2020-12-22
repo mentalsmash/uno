@@ -18,6 +18,7 @@
 
 UVN_ADDRESS=${UVN_ADDRESS:-test-uvn.localhost}
 UVN_CELLS="cell1 cell2 cell3"
+UVN_PARTICLES="particle1 particle2 particle3"
 [ -z "${VERBOSE}" ] || VERBOSE="-vv"
 [ -z "${KEEP}" ] || KEEP="-k"
 
@@ -26,7 +27,9 @@ UVN_CELLS="cell1 cell2 cell3"
     set -x
 
     # Delete test directories, if they exist
-    rm -rf ${UVN_ADDRESS} ${UVN_ADDRESS}.cells
+    rm -rf ${UVN_ADDRESS} \
+           ${UVN_ADDRESS}.cells \
+           ${UVN_ADDRESS}.particles
 
     # Initialize a new UVN
     uvn c ${UVN_ADDRESS} ${VERBOSE}
@@ -35,9 +38,14 @@ UVN_CELLS="cell1 cell2 cell3"
     cd ${UVN_ADDRESS}
 
     # Attach three cells
-    uvn a -n cell1 ${VERBOSE}
-    uvn a -n cell2 ${VERBOSE}
-    uvn a -n cell3 ${VERBOSE}
+    uvn a c -n cell1 ${VERBOSE}
+    uvn a c -n cell2 ${VERBOSE}
+    uvn a c -n cell3 ${VERBOSE}
+
+    # Attach some particles
+    uvn a p particle1 ${VERBOSE}
+    uvn a p particle2 ${VERBOSE}
+    uvn a p particle3 ${VERBOSE}
 
     # Generate a new deployment
     uvn d ${VERBOSE}
@@ -45,10 +53,16 @@ UVN_CELLS="cell1 cell2 cell3"
     if [ -n "${EXTRA_CELLS}" ]; then
         UVN_CELLS="${UVN_CELLS} cell4 cell5 cell6 cell7"
         # Attach a new cell. This invalidates the existing deployment.
-        uvn a -n cell4 ${VERBOSE}
-        uvn a -n cell5 ${VERBOSE}
-        uvn a -n cell6 ${VERBOSE}
-        uvn a -n cell7 ${VERBOSE}
+        uvn a c -n cell4 ${VERBOSE}
+        uvn a c -n cell5 ${VERBOSE}
+        uvn a c -n cell6 ${VERBOSE}
+        uvn a c -n cell7 ${VERBOSE}
+
+        # Attach some more particles
+        uvn a p particle4 ${VERBOSE}
+        uvn a p particle5 ${VERBOSE}
+        uvn a p particle6 ${VERBOSE}
+        uvn a p particle7 ${VERBOSE}
 
         # Generate a new deployment and drop the ones that have become stale
         uvn d -d ${VERBOSE}
@@ -63,8 +77,17 @@ UVN_CELLS="cell1 cell2 cell3"
             ${UVN_ADDRESS}.cells/${cell} ${VERBOSE}
         (
             base_dir=$(pwd)
-            cd ${UVN_ADDRESS}.cells/${cell} ${VERBOSE}
-            uvn I ${base_dir}/${UVN_ADDRESS}/installers/uvn-${UVN_ADDRESS}-latest-${cell}.zip .
+            cd ${UVN_ADDRESS}.cells/${cell}
+            uvn I ${base_dir}/${UVN_ADDRESS}/installers/uvn-${UVN_ADDRESS}-latest-${cell}.zip . ${VERBOSE}
+        )
+    done
+
+    for particle in ${UVN_PARTICLES}; do
+        # Check that particle's zip exists and extract zip
+        (
+            mkdir -p ${UVN_ADDRESS}.particles/${particle}
+            cd  ${UVN_ADDRESS}.particles/${particle}
+            unzip ../../${UVN_ADDRESS}/particles/uvn-${UVN_ADDRESS}-${particle}.zip
         )
     done
 

@@ -50,6 +50,7 @@ def systemd_resolved_running():
     res = exec_command(["killall", "-0", "systemd-resolved"],
         root=True,
         noexcept=True,
+        quiet=True,
         fail_msg="failed to check systemd-resolved status")
     return res.returncode == 0
 

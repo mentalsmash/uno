@@ -172,6 +172,7 @@ class YamlSerializer:
         
         if kwargs.get("from_file"):
             yml_str = self._file_read(yml_str)
+            kwargs = {k: v for k,v in kwargs.items() if k != "from_file"}
             yml_str = self._file_format_in(yml_str, **kwargs)
 
         return self.repr_py(self._yaml_load(yml_str), **kwargs)

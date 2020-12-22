@@ -39,6 +39,8 @@ RUN apt-get install -y dnsmasq \
                        lighttpd
 # Install quagga for the ospfd routing daemon
 RUN apt-get install -y quagga
+# Install qrencode to generate QR codes for particles
+RUN apt-get install -y qrencode
 # Enable zebra and ospfd in /etc/quagga/daemons
 # RUN sed -r 's/(zebra|ospfd)=no/\1=yes/g' /etc/quagga/daemons
 # Install useful networking utilities (and other external packages)

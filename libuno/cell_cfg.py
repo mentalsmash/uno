@@ -309,11 +309,6 @@ class CellDeployment:
                 self.psk = psk
                 self.endpoint = endpoint
                 self.peer_i = peer_i
-                # This list is currently ignored by the generated wireguard config
-                self.allowed_ips = list(UvnDefaults["registry"]["vpn"]["router"]["allowed_ips"])
-                subnet = ip.ipv4_nic_network(self.addr_remote,
-                            nic_cidr=UvnDefaults["registry"]["vpn"]["router"]["netmask"])
-                self.allowed_ips.append(subnet)
             
             class _YamlSerializer(YamlSerializer):
                 def repr_yml(self, py_repr, **kwargs):
@@ -329,7 +324,6 @@ class CellDeployment:
                     yml_repr["psk"] = psk
                     yml_repr["endpoint"] = py_repr.endpoint
                     yml_repr["peer_i"] = py_repr.peer_i
-                    yml_repr["allowed_ips"] = list(map(str, py_repr.allowed_ips))
 
                     return yml_repr
             

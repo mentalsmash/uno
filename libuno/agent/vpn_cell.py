@@ -34,8 +34,14 @@ class CellVpn(UvnVpn):
         self.cell_record = cell_record
         self.cell_cfg = cell_cfg
         UvnVpn.__init__(self, registry, keep=keep)
+        self.wg_particles = self._create_particles_connection()
         logger.debug("loaded cell vpn: {}/{}",
             self.cell.id.name, self.registry.deployment_id)
+
+    def _get_interfaces(self):
+        interfaces = UvnVpn._get_interfaces(self)
+        interfaces.append(self.wg_particles)
+        return interfaces
 
     def _create_backbone(self):
         wg_backbone = []
@@ -78,3 +84,13 @@ class CellVpn(UvnVpn):
             allowed_ips={ipaddress.ip_network(a)
                 for a in UvnDefaults["registry"]["vpn"]["router"]["allowed_ips"]})
         return [wgi]
+
+    def _create_particles_connection(self):
+        wg_config = render(self.cell.particles_vpn, "wireguard-cfg")
+        wgi = WireGuardInterface(
+            self.cell.particles_vpn.interface,
+            self.cell.particles_vpn.addr_local,
+            self.cell.particles_vpn.network.prefixlen,
+            wg_config,
+            keep=self.keep)
+        return wgi

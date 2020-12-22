@@ -88,13 +88,15 @@ class GpgKey:
 class GpgKeyInfo:
     TYPE_ROOT = "root"
     TYPE_CELL = "cell"
+    TYPE_PARTICLE = "particle"
 
     def __init__(self, key_type, owner, target):
         self.owner = owner
         self.key_type = key_type
         self.target = target
         if (self.key_type != GpgKeyInfo.TYPE_ROOT and
-            self.key_type != GpgKeyInfo.TYPE_CELL):
+            self.key_type != GpgKeyInfo.TYPE_CELL and
+            self.key_type != GpgKeyInfo.TYPE_PARTICLE):
             raise ValueError("unknown key type: {}".format(self.key_type))
         if not self.owner:
             raise ValueError("invalid key owner: {}".format(self.owner))
@@ -136,7 +138,11 @@ class GpgKeyInfo:
     
     @staticmethod
     def uvn_key(uvn_admin, uvn_address):
-        return GpgKeyInfo(GpgKeyInfo.TYPE_CELL, uvn_admin, uvn_address)
+        return GpgKeyInfo(GpgKeyInfo.TYPE_ROOT, uvn_admin, uvn_address)
+    
+    @staticmethod
+    def particle_key(particle_admin, particle_address):
+        return GpgKeyInfo(GpgKeyInfo.TYPE_PARTICLE, particle_admin, particle_address)
     
     @staticmethod
     def match(key_desc, owner=None, target=None, key_type=None):

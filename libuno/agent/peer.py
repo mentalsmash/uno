@@ -173,10 +173,6 @@ class PeerRemoteSites(AbstractContainer, ObservableDelegate):
             nic, remote_site, remote_site_prev, new_item, updated,
             *args, **kwargs):
         events = []
-        # logger.warning("DEBUG nic={}", nic)
-        # logger.warning("DEBUG remote_site={}", remote_site)
-        # logger.warning("DEBUG remote_site_prev={}", remote_site_prev)
-        # logger.warning("DEBUG new_item={}, updated={}", new_item, updated)
         if remote_site.route != remote_site_prev.route:
             if remote_site.route:
                 events.append("remote_site_route_enabled")

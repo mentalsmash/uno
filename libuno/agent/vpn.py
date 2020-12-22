@@ -45,29 +45,25 @@ class UvnVpn:
     def _create_backbone(self):
         return []
     
+    def _get_interfaces(self):
+        interfaces = [self.wg_root]
+        interfaces.extend(self.wg_router)
+        interfaces.extend(self.wg_backbone)
+        return interfaces
+    
     def start(self):
         logger.debug("starting UVN vpn: {}", self.registry.address)
-        self.wg_root.create()
-        self.wg_root.bring_up()
-        for wg in self.wg_router:
-            wg.create()
-            wg.bring_up()
-        for wg in self.wg_backbone:
-            wg.create()
-            wg.bring_up()
+        for i in self._get_interfaces():
+            i.create()
+            i.bring_up()
         self._enable_nat()
         logger.activity("started registry vpn: {}", self.registry.address)
     
     def stop(self):
         logger.debug("stopping UVN vpn: {}", self.registry.address)
-        for wg in self.wg_backbone:
-            wg.tear_down()
-            wg.delete()
-        for wg in self.wg_router:
-            wg.tear_down()
-            wg.delete()
-        self.wg_root.tear_down()
-        self.wg_root.delete()
+        for i in self._get_interfaces():
+            i.tear_down()
+            i.delete()
         self._disable_nat()
         logger.activity("stopped UVN vpn: {}", self.registry.address)
 
@@ -91,21 +87,13 @@ class UvnVpn:
         return map(lambda wg: wg.interface, self.wg_router)
     
     def list_wg_interfaces(self):
-        return chain(self.list_vpn_interfaces(),
-                     self.list_backbone_interfaces(),
-                     self.list_router_interfaces())
+        return [wg.interface for wg in self._get_interfaces()]
     
     def find_wg_interface(self, name):
-        if self.wg_root.interface == name:
-            return self.wg_root
-        intf = next(filter(lambda wg: wg.interface == name, self.wg_backbone), None)
-        if intf:
-            # logger.warning("DEBUG found backbone {}: {}", name, intf)
-            return intf
-        intf = next(filter(lambda wg: wg.interface == name, self.wg_router))
-        # logger.warning("DEBUG found router {}: {}", name, intf)
-        return intf
-
+        for wg in self._get_interfaces():
+            if wg.interface == name:
+                return wg
+        raise StopIteration()
 
     def _enable_nat(self):
         if self._nat_wgs:

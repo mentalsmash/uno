@@ -14,7 +14,7 @@
 # You should have received a copy of the GNU Affero General Public License
 # along with this program. If not, see <https://www.gnu.org/licenses/>.
 ###############################################################################
-from libuno.uvn.cmd import UvnCommand
+from libuno.uvn.cmd import UvnCommand, UvnSubcommand
 
 import libuno.log
 
@@ -26,23 +26,41 @@ class UvnCommandAttach(UvnCommand):
         UvnCommand.__init__(self, uvn,
             name=name,
             alias=alias,
+            help_short="Attach a cell or particle to the UVN",
+            help_long="""Attach a cell or particle to the UVN.""",
+            subcommands=[
+                UvnSubcommandAttachCell,
+                UvnSubcommandAttachParticle])
+
+    def define_args(self, parser):
+        self._define_common_args(parser)
+
+
+class UvnSubcommandAttachCell(UvnSubcommand):
+    
+    def __init__(self, parent, name="cell", alias=["c"]):
+        UvnSubcommand.__init__(self, parent,
+            name=name,
+            alias=alias,
             help_short="Attach a cell to the UVN",
             help_long="""Generate a new cell configuration and attach it to
                       an existing UVN.""")
 
     def define_args(self, parser):
-        cell_opts = parser.add_argument_group(
+        self.parent._define_common_args(parser)
+
+        tgt_opts = parser.add_argument_group(
                         "Cell Selection",
                         "One of these arguments must be specified")
 
-        g_cmd = cell_opts.add_mutually_exclusive_group(required=True)
+        g_cmd = tgt_opts.add_mutually_exclusive_group(required=True)
 
         g_cmd.add_argument("-n","--name",
             help="Name of the cell")
         
         g_cmd.add_argument("-f","--file",
-            help="A file containing cell configurations")
-
+            help="A file containing the cell's configuration")
+        
         cfg_opts = parser.add_argument_group("Cell Configuration")
 
         cfg_opts.add_argument("--address",
@@ -65,9 +83,7 @@ class UvnCommandAttach(UvnCommand):
         extra_opts.add_argument("-d","--drop-stale",
             action="store_true",
             help="Drop existing deployment configurations.")
-        
-        self._define_common_args(parser)
-    
+
     def exec(self):
         registry = self.uvn.registry_load()
         cell_file = self.uvn.args.file
@@ -95,4 +111,36 @@ class UvnCommandAttach(UvnCommand):
                 location=self.uvn.args.location,
                 peer_ports=self.uvn.args.peer_ports)
 
+        self.uvn.registry_save(registry)
+
+
+class UvnSubcommandAttachParticle(UvnSubcommand):
+    
+    def __init__(self, parent, name="particle", alias=["p"]):
+        UvnSubcommand.__init__(self, parent,
+            name=name,
+            alias=alias,
+            help_short="Attach a particle to the UVN",
+            help_long="""Generate a new particle configuration and attach it to
+                      an existing UVN.""")
+
+    def define_args(self, parser):
+        self.parent._define_common_args(parser)
+        
+        cfg_opts = parser.add_argument_group("Particle Configuration")
+
+        cfg_opts.add_argument("name",
+            help="Name of the particle")
+
+        cfg_opts.add_argument("--contact",
+            default=None,
+            help="A contact e-mail for the particle")
+
+    def exec(self):
+        registry = self.uvn.registry_load()
+        particle = registry.register_particle(
+            name=self.uvn.args.name,
+            contact=self.uvn.args.contact)
+        logger.activity("added particle {} ({}) to UVN {}",
+            particle.name, particle.contact, registry.address)
         self.uvn.registry_save(registry)

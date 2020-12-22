@@ -15,43 +15,64 @@
 # along with this program. If not, see <https://www.gnu.org/licenses/>.
 ###############################################################################
 import ipaddress
+import types
 
 from libuno.wg import WireGuardKeyPair
 from libuno.tmplt import TemplateRepresentation
 from libuno.yml import YamlSerializer, repr_yml, repr_py, yml_obj, yml
 from libuno.identity import UvnIdentityDatabase
 from libuno.router_port import CellRouterPort
+from libuno.particle import Particle
+from libuno.cfg import UvnDefaults
+
+import libuno.log
+logger = libuno.log.logger("uvn.cell")
 
 class CellKeyMaterial(list):
     
-    def __init__(self, peer_ports = None, registry_port = None):
-        if (peer_ports is None):
-            self.append(WireGuardKeyPair.generate())
-            self.append(WireGuardKeyPair.generate())
-            self.append(WireGuardKeyPair.generate())
+    def __init__(self,
+            peers=None,
+            registry=None,
+            particles=None):
+        if peers is None:
+            self.rekey()
         else:
-            self.extend(peer_ports)
+            self.extend(peers)
         
-        if (registry_port is None):
+        if registry is None:
             self.registry = WireGuardKeyPair.generate()
         else:
-            self.registry = registry_port
+            self.registry = registry
+        
+        if particles is None:
+            self.particles = WireGuardKeyPair.generate()
+        else:
+            self.particles = particles
     
+    def rekey(self):
+        self.clear()
+        self.append(WireGuardKeyPair.generate())
+        self.append(WireGuardKeyPair.generate())
+        self.append(WireGuardKeyPair.generate())
+
     class _YamlSerializer(YamlSerializer):
         def repr_yml(self, py_repr, **kwargs):
             yml_repr = dict()
             yml_repr["peers"] = [repr_yml(k, **kwargs) for k in py_repr]
             yml_repr["registry"] = repr_yml(py_repr.registry, **kwargs)
+            yml_repr["particles"] = repr_yml(py_repr.particles, **kwargs)
             return yml_repr
     
         def repr_py(self, yml_repr, **kwargs):
             def keymat_deserialize(k):
                 return repr_py(WireGuardKeyPair, k, **kwargs)
-            registry_port = keymat_deserialize(yml_repr["registry"])
-            peer_ports = list(map(keymat_deserialize, yml_repr["peers"]))
+            registry = keymat_deserialize(yml_repr["registry"])
+            particles = keymat_deserialize(yml_repr["particles"])
+            peers = list(map(keymat_deserialize, yml_repr["peers"]))
             py_repr = CellKeyMaterial(
-                        registry_port=registry_port,
-                        peer_ports=peer_ports)
+                        registry=registry,
+                        particles=particles,
+                        peers=peers)
             return py_repr
 
 class CellIdentity:
@@ -105,6 +126,7 @@ class Cell:
         self.router_port = router_port
         self.loaded = loaded
         self.dirty = False
+        self.particles_vpn = Cell.ParticlesConnection(self)
     
     def __str__(self):
         return self.id.name
@@ -113,8 +135,8 @@ class Cell:
         def repr_yml(self, py_repr, **kwargs):
             tgt_cell = kwargs.get("tgt_cell")
             public_only = (kwargs.get("public_only") or
-                            tgt_cell is not None and
-                            tgt_cell != py_repr.id.name)
+                            (tgt_cell is not None and
+                            tgt_cell != py_repr.id.name))
 
             kwargs["public_only"] = public_only
 
@@ -155,7 +177,8 @@ class Cell:
                         peer_ports=yml_repr["peer_ports"],
                         psk=yml_repr["registry_psk"],
                         registry_vpn=registry_vpn,
-                        router_port=router_port)
+                        router_port=router_port,
+                        loaded=True)
 
             return py_repr
         
@@ -220,3 +243,56 @@ class Cell:
                             psk=yml_repr["psk"],
                             cell_privkey=yml_repr["cell_privkey"])
                 return py_repr
+
+    @TemplateRepresentation("wireguard-cfg", "wg/cell_to_particles.conf")
+    class ParticlesConnection:
+        
+        def __init__(self, cell):
+            self.cell_n = cell.id.n
+            self.cell_name = cell.id.name
+            self.endpoint = "{}:{}".format(
+                cell.id.address,
+                UvnDefaults["registry"]["vpn"]["particles"]["port"])
+            self.interface = UvnDefaults["registry"]["vpn"]["particles"]["interface"].format(0)
+            self.port = UvnDefaults["registry"]["vpn"]["particles"]["port"]
+            self.network = ipaddress.ip_network(
+                "{}/{}".format(
+                    UvnDefaults["registry"]["vpn"]["particles"]["base_ip"],
+                    UvnDefaults["registry"]["vpn"]["particles"]["netmask"]))
+            self.addr_local = self.network.network_address + 1
+            self.keymat = cell.id.keymat.particles
+            self.particles = {}
+
+        def add_particle(self, name, address, pubkey, psk):
+            particle_cfg = self.particles.get(name)
+            if particle_cfg:
+                # already registered
+                return particle_cfg
+
+            particle_cfg = types.SimpleNamespace(
+                name=name,
+                allowed=address,
+                pubkey=pubkey,
+                psk=psk)
+
+            self.particles[name] = particle_cfg
+
+            logger.debug("registered particle: {}/{}", self.cell_name, name)
+
+            return particle_cfg
+
+        class _YamlSerializer(YamlSerializer):
+            def repr_yml(self, py_repr, **kwargs):
+                yml_repr = dict()
+                yml_repr["interface"] = py_repr.interface
+                yml_repr["endpoint"] = py_repr.endpoint
+                yml_repr["port"] = py_repr.port
+                yml_repr["network"] = str(py_repr.network)
+                yml_repr["addr_local"] = str(py_repr.addr_local)
+                yml_repr["keymat"] = repr_yml(py_repr.keymat, **kwargs)
+                yml_repr["peers"] = [repr_yml(p, **kwargs)
+                    for p in py_repr.particles.values()]
+                return yml_repr
+        
+            def repr_py(self, yml_repr, **kwargs):
+                raise NotImplementedError()
