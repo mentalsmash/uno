@@ -60,6 +60,7 @@ class ParticleToCellConfig:
                 "cell_name": py_repr.cell_name,
                 "cell_address": py_repr.cell_address,
                 "cell_endpoint": py_repr.cell_endpoint,
+                "cell_pubkey": py_repr.cell_pubkey,
                 "cell_psk": py_repr.cell_psk,
             }
     
