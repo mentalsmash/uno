@@ -906,7 +906,8 @@ UNO_DEPS_SYS="iproute2
               inetutils-traceroute
               dnsutils
               tmux
-              rsync"
+              rsync
+              qrencode"
 UNO_DEPS_RPI="libatlas-base-dev
               libopenjp2-7
               libtiff5"
