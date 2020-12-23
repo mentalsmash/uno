@@ -47,6 +47,10 @@ class UvnCommandAgent(UvnCommand):
             action="store_true",
             default=False,
             help="Enable DNS server (requires dnsmasq).")
+        parser.add_argument("-i","--interface",
+            action="append",
+            default=False,
+            help="Select local network interfaces to attach. Otherwise use any interface with an IPv4 address. Repeat for multiple interfaces.")
         self._define_common_args(parser)
     
     def exec(self):
@@ -62,7 +66,8 @@ class UvnCommandAgent(UvnCommand):
                     registry_dir=dir_uvn,
                     keep=self.uvn.args.keep,
                     roaming=self.uvn.args.roaming,
-                    daemon=daemon)
+                    daemon=daemon,
+                    interfaces=self.uvn.args.interface)
         logger.activity("created UVN agent: {}", agent.registry.address)
         return agent
 

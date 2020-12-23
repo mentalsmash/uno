@@ -24,9 +24,10 @@ from libuno import ip
 logger = libuno.log.logger("uvn.vpn")
 
 class UvnVpn:
-    def __init__(self, registry, keep=False):
+    def __init__(self, registry, interfaces=[], keep=False):
         self.registry = registry
         self.keep = keep
+        self.interfaces = list(interfaces)
         self.wg_root = self._create_root_connection()
         self.wg_backbone = self._create_backbone()
         self.wg_router = self._create_router_connections()
@@ -68,8 +69,11 @@ class UvnVpn:
         logger.activity("stopped UVN vpn: {}", self.registry.address)
 
     def list_local_networks(self):
-        return ip.list_local_networks(skip=list(self.list_wg_interfaces()))
-    
+        if self.interfaces:
+            return ip.list_local_networks(interfaces=self.interfaces)
+        else:
+            return ip.list_local_networks(skip=list(self.list_wg_interfaces()))
+
     def list_wg_networks(self):
         return ip.list_local_networks(interfaces=list(self.list_wg_interfaces()))
 
@@ -103,7 +107,7 @@ class UvnVpn:
             self._nat_nets = []
             self._nat_wgs = []
             wg_nics = list(self.list_wg_interfaces())
-            local_nets = list(ip.list_local_networks(skip=wg_nics))
+            local_nets = self.list_local_networks()
             logger.activity("[NAT][enable] wireguard interfaces: {}", wg_nics)
             for nic in wg_nics:
                 ip.ipv4_enable_forward(nic)

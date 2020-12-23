@@ -76,6 +76,7 @@ class UvnAgent(UvnParticipantListener,
             return RootAgent(registry, keep=keep, daemon=daemon)
     
     def __init__(self, registry, assert_period, keep=False, daemon=False,
+            interfaces=[],
             basedir=UvnDefaults["registry"]["agent"]["basedir"],
             logfile=UvnDefaults["registry"]["agent"]["log_file"]):
         # Try to create and lock a pid file to guarantee that only one
@@ -86,6 +87,7 @@ class UvnAgent(UvnParticipantListener,
         self._daemon = daemon
         if not daemon:
             libuno.log.output_file(self._logfile)
+        self._interfaces = list(interfaces)
         self._keep = keep
         self._loaded = False
         self._started = False
@@ -186,7 +188,7 @@ class UvnAgent(UvnParticipantListener,
     
     def _create_vpn(self, cls, extra):
         logger.debug("agent vpn: {}", cls)
-        return cls(registry=self.registry, keep=self._keep, **extra)
+        return cls(registry=self.registry, keep=self._keep, interfaces=self._interfaces, **extra)
     
     def _create_router(self, cls, extra):
         logger.debug("agent router: {}", cls)

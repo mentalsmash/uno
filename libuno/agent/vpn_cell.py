@@ -29,11 +29,12 @@ class CellVpn(UvnVpn):
             cell,
             cell_record,
             cell_cfg,
-            keep=False):
+            keep=False,
+            interfaces=[]):
         self.cell = cell
         self.cell_record = cell_record
         self.cell_cfg = cell_cfg
-        UvnVpn.__init__(self, registry, keep=keep)
+        UvnVpn.__init__(self, registry, keep=keep, interfaces=interfaces)
         self.wg_particles = self._create_particles_connection()
         logger.debug("loaded cell vpn: {}/{}",
             self.cell.id.name, self.registry.deployment_id)

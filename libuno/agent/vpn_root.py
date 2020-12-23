@@ -24,8 +24,8 @@ from libuno.router_port import RegistryRouterPortWireguardConfig
 from .vpn import UvnVpn, logger
 
 class RootVpn(UvnVpn):
-    def __init__(self, registry, keep=False):
-        UvnVpn.__init__(self, registry, keep=keep)
+    def __init__(self, registry, keep=False, interfaces=[]):
+        UvnVpn.__init__(self, registry, keep=keep, interfaces=interfaces)
         logger.activity("loaded root vpn: {}", self.registry.address)
 
     def _create_root_connection(self):

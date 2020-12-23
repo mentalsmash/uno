@@ -38,11 +38,12 @@ from .router import RemoteSiteClashException
 
 class CellAgent(UvnAgent):
     def __init__(self, registry_dir, keep=False, roaming=False, daemon=False,
+            interfaces=[]
             assert_period=UvnDefaults["registry"]["agent"]["assert"]["registry"]):
         self.roaming = roaming
         self._uvn_status = self._mkuvnstatus()
         UvnAgent.__init__(self, registry_dir,
-            keep=keep, assert_period=assert_period, daemon=daemon)
+            keep=keep, assert_period=assert_period, daemon=daemon, interfaces=interfaces)
 
     ################################################################################
     # UvnAgent implementation
