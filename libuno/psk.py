@@ -47,14 +47,14 @@ class PresharedKeys(dict):
     
     class _YamlSerializer(YamlSerializer):
         def repr_yml(self, py_repr, **kwargs):
-            psk_cells = kwargs.get("psk_cells")
+            psk_cells = kwargs.get("psk_cells", [])
 
             def exportable_key(k):
                 # Ignore entry if either one of the cells is not
                 # part of the selected target cells
-                res = (not kwargs.get("public_only") and
-                        (psk_cells is None or
-                            (k[0] in  psk_cells and k[1] in psk_cells)))
+                public_only=kwargs.get("public_only",False)
+                res = (not public_only or
+                        (k[0] in  psk_cells and k[1] in psk_cells))
                 return res
 
             yml_repr = dict()

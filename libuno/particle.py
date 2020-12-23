@@ -142,9 +142,7 @@ class Particle:
                 or target_cell is not None)
 
             kwargs["public_only"] = public_only
-            logger.warning("DEBUG psk_cells: {}", kwargs.get("psk_cells"))
-            logger.warning("DEBUG target_cell: {}", target_cell)
-            logger.warning("DEBUG public_only: {}", public_only)
+            
             return {
                 "name": py_repr.name,
                 "n": py_repr.n,
