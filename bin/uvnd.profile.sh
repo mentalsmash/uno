@@ -48,6 +48,7 @@ uvnd_update()
 uvnd_pull()
 {
     (cd ${UVN_DIR} && git pull)
+    . ${UVND_PROFILE_SH}
 }
 
 UVND_SESSION=${UVND_SESSION:-uvnd}
