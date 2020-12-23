@@ -49,7 +49,7 @@ class UvnCommandAgent(UvnCommand):
             help="Enable DNS server (requires dnsmasq).")
         parser.add_argument("-i","--interface",
             action="append",
-            default=False,
+            default=[],
             help="Select local network interfaces to attach. Otherwise use any interface with an IPv4 address. Repeat for multiple interfaces.")
         self._define_common_args(parser)
     
