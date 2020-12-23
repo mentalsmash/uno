@@ -23,6 +23,9 @@ uvnd_start()
     )
 }
 
+alias uvndv=uvnd_start
+alias uvnd_view=uvnd_start
+
 uvnd_stop()
 {
     ! screen -list | grep -q ${UVND_SESSION} ||
@@ -93,20 +96,20 @@ uno_update()
 
 uvnd_help()
 {
-    echo "uvnd shell helper (${UVND_PROFILE_SH})"
+    echo "uvnd shell helper status ---------------------------"
     echo
-    echo "Status --------------------------------------------"
     uvnd_started
     echo "Default UVN_DIR: ${UVN_DIR}"
     echo "Default screen session: ${UVND_SESSION}"
+    echo "Helper script: ${UVND_PROFILE_SH}"
     echo
-    echo "Available commands ---------------------------------"
+    echo "available commands ---------------------------------"
     echo
     echo "  uvnd:           run \`uvn\` in \${UVN_DIR} as ${USER}"
     echo "  uvnds:          run \`uvn\` in \${UVN_DIR} as root"
     echo
     (
-    echo "  uvnd_start:     start uvn agent in a screen session"
+    echo "  uvnd_start:     start uvn agent in a screen session (resume session if already started)"
     echo "  uvnd_stop:      terminate uvn agent's session, and wait for it to exit."
     echo "  uvnd_pid:       print PID of active uvn agent"
     echo "  uvnd_kill:      send a signal to uvn agent"
@@ -115,6 +118,8 @@ uvnd_help()
     echo "  uvnd_exit:      signal uvn agent to exit"
     echo "  uvnd_started:   check if uvn agent is running"
     echo "  uvnd_help:      print this help"
+    echo "  uvnd_view:      alias for uvnd_start"
+    echo "  uvndv:          alias for uvnd_start"
     ) | sort
     echo
     echo "  uno_update:     update the uno installation using the installer in NONINTERACTIVE mode."
