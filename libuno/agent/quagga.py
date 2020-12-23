@@ -119,8 +119,12 @@ class QuaggaHelper:
             conf_ospfd = self._basedir / UvnDefaults["router"]["ospfd"]["conf"]
 
             # Generate configuration files
-            render(cfg, "ospfd.conf", to_file=conf_ospfd)
-            render(cfg, "zebra.conf", to_file=conf_zebra)
+            render(cfg, "ospfd.conf", to_file=conf_ospfd, context={
+                "basedir": self._basedir
+            })
+            render(cfg, "zebra.conf", to_file=conf_zebra, context={
+                "basedir": self._basedir
+            })
 
             # Create log directories
             ospfd_log = self._basedir / UvnDefaults["router"]["ospfd"]["log"]
