@@ -883,31 +883,29 @@ class UvnIdentityDatabase:
                 public_key,
                 trustlevel="TRUST_ULTIMATE")
 
-        # Disable importing of other cell's keys, since they aren't used for
-        # anything at the moment, and it slows down deployment quite a bit
-        # if deployment is not None:
-        #     for cell_cfg in deployment.deployed_cells:
-        #         if cell_cfg == tgt_cell_cfg:
-        #             private_key = tgt_cell_record.key.private
-        #             cell_record = tgt_cell_record
-        #         else:
-        #             private_key = None
-        #             cell_record = self.get_cell_record(cell_cfg.cell.id.name)
-        #             if cell_record is None:
-        #                 raise ValueError("unregistered cell: {}".format(
-        #                         cell_cfg.cell.id.name))
-        #         _import_key(cell_cfg.cell, private_key, cell_record.key.public)
-        # else:
-        #     for cell in registry.cells.values():
-        #         if cell == tgt_cell:
-        #             private_key = tgt_cell_record.key.private
-        #             cell_record = tgt_cell_record
-        #         else:
-        #             private_key = None
-        #             cell_record = self.get_cell_record(cell.id.name)
-        #             if cell_record is None:
-        #                 raise ValueError("unregistered cell: {}".format(cell.id.name))
-        #         _import_key(cell, private_key, cell_record.key.public)
+        if deployment is not None:
+            for cell_cfg in deployment.deployed_cells:
+                if cell_cfg == tgt_cell_cfg:
+                    private_key = tgt_cell_record.key.private
+                    cell_record = tgt_cell_record
+                else:
+                    private_key = None
+                    cell_record = self.get_cell_record(cell_cfg.cell.id.name)
+                    if cell_record is None:
+                        raise ValueError("unregistered cell: {}".format(
+                                cell_cfg.cell.id.name))
+                _import_key(cell_cfg.cell, private_key, cell_record.key.public)
+        else:
+            for cell in registry.cells.values():
+                if cell == tgt_cell:
+                    private_key = tgt_cell_record.key.private
+                    cell_record = tgt_cell_record
+                else:
+                    private_key = None
+                    cell_record = self.get_cell_record(cell.id.name)
+                    if cell_record is None:
+                        raise ValueError("unregistered cell: {}".format(cell.id.name))
+                _import_key(cell, private_key, cell_record.key.public)
         
         # Import UVN public key
         logger.debug("importing root key for {} ({}) to {}",
