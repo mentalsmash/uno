@@ -109,13 +109,44 @@ fi
 ################################################################################
 # Install UNO with pip
 ################################################################################
-uno_info "Installing uno for ${UNO_USER}"
-# Install uno for current user
-pip3 install -e ${UNO_DIR}
+UNO_INSTALL_USER=
+UNO_INSTALL_ROOT=
 
-uno_info "Installing uno for root"
-# Install uno for root
-sudo pip3 install -e ${UNO_DIR}
+if uno_python_check_user libuno; then
+    uno_yesno "Re-install uno for ${UNO_USER}?" \
+"uno seems to be already installed for user \`${UNO_USER}\`.
+
+Would you like to re-install it anyway?" \
+    --defaultno
+
+    uno_wprc_no || UNO_INSTALL_USER=y
+else
+    UNO_INSTALL_USER=y
+fi
+
+if uno_python_check_root libuno; then
+    uno_yesno "Re-install uno for root?" \
+"uno seems to be already installed for root.
+
+Would you like to re-install it anyway?" \
+    --defaultno
+
+    uno_wprc_no || UNO_INSTALL_ROOT=y
+else
+    UNO_INSTALL_ROOT=y
+fi
+
+if [ -n "${UNO_INSTALL_USER}" ]; then
+    uno_info "Installing uno for ${UNO_USER}"
+    # Install uno for current user
+    pip3 install -e ${UNO_DIR}
+fi
+
+if [ -n "${UNO_INSTALL_ROOT}" ]; then
+    uno_info "Installing uno for root"
+    # Install uno for root
+    sudo pip3 install -e ${UNO_DIR}
+fi
 
 if ! uno_python_check libuno; then
     uno_error "Failed to load libuno"

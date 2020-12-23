@@ -123,7 +123,7 @@ class UvnCommandCreate(UvnCommand):
                 "nameserver": libuno.yml.yml_obj(
                             dict,
                             self._args.nameserver,
-                            from_file=True) if self.uvn.args.nameserver else [],
+                            from_file=True) if self.uvn.args.nameserver else {},
                 "deploy": self.uvn.args.deploy,
                 "deployment_strategy": self.uvn.args.deployment_strategy
             }
