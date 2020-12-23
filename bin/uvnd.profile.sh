@@ -45,12 +45,6 @@ uvnd_update()
     . ${UVND_PROFILE_SH}
 }
 
-uvnd_pull()
-{
-    (cd ${UVN_DIR} && git pull)
-    . ${UVND_PROFILE_SH}
-}
-
 UVND_SESSION=${UVND_SESSION:-uvnd}
 UVND_PROFILE_SH=$(which uvnd.profile.sh)
 UVND_PID=${UVND_PID:-/var/run/uvn/uvnd.pid}
