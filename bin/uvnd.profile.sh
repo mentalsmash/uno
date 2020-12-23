@@ -68,7 +68,7 @@ uvnd_kill()
           signal="${1}"
 
     if [ -z "${pid}" ]; then
-        # echo "uvnd doesn't seem to be running" >&2
+        echo "uvnd doesn't seem to be running" >&2
         return 1
     fi
 
@@ -96,7 +96,7 @@ uvnd_exit()
 
 uvnd_status()
 {
-    if uvnd_kill 0; then
+    if uvnd_kill 0 2>/dev/null 1>&2; then
         echo "uvnd status: started ($(uvnd_pid))"
     else
         echo "uvnd status: stopped"
