@@ -345,6 +345,10 @@
             <datawriter_qos base_name="UnoQosProfiles::UvnInfo">
             </datawriter_qos>
           </data_writer>
+          <data_writer name="NameserverWriter" topic_ref="uno/uvn/ns">
+            <datawriter_qos base_name="UnoQosProfiles::Nameserver">
+            </datawriter_qos>
+          </data_writer>
           <publisher_qos>
             <base_name>
               <element>UnoQosProfiles::BasePublisher</element>

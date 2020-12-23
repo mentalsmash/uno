@@ -54,7 +54,8 @@ class RootParticipant(UvnParticipant):
             dds_peers=dds_peers,
             writers={
                 "uvn_info":    UvnDefaults["dds"]["writer"]["uvn_info"],
-                "deployment":  UvnDefaults["dds"]["writer"]["deployment"]
+                "deployment":  UvnDefaults["dds"]["writer"]["deployment"],
+                "dns":         UvnDefaults["dds"]["writer"]["dns"]
             },
             queries={
                 "cell_info": {
