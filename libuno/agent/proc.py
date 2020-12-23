@@ -65,8 +65,8 @@ class AgentProc(PeriodicFunctionThread):
         }
         if hasattr(self._agent.vpn, "wg_particles"):
             res["interfaces"]["particles"] = {
-                wg.interface: repr_yml(wg)
-                    for wg in self._agent.vpn.wg_particles}
+                self._agent.vpn.wg_particles.interface:
+                    repr_yml(self._agent.vpn.wg_particles)}
         return res
 
     def _stat_router(self):
