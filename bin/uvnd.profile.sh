@@ -96,14 +96,15 @@ uno_update()
 
 uvnd_help()
 {
-    echo "uvnd shell helper status ---------------------------"
     echo
-    uvnd_started
-    echo "Default UVN_DIR: ${UVN_DIR}"
-    echo "Default screen session: ${UVND_SESSION}"
-    echo "Helper script: ${UVND_PROFILE_SH}"
+    echo "uno shell helper ----------------------"
     echo
-    echo "available commands ---------------------------------"
+    echo -n "  "; uvnd_started
+    echo "  Default UVN_DIR: ${UVN_DIR}"
+    echo "  Default screen session: ${UVND_SESSION}"
+    echo "  Helper script: ${UVND_PROFILE_SH}"
+    echo
+    echo "available uno commands ----------------"
     echo
     echo "  uvnd:           run \`uvn\` in \${UVN_DIR} as ${USER}"
     echo "  uvnds:          run \`uvn\` in \${UVN_DIR} as root"
