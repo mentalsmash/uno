@@ -107,7 +107,7 @@ class UvnVpn:
             self._nat_nets = []
             self._nat_wgs = []
             wg_nics = list(self.list_wg_interfaces())
-            local_nets = self.list_local_networks()
+            local_nets = list(self.list_local_networks())
             logger.activity("[NAT][enable] wireguard interfaces: {}", wg_nics)
             for nic in wg_nics:
                 ip.ipv4_enable_forward(nic)
