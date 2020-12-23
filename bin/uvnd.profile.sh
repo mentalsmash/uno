@@ -39,6 +39,11 @@ uvnd_stop()
     )
 }
 
+uvnd_update()
+{
+    curl -sSL https://uno.mentalsmash.org/install | NONINTERACTIVE=y sh
+}
+
 UVND_SESSION=${UVND_SESSION:-uvnd}
 UVND_PROFILE_SH=$(which uvnd.profile.sh)
 UVND_PID=${UVND_PID:-/var/run/uvn/uvnd.pid}
