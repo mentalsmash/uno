@@ -42,6 +42,12 @@ uvnd_stop()
     )
 }
 
+uvnd_restart()
+{
+    uvnd_stop
+    uvnd_restart "$@"
+}
+
 uvnd_pid()
 {
     ps aux | grep "uvn A" | grep python3 | awk '{print $2;}'
@@ -112,6 +118,7 @@ uvnd_help()
     (
     echo "  uvnd_start:     start uvn agent in a screen session (resume session if already started)"
     echo "  uvnd_stop:      terminate uvn agent's session, and wait for it to exit."
+    echo "  uvnd_restart:   stop and restart uvn agent's session"
     echo "  uvnd_pid:       print PID of active uvn agent"
     echo "  uvnd_kill:      send a signal to uvn agent"
     echo "  uvnd_deploy:    signal uvn agent to generate a new deployment"
