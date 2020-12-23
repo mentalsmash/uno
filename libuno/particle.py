@@ -139,7 +139,7 @@ class Particle:
             public_only = (kwargs.get("public_only")
                 or (tgt_particle is not None and
                         tgt_particle != py_repr.name)
-                or pkg_cell is not None)
+                or target_cell is not None)
 
             kwargs["public_only"] = public_only
             logger.warning("DEBUG psk_cells: {}", psk_cells)
