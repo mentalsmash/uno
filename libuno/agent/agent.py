@@ -60,7 +60,7 @@ class UvnAgent(UvnParticipantListener,
     publish = ExtraClassMethods(publish_fns)
 
     @staticmethod
-    def load(registry_dir, keep=False, roaming=False, daemon=False):
+    def load(registry_dir, keep=False, roaming=False, daemon=False, interfaces=[]):
         from .agent_cell import CellAgent
         from .agent_root import RootAgent
         
@@ -69,11 +69,11 @@ class UvnAgent(UvnParticipantListener,
         registry = UvnRegistry.load(identity_db)
         
         if registry.packaged:
-            return CellAgent(registry, keep=keep, roaming=roaming, daemon=daemon)
+            return CellAgent(registry, keep=keep, roaming=roaming, daemon=daemon, interfaces=interfaces)
         else:
             if roaming:
                 raise UvnException("roaming mode not supported for root agent")
-            return RootAgent(registry, keep=keep, daemon=daemon)
+            return RootAgent(registry, keep=keep, daemon=daemon, interfaces=interfaces)
     
     def __init__(self, registry, assert_period, keep=False, daemon=False,
             interfaces=[],
