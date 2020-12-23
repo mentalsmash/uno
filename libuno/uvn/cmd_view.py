@@ -188,12 +188,12 @@ class UvnSubcommandViewZebra(UvnSubcommand):
             self._logs(registry)
     
     def _logs(self, registry):
-        basedir = pathlib.Path(self.uvn.args.rundir)
+        basedir = pathlib.Path(self.uvn.args.rundir) / UvnDefaults["router"]["run_dir"]
         log_file = basedir / UvnDefaults["router"]["zebra"]["log"]
         self.parent.display_file(registry, "zebra logs", log_file)
     
     def _config(self, registry):
-        basedir = pathlib.Path(self.uvn.args.rundir)
+        basedir = pathlib.Path(self.uvn.args.rundir) / UvnDefaults["router"]["run_dir"]
         conf_file = basedir / UvnDefaults["router"]["zebra"]["conf"]
         self.parent.display_file(registry, "zebra configuration", conf_file)
 
@@ -253,12 +253,12 @@ class UvnSubcommandViewOspfd(UvnSubcommand):
             self._vtysh(registry, "ospf.info.summary")
 
     def _logs(self, registry):
-        basedir = pathlib.Path(self.uvn.args.rundir)
+        basedir = pathlib.Path(self.uvn.args.rundir) / UvnDefaults["router"]["run_dir"]
         log_file = basedir / UvnDefaults["router"]["ospfd"]["log"]
         self.parent.display_file(registry, "ospfd logs", log_file)
     
     def _config(self, registry):
-        basedir = pathlib.Path(self.uvn.args.rundir)
+        basedir = pathlib.Path(self.uvn.args.rundir) / UvnDefaults["router"]["run_dir"]
         conf_file = basedir / UvnDefaults["router"]["ospfd"]["conf"]
         self.parent.display_file(registry, "ospfd configuration", conf_file)
     
