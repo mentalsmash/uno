@@ -25,7 +25,7 @@ def _encode_file_png(file_in, file_out):
     file_out = pathlib.Path(file_out)
     file_out.parent.mkdir(parents=True, exist_ok=True)
     exec_command(
-        ["qrencode", "-t", "png", "-o", str(file_out), str(file_in)],
+        ["sh", "-c", " ".join(["qrencode", "-t", "png", "-o", str(file_out), "<", str(file_in)])],
         fail_msg="failed to encode PNG qr code")
 
 def _encode_file_utf8(file_in, file_out=None):

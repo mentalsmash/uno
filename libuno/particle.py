@@ -133,16 +133,18 @@ class Particle:
     class _YamlSerializer(YamlSerializer):
         def repr_yml(self, py_repr, **kwargs):
             tgt_particle = kwargs.get("tgt_particle")
-            pkg_cell = kwargs.get("pkg_cell")
-            if pkg_cell:
-                kwargs["psk_cells"] = [py_repr.name, pkg_cell]
+            target_cell = kwargs.get("target_cell", kwargs.get("deployed_cell"))
+            if target_cell is not None:
+                kwargs["psk_cells"] = [py_repr.name, target_cell.id.name]
             public_only = (kwargs.get("public_only")
                 or (tgt_particle is not None and
                         tgt_particle != py_repr.name)
                 or pkg_cell is not None)
 
             kwargs["public_only"] = public_only
-
+            logger.warning("DEBUG psk_cells: {}", psk_cells)
+            logger.warning("DEBUG target_cell: {}", target_cell)
+            logger.warning("DEBUG public_only: {}", public_only)
             return {
                 "name": py_repr.name,
                 "n": py_repr.n,
