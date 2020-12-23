@@ -45,6 +45,43 @@ uvnd_update()
     . ${UVND_PROFILE_SH}
 }
 
+uvnd_pid()
+{
+    ps aux | grep "uvn A" | grep python3 | awk '{print $2;}'
+}
+
+uvnd_kill()
+{
+    local pid=$(uvnd_pid) \
+          signal="${1}"
+
+    if [ -z "${pid}" ]; then
+        echo "uvnd doesn't seem to be running" >&2
+        return
+    fi
+
+    if [ -n "${signal}" ]; then
+        signal=-${signal}
+    fi
+
+    sudo kill ${signal} ${pid}
+}
+
+uvnd_deploy()
+{
+    uvnd_kill SIGUSR2
+}
+
+uvnd_reload()
+{
+    uvnd_kill SIGUSR1
+}
+
+uvnd_exit()
+{
+    uvnd_kill SIGINT
+}
+
 UVND_SESSION=${UVND_SESSION:-uvnd}
 UVND_PROFILE_SH=$(which uvnd.profile.sh)
 UVND_PID=${UVND_PID:-/var/run/uvn/uvnd.pid}
