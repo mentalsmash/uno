@@ -19,6 +19,19 @@ uvnd_start()
         screen -S ${UVND_SESSION} -d -m 
         screen -S ${UVND_SESSION} -p 0 -X stuff \
             "export UVN_DIR=${UVN_DIR}^M. ${UVND_PROFILE_SH}^Muvnds A -v $@^M"
+        set +x
+        max_t=${UVND_TIMEOUT}
+        max_i=0
+        while [ -z "$(uvnd_pid)" -a ${max_i} -lt ${max_t} ]; do
+            echo "waiting for uvnd to start..."
+            sleep 2
+            max_i=$(expr ${max_i} + 2)
+        done
+        if [ -z "$(uvnd_pid)" ]; then
+            echo "ERROR: failed to spawn uvn agent" >&2
+        else
+            echo "uvn agent started: $(uvnd_pid)"
+        fi
     )
 }
 
@@ -39,10 +52,19 @@ uvnd_stop()
         screen -S ${UVND_SESSION} -X at '#' stuff ^C
         screen -S ${UVND_SESSION} -X at '#' stuff "exit^M"
         set +x
-        while screen -list | grep -q ${UVND_SESSION}; do
+        max_t=${UVND_TIMEOUT}
+        max_i=0
+        while screen -list | grep -q ${UVND_SESSION} &&
+              [-a ${max_i} -lt ${max_t} ]; do
             echo "waiting for screen session <${UVND_SESSION}> to terminate..."
             sleep 2
+            max_i=$(expr ${max_i} + 2)
         done
+        if screen -list | grep -q ${UVND_SESSION}; then
+            echo "ERROR: failed to stop uvn agent" >&2
+        else
+            echo "uvn agent stopped"
+        fi
     )
 }
 
@@ -143,6 +165,7 @@ uvnd_help()
     echo
 }
 
+UVND_TIMEOUT=${UVND_TIMEOUT:-60}
 UVND_SESSION=${UVND_SESSION:-uvnd}
 UVND_PROFILE_SH=$(which uvnd.profile.sh)
 
