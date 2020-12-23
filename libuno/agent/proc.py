@@ -52,7 +52,7 @@ class AgentProc(PeriodicFunctionThread):
         }
 
     def _stat_vpn(self):
-        return {
+        res = {
             "interfaces": {
                 "registry": repr_yml(self._agent.vpn.wg_root),
                 "backbone": {wg.interface: repr_yml(wg)
@@ -63,6 +63,11 @@ class AgentProc(PeriodicFunctionThread):
             "local_networks": [{k: str(v) for k, v in n.items()}
                                 for n in self._agent.vpn._nat_nets]
         }
+        if hasattr(self._agent.vpn, "wg_particles"):
+            res["interfaces"]["particles"] = {
+                wg.interface: repr_yml(wg)
+                    for wg in self._agent.vpn.wg_particles}
+        return res
 
     def _stat_router(self):
         return {
