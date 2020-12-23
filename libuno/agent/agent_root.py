@@ -70,14 +70,14 @@ class RootAgent(UvnAgent):
                 "tags": ["registry", "vpn", "uvn"]
             }
         ]
-        peers.extend([
-            {
-                "hostname": UvnDefaults["nameserver"]["vpn"]["cell_host_fmt"].format(cell.id.name, self.registry.address),
-                "address": cell.registry_vpn.cell_ip,
-                "server": cell.id.name,
-                "tags": ["cell", "vpn", "uvn"]
-            } for cell in self.registry.cells.values()
-        ])
+        # peers.extend([
+        #     {
+        #         "hostname": UvnDefaults["nameserver"]["vpn"]["cell_host_fmt"].format(cell.id.name, self.registry.address),
+        #         "address": cell.registry_vpn.cell_ip,
+        #         "server": cell.id.name,
+        #         "tags": ["cell", "vpn", "uvn"]
+        #     } for cell in self.registry.cells.values()
+        # ])
 
         return peers
     
@@ -85,7 +85,8 @@ class RootAgent(UvnAgent):
         return [{
             "server": e.server,
             "record": e
-        } for e in self.registry.nameserver.db.values()]
+        } for e in self.registry.nameserver.db.values()
+            if e.server == self.registry.address]
     
     ############################################################################
     # Agent status events
@@ -97,7 +98,8 @@ class RootAgent(UvnAgent):
         self.publish.uvn_info()
         if kwargs.get("init"):
             self.publish.deployments()
-    
+            self.publish.dns_entries()
+
     def _on_status_start(self):
         super(RootAgent, self)._on_status_start()
         # Assert each router port on every other router port
