@@ -69,7 +69,7 @@ uvnd_kill()
 
     if [ -z "${pid}" ]; then
         echo "uvnd doesn't seem to be running" >&2
-        return
+        return 1
     fi
 
     if [ -n "${signal}" ]; then
