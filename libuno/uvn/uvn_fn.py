@@ -64,6 +64,14 @@ class UvnFn:
             p = registry.register_particle(name, contact)
             logger.activity("added particle {} ({}) to UVN {}",
                 p.name, p.contact, registry.address)
+        
+        for cell, names in registry_dict.get("nameserver", {}).items():
+            for n in names:
+                registry.nameserver.assert_record(
+                    hostname=n["hostname"],
+                    address=n["address"],
+                    server=cell,
+                    tags=set(n.get("tags",[])))
 
         if registry_dict.get("deploy"):
             UvnFn._registry_deploy(registry,

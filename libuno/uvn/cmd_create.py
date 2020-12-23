@@ -117,6 +117,10 @@ class UvnCommandCreate(UvnCommand):
                             list,
                             self._args.particles,
                             from_file=True) if self.uvn.args.particles else [],
+                "nameserver": libuno.yml.yml_obj(
+                            dict,
+                            self._args.nameserver,
+                            from_file=True) if self.uvn.args.nameserver else [],
                 "deploy": self.uvn.args.deploy,
                 "deployment_strategy": self.uvn.args.deployment_strategy
             }
