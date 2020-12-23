@@ -15,11 +15,12 @@ uvnd_start()
     screen -r ${UVND_SESSION} 1>/dev/null 2>&1 ||
     (
         set -e
+        (
         set -x
         screen -S ${UVND_SESSION} -d -m 
         screen -S ${UVND_SESSION} -p 0 -X stuff \
             "export UVN_DIR=${UVN_DIR}^M. ${UVND_PROFILE_SH}^Muvnds A -v $@^M"
-        set +x
+        )
         max_t=${UVND_TIMEOUT}
         max_i=0
         while [ -z "$(uvnd_pid)" -a ${max_i} -lt ${max_t} ]; do
@@ -48,10 +49,11 @@ uvnd_stop()
     ! screen -list | grep -q ${UVND_SESSION} ||
     (
         set -e
+        (
         set -x
         screen -S ${UVND_SESSION} -X at '#' stuff ^C
         screen -S ${UVND_SESSION} -X at '#' stuff "exit^M"
-        set +x
+        )
         max_t=${UVND_TIMEOUT}
         max_i=0
         while screen -list | grep -q ${UVND_SESSION} &&
