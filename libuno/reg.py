@@ -403,7 +403,10 @@ class UvnRegistry:
             cell=None, cell_cfg=None, deployment=None, keep=False):
         
         # Check if we are generating a "bootstrap" or a "deployment" package
-        bootstrap = cell is not None
+        bootstrap = cell_cfg is None or deployment is None
+
+        if cell_cfg is not None and deployment is None:
+            raise UvnException("no deployment with cell_cfg: {}", cell_cfg.cell.id.name)
 
         if not bootstrap:
             cell = cell_cfg.cell
