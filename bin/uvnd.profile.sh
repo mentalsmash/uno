@@ -55,7 +55,7 @@ uvnd_stop()
         max_t=${UVND_TIMEOUT}
         max_i=0
         while screen -list | grep -q ${UVND_SESSION} &&
-              [-a ${max_i} -lt ${max_t} ]; do
+              [ -a ${max_i} -lt ${max_t} ]; do
             echo "waiting for screen session <${UVND_SESSION}> to terminate..."
             sleep 2
             max_i=$(expr ${max_i} + 2)
