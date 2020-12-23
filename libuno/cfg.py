@@ -95,8 +95,8 @@ UvnDefaults = {
                 "netmask": 16,
                 "interface": "uwg-p{}",
                 "port": 63449,
-                "particle_cfg_fmt": "{}_{}_{}.conf",
-                "particle_qr_fmt": "{}_{}_{}.png"
+                "particle_cfg_fmt": "{}-{}-{}.conf",
+                "particle_qr_fmt": "{}-{}-{}.png"
             }
         },
         "config": {
@@ -169,6 +169,9 @@ UvnDefaults = {
             "vpn": "registry_vpn.conf",
             "backbone": "backbone_vpn_{}.conf"
         }
+    },
+    "particle": {
+        "manifest": "particle.md"
     },
     "port": {
         "udp_port_min": 1025,

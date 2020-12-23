@@ -36,7 +36,9 @@ class ParticleToCellConfig:
             address,
             address_mask,
             cell_name,
+            cell_admin,
             cell_address,
+            cell_location,
             cell_pubkey,
             cell_endpoint,
             cell_psk):
@@ -45,7 +47,9 @@ class ParticleToCellConfig:
         self.address = address
         self.address_mask = address_mask
         self.cell_name = cell_name
+        self.cell_admin = cell_admin
         self.cell_address = cell_address
+        self.cell_location = cell_location
         self.cell_pubkey = cell_pubkey
         self.cell_endpoint = cell_endpoint
         self.cell_psk = cell_psk
@@ -58,7 +62,9 @@ class ParticleToCellConfig:
                 "address": str(py_repr.address),
                 "address_mask": py_repr.address_mask,
                 "cell_name": py_repr.cell_name,
+                "cell_admin": py_repr.cell_admin,
                 "cell_address": py_repr.cell_address,
+                "cell_location": py_repr.cell_location,
                 "cell_endpoint": py_repr.cell_endpoint,
                 "cell_pubkey": py_repr.cell_pubkey,
                 "cell_psk": py_repr.cell_psk,
@@ -67,6 +73,8 @@ class ParticleToCellConfig:
         def repr_py(self, yml_repr, **kwargs):
             raise NotImplementedError()
 
+
+@TemplateRepresentation("manifest", "particle/particle_manifest.md")
 class Particle:
     def __init__(self,
             name,
@@ -100,6 +108,8 @@ class Particle:
             address=cell.particles_vpn.addr_local + self.n,
             address_mask=cell.particles_vpn.network.prefixlen,
             cell_name=cell.id.name,
+            cell_admin=cell.id.admin,
+            cell_location=cell.id.location,
             cell_address=cell.particles_vpn.addr_local,
             cell_endpoint=cell.particles_vpn.endpoint,
             cell_pubkey=cell.id.keymat.particles.pubkey,
@@ -124,11 +134,12 @@ class Particle:
                 cfg.registry_address,
                 cfg.cell_name,
                 self.name)
-            
             render(cfg, "wireguard-cfg", to_file=cfg_file)
             qr.encode_file(cfg_file, qr_file, format="png")
             logger.debug("generated particle: {} -> {}",
                 self.name, cfg.cell_name)
+        manifest_file = base_dir / UvnDefaults["particle"]["manifest"]
+        render(self, "manifest", to_file=manifest_file, manifest=True)
 
     class _YamlSerializer(YamlSerializer):
         def repr_yml(self, py_repr, **kwargs):
@@ -143,13 +154,19 @@ class Particle:
 
             kwargs["public_only"] = public_only
             
-            return {
+            yml_repr = {
                 "name": py_repr.name,
                 "n": py_repr.n,
                 "contact": py_repr.contact,
                 "psks": repr_yml(py_repr.psks, **kwargs),
                 "keymat": repr_yml(py_repr.keymat, **kwargs)
             }
+
+            if kwargs.get("manifest"):
+                yml_repr["configs"] = [repr_yml(c, **kwargs)
+                    for c in py_repr.configs.values()]
+
+            return yml_repr
     
         def repr_py(self, yml_repr, **kwargs):
             py_repr = Particle(

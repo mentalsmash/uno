@@ -15,26 +15,30 @@ uvnd_start()
     screen -r ${UVND_SESSION} 1>/dev/null 2>&1 ||
     (
         set -e
-	set -x
+        set -x
         screen -S ${UVND_SESSION} -d -m 
         screen -S ${UVND_SESSION} -p 0 -X stuff \
             "export UVN_DIR=${UVN_DIR}^M. ${UVND_PROFILE_SH}^Muvnds A -v $@^M"
-        screen -r ${UVND_SESSION}
     )
 }
 
-alias uvndv=uvnd_start
-alias uvnd_view=uvnd_start
+uvnd_attach()
+{
+    (
+        set -x
+        screen -r ${UVND_SESSION}
+    )
+}
 
 uvnd_stop()
 {
     ! screen -list | grep -q ${UVND_SESSION} ||
     (
         set -e
-	set -x
+        set -x
         screen -S ${UVND_SESSION} -X at '#' stuff ^C
-	screen -S ${UVND_SESSION} -X at '#' stuff "exit^M"
-	set +x
+        screen -S ${UVND_SESSION} -X at '#' stuff "exit^M"
+        set +x
         while screen -list | grep -q ${UVND_SESSION}; do
             echo "waiting for screen session <${UVND_SESSION}> to terminate..."
             sleep 2
@@ -121,9 +125,9 @@ uvnd_help()
     echo "  uvnds:          run \`uvn\` in \${UVN_DIR} as root"
     echo
     (
-    echo "  uvnd_start:     start uvn agent in a screen session (resume session if already started)"
-    echo "  uvnd_stop:      terminate uvn agent's session, and wait for it to exit."
-    echo "  uvnd_restart:   restart uvn agent's session"
+    echo "  uvnd_start:     start uvn agent in a screen session"
+    echo "  uvnd_stop:      signal uvn agent for termination, and wait for it's screen session to exit."
+    echo "  uvnd_restart:   stop and restart uvn agent's session"
     echo "  uvnd_cell:      same as uvnd_start, but also enables the nameserver"
     echo "  uvnd_pid:       print PID of active uvn agent"
     echo "  uvnd_kill:      send a signal to uvn agent"
@@ -132,8 +136,7 @@ uvnd_help()
     echo "  uvnd_exit:      signal uvn agent to exit"
     echo "  uvnd_status:    check if uvn agent is running"
     echo "  uvnd_help:      print this help"
-    echo "  uvnd_view:      alias for uvnd_start"
-    echo "  uvndv:          alias for uvnd_start"
+    echo "  uvnd_attach:    attach to the uvn agent's screen session"
     ) | sort
     echo
     echo "  uno_update:     update the uno installation using the installer in NONINTERACTIVE mode."
