@@ -54,6 +54,9 @@ class UvnCommandCreate(UvnCommand):
         cfg_opts.add_argument("-p", "--particles",
             help="Initialize particles from configuration file")
         
+        cfg_opts.add_argument("-n", "--nameserver",
+            help="Initialize nameserver entries from configuration file")
+        
         cfg_opts.add_argument("-d", "--deploy",
             action="store_true",
             default=False,

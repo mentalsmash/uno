@@ -86,11 +86,11 @@ CONNEXTDDSPY_WHEEL_MISSING=$(uno_connextddspy_check_missing)
 if [ -n "${CONNEXTDDSPY_WHEEL_MISSING}" ]; then
     uno_info "installing connextdds-py to ${CONNEXTDDSPY_WHEEL_MISSING}"
     uno_connextddspy_wheel_find
-    if [ -z "${_connextddspy_whl}" ]; then
+    if [ -z "${CONNEXTDDSPY_WHEEL}" ]; then
         uno_info "must build connextdds-py wheel from source"
         CONNEXTDDSPY_WHEEL_BUILD=yes
     else
-        uno_connextddspy_wheel_install "${_connextddspy_whl}"
+        uno_connextddspy_wheel_install "${CONNEXTDDSPY_WHEEL}"
     fi
 else
     uno_info "connextdds-py already installed in ${UNO_WHL_DIR}"

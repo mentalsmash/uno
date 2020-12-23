@@ -416,7 +416,7 @@ Would you like to continue with the installation?
     ############################################################################
     # Check that UNO_DIR is valid, and reload installer from local copy
     ############################################################################
-    local installer_local="${UNO_DIR}/docs/install"
+    installer_local="${UNO_DIR}/docs/install"
 
     if [ ! -d "${UNO_DIR}" ]; then
         uno_error "invalid uno clone: ${UNO_DIR}"

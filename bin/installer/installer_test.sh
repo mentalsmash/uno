@@ -21,7 +21,6 @@ _test_dir=
 _test=
 _test_desc=
 _test_disabled=
-_test_do_run=
 
 uno_test_interrupted()
 {
@@ -47,9 +46,7 @@ uno_test_run()
     _test_disabled="${6}"
 
     local test_disabled=$(
-        if uno_nonint ||
-           [ -z "${_test_do_run}" ] ||
-           [ -n "${_test_disabled}" ]; then
+        if uno_nonint || [ -n "${_test_disabled}" ]; then
             printf disabled
         fi
     )
@@ -194,17 +191,19 @@ All LANs are connected to a common \"internet\" which contains the UVN registry,
 ################################################################################
 uno_installer_test()
 {
-
     uno_yesno "Validate uno installation" \
     "uno has been successfully installed on the system.
 
     Would you like to run some demo scenarios to verify that it actually works?"
 
-    uno_wprc_yes || return
+    if uno_wprc_no; then
+        uno_warning "tests skipped"
+        return
+    fi
 
     # Use bash's pseudo-signal EXIT to peform cleanup of generated files
     trap _installer_cleanup EXIT
-    
+
     uno_installer_test_simple_validation
     uno_installer_test_experiment_local
 }
