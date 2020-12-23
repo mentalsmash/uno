@@ -29,7 +29,7 @@ class PeerConnectionsListener():
 
     def on_peer_tester_check_enabled(self, tester, record):
         if "windows" in record["tags"]:
-            logger.debug("Windows record not tested: {}", record["hostname"])
+            logger.debug("Windows record not tested: {}", record["name"])
             return False
         return True
 
