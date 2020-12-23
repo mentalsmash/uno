@@ -85,7 +85,7 @@ uvnd_exit()
     uvnd_kill SIGINT
 }
 
-uvnd_started()
+uvnd_status()
 {
     if uvnd_kill 0; then
         echo "uvnd status: started ($(uvnd_pid))"
@@ -105,7 +105,7 @@ uvnd_help()
     echo
     echo "uno shell helper ----------------------"
     echo
-    echo -n "  "; uvnd_started
+    echo -n "  "; uvnd_status
     echo "  Default UVN_DIR: ${UVN_DIR}"
     echo "  Default screen session: ${UVND_SESSION}"
     echo "  Helper script: ${UVND_PROFILE_SH}"
@@ -124,7 +124,7 @@ uvnd_help()
     echo "  uvnd_deploy:    signal uvn agent to generate a new deployment"
     echo "  uvnd_reload:    signal uvn agent to reload configuration from filesystem"
     echo "  uvnd_exit:      signal uvn agent to exit"
-    echo "  uvnd_started:   check if uvn agent is running"
+    echo "  uvnd_status:    check if uvn agent is running"
     echo "  uvnd_help:      print this help"
     echo "  uvnd_view:      alias for uvnd_start"
     echo "  uvndv:          alias for uvnd_start"
