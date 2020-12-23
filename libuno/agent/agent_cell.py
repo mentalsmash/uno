@@ -96,7 +96,7 @@ class CellAgent(UvnAgent):
             # record for vpn address
             {
                 "hostname": UvnDefaults["nameserver"]["vpn"]["registry_host_fmt"].format(self.registry.address),
-                "address": self.registry.vpn_config.registry_address,
+                "address": cell.registry_vpn.registry_address,
                 "server": self.registry.address,
                 "tags": ["registry", "vpn", "uvn"]
             }
