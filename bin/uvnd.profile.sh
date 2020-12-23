@@ -42,6 +42,7 @@ uvnd_stop()
 uvnd_update()
 {
     curl -sSL https://uno.mentalsmash.org/install | NONINTERACTIVE=y sh
+    . ${UVND_PROFILE_SH}
 }
 
 UVND_SESSION=${UVND_SESSION:-uvnd}
