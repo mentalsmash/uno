@@ -39,12 +39,6 @@ uvnd_stop()
     )
 }
 
-uvnd_update()
-{
-    curl -sSL https://uno.mentalsmash.org/install | NONINTERACTIVE=y sh
-    . ${UVND_PROFILE_SH}
-}
-
 uvnd_pid()
 {
     ps aux | grep "uvn A" | grep python3 | awk '{print $2;}'
@@ -82,9 +76,53 @@ uvnd_exit()
     uvnd_kill SIGINT
 }
 
+uvnd_started()
+{
+    if uvnd_kill 0; then
+        echo "uvnd status: started ($(uvnd_pid))"
+    else
+        echo "uvnd status: stopped"
+    fi
+}
+
+uno_update()
+{
+    curl -sSL https://uno.mentalsmash.org/install | NONINTERACTIVE=y sh
+    . ${UVND_PROFILE_SH}
+}
+
+uvnd_help()
+{
+    echo "uvnd shell helper (${UVND_PROFILE_SH})"
+    echo
+    echo "Status --------------------------------------------"
+    uvnd_started
+    echo "Default UVN_DIR: ${UVN_DIR}"
+    echo "Default screen session: ${UVND_SESSION}"
+    echo
+    echo "Available commands ---------------------------------"
+    echo
+    echo "  uvnd:           run \`uvn\` in \${UVN_DIR} as ${USER}"
+    echo "  uvnds:          run \`uvn\` in \${UVN_DIR} as root"
+    echo
+    (
+    echo "  uvnd_start:     start uvn agent in a screen session"
+    echo "  uvnd_stop:      terminate uvn agent's session, and wait for it to exit."
+    echo "  uvnd_pid:       print PID of active uvn agent"
+    echo "  uvnd_kill:      send a signal to uvn agent"
+    echo "  uvnd_deploy:    signal uvn agent to generate a new deployment"
+    echo "  uvnd_reload:    signal uvn agent to reload configuration from filesystem"
+    echo "  uvnd_exit:      signal uvn agent to exit"
+    echo "  uvnd_started:   check if uvn agent is running"
+    echo "  uvnd_help:      print this help"
+    ) | sort
+    echo
+    echo "  uno_update:     update the uno installation using the installer in NONINTERACTIVE mode."
+    echo
+}
+
 UVND_SESSION=${UVND_SESSION:-uvnd}
 UVND_PROFILE_SH=$(which uvnd.profile.sh)
-UVND_PID=${UVND_PID:-/var/run/uvn/uvnd.pid}
 
 if [ ! -x "${UVND_PROFILE_SH}" ]; then
     echo "WARNING: uvnd.profile.sh not found in PATH."
@@ -99,7 +137,5 @@ if [ ! -d "${UVN_DIR}" ]; then
 fi
 
 if [ -z "${UVND_INVALID}" ]; then
-    echo "Loaded UVN: ${UVN_DIR}"
-    echo "Use \`uvnd\`, or \`uvnds\` to run \`uvn\` in ${UVN_DIR}"
-    echo "Use \`uvnd_start\`, and \`uvnd_stop\` to start/stop an agent inside screen session <${UVND_SESSION}>"
+    uvnd_help
 fi
