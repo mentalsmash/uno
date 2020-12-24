@@ -44,7 +44,7 @@ def list_local_nics(interfaces=[], skip=[], include_loopback=False):
 
     ninterfaces = filter(lambda intf: (
                         intf not in skip
-                        and (not interfaces or intf not in interfaces)),
+                        and (not interfaces or intf in interfaces)),
                     netifaces.interfaces())
 
     return list(filter(lambda r: len(r[1]) > 0,

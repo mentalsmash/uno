@@ -182,7 +182,7 @@ uno_installer_test_experiment_local()
 The test creates an arbitrary number of private networks, each one containing 3 hosts (a gateway, a cell, and regular host).
 All LANs are connected to a common \"internet\" which contains the UVN registry, and a \"roaming\" cell." \
 "Use CTRL+C to interrupt the test while loading. Exit tmux by pressing ${_tmux_escape}, and typing ':kill-session'" \
-        $([ -n "${_docker_avail}" ] || printf test_disabled)
+        $([ -n "${DOCKER_AVAILABLE}" ] || printf test_disabled)
 }
 
 
