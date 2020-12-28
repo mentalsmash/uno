@@ -184,5 +184,5 @@ if [ ! -d "${UVN_DIR}" ]; then
 fi
 
 if [ -z "${UVND_INVALID}" ]; then
-    uvnd_help
+    uvnd_status
 fi
