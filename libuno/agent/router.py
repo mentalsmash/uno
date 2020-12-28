@@ -225,8 +225,8 @@ class UvnRouter:
             # Check if another route to the network exists.
             # If it exist, we cache this route for later use,
             # unless this is a forced addition
-            others = self.find_remote_network_by_subnet(subnet, mask)
-            if len(list(others)):
+            others = list(self.find_remote_network_by_subnet(subnet, mask))
+            if len(others):
                 raise RemoteSiteClashException(net, others[0])
             cell = self.registry.cell(cell_name)
             net = RemoteNetwork(net_handle,
