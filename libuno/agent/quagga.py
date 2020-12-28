@@ -63,6 +63,7 @@ class QuaggaThread(threading.Thread):
             self._sem_started.release()
             exec_command(["killall", "-9", self._daemon],
                 fail_msg=f"failed to kill {self._daemon}",
+                quiet=True,
                 noexcept=True)
             exec_command([self._daemon,
                     "-f", self._config,

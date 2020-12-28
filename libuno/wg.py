@@ -222,15 +222,13 @@ class WireGuardInterface:
             "ip", "link", "set", "down", "dev", self.interface],
             root=True,
             fail_msg="failed to disable interface: {}".format(self.interface),
-            exception=WireGuardError,
-            quiet=True)
+            exception=WireGuardError)
         
         exec_command([
             "ip", "address", "flush", "dev", self.interface],
             root=True,
             fail_msg="failed to reset addresses on interface: {}".format(self.interface),
-            exception=WireGuardError,
-            quiet=True)
+            exception=WireGuardError)
         
         # Configure interface address with "ip address add dev..."
         exec_command([
