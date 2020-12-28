@@ -133,6 +133,13 @@ uno_update()
     . ${UVND_PROFILE_SH}
 }
 
+uvn_status()
+{
+    echo
+    echo -n "  "; uvnd_status
+    echo "  Default UVN_DIR: ${UVN_DIR}"
+}
+
 uvnd_help()
 {
     echo
@@ -183,6 +190,6 @@ if [ ! -d "${UVN_DIR}" ]; then
     UVND_INVALID=y
 fi
 
-if [ -z "${UVND_INVALID}" ]; then
-    uvnd_status
+if [ -n "${UVND_INVALID}" ]; then
+    echo "ERROR: failed to load uvn configuration"
 fi
