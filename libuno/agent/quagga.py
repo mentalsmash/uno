@@ -61,6 +61,9 @@ class QuaggaThread(threading.Thread):
         logger.activity("[{}] starting up...", self._daemon)
         try:
             self._sem_started.release()
+            exec_command(["killall", "-9", self._daemon],
+                fail_msg=f"failed to kill {self._daemon}",
+                quiet=True)
             exec_command([self._daemon,
                     "-f", self._config,
                     "-i", self._pid,
