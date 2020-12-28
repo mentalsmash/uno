@@ -226,9 +226,9 @@ class WireGuardInterface:
             quiet=True)
         
         exec_command([
-            "ip", "link", "del", "dev", self.interface],
+            "ip", "address", "flush", "dev", self.interface],
             root=True,
-            fail_msg="failed to delete interface: {}".format(self.interface),
+            fail_msg="failed to reset addresses on interface: {}".format(self.interface),
             exception=WireGuardError,
             quiet=True)
         
@@ -299,9 +299,9 @@ class WireGuardInterface:
             exception=WireGuardError)
         
         exec_command([
-            "ip", "link", "del", "dev", self.interface],
+            "ip", "address", "flush", "dev", self.interface],
             root=True,
-            fail_msg="failed to delete interface: {}".format(self.interface),
+            fail_msg="failed to reset addresses on interface: {}".format(self.interface),
             exception=WireGuardError)
         
         logger.activity("wireguard interface disabled: {}", self.interface)
