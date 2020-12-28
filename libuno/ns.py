@@ -17,6 +17,7 @@
 import pathlib
 import ipaddress
 import threading
+import shutil
 
 import libuno.log
 from libuno import ip
@@ -161,6 +162,11 @@ class UvnNameserver:
                 "noupstream": noupstream
             })
             resolv_conf = pathlib.Path("/etc/resolv.conf")
+            resolv_conf_bkp = pathlib.Path("/etc/resolv.conf.uno.bkp")
+            if not resolv_conf_bkp.exists():
+                shutil.copy2(str(resolv_conf), str(resolv_conf_bkp))
+            else:
+                logger.warning("not overwritten: {}", resolv_conf_bkp)
             render(self, "resolv-conf", to_file=resolv_conf, context={
                 "noupstream": noupstream
             })
@@ -194,6 +200,12 @@ class UvnNameserver:
         self.upstream_servers = []
         self.noupstream = False
         self.localhost_only = False
+        resolv_conf = pathlib.Path("/etc/resolv.conf")
+        resolv_conf_bkp = pathlib.Path("/etc/resolv.conf.uno.bkp")
+        if resolv_conf_bkp.exists():
+            shutil.copy2(str(resolv_conf_bkp), str(resolv_conf))
+        else:
+            logger.warning("not restored: {}", resolv_conf)
         if self._systemdresolved_disabled:
             systemd_resolved_enable()
         logger.trace("[dnsmasq] disabled")
