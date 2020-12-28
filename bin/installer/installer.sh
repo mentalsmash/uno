@@ -31,7 +31,8 @@ UNO_DEPS_SYS="iproute2
               dnsutils
               tmux
               rsync
-              qrencode"
+              qrencode
+              unzip"
 UNO_DEPS_RPI="libatlas-base-dev
               libopenjp2-7
               libtiff5"
