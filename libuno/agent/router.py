@@ -226,14 +226,16 @@ class UvnRouter:
             # If it exist, we cache this route for later use,
             # unless this is a forced addition
             others = list(self.find_remote_network_by_subnet(subnet, mask))
-            if len(others):
-                raise RemoteSiteClashException(net, others[0])
             cell = self.registry.cell(cell_name)
             net = RemoteNetwork(net_handle,
                     adjacent,
                     cell, nic, subnet, mask, gw,
                     route_nic, route_peer, route_gw,
                     enabled=enabled)
+            if len(others):
+                logger.error("site clash detected: {}", net)
+                logger.error("clashes: {}", others)
+                raise RemoteSiteClashException(net, others[0])
             self.networks[net_handle] = net
         updated = self._update_remote_network(net, enabled, new)
         return net
