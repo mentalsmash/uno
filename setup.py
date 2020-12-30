@@ -65,4 +65,7 @@ setuptools.setup(
         "sh",
         "shyaml"
     ],
+    data_files=[
+        ('man',["docs/man/uvn.1", "docs/man/uvnd.profile.8"]),
+    ],
 )
