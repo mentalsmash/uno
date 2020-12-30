@@ -191,10 +191,10 @@ uvnd_help()
 
 UVND_TIMEOUT=${UVND_TIMEOUT:-60}
 UVND_SESSION=${UVND_SESSION:-uvnd}
-UVND_PROFILE_SH=$(which uvnd.profile.sh)
+UVND_PROFILE=$(which uvnd.profile)
 
 if [ ! -x "${UVND_PROFILE_SH}" ]; then
-    echo "WARNING: uvnd.profile.sh not found in PATH."
+    echo "WARNING: uvnd.profile not found in PATH."
     echo "WARNING: \`uvnd_start\`, and \`uvnd_stop\` will not work as expected."
     UVND_INVALID=y
 fi

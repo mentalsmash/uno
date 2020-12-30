@@ -40,8 +40,7 @@ setuptools.setup(
     ]},
     scripts=[
         "bin/uvn",
-        "bin/uvnd.profile.sh",
-        "uno-helper.mk"
+        "bin/uvnd.profile"
     ],
     classifiers=[
         "Development Status :: 3 - Alpha",
