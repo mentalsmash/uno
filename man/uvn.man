@@ -1,0 +1,31 @@
+.TH UVN 8 "30 December 2020" "0.1.0" "uvn man page"
+.SH NAME
+uvn \- create and manage unified virtual networks
+.SH SYNOPSIS
+\fBuvn\fR <\fIcommand\fR> [\fIoptions\fR]
+.SH DESCRIPTION
+\fBuvn\fR can be used to create a new unified virtual network (or UVN), to manipulate the configuration of an existing UVN, and to start an agent to provision it.
+.SH OPTIONS
+All commands accept the COMMON OPTIONS. Each command may also define additional COMMAND OPTIONS.
+.SS COMMON OPTIONS
+.TP
+.BR \-q ", " \-\-quiet
+Run in quiet mode. Do not generate any console output.
+.TP
+.BR \-v ", " \-\-verbose
+Run in verbose mode. Generate extra output. Repeat to increase verbosity.
+.TP
+.BR \-k ", " \-\-keep
+Do not delete any temporary file generated during execution.
+.TP
+.BR \-h ", " \-\-help
+Display usage information about a command.
+.TP
+.BR \-\-version
+Print version information and exit.
+.SH SEE ALSO
+uvnd.profile(8), wg(8)
+.SH BUGS
+No known bugs.
+.SH AUTHOR
+mentalsmash.org <support@mentalsmash.org>

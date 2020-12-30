@@ -1,0 +1,13 @@
+.TH UVND.PROFILE 8 "30 December 2020" "0.1.0" "uvnd.profile man page"
+.SH NAME
+uvnd.profile \- shell library for UVN management
+.SH SYNOPSIS
+\fB. \fIuvnd.profile\fP
+.SH DESCRIPTION
+\fBuvnd.profile\fR is a collection of shell functions that simplify the operation of a unified virtual network (or UVN).
+.SH SEE ALSO
+uvn(8)
+.SH BUGS
+No known bugs.
+.SH AUTHOR
+mentalsmash.org <support@mentalsmash.org>
