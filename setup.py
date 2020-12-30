@@ -62,8 +62,7 @@ setuptools.setup(
         "matplotlib",
         "python-daemon",
         "lockfile",
-        "sh",
-        "shyaml"
+        "sh"
     ],
     data_files=[
         ('share/man/man1',["docs/man/uvn.1"]),
