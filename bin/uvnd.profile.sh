@@ -135,7 +135,6 @@ uno_update()
 
 uvn_status()
 {
-    echo
     echo -n "  "; uvnd_status
     echo "  Default UVN_DIR: ${UVN_DIR}"
 }

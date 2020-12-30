@@ -1,0 +1,26 @@
+---
+- name: Install uno from scratch
+  hosts: "{{ uvn | default('uvns')}}"
+  tasks:
+    - name: Delete previous installers
+      become: yes
+      file:
+        path: /opt/uno.install
+        state: absent
+    - name: Download uno installer
+      become: yes
+      get_url:
+        url: https://uno.mentalsmash.org/install
+        dest: /opt/uno.install
+        mode: '0700'
+        owner: "{{uno_user}}"
+        validate_certs: no
+    - name: Wipe previous installations
+      become: yes
+      file:
+        path: /opt/uno
+        state: absent
+    - name: Run uno installer
+      become_user: "${{uno_user}}"
+      shell: NONINTERACTIVE=y /opt/uno.install
+...

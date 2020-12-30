@@ -39,7 +39,8 @@ setuptools.setup(
     ]},
     scripts=[
         "bin/uvn",
-        "bin/uvnd.profile.sh"
+        "bin/uvnd.profile.sh",
+        "uno-helper.mk"
     ],
     classifiers=[
         "Development Status :: 3 - Alpha",
@@ -61,6 +62,7 @@ setuptools.setup(
         "matplotlib",
         "python-daemon",
         "lockfile",
-        "sh"
+        "sh",
+        "shyaml"
     ],
 )

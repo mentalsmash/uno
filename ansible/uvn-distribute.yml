@@ -1,0 +1,29 @@
+---
+- name: Distribute UVN to registry
+  hosts: "{{ registry | default('registry')}}"
+  tasks:
+    - name: Delete UVN files from registry
+      file:
+        path: "/home/{{uno_user}}/{{uvn}}"
+        state: absent
+    - name: Copy UVN files to registry
+      synchronize:
+        src: "{{ lookup('env', 'PWD') }}/build/{{uvn}}/"
+        dest: "/home/{{uno_user}}/{{uvn}}/"
+        rsync_opts:
+          - "--exclude=S.gpg-agent"
+- name: Distribute UVN to cells
+  hosts: "{{ cells | default('cells')}}"
+  tasks:
+    - name: Delete UVN files from cell
+      file:
+        path: "/home/{{uno_user}}/{{cell}}@{{uvn}}"
+        state: absent
+    - name: Copy UVN installer to cell
+      copy:
+        src: "{{ lookup('env', 'PWD') }}/build/{{uvn}}/installers/uvn-{{uvn}}-bootstrap-{{cell}}.zip"
+        dest: "/home/{{uno_user}}/uvn-{{uvn}}-bootstrap-{{cell}}.zip"
+    - name: Install cell package
+      shell: |
+        uvn I /home/{{uno_user}}/uvn-{{uvn}}-bootstrap-{{cell}}.zip /home/{{uno_user}}/{{cell}}@{{uvn}}
+...

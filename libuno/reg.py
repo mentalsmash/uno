@@ -229,7 +229,10 @@ class UvnRegistry:
                       admin=None,
                       admin_name=None,
                       location=None,
-                      peer_ports=None):
+                      peer_ports=None,
+                      # Catch all other extra arguments, to allow users to
+                      # store custom entries in the input YAML file
+                      **kwargs):
         if name in self.cells:
             raise UvnException(f"cell name already in use : '{name}'")
 
