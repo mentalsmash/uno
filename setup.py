@@ -66,6 +66,7 @@ setuptools.setup(
         "shyaml"
     ],
     data_files=[
-        ('man',["docs/man/uvn.1", "docs/man/uvnd.profile.8"]),
+        ('share/man/man1',["docs/man/uvn.1"]),
+        ('share/man/man8',["docs/man/uvnd.profile.8"]),
     ],
 )
