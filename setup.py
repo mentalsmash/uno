@@ -29,7 +29,7 @@ setuptools.setup(
     description=libuno.__doc__,
     long_description=readme_contents,
     long_description_content_type="text/markdown",
-    url="https://github.com/asorbini/uno",
+    url="https://uno.mentalsmash.org",
     packages=setuptools.find_packages(),
     package_data={
         "libuno": [
