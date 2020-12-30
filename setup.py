@@ -27,6 +27,7 @@ setuptools.setup(
     author=libuno.__author__,
     author_email=libuno.__email__,
     description=libuno.__doc__,
+    license="License :: OSI Approved :: GNU Affero General Public License v3 or later (AGPLv3+)",
     long_description=readme_contents,
     long_description_content_type="text/markdown",
     url="https://uno.mentalsmash.org",
