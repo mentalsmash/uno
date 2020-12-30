@@ -9,3 +9,4 @@ test-uvn.locahost
 test-uvn.locahost.cells
 *.whl
 _build
+dist
