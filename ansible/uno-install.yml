@@ -1,26 +1,50 @@
 ---
 - name: Install uno from scratch
-  hosts: "{{ uvn | default('uvns')}}"
+  hosts: "{{ uvns | default('uvns')}}"
+  vars:
+    uno_installer_dir: "/tmp"
+    uno_installer_path: "/tmp/uno.installer.sh"
+    uno_installer_url: https://uno.mentalsmash.org/install
+    uno_install_path_v: "{{uno_install_path | default('/opt/uno')}}"
+    uno_archives_dir: "{{lookup('env', 'UNO_ARCHIVES') | default('.') }}"
   tasks:
     - name: Delete previous installers
-      become: yes
       file:
-        path: /opt/uno.install
+        path: "{{uno_installer_path}}"
         state: absent
     - name: Download uno installer
-      become: yes
       get_url:
-        url: https://uno.mentalsmash.org/install
-        dest: /opt/uno.install
+        url: "{{uno_installer_url}}"
+        dest: "{{uno_installer_path}}"
         mode: '0700'
-        owner: "{{uno_user}}"
         validate_certs: no
+    - name: Copy connextdds-py wheel
+      synchronize:
+        src: "{{uno_archives_dir}}/{{connextdds_py}}"
+        dest: "{{uno_installer_dir}}"
+      when: "connextdds_py | default('')"
+    - name: Copy RTI Connext DDS host installer
+      synchronize:
+        src: "{{uno_archives_dir}}/{{connextdds_host}}"
+        dest: "{{uno_installer_dir}}"
+      when: "connextdds_host | default('')"
+    - name: Copy RTI Connext DDS target installer
+      synchronize:
+        src: "{{uno_archives_dir}}/{{connextdds_target}}"
+        dest: "{{uno_installer_dir}}"
+      when: "connextdds_target | default('')"
     - name: Wipe previous installations
       become: yes
       file:
-        path: /opt/uno
+        path: "{{uno_install_path_v}}"
         state: absent
     - name: Run uno installer
-      become_user: "${{uno_user}}"
-      shell: NONINTERACTIVE=y /opt/uno.install
+      shell:
+        chdir: "{{uno_installer_dir}}"
+        cmd: >
+          NONINTERACTIVE=y
+          UNO_DIR='{{uno_install_path_v}}'
+          {{uno_installer_path}}
+
+- import_playbook: uno-check.yml
 ...

@@ -57,6 +57,12 @@ endef
 
 SHYAML   ?= shyaml
 
+SHYAML_VERSION := $(shell $(SHYAML) --version 2>/dev/null)
+
+ifeq ($(SHYAML_VERSION),)
+$(error shyaml binary not available: '$(SHYAML)')
+endif
+
 define Q_CELLS_COUNT
 $$(cat $(1) | $(SHYAML) get-length cells)
 endef

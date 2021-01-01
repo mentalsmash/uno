@@ -1,0 +1,7 @@
+---
+- name: Check if uno is installed
+  hosts: "{{ uvns | default('uvns')}}"
+  tasks:
+    - name: Check uvn script version
+      shell: uvn --version
+...
