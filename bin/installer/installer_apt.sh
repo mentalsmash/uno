@@ -33,7 +33,7 @@ uno_apt_sources_add_debian_unstable()
     ${SUDO} apt-key adv --keyserver hkp://p80.pool.sks-keyservers.net:80 \
                         --recv-keys 04EE7237B7D453EC 648ACFD622F3D138
     # Add debian's apt repository
-    if [ ! -f ${sources_tgt}; then
+    if [ ! -f ${sources_tgt} ]; then
         ${SUDO} sh -c "echo 'deb http://deb.debian.org/debian/ unstable main' > ${sources_tgt}"
     fi
     if [ ! -f ${prefs_tgt} ]; then
