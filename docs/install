@@ -151,7 +151,6 @@ Would you like to delete it, and replace it with the latest version of branch ${
         else
             uno_yesno "Update repository ${tgt_dir}" \
     "Would you like to update the repository in ${tgt_dir} by pulling the latest version of branch ${tgt_branch}?" \
-    --defaultno
             if uno_wprc_yes; then
                 uno_git_update "${what}" "${tgt_dir}" ${tgt_branch}
             else
