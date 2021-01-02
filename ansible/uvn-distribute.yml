@@ -4,7 +4,6 @@
   vars:
     tgt_uvn_dir: "{{lookup('env', 'UVN_DIR')}}"
     tgt_uvn: "{{uvn | default('')}}"
-    tgt_uno_user: "{{uno_user | default('')}}"
   tasks:
     - name: Check environment variable 'UVN_DIR'
       fail:
@@ -14,14 +13,10 @@
       fail:
         msg: "Required variable not set: 'uvn'"
       when: not tgt_uvn
-    - name: Check variable 'uno_user'
-      fail:
-        msg: "Required variable not set: 'uno_user'"
-      when: not tgt_uno_user
 - name: Distribute UVN to registry
   hosts: "{{ registry | default('registry')}}"
   vars:
-    uvn_dir: "/home/{{uno_user}}/{{uvn}}"
+    uvn_dir: "/home/{{ansible_user}}/{{uvn}}"
   tasks:
     - name: Delete UVN files from registry
       file:
@@ -36,8 +31,8 @@
 - name: Distribute UVN to cells
   hosts: "{{ cells | default('cells')}}"
   vars:
-    uvn_dir: "/home/{{uno_user}}/{{cell}}@{{uvn}}"
-    bootstrap_zip: "/home/{{uno_user}}/uvn-{{uvn}}-bootstrap-{{cell}}.zip"
+    uvn_dir: "/home/{{ansible_user}}/{{cell}}@{{uvn}}"
+    bootstrap_zip: "/home/{{ansible_user}}/uvn-{{uvn}}-bootstrap-{{cell}}.zip"
   tasks:
     - name: Delete UVN files from cell
       file:

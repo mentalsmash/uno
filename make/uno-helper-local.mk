@@ -31,6 +31,10 @@ ifneq ($(KEEP),)
   UNO_ARGS += -k
 endif
 
+ifneq ($(DEPLOY),)
+  UNO_ARGS_DEPLOY += -d
+endif
+
 ################################################################################
 
 define TGT_CELL
@@ -124,5 +128,7 @@ clean: $(UVNS:%=%.clean)
 
 $(BUILD_DIR)/%: $(SRC_DIR)/%.yml
 	rm -rf $@
-	uvn c $(UNO_ARGS) -f $(SRC_DIR)/$*.yml $@
+	uvn c $(UNO_ARGS_DEPLOY) $(UNO_ARGS) \
+	      -f $(SRC_DIR)/$*.yml \
+		  $@
 	cd $@ && uvn i $(UNO_ARGS)

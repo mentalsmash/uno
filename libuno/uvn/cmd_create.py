@@ -100,10 +100,10 @@ class UvnCommandCreate(UvnCommand):
                 registry_dict["config"]["admin"] = self.uvn.args.admin
             if self.uvn.args.admin_name is not None:
                 registry_dict["config"]["admin_name"] = self.uvn.args.admin_name
-            if self.uvn.args.deploy is not None:
-                registry_dict["config"]["deploy"] = self.uvn.args.deploy
+            if self.uvn.args.deploy:
+                registry_dict["deploy"] = self.uvn.args.deploy
             if self.uvn.args.deployment_strategy is not None:
-                registry_dict["config"]["deployment_strategy"] = self.uvn.args.deployment_strategy
+                registry_dict["deployment_strategy"] = self.uvn.args.deployment_strategy
         else:
             registry_dict = {
                 "config": {

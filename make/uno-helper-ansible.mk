@@ -42,16 +42,16 @@ ifneq ($(UVN_HOSTS),)
 ANSIBLE_ARGS_V += -i $(UVN_HOSTS)
 endif
 
-UNO_PLAYBOOKS := $(UNO_DIR)/ansible/uno-check.yml
+UNO_PLAYBOOKS := $(UNO_DIR)/ansible
 
 check:
-	ansible-playbook $(ANSIBLE_ARGS_V) $(UNO_DIR)/ansible/uno-check.yml
+	ansible-playbook $(ANSIBLE_ARGS_V) $(UNO_PLAYBOOKS)/uno-check.yml
 
 install:
-	ansible-playbook $(ANSIBLE_ARGS_V) $(UNO_DIR)/ansible/uno-install.yml
+	ansible-playbook $(ANSIBLE_ARGS_V) $(UNO_PLAYBOOKS)/uno-install.yml
 
-
-
+dist: create
+	ansible-playbook $(ANSIBLE_ARGS_V) $(UNO_PLAYBOOKS)/uno-distribute.yml
 
 
 .PHONY: check \
