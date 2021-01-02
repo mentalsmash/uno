@@ -51,7 +51,8 @@ check: ansible.uno-check
 
 install: ansible.uno-install
 
-dist: ansible.uvn-dist
+dist: $(UVN_DIR) \
+      ansible.uvn-dist
 
 start: ansible.uvn-start
 

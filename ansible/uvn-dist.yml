@@ -6,19 +6,28 @@
       /home/{{ansible_user}}/{{uvn}}
     uvn_profile: >-
       /home/{{ansible_user}}/.uvn.profile
+    profile: >-
+      /home/{{ansible_user}}/.profile
   tasks:
-    - name: Copy UVN files to registry
+    - name: Synchronize UVN files
       synchronize:
         src: "{{ lookup('env', 'UVN_DIR') }}"
         dest: "{{uvn_dir}}"
         delete: yes
         rsync_opts:
           - "--exclude=S.gpg-agent"
-    - name: Store UVN_DIR in .uvn.profile
+    - name: Create .uvn.profile
+      template:
+        src: templates/uvn.profile
+        dest: "{{uvn_profile}}"
+        mode: 0700
+      tags: profile
+    - name: Load .uvn.profile from .profile
       lineinfile:
-        path: "{{uvn_profile}}"
-        regexp: "^UVN_DIR="
-        line: "UVN_DIR={{uvn_dir}}"
+        path: "{{profile}}"
+        regexp: "uvn.profile$"
+        line: ". {{uvn_profile}}"
+      tags: profile
 - name: Distribute UVN to cells
   hosts: cells
   vars:
@@ -26,6 +35,8 @@
       /home/{{ansible_user}}/{{cell}}@{{uvn}}
     uvn_profile: >-
       /home/{{ansible_user}}/.uvn.profile
+    profile: >-
+      /home/{{ansible_user}}/.profile
     cell_installers_src: >-
       {{ lookup('env', 'UVN_DIR') }}/installers/uvn-{{uvn}}-*-{{cell}}.zip
     cell_installers_dst: >-
@@ -35,25 +46,32 @@
     latest_zip: >-
       /home/{{ansible_user}}/uvn-{{uvn}}-latest-{{cell}}.zip
   tasks:
-    - name: Delete UVN files from cell
+    - name: Delete UVN files
       file:
         path: "{{uvn_dir}}"
         state: absent
-    - name: Copy UVN installers to cell
+    - name: Copy UVN installers
       synchronize:
         src: "{{item}}"
         dest: "{{cell_installers_dst}}"
       with_fileglob:
         - "{{cell_installers_src}}"
-    - name: Install cell boostrap package
+    - name: Install boostrap package
       shell: >
         uvn I {{bootstrap_zip}} {{uvn_dir}}
-    - name: Install cell deployment package
+    - name: Install latest deployment package
       shell: >
         cd {{uvn_dir}} && uvn I {{latest_zip}} .
-    - name: Store UVN_DIR in .uvn.profile
+    - name: Create .uvn.profile
+      template:
+        src: templates/uvn.profile
+        dest: "{{uvn_profile}}"
+        mode: 0700
+      tags: profile
+    - name: Load .uvn.profile from .profile
       lineinfile:
-        path: "{{uvn_profile}}"
-        regexp: "^UVN_DIR="
-        line: "UVN_DIR={{uvn_dir}}"
+        path: "{{profile}}"
+        regexp: "uvn.profile$"
+        line: ". {{uvn_profile}}"
+      tags: profile
 ...
