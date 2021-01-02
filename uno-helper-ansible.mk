@@ -15,7 +15,7 @@
 # along with this program. If not, see <https://www.gnu.org/licenses/>.
 ###############################################################################
 
-UVN_DIR         ?= $(UVN)
+UVN_DIR         ?= $(BUILD_DIR)/$(UVN)
 UNO_ARCHIVES    ?= $(shell pwd)/archive
 
 ifeq ($(UVN),)

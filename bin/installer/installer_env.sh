@@ -13,13 +13,13 @@ uno_ubuntu_release()
 uno_python_check_user()
 {
     # Check if a python module is already installed
-    python3 -c "import ${1}; print(${1}.__name__)" 1>/dev/null || return 0
+    python3 -c "import ${1}; print(${1}.__name__)" 1>/dev/null
 }
 
 uno_python_check_root()
 {
     # Check if a python module is already installed
-    sudo python3 -c "import ${1}; print(${1}.__name__)" 1>/dev/null || return 0
+    sudo python3 -c "import ${1}; print(${1}.__name__)" 1>/dev/null
 }
 
 uno_python_check()
