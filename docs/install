@@ -150,7 +150,7 @@ Would you like to delete it, and replace it with the latest version of branch ${
             ${SUDO} rm -rf ${tgt_dir}
         else
             uno_yesno "Update repository ${tgt_dir}" \
-    "Would you like to update the repository in ${tgt_dir} by pulling the latest version of branch ${tgt_branch}?" \
+    "Would you like to update the repository in ${tgt_dir} by pulling the latest version of branch ${tgt_branch}?"
             if uno_wprc_yes; then
                 uno_git_update "${what}" "${tgt_dir}" ${tgt_branch}
             else

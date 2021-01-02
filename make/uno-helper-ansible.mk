@@ -44,15 +44,21 @@ endif
 
 UNO_PLAYBOOKS := $(UNO_DIR)/ansible
 
-check:
-	ansible-playbook $(ANSIBLE_ARGS_V) $(UNO_PLAYBOOKS)/uno-check.yml
+ansible.%: $(UNO_PLAYBOOKS)/%.yml
+	ansible-playbook $(ANSIBLE_ARGS_V) $(UNO_PLAYBOOKS)/$*.yml
 
-install:
-	ansible-playbook $(ANSIBLE_ARGS_V) $(UNO_PLAYBOOKS)/uno-install.yml
+check: ansible.uno-check
 
-dist: create
-	ansible-playbook $(ANSIBLE_ARGS_V) $(UNO_PLAYBOOKS)/uno-distribute.yml
+install: ansible.uno-install
 
+dist: ansible.uvn-dist
+
+start: ansible.uvn-start
+
+stop: ansible.uvn-stop
 
 .PHONY: check \
-        install
+        install \
+		dist \
+		start \
+		stop

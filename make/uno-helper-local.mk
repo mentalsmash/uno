@@ -15,8 +15,8 @@
 # along with this program. If not, see <https://www.gnu.org/licenses/>.
 ###############################################################################
 
-SRC_DIR     ?= uvns
-BUILD_DIR   ?= build
+SRC_DIR     ?= $(shell pwd)/uvns
+BUILD_DIR   ?= $(shell pwd)/build
 UVNS        ?= $(patsubst $(SRC_DIR)/%.yml, %, $(wildcard $(SRC_DIR)/*.yml))
 
 ################################################################################

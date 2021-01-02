@@ -1,16 +1,12 @@
 ---
 - name: Start UVN agent on registry
-  hosts: "{{ registry | default('registry')}}"
+  hosts: registry
   tasks:
-    - name: Stop existing agent processes
-      shell: ". /home/{{uno_user}}/.profile && uvnd_stop"
     - name: Start a new agent process
-      shell: ". /home/{{uno_user}}/.profile && uvnd_start"
+      shell: ". $(which uvnd.profile) && uvnd_start"
 - name: Start UVN agents on cells
-  hosts: "{{ cells | default('cells')}}"
+  hosts: cells
   tasks:
-    - name: Stop existing agent processes
-      shell: ". /home/{{uno_user}}/.profile && uvnd_stop"
     - name: Start a new agent process
-      shell: ". /home/{{uno_user}}/.profile && uvnd_cell {{interfaces}}"
+      shell: ". $(which uvnd.profile) && uvnd_cell '{{interfaces}}'"
 ...

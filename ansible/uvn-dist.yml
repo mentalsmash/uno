@@ -1,0 +1,59 @@
+---
+- name: Distribute UVN to registry
+  hosts: registry
+  vars:
+    uvn_dir: >-
+      /home/{{ansible_user}}/{{uvn}}
+    uvn_profile: >-
+      /home/{{ansible_user}}/.uvn.profile
+  tasks:
+    - name: Copy UVN files to registry
+      synchronize:
+        src: "{{ lookup('env', 'UVN_DIR') }}"
+        dest: "{{uvn_dir}}"
+        delete: yes
+        rsync_opts:
+          - "--exclude=S.gpg-agent"
+    - name: Store UVN_DIR in .uvn.profile
+      lineinfile:
+        path: "{{uvn_profile}}"
+        regexp: "^UVN_DIR="
+        line: "UVN_DIR={{uvn_dir}}"
+- name: Distribute UVN to cells
+  hosts: cells
+  vars:
+    uvn_dir: >-
+      /home/{{ansible_user}}/{{cell}}@{{uvn}}
+    uvn_profile: >-
+      /home/{{ansible_user}}/.uvn.profile
+    cell_installers_src: >-
+      {{ lookup('env', 'UVN_DIR') }}/installers/uvn-{{uvn}}-*-{{cell}}.zip
+    cell_installers_dst: >-
+      /home/{{ansible_user}}/
+    bootstrap_zip: >-
+      /home/{{ansible_user}}/uvn-{{uvn}}-bootstrap-{{cell}}.zip
+    latest_zip: >-
+      /home/{{ansible_user}}/uvn-{{uvn}}-latest-{{cell}}.zip
+  tasks:
+    - name: Delete UVN files from cell
+      file:
+        path: "{{uvn_dir}}"
+        state: absent
+    - name: Copy UVN installers to cell
+      synchronize:
+        src: "{{item}}"
+        dest: "{{cell_installers_dst}}"
+      with_fileglob:
+        - "{{cell_installers_src}}"
+    - name: Install cell boostrap package
+      shell: >
+        uvn I {{bootstrap_zip}} {{uvn_dir}}
+    - name: Install cell deployment package
+      shell: >
+        cd {{uvn_dir}} && uvn I {{latest_zip}} .
+    - name: Store UVN_DIR in .uvn.profile
+      lineinfile:
+        path: "{{uvn_profile}}"
+        regexp: "^UVN_DIR="
+        line: "UVN_DIR={{uvn_dir}}"
+...
