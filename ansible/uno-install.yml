@@ -45,6 +45,19 @@
           NONINTERACTIVE=y
           UNO_DIR='{{uno_dir_v}}'
           {{uno_installer_path}}
+    - name: Delete connextdds-py wheel
+      file:
+        path: "{{uno_installer_dir}}/{{connextdds_py}}"
+        state: absent
+    - name: Delete RTI Connext DDS host
+      file:
+        path: "{{uno_installer_dir}}/{{connextdds_host}}"
+        state: absent
+    - name: Delete RTI Connext DDS taget
+      file:
+        path: "{{uno_installer_dir}}/{{connextdds_target}}"
+        state: absent
+    
 
 - import_playbook: uno-check.yml
 ...

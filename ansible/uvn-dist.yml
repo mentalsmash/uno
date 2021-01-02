@@ -74,4 +74,12 @@
         regexp: "uvn.profile$"
         line: ". {{uvn_profile}}"
       tags: profile
+    - name: List cell installers
+      shell: "ls {{cell_installers_dst}}/uvn-{{uvn}}-*-{{cell}}.zip"
+      register: cell_installers
+    - name: Delete cell installers
+      file:
+        path: "{{item}}"
+        state: absent
+      with_items: "{{cell_installers.stdout_lines}}"
 ...

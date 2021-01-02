@@ -35,7 +35,7 @@ uvnd_start()
             set -x
             screen -S ${UVND_SESSION} -d -m 
             screen -S ${UVND_SESSION} -p 0 -X stuff \
-                "export UVN_DIR=${UVN_DIR}^M. ${UVND_PROFILE_SH}^Muvnds A -v $@^M"
+                "export UVN_DIR=${UVN_DIR}^M. ${UVND_PROFILE}^Muvnds A -v $@^M"
         )
         max_t=${UVND_TIMEOUT}
         max_i=0
@@ -146,7 +146,7 @@ uvnd_status()
 uno_update()
 {
     curl -sSL https://uno.mentalsmash.org/install | NONINTERACTIVE=y sh
-    . ${UVND_PROFILE_SH}
+    . ${UVND_PROFILE}
 }
 
 uvn_status()
@@ -163,7 +163,7 @@ uvnd_help()
     echo -n "  "; uvnd_status
     echo "  Default UVN_DIR: ${UVN_DIR}"
     echo "  Default screen session: ${UVND_SESSION}"
-    echo "  Helper script: ${UVND_PROFILE_SH}"
+    echo "  Helper script: ${UVND_PROFILE}"
     echo
     echo "available uno commands ----------------"
     echo
