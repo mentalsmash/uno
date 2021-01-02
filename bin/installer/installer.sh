@@ -30,6 +30,7 @@ UNO_DEPS_SYS="iproute2
               inetutils-traceroute
               dnsutils
               tmux
+              screen
               rsync
               qrencode
               unzip"

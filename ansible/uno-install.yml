@@ -22,17 +22,17 @@
       synchronize:
         src: "{{uno_archives_dir}}/{{connextdds_py}}"
         dest: "{{uno_installer_dir}}"
-      when: "connextdds_py | default('')"
+      when: connextdds_py | default('')
     - name: Copy RTI Connext DDS host installer
       synchronize:
         src: "{{uno_archives_dir}}/{{connextdds_host}}"
         dest: "{{uno_installer_dir}}"
-      when: "connextdds_host | default('')"
+      when: connextdds_host | default('')
     - name: Copy RTI Connext DDS target installer
       synchronize:
         src: "{{uno_archives_dir}}/{{connextdds_target}}"
         dest: "{{uno_installer_dir}}"
-      when: "connextdds_target | default('')"
+      when: connextdds_target | default('')
     - name: Wipe previous installations
       become: yes
       file:
@@ -49,14 +49,17 @@
       file:
         path: "{{uno_installer_dir}}/{{connextdds_py}}"
         state: absent
+      when: connextdds_py | default('')
     - name: Delete RTI Connext DDS host
       file:
         path: "{{uno_installer_dir}}/{{connextdds_host}}"
         state: absent
+      when: connextdds_host | default('')
     - name: Delete RTI Connext DDS taget
       file:
         path: "{{uno_installer_dir}}/{{connextdds_target}}"
         state: absent
+      when: connextdds_target | default('')
     
 
 - import_playbook: uno-check.yml

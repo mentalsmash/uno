@@ -11,8 +11,8 @@
   tasks:
     - name: Synchronize UVN files
       synchronize:
-        src: "{{ lookup('env', 'UVN_DIR') }}"
-        dest: "{{uvn_dir}}"
+        src: "{{ lookup('env', 'UVN_DIR') }}/"
+        dest: "{{uvn_dir}}/"
         delete: yes
         rsync_opts:
           - "--exclude=S.gpg-agent"
