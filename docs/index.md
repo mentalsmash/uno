@@ -31,15 +31,15 @@ Packages are available for Ubuntu `focal` (20.04), and Debian `buster` (10).
 ```sh
 # Add mentalsmash.org's repository key
 sudo wget -O /usr/share/keyrings/mentalsmash-archive-keyring.gpg \
-          http://packages.mentalsmash.org/apt/mentalsmash-archive-keyring.gpg
+             http://packages.mentalsmash.org/apt/mentalsmash-archive-keyring.gpg
 
 # Download the preconfigured sources.list for Ubuntu
 sudo wget -O /etc/apt/sources.list.d/mentalsmash.org.list \
-          http://packages.mentalsmash.org/apt/ubuntu/sources.list
+             http://packages.mentalsmash.org/apt/ubuntu/sources.list
 
 # Download the preconfigured sources.list for Debian
 sudo wget -O /etc/apt/sources.list.d/mentalsmash.org.list \
-          http://packages.mentalsmash.org/apt/ubuntu/sources.list
+             http://packages.mentalsmash.org/apt/debian/sources.list
 
 # Update apt database
 sudo apt update
