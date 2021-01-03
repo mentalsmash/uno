@@ -33,11 +33,11 @@ Packages are available for Ubuntu `focal` (20.04), and Debian `buster` (10).
 curl http://packages.mentalsmash.org/apt/mentalsmash-archive-keyring.gpg | apt-key add -
 
 # Download the preconfigured sources.list for Ubuntu
-sudo curl -o /etc/apt/sources.list.d/mentalsmash.org.list \
+sudo curl -o /etc/apt/sources.list.d/packages.mentalsmash.org.list \
              http://packages.mentalsmash.org/apt/ubuntu/sources.list
 
 # Download the preconfigured sources.list for Debian
-sudo curl -o /etc/apt/sources.list.d/mentalsmash.org.list \
+sudo curl -o /etc/apt/sources.list.d/packages.mentalsmash.org.list \
              http://packages.mentalsmash.org/apt/debian/sources.list
 
 # Update apt database
