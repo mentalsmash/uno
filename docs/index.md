@@ -28,6 +28,8 @@ Debian packages from mentalsmash.org's repository.
 
 Packages are available for Ubuntu `focal` (20.04), and Debian `buster` (10).
 
+#### Ubuntu
+
 ```sh
 # Add mentalsmash.org's key to your trusted repositories
 curl http://packages.mentalsmash.org/apt/mentalsmash-archive-keyring.gpg | apt-key add -
@@ -35,6 +37,22 @@ curl http://packages.mentalsmash.org/apt/mentalsmash-archive-keyring.gpg | apt-k
 # Download the preconfigured sources.list for Ubuntu
 sudo curl -o /etc/apt/sources.list.d/packages.mentalsmash.org.list \
              http://packages.mentalsmash.org/apt/ubuntu/sources.list
+
+# Update apt database
+sudo apt update
+
+# Install uno
+sudo apt install uno
+```
+
+#### Debian
+
+```sh
+# Install gnupg2
+sudo apt install gnupg2
+
+# Add mentalsmash.org's key to your trusted repositories
+curl http://packages.mentalsmash.org/apt/mentalsmash-archive-keyring.gpg | apt-key add -
 
 # Download the preconfigured sources.list for Debian
 sudo curl -o /etc/apt/sources.list.d/packages.mentalsmash.org.list \
