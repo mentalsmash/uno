@@ -12,10 +12,40 @@ via dynamically managed VPN links.
 So far, it has been successfully tested on Ubuntu 18.04/20.04 (`x86_64`), and
 Raspbian Buster (`armv7l`).
 
-To install a local copy, use **uno**'s installer script:
+### From source
+
+To install a development copy (or on platforms without binary packages
+available), use **uno**'s installer script:
 
 ```sh
 curl -sSL https://uno.mentalsmash.org/install | sh
+```
+
+### Binary packages
+
+On some supported distributions, you can install **uno** using the experimental
+Debian packages from mentalsmash.org's repository.
+
+Packages are available for Ubuntu `focal` (20.04), and Debian `buster` (10).
+
+```sh
+# Add mentalsmash.org's repository key
+sudo wget -O /usr/share/keyrings/mentalsmash-archive-keyring.gpg \
+          http://packages.mentalsmash.org/apt/mentalsmash-archive-keyring.gpg
+
+# Download the preconfigured sources.list for Ubuntu
+sudo wget -O /etc/apt/sources.list.d/mentalsmash.org.list \
+          http://packages.mentalsmash.org/apt/ubuntu/sources.list
+
+# Download the preconfigured sources.list for Debian
+sudo wget -O /etc/apt/sources.list.d/mentalsmash.org.list \
+          http://packages.mentalsmash.org/apt/ubuntu/sources.list
+
+# Update apt database
+sudo apt update
+
+# Install uno
+sudo apt install uno
 ```
 
 ## Learn More

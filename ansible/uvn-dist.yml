@@ -46,10 +46,15 @@
     latest_zip: >-
       /home/{{ansible_user}}/uvn-{{uvn}}-latest-{{cell}}.zip
   tasks:
+    # "file" module fails to delete "S.gpg-agent.ssh"
+    # - name: Delete UVN files
+    #   become: yes
+    #   file:
+    #     path: "{{uvn_dir}}"
+    #     state: absent
     - name: Delete UVN files
-      file:
-        path: "{{uvn_dir}}"
-        state: absent
+      become: yes
+      shell: "rm -rf {{uvn_dir}}"
     - name: Copy UVN installers
       synchronize:
         src: "{{item}}"
