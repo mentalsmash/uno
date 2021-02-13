@@ -142,26 +142,26 @@ class PeerRemoteSites(AbstractContainer, ObservableDelegate):
         if "subnet" in kwargs:
             subnet = ipaddress.ip_network(kwargs["subnet"])
             if remote_site.subnet != subnet:
-                udpate_args[1] = subnet
+                update_args[1] = subnet
                 updated = True
         if "mask" in kwargs:
             mask = int(kwargs["mask"])
             if remote_site.mask != mask:
-                udpate_args[2] = mask
+                update_args[2] = mask
                 updated = True
         if "endpoint" in kwargs:
             endpoint = ipaddress.ip_address(kwargs["endpoint"])
             if remote_site.endpoint != endpoint:
-                udpate_args[3] = endpoint
+                update_args[3] = endpoint
                 updated = True
         if "gw" in kwargs:
             endpoint = ipaddress.ip_address(kwargs["gw"])
             if remote_site.gw != endpoint:
-                udpate_args[4] = endpoint
+                update_args[4] = endpoint
                 updated = True
         if ("route" in kwargs and remote_site.route != kwargs["route"]
             or kwargs.get("reset_route")):
-            udpate_args[5] = kwargs["route"] if not kwargs.get("reset_route") else None
+            update_args[5] = kwargs["route"] if not kwargs.get("reset_route") else None
             updated = True
         
         if updated:
