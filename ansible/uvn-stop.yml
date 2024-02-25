@@ -1,7 +1,0 @@
----
-- name: Stop UVN agent on registry
-  hosts: uvns
-  tasks:
-    - name: Stop agent process
-      shell: ". $(which uvnd.profile) && uvnd_stop"
-...

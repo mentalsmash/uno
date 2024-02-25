@@ -184,7 +184,7 @@ if [ ! -f /experiment.initialized -o -n "do this anyway" ]; then
     fi
 
     if [ -n "${TEST_NET_DNS}" ]; then
-        printf "Enablding DNS server: %s\n" "${TEST_NET_DNS}"
+        printf "Enabling DNS server: %s\n" "${TEST_NET_DNS}"
         # sleep 1 && rm -f /etc/resolv.conf
         printf "nameserver %s\n" "${TEST_NET_DNS}" > /etc/resolv.conf
     fi

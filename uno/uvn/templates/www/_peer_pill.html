@@ -1,0 +1,16 @@
+{%- if peer %}
+{%- if peer.status.name == "ONLINE" -%}
+{%-  if peer == agent.peers.local_peer -%}
+{%-    set pill_status = "primary" -%}
+{%-  else -%}
+{%-    set pill_status = "success" -%}
+{%-  endif -%}
+{%- elif peer.status.name == "OFFLINE" -%}
+{%-  set pill_status = "danger" -%}
+{%- else -%}
+{%-  set pill_status = "warning" -%}
+{%- endif -%}
+<span class="badge text-bg-{{pill_status}} me-2">
+  {{peer.name}}
+</span>
+{%- endif -%}

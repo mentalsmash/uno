@@ -10,3 +10,4 @@ test-uvn.locahost.cells
 *.whl
 _build
 dist
+rti_license.dat

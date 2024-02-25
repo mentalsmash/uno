@@ -1,0 +1,13 @@
+{%- if not stats.created -%}
+{%-  set pill_text = "Not created" -%}
+{%-  set pill_status = "danger" -%}
+{%- elif not stats.up -%}
+{%-  set pill_text = "Down" -%}
+{%-  set pill_status = "warning" -%}
+{%- else -%}
+{%-  set pill_text = "Up" -%}
+{%-  set pill_status = "success" -%}
+{%- endif -%}
+<span class="badge rounded-pill text-bg-{{pill_status}}">
+  {{pill_text}}
+</span>

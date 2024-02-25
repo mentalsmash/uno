@@ -1,0 +1,71 @@
+<div class="accordion-item mb-2">
+  <h4 class="accordion-header">
+    <button class="accordion-button"
+        type="button"
+        data-bs-toggle="collapse"
+        data-bs-target="#vpn-status-{{vpn_id}}"
+        aria-expanded="false"
+        aria-controls="vpn-status-{{vpn_id}}">
+      {#
+        <svg width="24px" height="24px" stroke-width="1.5" viewBox="0 0 24 24" fill="none" xmlns="http://www.w3.org/2000/svg" color="#000000"><path d="M17 20V4M17 4L20 7M17 4L14 7" stroke="#000000" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"></path><path d="M7 4V20M7 20L10 17M7 20L4 17" stroke="#000000" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"></path></svg>
+      #}
+      {% include "www/_vpn_icon.html" with context %}
+      <span class="d-inline-block py-9 px-2 m-0 h4">{{vpn_name}}</span>
+    </button>
+  </h4>
+  <div class="accordion-collapse collapse"
+      id="vpn-status-{{vpn_id}}">
+    <ul class="list-group">
+      <li class="list-group-item">
+        <span class="key">Interface:</span>
+        <span class="value">{{vpn.config.intf.name}}</span>
+      </li>
+      <li class="list-group-item">
+        <span class="key">Status:</span>
+        <span class="value">
+          {% include "www/_nic_pill.html" with context %}
+        </span>
+      </li>
+      <li class="list-group-item">
+        <span class="key">Public endpoint:</span>
+        <span class="value">
+          {{vpn.config.intf.endpoint}}
+        </span>
+      </li>
+      <li class="list-group-item">
+        <span class="key">Address:</span>
+        <span class="value">
+          {{stats.address}}
+        </span>
+      </li>
+      <li class="list-group-item">
+        <span class="key">Peers Status:</span>
+        <table class="table table-sm table-striped vpn-peers">
+          <thead class="table-dark">
+            <tr>
+              <th>Peer</th>
+              <th>Handshake</th>
+              <th>Rx</th>
+              <th>Tx</th>
+              <th>Endpoint</th>
+              <th>Allowed</th>
+            </tr>
+          </thead>
+          <tbody>
+            {% for peer_id, peer_stats in stats.peers | dictsort %}
+            {% set peer = peers[peer_id]%}
+            <tr>
+              <td>{{peer.name}}</td>
+              <td>{% if peer_stats.last_handshake != "19700101-000000"%}{{peer_stats.last_handshake | time_since}}{%else%}N/A{%endif%}</td>
+              <td>{{peer_stats.transfer.recv | humanbytes}}</td>
+              <td>{{peer_stats.transfer.send | humanbytes}}</td>
+              <td>{%if peer_stats.endpoint.address != "<unknown>"%}{{peer_stats.endpoint.address}}:{{peer_stats.endpoint.port}}{%else%}N/A{%endif%}</td>
+              <td>{{peer_stats.allowed_ips}}</td>
+            </tr>
+            {% endfor %}
+          </tbody>
+        </table>
+      </li>
+    </ul>
+  </div>
+</div>

@@ -1,0 +1,12 @@
+{%- if name == agent.cell.name -%}
+{%-  set pill_status = "primary" -%}
+{%- elif name == agent.uvn_id.name -%}
+{%-  set pill_status = "secondary" -%}
+{%- elif endpoint -%}
+{%-  set pill_status = "success" -%}
+{%- else -%}
+{%-  set pill_status = "warning" -%}
+{%- endif -%}
+<span class="badge text-bg-{{pill_status}} me-2">
+  {{name}}
+</span>

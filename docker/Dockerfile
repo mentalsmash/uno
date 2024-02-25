@@ -1,0 +1,69 @@
+FROM ubuntu:jammy
+
+ARG INSTALL_EXTRA_PACKAGES 
+
+# Update apt database and install apt-utils (for debconf)
+# Install psmisc to have killall
+# Install iproute2 to provision `ip` command
+# Install iptables to control kernel routing
+# Install python3-pip to provision `pip` command (and possibly `python`)
+# Install gnupg2 to handle keys and identities
+# Install wireguard to implement the uvn connections
+# Install rng-tools to provision `rngd` and speed up key generation
+# Install vim to have a decent text editor, and less for a decent pager
+# Install frr for the ospfd routing daemon
+# Install qrencode to generate QR codes for particles
+# Install some system services used by uvn
+# Install useful networking utilities (and other external packages)
+RUN export DEBIAN_FRONTEND="noninteractive" \
+    && apt-get update \
+    && apt-get install -y \
+      python3-pip \
+      psmisc \
+      iproute2 \
+      iptables \
+      gnupg2 \
+      wireguard-dkms \
+      wireguard-tools \
+      dnsmasq \
+      frr \
+      qrencode \
+      iputils-ping \
+      $([ -z "${INSTALL_EXTRA_PACKAGES}" ] || \
+        echo \
+          rng-tools \
+          vim \
+          less \
+          iputils-tracepath \
+          dnsutils \
+          inetutils-traceroute \
+          netcat \
+          iperf \
+          tcpdump \
+          curl \
+          elinks \
+      ) \
+    && apt-get clean
+
+# Enable zebra and ospfd in /etc/quagga/daemons
+RUN sed -i -r 's/^(zebra|ospfd)=no$/\1=yes/g' /etc/frr/daemons
+
+# Install uno
+COPY . /uno
+RUN pip3 install -e /uno
+
+# Custom entrypoint
+ENTRYPOINT [ "/uno/docker/entrypoint.sh" ]
+CMD ["__default__"]
+
+# Define volumes
+ENV RTI_LICENSE_FILE "/rti_license.dat"
+ENV UVN_DIR "/uvn"
+ENV UNO_DIR "/uno"
+ENV UVN_INIT_CONFIG "/uvn.yaml"
+
+VOLUME [ "${UVN_DIR}" , "${UNO_DIR}"]
+
+# RUN touch ${RTI_LICENSE_FILE} ${UVN_INIT_CONFIG}
+
+

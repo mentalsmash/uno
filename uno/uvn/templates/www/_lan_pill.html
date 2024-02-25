@@ -1,0 +1,10 @@
+{%- if not lan_status.ts_last_check -%}
+{%-  set pill_status = "danger" -%}
+{%- elif not lan_status.reachable -%}
+{%-  set pill_status = "danger" -%}
+{%- else -%}
+{%-  set pill_status = "success" -%}
+{%- endif -%}
+<span class="text-{{pill_status}}">
+  {{lan_status.lan.nic.subnet}}
+</span>

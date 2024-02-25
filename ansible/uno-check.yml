@@ -1,7 +1,0 @@
----
-- name: Check if uno is installed
-  hosts: uvns
-  tasks:
-    - name: Check uvn script version
-      shell: uvn --version
-...

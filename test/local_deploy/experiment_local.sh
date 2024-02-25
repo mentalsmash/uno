@@ -1,19 +1,4 @@
-#!/bin/sh -e
-###############################################################################
-# (C) Copyright 2020 Andrea Sorbini
-#
-# This program is free software: you can redistribute it and/or modify
-# it under the terms of the GNU Affero General Public License as 
-# published by the Free Software Foundation, either version 3 of the 
-# License, or (at your option) any later version.
-#
-# This program is distributed in the hope that it will be useful,
-# but WITHOUT ANY WARRANTY; without even the implied warranty of
-# MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE. See the
-# GNU Affero General Public License for more details.
-#
-# You should have received a copy of the GNU Affero General Public License
-# along with this program. If not, see <https://www.gnu.org/licenses/>.
+#!/bin/sh -ex
 ###############################################################################
 
 ################################################################################
@@ -49,51 +34,51 @@
 # |                                                                           |
 # │                          NETWORK CONFIGURATION                            │
 # ├─────────────┬─────────────────────────────────────────────────────────────┤
-# │ internet    │ 10.210.0.0/16 (router.internet)                             │
+# │ internet    │ 10.230.255.0/24 (router.internet)                           │
 # ├──────┬──────┴──────────┬──────────────────────────────────────────────────┤
-# │      │ babylon         │ 10.210.255.1                                     │
+# │      │ babylon         │ 10.230.255.253                                   │
 # │      ├─────────────────┼──────────────────────────────────────────────────┤
-# │      │ router          │ 10.210.0.254                                     │
+# │      │ router          │ 10.230.255.254                                   │
 # │      ├─────────────────┼──────────────────────────────────────────────────┤
-# │      │ router.org1     │ 10.210.0.2                                       │
+# │      │ router.org1     │ 10.230.255.2                                     │
 # │      ├─────────────────┼──────────────────────────────────────────────────┤
-# │      │ router.org2     │ 10.210.0.3                                       │
+# │      │ router.org2     │ 10.230.255.3                                     │
 # │      ├─────────────────┼──────────────────────────────────────────────────┤
-# │      │ router.org3     │ 10.210.0.4                                       │
+# │      │ router.org3     │ 10.230.255.4                                     │
 # │      ├─────────────────┼──────────────────────────────────────────────────┤
-# |      │ roam            │ 10.210.0.50                                      │
+# |      │ roam            │ 10.230.255.50                                    │
 # ├──────┴──────┬──────────┴──────────────────────────────────────────────────┤
-# │ org1        │ 10.101.0.0/24                                               │
+# │ org1        │ 10.230.254.0/24                                             │
 # ├──────┬──────┴──────────┬──────────────────────────────────────────────────┤
-# │      │ router          │ 10.101.0.254                                     │
+# │      │ router          │ 10.230.254.254                                   │
 # │      ├─────────────────┼──────────────────────────────────────────────────┤
-# │      │ cell            │ 10.101.0.2                                       │
+# │      │ cell            │ 10.230.254.2                                     │
 # │      ├─────────────────┼──────────────────────────────────────────────────┤
-# │      │ host            │ 10.101.0.3                                       │
+# │      │ host            │ 10.230.254.3                                     │
 # ├──────┴──────┬──────────┴──────────────────────────────────────────────────┤
-# │ org2        │ 10.102.0.0/24                                               │
+# │ org2        │ 10.230.253.0/24                                             │
 # ├──────┬──────┴──────────┬──────────────────────────────────────────────────┤
-# │      │ router          │ 10.102.0.254                                     │
+# │      │ router          │ 10.230.253.254                                   │
 # │      ├─────────────────┼──────────────────────────────────────────────────┤
-# │      │ cell            │ 10.102.0.2                                       │
+# │      │ cell            │ 10.230.253.2                                     │
 # │      ├─────────────────┼──────────────────────────────────────────────────┤
-# │      │ host            │ 10.102.0.3                                       │
+# │      │ host            │ 10.230.253.3                                     │
 # ├──────┴──────┬──────────┴──────────────────────────────────────────────────┤
-# │ org3        │ 10.103.0.0/24                                               │
+# │ org3        │ 10.230.252.0/24                                             │
 # ├──────┬──────┴──────────┬──────────────────────────────────────────────────┤
-# │      │ router          │ 10.103.0.254                                     │
+# │      │ router          │ 10.230.252.254                                   │
 # │      ├─────────────────┼──────────────────────────────────────────────────┤
-# │      │ cell            │ 10.103.0.2                                       │
+# │      │ cell            │ 10.230.252.2                                     │
 # │      ├─────────────────┼──────────────────────────────────────────────────┤
-# │      │ host            │ 10.103.0.3                                       │
+# │      │ host            │ 10.230.252.3                                     │
 # ├──────┴──────┬──────────┴──────────────────────────────────────────────────┤
-# │ org4        │ 10.104.0.0/24                                               │
+# │ org4        │ 10.230.251.0/24                                             │
 # ├──────┬──────┴──────────┬──────────────────────────────────────────────────┤
-# │      │ router          │ 10.104.0.254                                     │
+# │      │ router          │ 10.230.251.254                                   │
 # │      ├─────────────────┼──────────────────────────────────────────────────┤
-# │      │ cell            │ 10.104.0.2                                       │
+# │      │ cell            │ 10.230.251.2                                     │
 # │      ├─────────────────┼──────────────────────────────────────────────────┤
-# │      │ host            │ 10.104.0.3                                       │
+# │      │ host            │ 10.230.251.3                                     │
 # └──────┴─────────────────┴──────────────────────────────────────────────────┘
 ################################################################################
 ################################################################################
@@ -105,6 +90,7 @@ if [ -z "${TEST_NETWORKS_PRIVATE_COUNT}" ]; then
         TEST_NETWORKS_PRIVATE_COUNT=8
     else
         TEST_NETWORKS_PRIVATE_COUNT=4
+        # TEST_NETWORKS_PRIVATE_COUNT=1
     fi
 fi
 if [ "${TEST_NETWORKS_PRIVATE_COUNT}" -gt 4 ]; then
@@ -121,7 +107,8 @@ TEST_HOSTS_PRIVATE=$(
 TEST_HOSTS="
 ${TEST_HOSTS_PRIVATE}
 babylon.internet
-roam.internet"
+roam.internet
+"
 
 # List of all the test LANs
 TEST_NETWORKS_PRIVATE=$(
@@ -135,24 +122,23 @@ internet
 ${TEST_NETWORKS_PRIVATE}"
 
 # IP networks for the experiment
-NET_internet=10.210.0.0/16
+NET_internet=10.230.255.0/24
 
 _define_test_network()
 {
     local net="${1}" \
           net_id="${2}" \
-          n_ip="${2}"
+          n_ip="${2}" \
+          p_ip="${2}"
 
-    if [ ${n_ip} -lt 10 ]; then
-        n_ip="0${n_ip}"
-    fi
-    p_ip=$(expr ${n_ip} + 1)
-    eval "export NET_${net}=10.1${n_ip}.0.0/24"
-    eval "export IP_${net}_docker=10.1${n_ip}.0.1"
-    eval "export IP_${net}_router=10.1${n_ip}.0.254"
-    eval "export IP_${net}_cell=10.1${n_ip}.0.2"
-    eval "export IP_${net}_host=10.1${n_ip}.0.3"
-    eval "export IP_internet_${net}_router=10.210.0.${p_ip}"
+    n_ip=$(expr 255 - ${n_ip})
+    p_ip=$(expr ${p_ip} + 1)
+    eval "export NET_${net}=10.230.${n_ip}.0/24"
+    eval "export IP_${net}_docker=10.230.${n_ip}.1"
+    eval "export IP_${net}_router=10.230.${n_ip}.254"
+    eval "export IP_${net}_cell=10.230.${n_ip}.2"
+    eval "export IP_${net}_host=10.230.${n_ip}.3"
+    eval "export IP_internet_${net}_router=10.230.255.${p_ip}"
 }
 
 nid=1
@@ -162,12 +148,12 @@ for net in ${TEST_NETWORKS_PRIVATE}; do
 done
 
 # IP addresses for hosts attached LAN internet
-IP_internet_router=10.210.0.254
-IP_internet_roam=10.210.0.50
-IP_internet_babylon=10.210.255.1
+IP_internet_router=10.230.255.254
+IP_internet_roam=10.230.255.50
+IP_internet_babylon=10.230.255.253
 
 # UDP ports that will be forwarded to cell nodes
-PORT_forward="63450 63451 63452 63453"
+PORT_forward="63448 63449 $(for i in $(seq 1 ${TEST_NETWORKS_PRIVATE_COUNT}); do expr ${i} + 63449; done | xargs)"
 PORT_forward_registry="63550"
 
 ################################################################################
@@ -221,31 +207,45 @@ test_rc_uvn_create()
 # Create cells
 test_rc_uvn_attach()
 {
+    if [ -n "${TEST_ROAM}" ]; then
+        CELL_ROAMING=y \
+        uvn_attach roam roam.internet admin@internet "Internet's Administrator"
+    fi
+
     for net in ${TEST_NETWORKS_PRIVATE}; do
+        if printf -- "${HOST_ONLY_CELLS}\n" | grep -q ${net}; then
+            continue
+        fi
+        if printf -- "${TEST_NETWORKS_BEHIND_NAT}\n" | grep -q ${net}; then
+            local net_address=
+        else
+            local net_address=router.${net}.internet
+        fi
+
         uvn_attach ${net} \
-                   router.${net}.internet \
+                   "${net_address}" \
                    admin@${net} \
                    "${net}'s Administrator"
     done
 
-    uvn_attach roam roam.internet admin@internet "Internet's Administrator"
 }
 
 # Define nameserver entries
 test_rc_uvn_ns()
 {
-    for net in ${TEST_NETWORKS_PRIVATE}; do
-        uvn_ns ${net} router.${net} $(eval "echo \${IP_${net}_router}") "lan router gw"
-        uvn_ns ${net} cell.${net}   $(eval "echo \${IP_${net}_cell}")   "lan cell router"
-        uvn_ns ${net} host.${net}   $(eval "echo \${IP_${net}_host}")   "lan host"
-    done
+    # for net in ${TEST_NETWORKS_PRIVATE}; do
+    #     uvn_ns ${net} router.${net} $(eval "echo \${IP_${net}_router}") "lan router gw"
+    #     uvn_ns ${net} cell.${net}   $(eval "echo \${IP_${net}_cell}")   "lan cell router"
+    #     uvn_ns ${net} host.${net}   $(eval "echo \${IP_${net}_host}")   "lan host"
+    # done
+    true
 }
 
 test_rc_uvn_particles()
 {
     local i=1
     for n in ${TEST_NETWORKS_PRIVATE}; do
-        uvn_particle particle${i} particle@${n}
+        uvn_particle particle${i} "Particle ${n} Owner <particle@${n}>"
         i=$(expr ${i} + 1)
     done
 }
@@ -265,10 +265,15 @@ test_rc_uvn_install()
     
     rm -rf ${CELLS_DIR}
     for net in ${TEST_NETWORKS_PRIVATE}; do
+        if printf -- "${HOST_ONLY_CELLS}\n" | grep -q ${net}; then
+            continue
+        fi
         uvn_install     babylon.internet    ${net}    ${with_deployment}
     done
 
-    uvn_install     babylon.internet    roam  ${with_deployment}
+    if [ -n "${TEST_ROAM}" ]; then
+        uvn_install     babylon.internet    roam  ${with_deployment}
+    fi
 }
 
 test_rc_uvn_backup()
@@ -294,7 +299,8 @@ test_rc_docker_wipe()
 # Create test container images
 test_rc_docker_image()
 {
-    uvn_runner          "${UVN_DIR}"
+    # uvn_runner          "${UVN_DIR}"
+    true
 }
 
 # Define test networks
@@ -321,11 +327,22 @@ test_rc_docker_router()
 test_rc_docker_uvn()
 {
     for net in ${TEST_NETWORKS_PRIVATE}; do
+        if printf -- "${HOST_ONLY_CELLS}\n" | grep -q ${net}; then
+            local no_agent=y
+        else
+            local no_agent=
+        fi
+        CELL_ID=${net} NO_AGENT=${no_agent} \
         docker_container cell ${net} \
                          $(eval "echo \${IP_${net}_cell}") ${CELLS_DIR}/${net}
     done
     
-    docker_container    roam        internet    ${IP_internet_roam}     ${CELLS_DIR}/roam   roaming_host
+    if [ -n "${TEST_ROAM}" ]; then
+        CELL_ROAMING=y CELL_ID=roam \
+        docker_container    roam        internet    ${IP_internet_roam}     ${CELLS_DIR}/roam
+    fi
+
+    NO_AGENT=y \
     docker_container    babylon     internet    ${IP_internet_babylon}  ${UVN_DIR}
 }
 
@@ -458,7 +475,9 @@ test_rc_start()
     done
 
     # Start hosts in LAN internet
-    docker_start        roam.internet
+    if [ -n "${TEST_ROAM}" ]; then
+        docker_start        roam.internet
+    fi
     docker_start        babylon.internet
 }
 
@@ -699,15 +718,8 @@ else
     ! rc_check UVN_ATTACH       || test_rc_uvn_attach
     ! rc_check UVN_NS           || test_rc_uvn_ns
     ! rc_check UVN_PARTICLES    || test_rc_uvn_particles
-    if [ -n "${PREDEPLOY}" ]; then
     ! rc_check UVN_DEPLOY       || test_rc_uvn_deploy
     ! rc_check UVN_INSTALL      || test_rc_uvn_install
-    else
-    ! rc_check UVN_INSTALL      || test_rc_uvn_install
-    if [ -n "${DEPLOY}" ]; then
-    ! rc_check UVN_DEPLOY       || test_rc_uvn_deploy
-    fi
-    fi
     ! rc_check UVN_BACKUP       || test_rc_uvn_backup
 fi
 ! rc_check DOCKER_WIPE      || test_rc_docker_wipe

@@ -1,0 +1,10 @@
+{%- if not peer.id -%}
+{%-  set pill_status = "primary" -%}
+{%- elif peer.deployment_id == agent.deployment.generation_ts -%}
+{%-  set pill_status = "success" -%}
+{%- else -%}
+{%-  set pill_status = "danger" -%}
+{%- endif -%}
+<span class="text-{{pill_status}} me-2">
+  {{peer.deployment_id | format_ts}}
+</span>

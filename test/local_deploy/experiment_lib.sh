@@ -117,30 +117,9 @@ docker_container()
     local host_name="${1}" \
           host_net="${2}" \
           host_ip="${3}" \
-          host_uvn="${4}" \
-          host_roaming="${5}"
+          host_uvn="${4}"
 
-    if [ -z "${host_has_domain}" ]; then
-        local container_name=${host_name}.${host_net}
-    else
-        local container_name=${host_name}
-    fi
-
-    if [ -n "${host_uvn}" ]; then
-        local uvn_volume="-v ${host_uvn}:/opt/uvn"
-        log_debug " uvn docker container: ${container_name}"
-    else
-        local custom_command=sh
-        log_debug " custom docker container command: ${container_name}"
-    fi
-
-    if [ -n "${UVN_VERBOSE}" ]; then
-        local container_verbose="${UVN_VERBOSE#-}"
-    fi
-
-    if [ -d "${UNO_DEV}" ]; then
-        local container_dev="-e DEV=y -v ${UNO_DEV}:/opt/uno"
-    fi
+    local container_name=${host_name}.${host_net}
 
     log_debug " deleting docker container: ${container_name}"
     (${DOCKER} rm -f -v ${container_name} || [ -n network_doesnt_exist ]) \
@@ -156,14 +135,22 @@ docker_container()
         --cap-add net_admin \
         --cap-add sys_module \
         -e RC_LOCAL=/experiment/init.sh \
-        -e KEEP=${KEEP} \
-        -e VERBOSE=${container_verbose} \
-        -e ROAMING=${host_roaming} \
-        ${container_dev} \
         -v ${EXPERIMENT_DIR}/${container_name}:/experiment \
-        ${uvn_volume} \
-        uvn-runner \
-        ${custom_command} \
+        $([ -z "${CELL_ROAMING}" ] || printf -- "-e CELL_ROAMING=${CELL_ROAMING}") \
+        $([ -z "${CELL_ID}" ] || printf -- "-e CELL_ID=${CELL_ID}") \
+        $([ -z "${UVN_EXTRA_ARGS}" ] || printf -- "-e UVN_EXTRA_ARGS=${UVN_EXTRA_ARGS}") \
+        $([ -z "${host_uvn}" ] || printf -- "-v ${host_uvn}:/uvn") \
+        $([ -z "${host_uvn}" ] || printf -- "-w /uvn") \
+        $([ -z "${UNO_DIR}" ] || printf -- "-v ${UNO_DIR}:/uno") \
+        $(
+          if [ -z "${RTI_LICENSE_FILE}" ]; then
+            printf -- "-e RTI_LICENSE_FILE=/uno/rti_license.dat"
+          else
+            printf -- "-v ${RTI_LICENSE_FILE}=/rti_license.dat"
+          fi
+        ) \
+        uno:latest \
+        $([ -n "${host_uvn}" -a -z "${NO_AGENT}" ] || printf -- "sh") \
         >> ${EXPERIMENT_LOG} 2>&1
     log_info "[created] docker container: ${container_name}"
 }
@@ -244,11 +231,12 @@ uvn_create()
     log_debug " creating UVN: ${uvn_address}"
     (
         set -x
-        ${UVN} create \
-            -A ${uvn_address} \
-            -a ${uvn_admin} \
-            -an ${uvn_admin_name} \
-            ${UVN_DIR} \
+        ${UVN} registry init \
+            -a ${uvn_address} \
+            -A "${uvn_admin_name} <${uvn_admin}>" \
+            -r ${UVN_DIR} \
+            $([ -z "${UVN_SETTINGS}" ] || printf -- "-s ${UVN_SETTINGS}") \
+            $([ -z "${UVN_TIMING_FAST}" ] || printf -- "-T fast" ) \
             ${UVN_EXTRA_ARGS}
     )
     log_info "[created] UVN: ${uvn_address}"
@@ -260,15 +248,17 @@ uvn_attach()
           cell_address="${2}" \
           cell_admin="${3}" \
           cell_admin_name="${4}"
+    
+    local cell_subnet="$(eval "echo \${NET_${cell_name}}")"
 
     (
         cd ${UVN_DIR}
         set -x
-        ${UVN} attach cell \
+        ${UVN} registry add-cell \
             --name ${cell_name} \
-            --address ${cell_address} \
-            --admin ${cell_admin} \
-            --admin-name "${cell_admin_name}" \
+            --admin "${cell_admin_name} <${cell_admin}>" \
+            $([ -z "${cell_address}" ] || printf -- "--address ${cell_address}") \
+            $([ -z "${cell_subnet}" ] || printf -- "--network ${cell_subnet}") \
             ${UVN_EXTRA_ARGS}
     )
     log_info "[created] UVN cell: ${cell_name}"
@@ -282,8 +272,9 @@ uvn_particle()
     (
         cd ${UVN_DIR}
         set -x
-        ${UVN} attach particle ${particle_name} \
-            --contact ${particle_contact} \
+        ${UVN} registry add-particle \
+            --name ${particle_name} \
+            --admin "${particle_contact}" \
             ${UVN_EXTRA_ARGS}
     )
     log_info "[created] UVN particle: ${particle_name}"
@@ -313,8 +304,9 @@ uvn_deploy()
     (
         cd ${UVN_DIR}
         set -x
-        ${UVN} deploy \
-            ${UVN_EXTRA_ARGS}
+        ${UVN} registry deploy ${UVN_EXTRA_ARGS}
+        ${UVN} registry generate-agents ${UVN_EXTRA_ARGS}
+        ${UVN} registry plot ${UVN_EXTRA_ARGS}
     )
 }
 
@@ -324,21 +316,25 @@ uvn_install()
           cell_name="${2}" \
           with_deployment="${3}"
     
-    ${UVN} install \
-        "${UVN_DIR}/installers/uvn-${uvn_address}-bootstrap-${cell_name}.zip" \
-        "${CELLS_DIR}/${cell_name}" \
-        ${UVN_EXTRA_ARGS}
+    ${UVN} cell bootstrap \
+        -r "${CELLS_DIR}/${cell_name}" \
+        "${UVN_DIR}/cells/${cell_name}.uvn-agent"
 
-    if [ -n "${with_deployment}" ]; then
-    (
-        cd "${CELLS_DIR}/${cell_name}"
-        set -x
-        ${UVN} install \
-            "${UVN_DIR}/installers/uvn-${uvn_address}-latest-${cell_name}.zip" \
-            . \
-            ${UVN_EXTRA_ARGS}
-    )
-    fi
+    # ${UVN} install \
+    #     "${UVN_DIR}/installers/uvn-${uvn_address}-bootstrap-${cell_name}.zip" \
+    #     "${CELLS_DIR}/${cell_name}" \
+    #     ${UVN_EXTRA_ARGS}
+
+    # if [ -n "${with_deployment}" ]; then
+    # (
+    #     cd "${CELLS_DIR}/${cell_name}"
+    #     set -x
+    #     ${UVN} install \
+    #         "${UVN_DIR}/installers/uvn-${uvn_address}-latest-${cell_name}.zip" \
+    #         . \
+    #         ${UVN_EXTRA_ARGS}
+    # )
+    # fi
     log_info "[installed] UVN cell: ${cell_name}"
 }
 
@@ -373,6 +369,7 @@ uvn_backup()
     rm -rf ${BACKUP_DIR}
     mkdir -p ${BACKUP_DIR}
     cp -r ${CELLS_DIR} ${UVN_DIR} ${BACKUP_DIR}
+    # cp -r ${UVN_DIR} ${BACKUP_DIR}
     log_info "[backed up] UVN state"
 }
 
@@ -925,4 +922,4 @@ if [ -z "${IGNORE_ERRORS}" ]; then
 fi
 
 # Extra arguments passed to uvn
-UVN_EXTRA_ARGS="${UVN_VERBOSE} ${UVN_KEEP}"
+# UVN_EXTRA_ARGS="${UVN_VERBOSE} ${UVN_KEEP}"

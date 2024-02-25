@@ -1,3 +1,0 @@
-# Cell, Status, Peers, Ports, Sites
-{% for p in peers %}
-{{p.name}}, {{p.status}}, {{p.sites}}, {{p.peers}}, {{p.sites}}{% endfor %}

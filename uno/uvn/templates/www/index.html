@@ -1,0 +1,834 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.2/dist/css/bootstrap.min.css" rel="stylesheet" integrity="sha384-T3c6CoIi6uLrA9TneNEoa7RxnatzjcDSCmG1MXxSR1GAsXEV/Dwwykc2MPK8M2HN" crossorigin="anonymous">
+    <meta name="viewport" content="width=device-width, initial-scale=1">
+    <title>{{cell.name}} @ {{uvn_id.name}}</title>
+    <!-- <link rel="stylesheet" type="text/css" href="styles.css"> -->
+    <style>
+.key {
+  font-weight: bold;
+}
+
+.subtitle {
+  display: block;
+  font-size: 60%;
+}
+table,
+.uvn-settings {
+  font-size: 80%;
+}
+.accordion-button:not(.collapsed) {
+  background-color: var(--bs-accordion-bg);
+  color: var(--bs-accordion-btn-color);
+}
+
+#router-status pre {
+  font-size: 80%;
+}
+
+tbody .badge {
+  font-size: 100%;
+}
+    </style>
+  </head>
+  <body>
+    <div class="container-xxl py-3 px-3 my-2">
+      <h1 class="border-bottom border-2 mb-3
+          {%if fully_routed %}
+          text-success
+          border-success
+          {% elif peers_reachable | length > 0 %}
+          text-warning
+          border-warning
+          {% else %}
+          text-danger
+          border-danger
+          {% endif %}">
+        {{cell.name}} @ {{uvn_id.name}}
+      </h1>
+      {%if not fully_routed %}
+      {% if peers_reachable %}
+      <div class="alert alert-warning" role="alert">
+        {{peers_unreachable|length}} network{%if peers_unreachable|length != 1%}s are{%else%} is{%endif%} unreachable:
+        {%for status in peers_unreachable %}{{status.lan.nic.subnet.network_address}}/{{status.lan.nic.netmask}}{%if not loop.last%}, {%endif%}{%endfor%}
+      </div>
+      {% else %}
+      <div class="alert alert-warning" role="alert">
+        All networks are currently unreachable!
+      </div>
+      {% endif %}
+      {% endif %}
+      {%if peers_offline %}
+      {% if peers_online %}
+      <div class="alert alert-warning" role="alert">
+        {{peers_offline}} peer{%if peers_offline != 1%}s are{%else%} is{%endif%} offline.
+      </div>
+      {% else %}
+      <div class="alert alert-warning" role="alert">
+        All peers are currently offline!
+      </div>
+      {% endif %}
+      {% endif %}
+      {% if clashing_sites %}
+      <div class="alert alert-danger" role="alert">
+        {{clashing_sites | length}} clashing LAN{%if clashing_sites | length != 1%}s{%else%}{%endif%} detected:
+        <ol>
+          {%for clashing_subnet, subnet_peers in clashing_sites | dictsort %}
+          <li>{{clashing_subnet}} ({%for peer, site in subnet_peers%}{{peer.name}}:{{site.nic.name}}{%if not loop.last%}, {%endif%}{%endfor%})</li>
+          {%endfor%}
+        </ol>
+      </div>
+      {% endif %}
+      <div class="accordion" id="panels">
+        <div class="row accordion-item">
+          <h2 class="accordion-header">
+            <button class="accordion-button"
+                type="button"
+                data-bs-toggle="collapse"
+                data-bs-target="#panel-uvn-status"
+                aria-expanded="true"
+                aria-controls="panel-uvn-status">
+              <svg width="24px" height="24px" stroke-width="1.5" viewBox="0 0 24 24" fill="none" xmlns="http://www.w3.org/2000/svg" color="#000000"><path d="M10 9H6" stroke="#000000" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"></path><path d="M15.5 11C14.1193 11 13 9.88071 13 8.5C13 7.11929 14.1193 6 15.5 6C16.8807 6 18 7.11929 18 8.5C18 9.88071 16.8807 11 15.5 11Z" stroke="#000000" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"></path><path d="M6 6H9" stroke="#000000" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"></path><path d="M18 18L13.5 15L11 17L6 13" stroke="#000000" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"></path><path d="M3 20.4V3.6C3 3.26863 3.26863 3 3.6 3H20.4C20.7314 3 21 3.26863 21 3.6V20.4C21 20.7314 20.7314 21 20.4 21H3.6C3.26863 21 3 20.7314 3 20.4Z" stroke="#000000" stroke-width="1.5"></path></svg>
+              <span class="d-inline-block py-9 px-2 m-0 h2">Status</span>
+            </button>
+          </h2>
+          <div class="container accordion-collapse collapse show"
+              id="panel-uvn-status">
+            <div class="row">
+              <div class="col-sm-6">
+                <a href="{{backbone_plot}}" target="_blank">
+                  <figure class="figure text-center">
+                    <img src="{{backbone_plot}}"
+                      alt="UVN Peers and Routed LANs Status"
+                      class="figure-img img-fluid">
+                    <figcaption class="figure-caption">UVN Peers and Routed LANs.</figcaption>
+                  </figure>
+                </a>
+              </div>
+              <div class="col-sm-6">
+                <a href="{{backbone_plot_basic}}" target="_blank">
+                  <figure class="figure text-center">
+                    <img src="{{backbone_plot_basic}}"
+                      alt="UVN Backbone links"
+                      class="figure-img img-fluid">
+                    <figcaption class="figure-caption">UVN Backbone.</figcaption>
+                  </figure>
+                </a>
+              </div>
+              <div class="col-xl-12 accordion pb-3">
+                <div class="accordion-item">
+                  <h3 class="accordion-header">
+                    <button class="accordion-button"
+                        type="button"
+                        data-bs-toggle="collapse"
+                        data-bs-target="#uvn-agents-status"
+                        aria-expanded="false"
+                        aria-controls="uvn-agents-status">
+                      <svg width="24px" height="24px" viewBox="0 0 24 24" stroke-width="1.5" fill="none" xmlns="http://www.w3.org/2000/svg" color="#000000"><path d="M7 18V17C7 14.2386 9.23858 12 12 12V12C14.7614 12 17 14.2386 17 17V18" stroke="#000000" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"></path><path d="M1 18V17C1 15.3431 2.34315 14 4 14V14" stroke="#000000" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"></path><path d="M23 18V17C23 15.3431 21.6569 14 20 14V14" stroke="#000000" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"></path><path d="M12 12C13.6569 12 15 10.6569 15 9C15 7.34315 13.6569 6 12 6C10.3431 6 9 7.34315 9 9C9 10.6569 10.3431 12 12 12Z" stroke="#000000" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"></path><path d="M4 14C5.10457 14 6 13.1046 6 12C6 10.8954 5.10457 10 4 10C2.89543 10 2 10.8954 2 12C2 13.1046 2.89543 14 4 14Z" stroke="#000000" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"></path><path d="M20 14C21.1046 14 22 13.1046 22 12C22 10.8954 21.1046 10 20 10C18.8954 10 18 10.8954 18 12C18 13.1046 18.8954 14 20 14Z" stroke="#000000" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"></path></svg>
+                      <span class="d-inline-block py-9 px-2 m-0 h3">Agents</span>
+                    </button>
+                  </h3>
+                  <div class="accordion-collapse collapse"
+                        id="uvn-agents-status">
+                    <table class="table table-striped">
+                      <thead class="table-dark">
+                        <tr>
+                          <th>Agent</th>
+                          <th>Status</th>
+                          <th>Deployment Id</th>
+                          <th>Backbone</th>
+                          <th>LANs</th>
+                          <th>Last Update</th>
+                        </tr>
+                      </thead>
+                      <tbody>
+                        {% for peer in agent.peers | sort(attribute="name") %}
+                        <tr>
+                          <td>
+                            {%- include "www/_peer_pill.html" with context -%}
+                          </td>
+                          <td>
+                            {%- if peer.status.name == "ONLINE" %}
+                            <span class="text-bg-success badge ">Online</span>
+                            {%- elif peer.status.name == "DECLARED" %}
+                            <span class="text-bg-warning badge">N/A</span>
+                            {%- else %}
+                            <span class="text-bg-danger badge">Offline</span>
+                            {%- endif %}
+                          <td>
+                            {% if peer.deployment_id %}
+                            {%   include "www/_peer_deployment_pill.html" with context %}
+                            {% else %}
+                            N/A
+                            {% endif %}
+                          </td>
+                          <td>
+                            {% for peer_id in peer.backbone_peers -%}
+                            {%- set bb_peer = agent.peers[peer_id] -%}
+                            {%- with peer = bb_peer -%}
+                            {%- include "www/_peer_pill.html" with context -%}
+                            {%- endwith -%}
+                            {% else %}
+                            {% if peer.status.name == "DECLARED" or not peer.id %}
+                            N/A
+                            {% else %}
+                            None
+                            {% endif %}
+                            {% endfor %}
+                          </td>
+                          <td>
+                            {%- for lan_status in peer.id |  find_lan_status_by_peer(agent) %}
+                            {%-   include "www/_lan_pill.html" with context %}
+                            {%- else -%}
+                            {% if peer.status.name == "DECLARED" or not peer.id %}
+                            N/A
+                            {% else %}
+                            None
+                            {% endif %}
+                            {%- endfor %}
+                          </td>
+                          <td>
+                            {% if peer.last_update_ts %}
+                            {{peer.last_update_ts | time_since}}
+                            {% else %}
+                            N/A
+                            {% endif %}
+                          </td>
+                        </tr>
+                        {% endfor %}
+                      </tbody>
+                    </table>
+                  </div>
+                </div>
+                <div class="accordion-item">
+                  <h3 class="accordion-header">
+                    <button class="accordion-button"
+                        type="button"
+                        data-bs-toggle="collapse"
+                        data-bs-target="#networks-status"
+                        aria-expanded="false"
+                        aria-controls="networks-status">
+                      <svg width="24px" height="24px" stroke-width="1.5" viewBox="0 0 24 24" fill="none" xmlns="http://www.w3.org/2000/svg" color="#000000"><rect width="7" height="5" rx="0.6" transform="matrix(0 -1 -1 0 22 21)" stroke="#000000" stroke-width="1.5" stroke-width="1.5"></rect><rect width="7" height="5" rx="0.6" transform="matrix(0 -1 -1 0 7 15.5)" stroke="#000000" stroke-width="1.5" stroke-width="1.5"></rect><rect width="7" height="5" rx="0.6" transform="matrix(0 -1 -1 0 22 10)" stroke="#000000" stroke-width="1.5" stroke-width="1.5"></rect><path d="M17 17.5H13.5C12.3954 17.5 11.5 16.6046 11.5 15.5V8.5C11.5 7.39543 12.3954 6.5 13.5 6.5H17" stroke="#000000" stroke-width="1.5"></path><path d="M11.5 12H7" stroke="#000000" stroke-width="1.5"></path></svg>
+                      <span class="d-inline-block py-9 px-2 m-0 h3">Networks</span>
+                    </button>
+                  </h3>
+                  <div class="accordion-collapse collapse"
+                        id="networks-status">
+                    <table class="table table-sm table-striped">
+                      <thead class="table-dark">
+                        <tr>
+                          <th></th>
+                          <th>Subnet</th>
+                          <th>Status</th>
+                          <th>Agent</th>
+                          <th>Interface</th>
+                          <th>Address</th>
+                          <th>Gateway</th>
+                          <th>Next Hop</th>
+                          <th>Last Update</th>
+                        </tr>
+                      </thead>
+                      <tbody>
+                        {% for lan in agent.lans | sort(attribute="nic.name") %}
+                        {%- set lan_status = agent.peers_tester.find_status_by_lan(lan, peer_id=agent.cell.id) -%}
+                        {%- set peer = lan.next_hop | find_backbone_peer_by_address(agent) -%}
+                        <tr>
+                          <td class="text-center">
+                            <svg width="24px" height="24px" viewBox="0 0 24 24" stroke-width="1.5" fill="none" xmlns="http://www.w3.org/2000/svg" color="#000000"><path d="M10 16H14" stroke="#000000" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"></path><path d="M2 8L11.7317 3.13416C11.9006 3.04971 12.0994 3.0497 12.2683 3.13416L22 8" stroke="#000000" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"></path><path d="M20 11V19C20 20.1046 19.1046 21 18 21H6C4.89543 21 4 20.1046 4 19V11" stroke="#000000" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"></path></svg>
+                          </td>
+                          <td>{{lan.nic.subnet.network_address}}/{{lan.nic.netmask}}</td>
+                          <td>
+                            {% if lan_status.reachable %}
+                            <span class="text-bg-success badge ">Ok</span>
+                            {% else %}
+                            <span class="text-bg-danger badge">Error</span>
+                            {% endif %}
+                          </td>
+                          <td>
+                            {%- with peer = agent.peers.local_peer -%}
+                            {%- include "www/_peer_pill.html" with context -%}
+                            {%- endwith -%}
+                          </td>
+                          <td>{{lan.nic.name}}</td>
+                          <td>{{lan.nic.address}}</td>
+                          <td>{{lan.gw}}</td>
+                          <td>
+                            {% if peer and peer != agent.peers.local_agent %}
+                            {% with peer=next_hop %}
+                            {% include "www/_peer_pill.html" with context %}
+                            {% endwith %}
+                            {% else %}
+                            {% if lan.next_hop %}
+                            {{lan.next_hop}}
+                            {% else %}
+                            N/A
+                            {% endif %}
+                            {% endif %}
+                            {% include "www/_peer_pill.html" with context %}
+                          </td>
+                          <td>{{lan_status.ts_last_check | format_ts}}</td>
+                        </tr>
+                        {% endfor %}
+                        {% for peer in agent.peers | sort(attribute="name") if not peer.local %}
+                        {% for lan in peer.routed_sites | sort(attribute="nic.name") %}
+                        {%- set lan_status = agent.peers_tester.find_status_by_lan(lan, peer_id=peer.id) -%}
+                        {%- set next_hop = lan.next_hop | find_backbone_peer_by_address(agent) -%}
+                        <tr>
+                          <td class="text-center">
+                            <svg width="24px" height="24px" stroke-width="1.5" viewBox="0 0 24 24" fill="none" xmlns="http://www.w3.org/2000/svg" color="#000000"><path d="M3 19H12M21 19H12M12 19V13M12 13H18V5H6V13H12Z" stroke="#000000" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"></path><path d="M9 9.01L9.01 8.99889" stroke="#000000" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"></path><path d="M12 9.01L12.01 8.99889" stroke="#000000" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"></path></svg>
+                          </td>
+                          <td>{{lan.nic.subnet.network_address}}/{{lan.nic.netmask}}</td>
+                          <td>
+                            {% if lan_status.reachable %}
+                            <span class="text-bg-success badge ">Ok</span>
+                            {% else %}
+                            <span class="text-bg-danger badge">Error</span>
+                            {% endif %}
+                          </td>
+                          <td>
+                            {%- include "www/_peer_pill.html" with context -%}
+                          </td>
+                          <td>{{lan.nic.name}}</td>
+                          <td>{{lan.nic.address}}</td>
+                          <td>{{lan.gw}}</td>
+                          <td>
+                            {% if next_hop %}
+                            {% with peer=next_hop %}
+                            {% include "www/_peer_pill.html" with context %}
+                            {% endwith %}
+                            {% else %}
+                            {% if lan.next_hop %}
+                            {{lan.next_hop}}
+                            {% else %}
+                            N/A
+                            {% endif %}
+                            {% endif %}
+                          </td>
+                          <td>{{lan_status.ts_last_check | time_since}}</td>
+                        </tr>
+                        {% endfor %}
+                        {% endfor %}
+                      </tbody>
+                    </table>
+                  </div>
+                </div>
+                <div class="accordion-item">
+                  <h3 class="accordion-header">
+                    <button class="accordion-button"
+                        type="button"
+                        data-bs-toggle="collapse"
+                        data-bs-target="#panel-vpn-status"
+                        aria-expanded="false"
+                        aria-controls="panel-vpn-status">
+                      <svg width="24px" height="24px" stroke-width="1.5" viewBox="0 0 24 24" fill="none" xmlns="http://www.w3.org/2000/svg" color="#000000"><path d="M22 12C22 6.47715 17.5228 2 12 2C6.47715 2 2 6.47715 2 12C2 17.5228 6.47715 22 12 22" stroke="#000000" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"></path><path d="M13 2.04932C13 2.04932 16 5.99994 16 11.9999" stroke="#000000" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"></path><path d="M11 21.9506C11 21.9506 8 17.9999 8 11.9999C8 5.99994 11 2.04932 11 2.04932" stroke="#000000" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"></path><path d="M2.62964 15.5H12" stroke="#000000" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"></path><path d="M2.62964 8.5H21.3704" stroke="#000000" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"></path><path fill-rule="evenodd" clip-rule="evenodd" d="M21.8789 17.9174C22.3727 18.2211 22.3423 18.9604 21.8337 19.0181L19.2671 19.309L18.1159 21.6213C17.8878 22.0795 17.1827 21.8552 17.0661 21.2873L15.8108 15.1713C15.7123 14.6913 16.1437 14.3892 16.561 14.646L21.8789 17.9174Z" stroke="#000000" stroke-width="1.5"></path></svg>
+                      <span class="d-inline-block py-9 px-2 m-0 h3">VPN</span>
+
+                      <span class="text-bg-warning badge rounded-pill ms-2">
+                        <svg width="24px" height="24px" stroke-width="1.5" viewBox="0 0 24 24" fill="none" xmlns="http://www.w3.org/2000/svg" color="#000000"><path d="M6 20L18 20" stroke="#000000" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"></path><path d="M12 4V16M12 16L15.5 12.5M12 16L8.5 12.5" stroke="#000000" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"></path></svg>
+                        Rx: {{vpn_stats["traffic"]["rx"] | humanbytes}}
+                      </span>
+              
+                      <span class="text-bg-warning badge rounded-pill ms-2">
+                        <svg width="24px" height="24px" stroke-width="1.5" viewBox="0 0 24 24" fill="none" xmlns="http://www.w3.org/2000/svg" color="#000000"><path d="M6 20L18 20" stroke="#000000" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"></path><path d="M12 16V4M12 4L15.5 7.5M12 4L8.5 7.5" stroke="#000000" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"></path></svg>
+                        Tx: {{vpn_stats["traffic"]["tx"] | humanbytes}}
+                      </span>
+                    </button>
+                  </h3>
+                  <div class="container-xxl accordion-collapse collapse bg-body-secondary px-2 pt-3 pb-2" id="panel-vpn-status">
+                    <div class="row accordion" id="vpn-status">
+                      <div class="col-xl-6">
+                        {% with vpn = agent.root_vpn %}
+                        {% with vpn_name = "Root" %}
+                        {% with vpn_id = "root" %}
+                        {% with stats = vpn_stats["interfaces"][agent.root_vpn] %}
+                        {% with peers = [uvn_id] %}
+                        {% include "www/_vpn_status.html" with context %}
+                        {% endwith %}
+                        {% endwith %}
+                        {% endwith %}
+                        {% endwith %}
+                        {% endwith %}
+                      </div>
+                      {% if agent.enable_particles_vpn %}
+                      <div class="col-xl-6">
+                        {% with vpn = agent.particles_vpn %}
+                        {% with vpn_name = "Particles" %}
+                        {% with vpn_id = "particles" %}
+                        {% with stats = vpn_stats["interfaces"][agent.particles_vpn] %}
+                        {% with peers = uvn_id.particles %}
+                        {% include "www/_vpn_status.html" with context %}
+                        {% endwith %}
+                        {% endwith %}
+                        {% endwith %}
+                        {% endwith %}
+                        {% endwith %}
+                      </div>
+                      {%endif%}
+                      {% for backbone_vpn in agent.backbone_vpns %}
+                      {%- set i_str = loop.index | string-%}
+                      <div class="col-xl-6">
+                        {% with vpn = backbone_vpn %}
+                        {% with vpn_name = "Backbone #" + i_str %}
+                        {% with vpn_id = "backbone" + i_str %}
+                        {% with stats = vpn_stats["interfaces"][backbone_vpn] %}
+                        {% with peers = uvn_id.cells %}
+                        {% include "www/_vpn_status.html" with context %}
+                        {% endwith %}
+                        {% endwith %}
+                        {% endwith %}
+                        {% endwith %}
+                        {% endwith %}
+                      </div>
+                      {% endfor %}
+                    </div><!--row-->
+                  </div><!--container-->
+                </div>
+                <div class="accordion-item">
+                  <h3 class="accordion-header">
+                    <button class="accordion-button"
+                        type="button"
+                        data-bs-toggle="collapse"
+                        data-bs-target="#router-status"
+                        aria-expanded="false"
+                        aria-controls="router-status">
+                      <svg width="24px" height="24px" viewBox="0 0 24 24" stroke-width="1.5" fill="none" xmlns="http://www.w3.org/2000/svg" color="#000000"><path d="M12 12L4 4M4 4V8M4 4H8" stroke="#000000" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"></path><path d="M12 12L20 4M20 4V8M20 4H16" stroke="#000000" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"></path><path d="M12 12L4 20M4 20V16M4 20H8" stroke="#000000" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"></path><path d="M12 12L20 20M20 20V16M20 20H16" stroke="#000000" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"></path></svg>
+                      <span class="d-inline-block py-9 px-2 m-0 h2">Router</span>
+                    </button>
+                  </h3>
+                  <div class="accordion-collapse collapse"
+                        id="router-status">
+                    <div class="container accordion">
+                      <div class="row accordion-item">
+                        <div class="col-lg-12">
+                          <h4 class="accordion-header">
+                            <button class="accordion-button"
+                                type="button"
+                                data-bs-toggle="collapse"
+                                data-bs-target="#ospf-summary"
+                                aria-expanded="false"
+                                aria-controls="ospf-summary">
+                              <svg width="24px" height="24px" viewBox="0 0 24 24" stroke-width="1.5" fill="none" xmlns="http://www.w3.org/2000/svg" color="#000000"><path d="M12 12L4 4M4 4V8M4 4H8" stroke="#000000" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"></path><path d="M12 12L20 4M20 4V8M20 4H16" stroke="#000000" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"></path><path d="M12 12L4 20M4 20V16M4 20H8" stroke="#000000" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"></path><path d="M12 12L20 20M20 20V16M20 20H16" stroke="#000000" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"></path></svg>
+                              <span class="d-inline-block py-9 px-2 m-0 h4">OSPF Summary</span>
+                            </button>
+                          </h4>
+                          <div class="accordion-collapse collapse"
+                                id="ospf-summary">
+                             <pre class="border rounded bg-body-secondary mt-3 p-3">{{agent.router.ospf_summary}}</pre>
+                          </div>
+                        </div>
+
+                        <div class="col-lg-12">
+                          <h4 class="accordion-header">
+                            <button class="accordion-button"
+                                type="button"
+                                data-bs-toggle="collapse"
+                                data-bs-target="#ospf-routes"
+                                aria-expanded="false"
+                                aria-controls="ospf-routes">
+                              <svg width="24px" height="24px" viewBox="0 0 24 24" stroke-width="1.5" fill="none" xmlns="http://www.w3.org/2000/svg" color="#000000"><path d="M12 12L4 4M4 4V8M4 4H8" stroke="#000000" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"></path><path d="M12 12L20 4M20 4V8M20 4H16" stroke="#000000" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"></path><path d="M12 12L4 20M4 20V16M4 20H8" stroke="#000000" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"></path><path d="M12 12L20 20M20 20V16M20 20H16" stroke="#000000" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"></path></svg>
+                              <span class="d-inline-block py-9 px-2 m-0 h4">OSPF Routes</span>
+                            </button>
+                          </h4>
+                          <div class="accordion-collapse collapse"
+                                id="ospf-routes">
+                             <pre class="border rounded bg-body-secondary mt-3 p-3">{{agent.router.ospf_routes}}</pre>
+                          </div>
+                        </div>
+
+                        <div class="col-lg-12">
+                          <h4 class="accordion-header">
+                            <button class="accordion-button"
+                                type="button"
+                                data-bs-toggle="collapse"
+                                data-bs-target="#ospf-lsa"
+                                aria-expanded="false"
+                                aria-controls="ospf-lsa">
+                              <svg width="24px" height="24px" viewBox="0 0 24 24" stroke-width="1.5" fill="none" xmlns="http://www.w3.org/2000/svg" color="#000000"><path d="M12 12L4 4M4 4V8M4 4H8" stroke="#000000" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"></path><path d="M12 12L20 4M20 4V8M20 4H16" stroke="#000000" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"></path><path d="M12 12L4 20M4 20V16M4 20H8" stroke="#000000" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"></path><path d="M12 12L20 20M20 20V16M20 20H16" stroke="#000000" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"></path></svg>
+                              <span class="d-inline-block py-9 px-2 m-0 h4">OSPF LSA</span>
+                            </button>
+                          </h4>
+                          <div class="accordion-collapse collapse"
+                                id="ospf-lsa">
+                             <pre class="border rounded bg-body-secondary mt-3 p-3">{{agent.router.ospf_lsa}}</pre>
+                          </div>
+                        </div>
+
+                      </div>
+                    </div>
+                  </div>
+                </div>
+              </div>
+            </div>
+          </div>
+        </div>
+        <div class="row accordion-item">
+          <h2 class="accordion-header">
+            <button class="accordion-button"
+                type="button"
+                data-bs-toggle="collapse"
+                data-bs-target="#panel-uvn-conf"
+                aria-expanded="false"
+                aria-controls="panel-uvn-conf">
+              <svg width="24px" height="24px" stroke-width="1.5" viewBox="0 0 24 24" fill="none" xmlns="http://www.w3.org/2000/svg" color="#000000"><path d="M12 15C13.6569 15 15 13.6569 15 12C15 10.3431 13.6569 9 12 9C10.3431 9 9 10.3431 9 12C9 13.6569 10.3431 15 12 15Z" stroke="#000000" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"></path><path d="M19.6224 10.3954L18.5247 7.7448L20 6L18 4L16.2647 5.48295L13.5578 4.36974L12.9353 2H10.981L10.3491 4.40113L7.70441 5.51596L6 4L4 6L5.45337 7.78885L4.3725 10.4463L2 11V13L4.40111 13.6555L5.51575 16.2997L4 18L6 20L7.79116 18.5403L10.397 19.6123L11 22H13L13.6045 19.6132L16.2551 18.5155C16.6969 18.8313 18 20 18 20L20 18L18.5159 16.2494L19.6139 13.598L21.9999 12.9772L22 11L19.6224 10.3954Z" stroke="#000000" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"></path></svg>
+              <span class="d-inline-block py-9 px-2 m-0 h2">Configuration</span>
+            </button>
+          </h2>
+          <div class="container accordion-collapse collapse"
+              id="panel-uvn-conf">
+            <div class="row p-3">
+              <div class="col-lg-4 mb-3 uvn-settings">
+                <h3 class="border-bottom border-2 mb-2">
+                  <!-- <svg width="24px" height="24px" stroke-width="1.5" viewBox="0 0 24 24" fill="none" xmlns="http://www.w3.org/2000/svg" color="#000000"><path d="M12 2C6.47715 2 2 6.47715 2 12C2 17.5228 6.47715 22 12 22C17.5228 22 22 17.5228 22 12C22 6.47715 17.5228 2 12 2Z" stroke="#000000" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"></path><path d="M4.271 18.3457C4.271 18.3457 6.50002 15.5 12 15.5C17.5 15.5 19.7291 18.3457 19.7291 18.3457" stroke="#000000" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"></path><path d="M12 12C13.6569 12 15 10.6569 15 9C15 7.34315 13.6569 6 12 6C10.3431 6 9 7.34315 9 9C9 10.6569 10.3431 12 12 12Z" stroke="#000000" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"></path></svg> -->
+                  <svg width="24px" height="24px" viewBox="0 0 24 24" stroke-width="1.5" fill="none" xmlns="http://www.w3.org/2000/svg" color="#000000"><path d="M11 21H4C2.89543 21 2 20.1046 2 19V14.4599C2 13.7605 2.36531 13.1119 2.9634 12.7495L6.4634 10.6282C7.10053 10.2421 7.89947 10.2421 8.5366 10.6282L12.0366 12.7495C12.6347 13.1119 13 13.7605 13 14.4599V19C13 20.1046 12.1046 21 11 21Z" stroke="#000000" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"></path><path d="M6.5 10V6.45985C6.5 5.76049 6.86531 5.11193 7.4634 4.74946L10.9634 2.62824C11.6005 2.24211 12.3995 2.24211 13.0366 2.62824L16.5366 4.74946C17.1347 5.11194 17.5 5.76049 17.5 6.45985V10" stroke="#000000" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"></path><path d="M16 21H20C21.1046 21 22 20.1046 22 19V14.4599C22 13.7605 21.6347 13.1119 21.0366 12.7495L17.5314 10.6251C16.897 10.2406 16.1019 10.2389 15.4658 10.6205L14.8334 11" stroke="#000000" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"></path><path d="M9 21V17.6C9 17.2686 8.73137 17 8.4 17L6.6 17C6.26863 17 6 17.2686 6 17.6V21" stroke="#000000" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"></path><path d="M18 21V17.6C18 17.2686 17.7314 17 17.4 17L16 17" stroke="#000000" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"></path></svg>
+                  UVN
+                </h3>
+                <ul class="list-group">
+                  <li class="list-group-item">
+                    <span class="key">Name:</span>
+                    <span class="value">{{uvn_id.name}}</span>
+                  </li>
+                  <li class="list-group-item">
+                    <span class="key">Address:</span>
+                    <span class="value">{{uvn_id.address}}</span>
+                  </li>
+                  <li class="list-group-item">
+                    <span class="key">Owner:</span>
+                    <span class="value"><a href="mailto:{{uvn_id.owner}}">{{uvn_id.owner_name}}</a></span>
+                  </li>
+                  <li class="list-group-item">
+                    <span class="key">Last Configuration Change:</span>
+                    <span class="value">{{uvn_id.generation_ts | format_ts}}</span>
+                  </li>
+                  <li class="list-group-item">
+                    <span class="key">Deployment Id:</span>
+                    <span class="value">{{deployment.generation_ts | format_ts}}</span>
+                  </li>
+                  <li class="list-group-item">
+                    <span class="key">Root VPN:</span>
+                    <span class="value">
+                      {{"Enabled" if uvn_id.settings.enable_root_vpn else "Disabled"}}
+                    </span>
+                  </li>
+                  <li class="list-group-item">
+                    <span class="key">Particles VPN:</span>
+                    <span class="value">
+                      {{"Enabled" if uvn_id.settings.enable_particles_vpn else "Disabled"}}
+                    </span>
+                  </li>
+                  <li class="list-group-item">
+                    <span class="key">Timing Profile:</span>
+                    <span class="value">
+                      {{uvn_id.settings.timing_profile.name}}
+                    </span>
+                  </li>
+                </ul>
+              </div>
+
+              <div class="col-lg-8">
+                <div class="container-xxl p-0">
+                  <div class="row">
+                    <div class="col-md-4 uvn-settings mb-3">
+                      <h3 class="border-bottom border-2 mb-2">
+                        <svg width="24px" height="24px" stroke-width="1.5" viewBox="0 0 24 24" fill="none" xmlns="http://www.w3.org/2000/svg" color="#000000"><path d="M17 22H7C5.89543 22 5 21.1046 5 20V11.1817C5 11.0632 4.96494 10.9474 4.89923 10.8488L3.10077 8.15115C3.03506 8.05259 3 7.93679 3 7.81833V2.6C3 2.26863 3.26863 2 3.6 2H5.4C5.73137 2 6 2.26863 6 2.6V4.4C6 4.73137 6.26863 5 6.6 5H9.4C9.73137 5 10 4.73137 10 4.4V2.6C10 2.26863 10.2686 2 10.6 2H13.4C13.7314 2 14 2.26863 14 2.6V4.4C14 4.73137 14.2686 5 14.6 5H17.4C17.7314 5 18 4.73137 18 4.4V2.6C18 2.26863 18.2686 2 18.6 2H20.4C20.7314 2 21 2.26863 21 2.6V7.81833C21 7.93679 20.9649 8.05259 20.8992 8.15115L19.1008 10.8488C19.0351 10.9474 19 11.0632 19 11.1817V20C19 21.1046 18.1046 22 17 22Z" stroke="#000000" stroke-width="1.5"></path></svg>
+                        Backbone VPN
+                      </h3>
+                      <ul class="list-group">
+                        <li class="list-group-item">
+                          <span class="key">Base Port:</span>
+                          <span class="value">
+                            {{uvn_id.settings.backbone_vpn.port}}
+                          </span>
+                        </li>
+                        <li class="list-group-item">
+                          <span class="key">Subnet Pool:</span>
+                          <span class="value">
+                            {{uvn_id.settings.backbone_vpn.subnet}}
+                          </span>
+                        </li>
+                        <li class="list-group-item">
+                          <span class="key">Interface:</span>
+                          <span class="value">
+                            {{uvn_id.settings.backbone_vpn.interface}}
+                          </span>
+                        </li>
+                        <li class="list-group-item">
+                          <span class="key">Allowed IP Addresses:</span>
+                          <span class="value">
+                            {{', '.join(uvn_id.settings.backbone_vpn.allowed_ips)}}
+                          </span>
+                        </li>
+                        <li class="list-group-item">
+                          <span class="key">Deployment Strategy:</span>
+                          <span class="value">
+                            {{uvn_id.settings.backbone_vpn.deployment_strategy.name}}
+                          </span>
+                        </li>
+                        <li class="list-group-item">
+                          <span class="key">Deployment Strategy Arguments:</span>
+                          <span class="value">
+                            <pre class="border rounded bg-body-secondary p-3">{{uvn_id.settings.backbone_vpn.deployment_strategy_args|yaml}}</pre>
+                          </span>
+                        </li>
+                      </ul>
+                    </div>
+                    <div class="col-md-4 uvn-settings mb-3">
+                      <h3 class="border-bottom border-2 mb-2">
+                        <svg width="24px" height="24px" stroke-width="1.5" viewBox="0 0 24 24" fill="none" xmlns="http://www.w3.org/2000/svg" color="#000000"><path d="M17 22H7C5.89543 22 5 21.1046 5 20V11.1817C5 11.0632 4.96494 10.9474 4.89923 10.8488L3.10077 8.15115C3.03506 8.05259 3 7.93679 3 7.81833V2.6C3 2.26863 3.26863 2 3.6 2H5.4C5.73137 2 6 2.26863 6 2.6V4.4C6 4.73137 6.26863 5 6.6 5H9.4C9.73137 5 10 4.73137 10 4.4V2.6C10 2.26863 10.2686 2 10.6 2H13.4C13.7314 2 14 2.26863 14 2.6V4.4C14 4.73137 14.2686 5 14.6 5H17.4C17.7314 5 18 4.73137 18 4.4V2.6C18 2.26863 18.2686 2 18.6 2H20.4C20.7314 2 21 2.26863 21 2.6V7.81833C21 7.93679 20.9649 8.05259 20.8992 8.15115L19.1008 10.8488C19.0351 10.9474 19 11.0632 19 11.1817V20C19 21.1046 18.1046 22 17 22Z" stroke="#000000" stroke-width="1.5"></path></svg>
+                        Root VPN
+                      </h3>
+                      <ul class="list-group">
+                        <li class="list-group-item">
+                          <span class="key">Registry Port:</span>
+                          <span class="value">
+                            {{uvn_id.settings.root_vpn.port}}
+                          </span>
+                        </li>
+                        <li class="list-group-item">
+                          <span class="key">Cell Port:</span>
+                          <span class="value">
+                            {{uvn_id.settings.root_vpn.peer_port}}
+                          </span>
+                        </li>
+                        <li class="list-group-item">
+                          <span class="key">Subnet:</span>
+                          <span class="value">
+                            {{uvn_id.settings.root_vpn.subnet}}
+                          </span>
+                        </li>
+                        <li class="list-group-item">
+                          <span class="key">Interface:</span>
+                          <span class="value">
+                            {{uvn_id.settings.root_vpn.interface}}
+                          </span>
+                        </li>
+                      </ul>
+                    </div>
+      
+                    <div class="col-md-4 uvn-settings mb-3">
+                      <h3 class="border-bottom border-2 mb-2">
+                        <svg width="24px" height="24px" stroke-width="1.5" viewBox="0 0 24 24" fill="none" xmlns="http://www.w3.org/2000/svg" color="#000000"><path d="M17 22H7C5.89543 22 5 21.1046 5 20V11.1817C5 11.0632 4.96494 10.9474 4.89923 10.8488L3.10077 8.15115C3.03506 8.05259 3 7.93679 3 7.81833V2.6C3 2.26863 3.26863 2 3.6 2H5.4C5.73137 2 6 2.26863 6 2.6V4.4C6 4.73137 6.26863 5 6.6 5H9.4C9.73137 5 10 4.73137 10 4.4V2.6C10 2.26863 10.2686 2 10.6 2H13.4C13.7314 2 14 2.26863 14 2.6V4.4C14 4.73137 14.2686 5 14.6 5H17.4C17.7314 5 18 4.73137 18 4.4V2.6C18 2.26863 18.2686 2 18.6 2H20.4C20.7314 2 21 2.26863 21 2.6V7.81833C21 7.93679 20.9649 8.05259 20.8992 8.15115L19.1008 10.8488C19.0351 10.9474 19 11.0632 19 11.1817V20C19 21.1046 18.1046 22 17 22Z" stroke="#000000" stroke-width="1.5"></path></svg>
+                        Particles VPN
+                      </h3>
+                      <ul class="list-group">
+                        <li class="list-group-item">
+                          <span class="key">Cell Port:</span>
+                          <span class="value">
+                            {{uvn_id.settings.particles_vpn.port}}
+                          </span>
+                        </li>
+                        <li class="list-group-item">
+                          <span class="key">Subnet:</span>
+                          <span class="value">
+                            {{uvn_id.settings.particles_vpn.subnet}}
+                          </span>
+                        </li>
+                        <li class="list-group-item">
+                          <span class="key">Interface:</span>
+                          <span class="value">
+                            {{uvn_id.settings.particles_vpn.interface}}
+                          </span>
+                        </li>
+                        <li class="list-group-item">
+                          <span class="key">Allowed IP Addresses:</span>
+                          <span class="value">
+                            {{', '.join(uvn_id.settings.particles_vpn.allowed_ips)}}
+                          </span>
+                        </li>
+                      </ul>
+                    </div>
+
+                  </div>
+                </div>
+              </div>
+
+              <div class="col-lg-6 mb-3">
+                <h3 class="border-bottom border-2 mb-2">
+                  <!-- <svg width="24px" height="24px" stroke-width="1.5" viewBox="0 0 24 24" fill="none" xmlns="http://www.w3.org/2000/svg" color="#000000"><path d="M12 2C6.47715 2 2 6.47715 2 12C2 17.5228 6.47715 22 12 22C17.5228 22 22 17.5228 22 12C22 6.47715 17.5228 2 12 2Z" stroke="#000000" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"></path><path d="M4.271 18.3457C4.271 18.3457 6.50002 15.5 12 15.5C17.5 15.5 19.7291 18.3457 19.7291 18.3457" stroke="#000000" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"></path><path d="M12 12C13.6569 12 15 10.6569 15 9C15 7.34315 13.6569 6 12 6C10.3431 6 9 7.34315 9 9C9 10.6569 10.3431 12 12 12Z" stroke="#000000" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"></path></svg> -->
+                  <svg width="24px" height="24px" viewBox="0 0 24 24" stroke-width="1.5" fill="none" xmlns="http://www.w3.org/2000/svg" color="#000000"><path d="M10 16H14" stroke="#000000" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"></path><path d="M2 8L11.7317 3.13416C11.9006 3.04971 12.0994 3.0497 12.2683 3.13416L22 8" stroke="#000000" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"></path><path d="M20 11V19C20 20.1046 19.1046 21 18 21H6C4.89543 21 4 20.1046 4 19V11" stroke="#000000" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"></path></svg>
+                  Cells
+                </h3>
+                <table class="table table-sm table-striped">
+                  <thead class="table-dark">
+                    <tr>
+                      <th>Id</th>
+                      <th>Name</th>
+                      <th>Admin</th>
+                      <th>Public Address</th>
+                    </tr>
+                  </thead>
+                  <tbody>
+                    {% for cell in uvn_id.cells.values() -%}
+                    <tr>
+                      <td>{{cell.id}}</td>
+                      <td>
+                        {% with name=cell.name, endpoint=cell.address %}
+                        {% include "www/_peer_name_pill.html" with context %}
+                        {% endwith %}
+                      </td>
+                      <td><a href="mailto:{{cell.owner}}">{{cell.owner_name}}</a></td>
+                      <td>
+                        {% if cell.address %}
+                        {{cell.address}}
+                        {% else %}
+                        N/A
+                        {% endif %}
+                      </td>
+                    </tr>
+                    {% endfor %}
+                  </tbody>
+                </table>
+              </div>
+              <div class="col-lg-6 mb-3">
+                <h3 class="border-bottom border-2 mb-2">
+                  <svg width="24px" height="24px" stroke-width="1.5" viewBox="0 0 24 24" fill="none" xmlns="http://www.w3.org/2000/svg" color="#000000"><path d="M1 20V19C1 15.134 4.13401 12 8 12V12C11.866 12 15 15.134 15 19V20" stroke="#000000" stroke-width="1.5" stroke-linecap="round"></path><path d="M13 14V14C13 11.2386 15.2386 9 18 9V9C20.7614 9 23 11.2386 23 14V14.5" stroke="#000000" stroke-width="1.5" stroke-linecap="round"></path><path d="M8 12C10.2091 12 12 10.2091 12 8C12 5.79086 10.2091 4 8 4C5.79086 4 4 5.79086 4 8C4 10.2091 5.79086 12 8 12Z" stroke="#000000" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"></path><path d="M18 9C19.6569 9 21 7.65685 21 6C21 4.34315 19.6569 3 18 3C16.3431 3 15 4.34315 15 6C15 7.65685 16.3431 9 18 9Z" stroke="#000000" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"></path></svg>
+                  Particles
+                </h3>
+                <table class="table table-sm table-striped">
+                  <thead class="table-dark">
+                    <tr>
+                      <th>Id</th>
+                      <th>Name</th>
+                      <th>Admin</th>
+                      <th>
+                          <svg width="24px" height="24px" stroke-width="1.5" viewBox="0 0 24 24" fill="none" xmlns="http://www.w3.org/2000/svg" color="#000000"><path d="M15 12L15 15" stroke="#000000" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"></path><path d="M12 3V6" stroke="#000000" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"></path><path d="M18 12L18 15" stroke="#000000" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"></path><path d="M12 18L21 18" stroke="#000000" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"></path><path d="M18 21H21" stroke="#000000" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"></path><path d="M6 12H9" stroke="#000000" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"></path><path d="M6 6.01111L6.01 6" stroke="#000000" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"></path><path d="M12 12.0111L12.01 12" stroke="#000000" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"></path><path d="M3 12.0111L3.01 12" stroke="#000000" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"></path><path d="M12 9.01111L12.01 9" stroke="#000000" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"></path><path d="M12 15.0111L12.01 15" stroke="#000000" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"></path><path d="M15 21.0111L15.01 21" stroke="#000000" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"></path><path d="M12 21.0111L12.01 21" stroke="#000000" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"></path><path d="M21 12.0111L21.01 12" stroke="#000000" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"></path><path d="M21 15.0111L21.01 15" stroke="#000000" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"></path><path d="M18 6.01111L18.01 6" stroke="#000000" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"></path><path d="M9 3.6V8.4C9 8.73137 8.73137 9 8.4 9H3.6C3.26863 9 3 8.73137 3 8.4V3.6C3 3.26863 3.26863 3 3.6 3H8.4C8.73137 3 9 3.26863 9 3.6Z" stroke="#000000" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"></path><path d="M21 3.6V8.4C21 8.73137 20.7314 9 20.4 9H15.6C15.2686 9 15 8.73137 15 8.4V3.6C15 3.26863 15.2686 3 15.6 3H20.4C20.7314 3 21 3.26863 21 3.6Z" stroke="#000000" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"></path><path d="M6 18.0111L6.01 18" stroke="#000000" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"></path><path d="M9 15.6V20.4C9 20.7314 8.73137 21 8.4 21H3.6C3.26863 21 3 20.7314 3 20.4V15.6C3 15.2686 3.26863 15 3.6 15H8.4C8.73137 15 9 15.2686 9 15.6Z" stroke="#000000" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"></path></svg>
+                      </th>
+                      <th>
+                        <svg width="24px" height="24px" stroke-width="1.5" viewBox="0 0 24 24" fill="none" xmlns="http://www.w3.org/2000/svg" color="#000000"><path d="M19 3L5 3C3.89543 3 3 3.89543 3 5L3 19C3 20.1046 3.89543 21 5 21H19C20.1046 21 21 20.1046 21 19V5C21 3.89543 20.1046 3 19 3Z" stroke="#000000" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"></path><path d="M7 7L17 7" stroke="#000000" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"></path><path d="M7 12L17 12" stroke="#000000" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"></path><path d="M7 17L13 17" stroke="#000000" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"></path></svg>
+                      </th>
+                    </tr>
+                  </thead>
+                  <tbody>
+                    {% for particle in uvn_id.particles.values() -%}
+                    <tr>
+                      <td>{{particle.id}}</td>
+                      <td>{{particle.name}}</td>
+                      <td><a href="mailto:{{cell.owner}}">{{particle.owner_name}}</a></td>
+                      <td>
+                        <a href="particles/{{particle.name}}.png">
+                          QR
+                        </a>
+                      </td>
+                      <td><a href="particles/{{particle.name}}.wireguard">
+                          Text
+                        </a>
+                      </td>
+                    </tr>
+                    {% endfor %}
+                  </tbody>
+                </table>
+              </div>
+              <div class="col-lg-6 mb-3">
+                <h3 class="border-bottom border-2 mb-2">
+                  <svg width="24px" height="24px" stroke-width="1.5" viewBox="0 0 24 24" fill="none" xmlns="http://www.w3.org/2000/svg" color="#000000"><rect width="7" height="5" rx="0.6" transform="matrix(0 -1 -1 0 22 21)" stroke="#000000" stroke-width="1.5" stroke-width="1.5"></rect><rect width="7" height="5" rx="0.6" transform="matrix(0 -1 -1 0 7 15.5)" stroke="#000000" stroke-width="1.5" stroke-width="1.5"></rect><rect width="7" height="5" rx="0.6" transform="matrix(0 -1 -1 0 22 10)" stroke="#000000" stroke-width="1.5" stroke-width="1.5"></rect><path d="M17 17.5H13.5C12.3954 17.5 11.5 16.6046 11.5 15.5V8.5C11.5 7.39543 12.3954 6.5 13.5 6.5H17" stroke="#000000" stroke-width="1.5"></path><path d="M11.5 12H7" stroke="#000000" stroke-width="1.5"></path></svg>
+                  Backbone Links
+                </h3>
+                <table class="table table-sm table-striped">
+                  <thead class="table-dark">
+                    <tr>
+                      <th>Peer A</th>
+                      <th>Port #</th>
+                      <th>Port</th>
+                      <th>Address</th>
+                      <th>Peer B</th>
+                      <th>Port #</th>
+                      <th>Port</th>
+                      <th>Address</th>
+                    </tr>
+                  </thead>
+                  {% for peer_a_id, peer_a in deployment.peers | dictsort -%}
+                  <tbody class="table-group-divider">
+                    {% set peer_a_cell = uvn_id.cells[peer_a_id] -%}
+                    {% for peer_b_id, (port_i, peer_a_addr, peer_b_addr, link_subnet) in peer_a.peers | dictsort -%}
+                    {% set peer_b_cell = uvn_id.cells[peer_b_id] -%}
+                    {% set peer_a_port = port_i + uvn_id.settings.backbone_vpn.port %}
+                    {% set peer_b_port_i = deployment.peers[peer_b_id]["peers"][peer_a_id][0] %}
+                    {% set peer_b_port = peer_b_port_i + uvn_id.settings.backbone_vpn.port %}
+                    {% set peer_b_n = deployment.peers[peer_b_id]["n"] %}
+                    <tr>
+                      <td>
+                        {% if loop.first %}
+                        {% with peer = agent.peers[peer_a_cell.id] %}
+                        {% include "www/_peer_pill.html" with context %}
+                        {% endwith %}
+                        {% endif %}
+                      </td>
+                      <td>{{peer_a_cell.id}}.{{port_i + 1}}</td>
+                      <td>{{peer_a_port}}</td>
+                      <td>{{peer_a_addr}}</td>
+                      <td>
+                        {% with peer = agent.peers[peer_b_cell.id] %}
+                        {% include "www/_peer_pill.html" with context %}
+                        {% endwith %}
+                      </td>
+                      <td>{{peer_b_cell.id}}.{{peer_b_port_i + 1}}</td>
+                      <td>{{peer_b_port}}</td>
+                      <td>{{peer_b_addr}}</td>
+                    </tr>
+                    {% endfor %}
+                  </tbody>
+                    {% endfor %}
+                </table>
+              </div>
+              <div class="col-lg-6 mb-3">
+                <h3 class="border-bottom border-2 mb-2">
+                  <svg width="24px" height="24px" stroke-width="1.5" viewBox="0 0 24 24" fill="none" xmlns="http://www.w3.org/2000/svg" color="#000000"><rect width="7" height="5" rx="0.6" transform="matrix(0 -1 -1 0 22 21)" stroke="#000000" stroke-width="1.5" stroke-width="1.5"></rect><rect width="7" height="5" rx="0.6" transform="matrix(0 -1 -1 0 7 15.5)" stroke="#000000" stroke-width="1.5" stroke-width="1.5"></rect><rect width="7" height="5" rx="0.6" transform="matrix(0 -1 -1 0 22 10)" stroke="#000000" stroke-width="1.5" stroke-width="1.5"></rect><path d="M17 17.5H13.5C12.3954 17.5 11.5 16.6046 11.5 15.5V8.5C11.5 7.39543 12.3954 6.5 13.5 6.5H17" stroke="#000000" stroke-width="1.5"></path><path d="M11.5 12H7" stroke="#000000" stroke-width="1.5"></path></svg>
+                  Network Ports
+                </h3>
+                <table class="table table-sm table-striped">
+                  <thead class="table-dark">
+                    <tr>
+                      <th>Peer</th>
+                      <th>Endpoint</th>
+                      <th>Ports</th>
+                    </tr>
+                  </thead>
+                  <tbody>
+                    <tr>
+                      <td></td>
+                      <td></td>
+                      <td></td>
+                    </tr>
+                    {% for peer in agent.peers if peer.cell %}
+                    <tr>
+                      <td>
+                        {% include "www/_peer_pill.html" with context %}
+                      </td>
+                      <td>
+                        {%- if peer.cell.address -%}
+                        {{peer.cell.address}}
+                        {%- else -%}
+                        N/A
+                        {%- endif -%}
+                      </td>
+                      <td>
+                        
+                        {% if peer.cell.address %}
+                          {{uvn_id.settings.root_vpn.peer_port}}
+
+                          {{uvn_id.settings.particles_vpn.port}}
+                        {% endif %}
+
+                        {% set peer_bbone = agent.deployment.peers[peer.id]["peers"] | length %}
+                        {% for n in range(peer_bbone) %}
+                          {{uvn_id.settings.backbone_vpn.port + n}}
+                        {% endfor %}
+                      </td>
+                    </tr>
+                    {% endfor %}
+                  </tbody>
+                </table>
+              </div>
+            </div>
+          </div>
+        </div><!--row-->
+        <div class="row mt-3">
+          <div class="col-lg-12 pt-3 border-top border-2">
+            <span class="key">Last updated on</span> <span class="value">{{generation_ts | format_ts}}</span>
+          </div>
+        </div>
+      </div>
+    </div>
+    <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.2/dist/js/bootstrap.bundle.min.js" integrity="sha384-C6RzsynM9kWDrMNeT87bh95OGNyZPhcTNXj1NW7RuBCsyN/o0jlpcV8Qyq46cDfL" crossorigin="anonymous"></script>
+  </body>
+</html>
