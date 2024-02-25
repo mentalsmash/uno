@@ -12,7 +12,5 @@ _build
 dist
 rti_license.dat
 bkp
-cells
-uvn
 experiment
 experiment.log
