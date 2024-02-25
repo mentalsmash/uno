@@ -505,6 +505,7 @@ class CellAgent:
 
 
   def _stop(self) -> None:
+    log.activity("[AGENT] performing shutdown...")
     self.peers.update_peer(self.peers.local_peer,
       status=UvnPeerStatus.OFFLINE,
       routed_sites=[])
@@ -518,6 +519,7 @@ class CellAgent:
     self.discovery_completed = False
     self.registry_connected = False
     self._services.stop()
+    log.activity("[AGENT] stopped")
 
 
   def _on_reader_data(self,
