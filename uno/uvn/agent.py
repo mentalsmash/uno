@@ -143,7 +143,10 @@ class CellAgent:
 
   @property
   def enable_particles_vpn(self) -> bool:
-    return self.uvn_id.settings.enable_particles_vpn and self.cell.enable_particles_vpn
+    return (
+      self.uvn_id.particles
+      and self.uvn_id.settings.enable_particles_vpn
+      and self.cell.enable_particles_vpn)
 
 
   @property
