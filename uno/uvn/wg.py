@@ -314,6 +314,7 @@ PersistentKeepalive = {{peer.keepalive}}
     # Delete interface if it already exists
     if result.returncode == 0:
       try:
+        log.debug(f"[WG] {self.config.intf.name}: making sure interface doesn't exist")
         exec_command(
           ["ip", "link", "delete", "dev", self.config.intf.name],
           root=True)
@@ -321,6 +322,7 @@ PersistentKeepalive = {{peer.keepalive}}
         raise WireGuardError(f"failed to delete wireguard interface: {self.config.intf.name}")
     # Create interface
     try:
+      log.debug(f"[WG] {self.config.intf.name}: creating WireGuard interface")
       exec_command([
         "ip", "link", "add", "dev", self.config.intf.name, "type", "wireguard"],
         root=True)
@@ -328,6 +330,7 @@ PersistentKeepalive = {{peer.keepalive}}
       raise WireGuardError(f"failed to create wiregaurd interface: {self.config.intf.name}")
     # Mark interface as up
     self.created = True
+    log.activity(f"[WG] {self.config.intf.name}: created")
 
 
   def delete(self):
@@ -336,6 +339,7 @@ PersistentKeepalive = {{peer.keepalive}}
       return
     # Remove interface with "ip link delete dev..."
     try:
+      log.debug(f"[WG] {self.config.intf.name}: deleting interface")
       exec_command(
         ["ip", "link", "delete", "dev", self.config.intf.name],
         root=True)
@@ -343,6 +347,7 @@ PersistentKeepalive = {{peer.keepalive}}
       raise WireGuardError(f"failed to delete wireguard interface: {self.config.intf.name}")
     # Mark interface as up
     self.created = False
+    log.activity(f"[WG] {self.config.intf.name}: deleted")
 
 
   def bring_up(self):
