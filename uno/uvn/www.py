@@ -91,15 +91,16 @@ class UvnHttpd:
       "peers_offline": self.agent.peers.offline_peers_count,
       "peers_online": self.agent.peers.online_peers_count,
     }))
-    # Copy particle configurations
+    # Copy particle configurations if they exist
     particles_dir = self.agent.root / "particles"
-    particles_dir_www = self.root / "particles"
-    if particles_dir_www.is_dir():
-      shutil.rmtree(particles_dir_www)
-    shutil.copytree(particles_dir, particles_dir_www)
+    if particles_dir.is_dir():
+      particles_dir_www = self.root / "particles"
+      if particles_dir_www.is_dir():
+        shutil.rmtree(particles_dir_www)
+      shutil.copytree(particles_dir, particles_dir_www)
 
     log.activity("[WWW] agent status updated")
-  
+
 
   def start(self, addresses: Iterable[str]) -> None:
     assert(not self._http_servers)
