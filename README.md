@@ -56,7 +56,7 @@ After installing the system dependencies, you can install **uno** from
 this git repository:
 
 ```sh
-git clone https://github.com/mentalsmash.uno
+git clone https://github.com/mentalsmash/uno
 pip install ./uno
 ```
 
