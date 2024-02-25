@@ -139,11 +139,12 @@ class AgentServices:
       # Mark peers that we already discovered in the past as active again
       # They had transitioned because of a received sample, but the sample
       # might not be sent again. Don't transition peers we've never seen.
-      log.activity(f"[AGENT] marking {len(matched_peers)} peers on matched publications: {list(map(str, matched_peers))}")
-      self._peers.update_all(
-        peers=matched_peers,
-        query=lambda p: p.status == UvnPeerStatus.OFFLINE,
-        status=UvnPeerStatus.ONLINE)
+      if matched_peers:
+        log.activity(f"[AGENT] marking {len(matched_peers)} peers on matched publications: {list(map(str, matched_peers))}")
+        self._peers.update_all(
+          peers=matched_peers,
+          query=lambda p: p.status == UvnPeerStatus.OFFLINE,
+          status=UvnPeerStatus.ONLINE)
     
 
 

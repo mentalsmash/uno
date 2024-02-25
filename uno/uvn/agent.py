@@ -363,6 +363,8 @@ class CellAgent:
 
 
   def _start(self) -> None:
+    log.activity("[AGENT] starting services...")
+
     # Pick the address of the first backbone port for every peer
     # and all addresses for peers connected directly to this one
     backbone_peers = {
@@ -502,6 +504,8 @@ class CellAgent:
 
     # Trigger updates on the next spin
     self._on_agent_state_changed()
+
+    log.activity("[AGENT] started")
 
 
   def _stop(self) -> None:
