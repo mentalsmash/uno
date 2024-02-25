@@ -51,8 +51,8 @@ def _load_inline_yaml(val: str) -> dict:
 ###############################################################################
 ###############################################################################
 def registry_init(args):
-  if args.from_file:
-    serialized = yaml.safe_load(args.from_file.read_text())
+  if args.configuration:
+    serialized = yaml.safe_load(args.configuration.read_text())
     uvn_id = UvnId.deserialize(serialized)
   else:
     owner, owner_name = parse_id_str(args.admin)
