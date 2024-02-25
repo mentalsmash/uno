@@ -25,7 +25,11 @@ def backbone_deployment_graph(
     deployment: P2PLinksMap,
     output_file: Path,
     peers: Optional[UvnPeerStatus]=None,
-    local_peer_id: Optional[int]=None) -> Tuple[networkx.Graph, Path]:
+    local_peer_id: Optional[int]=None) -> Optional[Path]:
+  if len(uvn_id.cells) < 2:
+    # We can only generate a graph if there are two or more cells
+    return None
+
   # graph = networkx.Graph()
   graph = networkx.DiGraph()
 
@@ -147,6 +151,8 @@ def backbone_deployment_graph(
   output_file.parent.mkdir(parents=True, exist_ok=True)
   plt.savefig(str(output_file), dpi=200)
   plt.clf()
+
+  return output_file
 
 
 def cell_agent_status_plot(

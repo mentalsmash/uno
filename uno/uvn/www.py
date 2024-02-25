@@ -79,7 +79,8 @@ class UvnHttpd:
       "uvn_settings": yaml.safe_dump(self.agent.uvn_id.settings.serialize()),
       "deployment": self.agent.deployment,
       "backbone_plot": self.agent.uvn_status_plot.relative_to(self.root),
-      "backbone_plot_basic": self.agent.uvn_backbone_plot.relative_to(self.root),
+      "backbone_plot_basic": self.agent.uvn_backbone_plot.relative_to(self.root)
+        if self.agent.uvn_backbone_plot.is_file() else None,
       "generation_ts": self._last_update_ts.format(),
       "css_style": self.style_css,
       "vpn_stats": self.agent.vpn_stats,

@@ -170,14 +170,17 @@ class CellAgent:
   def uvn_backbone_plot(self) -> Path:
     plot = self.www.root / "uvn-backbone.png"
     if not plot.is_file() or self._uvn_backbone_plot_dirty:
-      backbone_deployment_graph(
+      generated = backbone_deployment_graph(
         uvn_id=self.uvn_id,
         deployment=self.deployment,
         output_file=plot,
         peers=self.peers,
         local_peer_id=self.peers.local_peer.id)
       self._uvn_backbone_plot_dirty = False
-      log.debug(f"[AGENT] backbone plot generated: {plot}")
+      if generated:
+        log.debug(f"[AGENT] backbone plot generated: {plot}")
+      else:
+        log.debug(f"[AGENT] backbone plot NOT generated")
     return plot
 
 
