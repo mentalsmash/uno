@@ -20,7 +20,7 @@ from pathlib import Path
 from tempfile import TemporaryDirectory
 import shutil
 import json
-from typing import TYPE_CHECKING
+from typing import TYPE_CHECKING, Iterable
 import threading
 
 from .data import www as www_data
@@ -42,11 +42,9 @@ class UvnHttpd:
     self.agent = agent
     self.min_update_delay = self.agent.uvn_id.settings.timing_profile.status_min_delay
     self.root = self.agent.root / "www"
-    self._http_server = None
-    self._http_thread = None
-    self._started = False
+    self._http_servers = {}
+    self._http_threads = {}
     self._last_update_ts = None
-    self._serve_files = False
     self._dirty = True
 
 
@@ -101,35 +99,44 @@ class UvnHttpd:
 
     log.activity("[WWW] agent status updated")
   
-  
 
-  def start(self) -> None:
-    if self._started:
-      return
+  def start(self, addresses: Iterable[str]) -> None:
+    assert(not self._http_servers)
 
-    self.update()
-    def _http_thread(server, root):
+    port = 8080
+
+    def _http_thread(server, address):
       try:
+        log.warning(f"[HTTPD] now serving {address}:{port}")
         with server:
           server.serve_forever()
       except Exception as e:
-        log.error(f"[HTTPD] error in thread:")
+        log.error(f"[HTTPD] error in thread serving {address}:{port}")
         log.exception(e)
         raise e
 
-    if self._serve_files:
-      self._http_server = HTTPServer(("", 8080),
-        partial(SimpleHTTPRequestHandler, directory=self.root))
-      self._http_thread = threading.Thread(target=_http_thread, args=[self._http_server, self.root])
-      self._http_thread.start()
+    self._http_servers = {
+      a: HTTPServer((str(a), port),
+        partial(SimpleHTTPRequestHandler,
+          directory=self.root))
+        for a in addresses
+    }
 
-    self._started = True
+    # self._http_threads = {
+    #   a: threading.Thread(
+    #     target=_http_thread,
+    #     args=[self._http_servers[a], a])
+    #   for a in addresses
+    # }
+    # for t in self._http_threads:
+    #   t.start()
 
 
   def stop(self) -> None:
-    if not self._started:
-      return
-    if self._serve_files:
-      self._http_server.shutdown()
-      self._http_thread.join()
-    self._started = False
+    if self._http_servers:
+      for s in self._http_servers.values():
+        s.shutdown()
+      for t in self._http_threads.values():
+        t.join()
+      self._http_servers = {}
+      self._http_threads = {}

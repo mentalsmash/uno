@@ -27,15 +27,15 @@ from .deployment import DeploymentStrategyKind
 class TimingProfile(Enum):
   DEFAULT = 0
   FAST = 1
-  MINIMAL = 2
+  # MINIMAL = 2
 
 
   @property
   def participant_liveliness_lease_duration(self) -> int:
     if self == TimingProfile.FAST:
       return 10
-    elif self == TimingProfile.MINIMAL:
-      return 300
+    # elif self == TimingProfile.MINIMAL:
+    #   return 300
     else:
       return 300 # 5m
 
@@ -44,8 +44,8 @@ class TimingProfile(Enum):
   def participant_liveliness_assert_period(self) -> int:
     if self == TimingProfile.FAST:
       return 3
-    elif self == TimingProfile.MINIMAL:
-      return 120 # 2m
+    # elif self == TimingProfile.MINIMAL:
+    #   return 120 # 2m
     else:
       return 120 # 2m
 
@@ -54,8 +54,8 @@ class TimingProfile(Enum):
   def participant_liveliness_detection_period(self) -> int:
     if self == TimingProfile.FAST:
       return 6
-    elif self == TimingProfile.MINIMAL:
-      return 200
+    # elif self == TimingProfile.MINIMAL:
+    #   return 200
     else:
       return 300 # 5m
 
@@ -64,8 +64,8 @@ class TimingProfile(Enum):
   def initial_participant_announcements(self) -> int:
     if self == TimingProfile.FAST:
       return 60
-    elif self == TimingProfile.MINIMAL:
-      return 60
+    # elif self == TimingProfile.MINIMAL:
+    #   return 60
     else:
       return 60
 
@@ -74,8 +74,8 @@ class TimingProfile(Enum):
   def initial_participant_announcement_period(self) -> Tuple[int, int]:
     if self == TimingProfile.FAST:
       return (1, 5)
-    elif self == TimingProfile.MINIMAL:
-      return (1, 5)
+    # elif self == TimingProfile.MINIMAL:
+    #   return (1, 5)
     else:
       return (5, 15)
 
@@ -84,8 +84,8 @@ class TimingProfile(Enum):
   def ospf_dead_interval(self) -> int:
     if self == TimingProfile.FAST:
       return 5
-    elif self == TimingProfile.MINIMAL:
-      return 300
+    # elif self == TimingProfile.MINIMAL:
+    #   return 300
     else:
       return 240
 
@@ -94,8 +94,8 @@ class TimingProfile(Enum):
   def ospf_hello_interval(self) -> int:
     if self == TimingProfile.FAST:
       return 1
-    elif self == TimingProfile.MINIMAL:
-      return 100
+    # elif self == TimingProfile.MINIMAL:
+    #   return 100
     else:
       return 60
 
@@ -104,8 +104,8 @@ class TimingProfile(Enum):
   def ospf_retransmit_interval(self) -> int:
     if self == TimingProfile.FAST:
       return 2
-    elif self == TimingProfile.MINIMAL:
-      return 200
+    # elif self == TimingProfile.MINIMAL:
+    #   return 200
     else:
       return 90
 
@@ -114,8 +114,8 @@ class TimingProfile(Enum):
   def tester_max_delay(self) -> int:
     if self == TimingProfile.FAST:
       return 30
-    elif self == TimingProfile.MINIMAL:
-      return 600
+    # elif self == TimingProfile.MINIMAL:
+    #   return 600
     else:
       return 120
 
@@ -124,8 +124,8 @@ class TimingProfile(Enum):
   def status_min_delay(self) -> int:
     if self == TimingProfile.FAST:
       return 10
-    elif self == TimingProfile.MINIMAL:
-      return 60
+    # elif self == TimingProfile.MINIMAL:
+    #   return 60
     else:
       return 30
 
@@ -264,7 +264,7 @@ class BackboneVpnSettings(VpnSettings):
     "224.0.0.6/32",
   ]
   DEFAULT_LINK_NETMASK = 31
-  DEFAULT_DEPLOYMENT_STRATEGY = DeploymentStrategyKind.AUTO
+  DEFAULT_DEPLOYMENT_STRATEGY = DeploymentStrategyKind.CROSSED
 
   def __init__(self,
       port: int | None = None,

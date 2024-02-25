@@ -93,7 +93,6 @@ class P2PLinksMap:
 
 
 class DeploymentStrategyKind(Enum):
-  AUTO = 0
   CROSSED = 1
   CIRCULAR = 2
   STATIC = 3
@@ -328,19 +327,28 @@ class CrossedDeploymentStrategy(StaticDeploymentStrategy):
 
 class CircularDeploymentStrategy(CrossedDeploymentStrategy):
   KIND = DeploymentStrategyKind.CIRCULAR
-  ALLOW_PRIVATE_PEERS = False
+  ALLOW_PRIVATE_PEERS = True
 
+  def _generate_deployment_all_public(self, public_peers: Iterable[int])  -> Tuple[Sequence[int], Callable[[int], int], Sequence[Callable[[int], int]]]:
+    # assert(not self.private_peers)
+    peer_count = len(public_peers)
 
-  def _generate_deployment(self)  -> Tuple[Sequence[int], Callable[[int], int], Sequence[Callable[[int], int]]]:
-    peer_ids, _, peer_generators = super()._generate_deployment()
+    peer_ids = list(public_peers)
+    random.shuffle(peer_ids)
 
-    def peer_peers_count(n: int) -> int:
-      if len(self.peers) <= 2:
+    def peer_peers_count(cell_i: int) -> int:
+      assert(peer_count >= 2)
+      if peer_count == 2:
         return 1
       else:
         return 2
-
-    return (peer_ids, peer_peers_count, list(peer_generators[:2]))
+    
+    return (peer_ids, peer_peers_count, [
+      # 1st peer
+      partial(self._peer_left, peer_count=peer_count),
+      # 2nd peer
+      partial(self._peer_right, peer_count=peer_count),
+    ])
 
 
 # class AsymmetricDeploymentStrategy(StaticDeploymentStrategy):
@@ -669,6 +677,8 @@ class RandomDeploymentStrategy(StaticDeploymentStrategy):
 
 
 class FullMeshDeploymentStrategy(StaticDeploymentStrategy):
+  KIND  = DeploymentStrategyKind.FULL_MESH
+
   def __init__(self,
       peers: Iterable[int],
       private_peers: Optional[Iterable[int]]=None,

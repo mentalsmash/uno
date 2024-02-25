@@ -458,7 +458,8 @@ class CellAgent:
       ),
     ]
     self.ns.assert_records(ns_records)
-    self.ns.start(self.uvn_id.address)
+    # TODO(asorbini) re-enable ns server once thought through
+    # self.ns.start(self.uvn_id.address)
 
     self.peers_tester.start()
     self.peers_tester.trigger()
@@ -471,9 +472,12 @@ class CellAgent:
       particle = self.uvn_id.particles[particle_id]
       write_particle_configuration(particle, particle_client_cfg, particles_dir)
 
-    # Start the internal web server
-    # self.www.update()
-    self.www.start()
+    # Start the internal web server on localhost
+    # and on the VPN interfaces
+    self.www.start([
+      "localhost",
+      *(vpn.config.intf.address for vpn in self.vpn_interfaces),
+    ])
 
     self.peers.update_peer(self.peers.local_peer,
       status=UvnPeerStatus.ONLINE,
@@ -501,7 +505,8 @@ class CellAgent:
     # self.peers.update_all(status=UvnPeerStatus.OFFLINE)
     self.www.stop()
     self.peers_tester.stop()
-    self.ns.stop()
+    # TODO(asorbini) re-enable ns server once thought through
+    # self.ns.stop()
     self.router.stop()
     self.routed_sites = []
     self.discovery_completed = False

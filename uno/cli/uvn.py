@@ -35,6 +35,16 @@ def parse_id_str(admin: str) -> Tuple[str, str]:
   owner = admin[admin.find("<")+1:admin.rfind(">")].strip()
   owner_name=admin[:admin.find("<")].strip()
   return owner, owner_name
+
+
+def _load_inline_yaml(val: str) -> dict:
+  # Try to interpret the string as a Path
+  args_file = Path(val)
+  if args_file.is_file():
+    return yaml.safe_load(args_file.read_text())
+  # Interpret the string as inline YAML
+  return yaml.safe_load(val)
+
 ###############################################################################
 ###############################################################################
 # Registry Commands
@@ -46,24 +56,22 @@ def registry_init(args):
     uvn_id = UvnId.deserialize(serialized)
   else:
     owner, owner_name = parse_id_str(args.admin)
-    settings = None if not args.settings else UvnSettings.deserialize(
-      yaml.safe_load(args.settings.read_text()))
     uvn_id=UvnId(
-      name=args.name if args.name is not None else args.address,
+      name=args.name,
       address=args.address,
       owner=owner,
-      owner_name=owner_name,
-      settings=settings)
-  if args.timing:
-    uvn_id.settings.timing_profile = TimingProfile[args.timing.upper().replace("-", "_")]
+      owner_name=owner_name)
+    if args.strategy:
+      uvn_id.settings.backbone_vpn.deployment_strategy = DeploymentStrategyKind[args.strategy.upper().replace("-", "_")]
+    if args.deployment_args:
+      uvn_id.settings.backbone_vpn.deployment_strategy_args = _load_inline_yaml(args.deployment_args)
+    if args.timing:
+      uvn_id.settings.timing_profile = TimingProfile[args.timing.upper().replace("-", "_")]
   root = args.root or Path.cwd() / uvn_id.name
   if root.is_dir() and next(root.glob("*"), None) is not None:
     raise RuntimeError("target directory not empty", root)
   root.mkdir(parents=True, exist_ok=True)
-  registry = Registry(
-    root=root,
-    uvn_id=uvn_id)
-  # registry.configure()
+  registry = Registry(root=root, uvn_id=uvn_id)
   registry.save_to_disk()
 
 
@@ -110,26 +118,25 @@ def registry_add_particle(args):
 def registry_deploy(args):
   registry = registry_load(args)
 
-  settings = None
-
-  if args.settings:
-    settings = yaml.safe_load(args.settings.read_text())
-  
+  strategy_args = _load_inline_yaml(args.deployment_args) if args.deployment_args else None
+  updated = False
   if args.strategy:
     strategy = DeploymentStrategyKind[args.strategy.upper().replace("-", "_")]
     if registry.uvn_id.settings.backbone_vpn.deployment_strategy != strategy:
       registry.uvn_id.settings.backbone_vpn.deployment_strategy = strategy
-      registry.uvn_id.generation_ts = Timestamp.now().format()  
-      # Reset settings (unless the user already provided some)
-      if settings is None:
-        settings = {}
+      updated = True
+      # Reset args (unless the user already provided some)
+      if strategy_args is None:
+        strategy_args = {}
 
-  if settings is not None:
-    registry.uvn_id.settings.backbone_vpn.deployment_strategy_args = settings
+  if strategy_args is not None:
+    registry.uvn_id.settings.backbone_vpn.deployment_strategy_args = strategy_args
+    updated = True
+
+  if updated:
     registry.uvn_id.generation_ts = Timestamp.now().format()
 
   registry.configure()
-
   registry.save_to_disk()
 
   if args.push:
@@ -244,16 +251,6 @@ def main():
   cmd_registry_init.set_defaults(cmd=registry_init)
   registry_common_args(cmd_registry_init)
 
-  cmd_registry_init.add_argument("-I", "--from-file",
-    type=Path,
-    default=None,
-    help="Load the whole UVN configuration from the specified YAML file. Other arguments will be ignored.")
-
-  cmd_registry_init.add_argument("-s", "--settings",
-    type=Path,
-    default=None,
-    help="Load custom UVN settings from the specified YAML file.")
-
   cmd_registry_init.add_argument("-a", "--address",
     # required=True,
     help="The public address for the UVN registry.")
@@ -271,6 +268,24 @@ def main():
     default=None,
     choices=[v.name.lower().replace("_", "-") for v in TimingProfile],
     help="Timing profile to use.")
+
+  cmd_registry_init.add_argument("-S", "--strategy",
+    help="Algorithm used to generate the UVN backbone's deployment map.",
+    default=None,
+    choices=[k.name.lower().replace("_", "-") for k in DeploymentStrategyKind])
+
+  cmd_registry_init.add_argument("-D", "--deployment-args",
+    metavar="YAML",
+    help="A YAML file or an inline string specifying custom arguments for the selected deployment strategy.",
+    default=None)
+
+  cmd_registry_init.add_argument("-C", "--configuration",
+    metavar="YAML",
+    type=Path,
+    default=None,
+    help="Load the whole UVN configuration from the specified YAML (file or inline). Other arguments will be ignored.")
+
+
 
   # cmd_registry_init.add_argument("-r", "--root",
   #   default=None,
@@ -378,10 +393,9 @@ def main():
     default=None,
     choices=[k.name.lower().replace("_", "-") for k in DeploymentStrategyKind])
 
-  cmd_registry_deploy.add_argument("-s", "--settings",
-    type=Path,
-    default=None,
-    help="YAML file containing the UVN backbone's VPN settings.")
+  cmd_registry_deploy.add_argument("-D", "--deployment-args",
+    help="A YAML file or an inline string specifying custom arguments for the selected deployment strategy.",
+    default=None)
 
 
   #############################################################################

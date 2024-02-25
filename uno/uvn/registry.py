@@ -118,7 +118,7 @@ class Registry:
     peers = set(self.uvn_id.cells)
     private_peers = set(c.id for c in self.uvn_id.cells.values() if not c.address)
 
-    if self.uvn_id.settings.backbone_vpn.deployment_strategy in (DeploymentStrategyKind.AUTO, DeploymentStrategyKind.CROSSED):
+    if self.uvn_id.settings.backbone_vpn.deployment_strategy == DeploymentStrategyKind.CROSSED:
       strategy = CrossedDeploymentStrategy(
         peers=peers,
         private_peers=private_peers,
@@ -129,8 +129,6 @@ class Registry:
         private_peers=private_peers,
         args=self.uvn_id.settings.backbone_vpn.deployment_strategy_args)
     elif self.uvn_id.settings.backbone_vpn.deployment_strategy == DeploymentStrategyKind.CIRCULAR:
-      if private_peers:
-        raise RuntimeError("circular strategy cannot be used when some cells are behind NAT")
       strategy = CircularDeploymentStrategy(
         peers=peers,
         private_peers=private_peers,

@@ -264,8 +264,9 @@ nameserver 127.0.0.1
 
 
   def stop(self) -> None:
-    if not self._dnsmasq_enabled:
-      return
+    if self._systemdresolved_disabled:
+      systemd_resolved_enable()
+      self._systemdresolved_disabled = False
     if self._monitor is not None:
       log.debug("[DNS] stopping dnsmasq monitor...")
       self._monitor.stop()
@@ -273,10 +274,8 @@ nameserver 127.0.0.1
       log.debug("[DNS] dnsmasq monitor STOPPED")
     dnsmasq_stop()
     # resolv_conf_restore()
-    if self._systemdresolved_disabled:
-      systemd_resolved_enable()
-      self._systemdresolved_disabled = False
-    self._dnsmasq_enabled = False
+    if self._dnsmasq_enabled:
+      self._dnsmasq_enabled = False
     log.activity("[DNS] nameserver STOPPED")
 
 

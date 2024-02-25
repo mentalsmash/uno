@@ -304,7 +304,9 @@ uvn_deploy()
     (
         cd ${UVN_DIR}
         set -x
-        ${UVN} registry deploy ${UVN_EXTRA_ARGS}
+        ${UVN} registry deploy \
+            $([ -z "${UVN_STRATEGY}" ] || printf -- "-S ${UVN_STRATEGY}") \
+            ${UVN_EXTRA_ARGS}
         ${UVN} registry generate-agents ${UVN_EXTRA_ARGS}
         ${UVN} registry plot ${UVN_EXTRA_ARGS}
     )
