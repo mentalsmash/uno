@@ -47,7 +47,6 @@ sudo apt install \
   wireguard-tools \
   frr \
   iputils-ping \
-  dnsmasq \
   tar \
   qrencode \
   git 
