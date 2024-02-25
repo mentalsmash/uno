@@ -123,6 +123,7 @@ class RegistryAgent:
         deployment=self.registry.backbone_vpn_config.deployment,
         config_string=config_str)
       self._services.dds.writers[UvnTopic.BACKBONE].write(sample)
+      log.activity(f"[AGENT] published agent configuration: {cell}")
 
 
   def spin_until_consistent(self,
