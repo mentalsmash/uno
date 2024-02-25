@@ -103,6 +103,8 @@ class UvnHttpd:
 
 
   def start(self, addresses: Iterable[str]) -> None:
+    raise NotImplementedError()
+
     assert(not self._http_servers)
 
     port = 8080
@@ -124,14 +126,14 @@ class UvnHttpd:
         for a in addresses
     }
 
-    # self._http_threads = {
-    #   a: threading.Thread(
-    #     target=_http_thread,
-    #     args=[self._http_servers[a], a])
-    #   for a in addresses
-    # }
-    # for t in self._http_threads:
-    #   t.start()
+    self._http_threads = {
+      a: threading.Thread(
+        target=_http_thread,
+        args=[self._http_servers[a], a])
+      for a in addresses
+    }
+    for t in self._http_threads:
+      t.start()
 
 
   def stop(self) -> None:
