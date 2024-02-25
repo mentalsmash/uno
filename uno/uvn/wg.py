@@ -361,12 +361,14 @@ PersistentKeepalive = {{peer.keepalive}}
       raise WireGuardError(f"failed to generate configuration for wireguard interface: {self.config.intf.name}")
     # Disable and reset interface
     try:
+      log.debug(f"[WG] {self.config.intf.name}: making sure interface is disabled")
       exec_command(
         ["ip", "link", "set", "down", "dev", self.config.intf.name],
         root=True)
     except:
       raise WireGuardError(f"failed to disable wireguard interface: {self.config.intf.name}")
     try:
+      log.debug(f"[WG] {self.config.intf.name}: resetting interface configuration")
       exec_command(
         ["ip", "address", "flush", "dev", self.config.intf.name],
         root=True)
@@ -374,6 +376,7 @@ PersistentKeepalive = {{peer.keepalive}}
       raise WireGuardError(f"failed to reset wireguard interface: {self.config.intf.name}")
     # Configure interface with the expected address
     try:
+      log.debug(f"[WG] {self.config.intf.name}: creating interface with address {self.config.intf.address}/{self.config.intf.netmask}")
       exec_command(
         ["ip", "address", "add", "dev", self.config.intf.name,
           f"{self.config.intf.address}/{self.config.intf.netmask}"],
@@ -382,6 +385,7 @@ PersistentKeepalive = {{peer.keepalive}}
       raise WireGuardError(f"failed to configure address on wireguard interface: {self.config.intf.name}, {self.config.intf.address}/{self.config.intf.netmask}")
     # Set wireguard configuration with "wg setconf..."
     try:
+      log.debug(f"[WG] {self.config.intf.name}: configuring WireGuard")
       exec_command(
         ["wg", "setconf", self.config.intf.name, wg_config],
         root=True)
@@ -389,6 +393,7 @@ PersistentKeepalive = {{peer.keepalive}}
       raise WireGuardError(f"failed to set wireguard configuration on interface: {self.config.intf.name}")
     # Activate interface with "ip link set up dev..."
     try:
+      log.debug(f"[WG] {self.config.intf.name}: enabling interface")
       exec_command(
         ["ip", "link", "set", "up", "dev", self.config.intf.name],
         root=True)
@@ -400,6 +405,7 @@ PersistentKeepalive = {{peer.keepalive}}
     #     self._allow_ip_for_peer(p, a)
     # Mark interface as up
     self.up = True
+    log.debug(f"[WG] {self.config.intf.name}: up [{self.config.intf.address}/{self.config.intf.netmask}]")
 
 
   def tear_down(self):
@@ -408,12 +414,14 @@ PersistentKeepalive = {{peer.keepalive}}
       return
     # Disable interface with "ip link set down dev..."
     try:
+      log.debug(f"[WG] {self.config.intf.name}: disabling interface")
       exec_command(
         ["ip", "link", "set", "down", "dev", self.config.intf.name],
         root=True)
     except:
       raise WireGuardError(f"failed to disable wireguard interface: {self.config.intf.name}")
     try:
+      log.debug(f"[WG] {self.config.intf.name}: resetting interface configuration")
       exec_command(
         ["ip", "address", "flush", "dev", self.config.intf.name],
         root=True)
@@ -421,6 +429,7 @@ PersistentKeepalive = {{peer.keepalive}}
       raise WireGuardError(f"failed to reset wireguard interface: {self.config.intf.name}")
     # Mark interface as down
     self.up = False
+    log.activity(f"[WG] {self.config.intf.name}: down")
 
 
   def _list_peers(self) -> Iterable[str]:
@@ -523,10 +532,12 @@ PersistentKeepalive = {{peer.keepalive}}
     # sort ips for tidyness in `wg show`'s output
     allowed_ips_str = sorted(map(str,allowed_ips))
     try:
+      log.debug(f"[WG] {self.config.intf.name}: setting allowed IPs for peer #{peer.id}")
       exec_command(
         ["wg", "set", self.config.intf.name,
             "peer", peer.pubkey, "allowed-ips", ",".join(allowed_ips_str)],
         root=True)
+      log.activity(f"[WG] {self.config.intf.name}: allowed #{peer.id} = [{', '.join(allowed_ips_str)}]")
     except:
       raise WireGuardError(f"failed to set allowed peers on interface: {self.config.intf.name}")
     # allowed_ips_set = self._list_allowed_ips_peer(peer)
