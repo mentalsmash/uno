@@ -247,7 +247,7 @@ class ParticlesVpnSettings(VpnSettings):
   DEFAULT_SUBNET = "10.254.0.0/16"
   DEFAULT_INTERFACE = "uwg-p{}"
   DEFAULT_ALLOWED_IPS = [
-    "0.0.0.0"
+    "0.0.0.0/0",
   ]
 
   @staticmethod
