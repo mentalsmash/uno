@@ -410,7 +410,7 @@ PersistentKeepalive = {{peer.keepalive}}
     #     self._allow_ip_for_peer(p, a)
     # Mark interface as up
     self.up = True
-    log.debug(f"[WG] {self.config.intf.name}: up [{self.config.intf.address}/{self.config.intf.netmask}]")
+    log.activity(f"[WG] {self.config.intf.name}: up [{self.config.intf.address}/{self.config.intf.netmask}]")
 
 
   def tear_down(self):
