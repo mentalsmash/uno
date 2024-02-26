@@ -486,6 +486,7 @@ class CellAgent:
     self.www.start([
       "localhost",
       *(vpn.config.intf.address for vpn in self.vpn_interfaces),
+      *(l.nic.address for l in self.lans),
     ])
 
     self.peers.update_peer(self.peers.local_peer,
