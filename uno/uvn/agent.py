@@ -131,6 +131,11 @@ class CellAgent:
 
 
   @property
+  def rti_license(self) -> Path:
+    return self.root / Registry.AGENT_LICENSE
+
+
+  @property
   def vpn_interfaces(self) -> Sequence[WireGuardInterface]:
     return [
       *self.backbone_vpns,
@@ -400,10 +405,9 @@ class CellAgent:
       *backbone_peers
     ]
 
-    rti_license = self.root / "rti_license.dat"
-    if not rti_license.is_file():
-      log.error(f"RTI license file not found: {rti_license}")
-      raise RuntimeError("Please provide a valid RTI license file")
+    if not self.rti_license.is_file():
+      log.error(f"RTI license file not found: {self.rti_license}")
+      raise RuntimeError("RTI license file not found")
 
     xml_config_tmplt = Templates.compile(
       DdsParticipantConfig.load_config_template(self.DDS_CONFIG_TEMPLATE))
@@ -414,7 +418,7 @@ class CellAgent:
       "cell": self.cell,
       "initial_peers": initial_peers,
       "timing": self.uvn_id.settings.timing_profile,
-      "license_file": rti_license,
+      "license_file": self.rti_license.read_text(),
     })
 
     writers = [
@@ -934,6 +938,10 @@ class CellAgent:
     # agent_config_enc = id_db.encrypt_file(
     #   cell, agent_config, tmp_dir)
 
+    # Include the RTI license file
+    agent_license = tmp_dir / Registry.AGENT_LICENSE
+    shutil.copy2(registry.rti_license, agent_license)
+
     # Store all files in a single archive
     agent_package = output_dir / f"{cell.name}.uvn-agent"
     agent_package.parent.mkdir(parents=True, exist_ok=True)
@@ -942,6 +950,7 @@ class CellAgent:
         # agent_config_sig_enc.relative_to(tmp_dir),
         # agent_config_enc.relative_to(tmp_dir),
         agent_config.relative_to(tmp_dir),
+        agent_license.relative_to(tmp_dir),
         *(f.relative_to(tmp_dir) for f in package_extra_files)],
       cwd=tmp_dir)
     agent_config_out = output_dir / f"{cell.name}.yaml"
@@ -970,15 +979,25 @@ class CellAgent:
   @staticmethod
   def bootstrap(
       package: Path,
-      root: Path) -> "CellAgent":
+      root: Path,
+      system: bool=False) -> "CellAgent":
     # Extract package to a temporary directory
     tmp_dir_h = tempfile.TemporaryDirectory()
     tmp_dir = Path(tmp_dir_h.name)
 
     # log.debug(f"[AGENT] extracting package contents: {package}")
-    log.activity(f"[AGENT] bootstrap package {package} to {root}")
+    if not system:
+      log.warning(f"[AGENT] bootstrap agent from package {package} to {root}")
+    else:
+      root = Path("/etc/uvn")
+      log.warning(f"[AGENT] bootstrap system agent from package {package} to {root}")
+      if root.is_dir():
+        log.warning(f"[AGENT] replacing existing system agent")
+        root.unlink()
+
     package = package.resolve()
 
+    log.activity(f"[AGENT] extracting package contents: {tmp_dir}")
     exec_command(["tar", "xvJf", package], cwd=tmp_dir)
 
     # # Read the cell id
@@ -1035,10 +1054,25 @@ class CellAgent:
     agent_config = root / Registry.AGENT_CONFIG_FILENAME
     exec_command(["cp", agent_config_tmp, agent_config])
 
+    # Copy RTI license
+    agent_license_tmp = tmp_dir / Registry.AGENT_LICENSE
+    agent_license = root / Registry.AGENT_LICENSE
+    exec_command(["cp", agent_license_tmp, agent_license])
+
+    if system:
+      # Install init.d script
+      log.activity("[AGENT] installing agent init script")
+      agent_init = Path("/etc/init.d/uvn")
+      agent_init.write_text(Templates.render("service/uno_init.sh", {
+
+      }))
+      agent_init.chmod(0o755)
+      log.warning(f"[AGENT] init script installed: {agent_init}")
+
     # Load the imported agent
-    log.debug(f"[AGENT] loading imported agent...")
+    log.activity(f"[AGENT] loading imported agent: {root}")
     agent = CellAgent.load(root)
-    log.activity(f"[AGENT] bootstrap completed: {agent.cell}@{agent.uvn_id}")
+    log.warning(f"[AGENT] bootstrap completed: {agent.cell}@{agent.uvn_id} [{agent.root}]")
     return agent
 
 

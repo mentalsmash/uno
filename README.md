@@ -60,13 +60,7 @@ git clone https://github.com/mentalsmash/uno
 pip install ./uno
 ```
 
-**uno**'s agents use the RTI Connext DDS Python API, which requires a valid RTI license file to be provided separately. [You can request a free evaluation license from the RTI website](https://www.rti.com/free-trial).
-
-In order to deploy an agent, you must copy the license file to the agent's shot, and export its absolute path through variable `RTI_LICENSE_FILE`:
-
-```sh
-export RTI_LICENSE_FILE=/path/to/rti_license.dat
-```
+**uno**'s agents use the RTI Connext DDS Python API, which requires a valid RTI license file. [You can request a free evaluation license from the RTI website](https://www.rti.com/free-trial).
 
 ### Docker Agent
 
@@ -97,7 +91,6 @@ the `Dockerfile` included in this repository:
    ```sh
    docker run --rm --detach \
      -v /path/to/agent-dir:/uvn \
-     -v /path/to/rti_license.dat:/rti_license.dat \
      -e CELL_ID=agent-id \
      --privileged \
      --net host \
@@ -113,7 +106,10 @@ the `Dockerfile` included in this repository:
 
    cd my-uvn
 
-   uvn registry init -n my-uvn -o "John Doe <john@example.com>"
+   uvn registry init \
+     -n my-uvn \
+     -A "John Doe <john@example.com>" \
+     -L /path/to/rti_license.dat
    ```
 
 2. Define two or more UVN "cells", one for every agent:
@@ -195,7 +191,10 @@ the `Dockerfile` included in this repository:
    Then use it to initialize the UVN:
 
    ```sh
-   uvn registry init --from-file uvn.yaml -r my-uvn/
+   uvn registry init \
+     -C uvn.yaml \
+     -L /path/to/rti_license.dat \
+     -r my-uvn/
    ```
 
    You can also use a Docker container:
@@ -265,7 +264,6 @@ the `Dockerfile` included in this repository:
         --net host \
         --privileged \
         -v $(pwd):/uvn \
-        -v /path/to/rti_license.dat:/rti_license.dat \
         -e CELL_ID=lan-a \
         uno:latest
       ```

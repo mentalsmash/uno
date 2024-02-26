@@ -18,6 +18,7 @@ import yaml
 from pathlib import Path
 import argparse
 from typing import Tuple, Optional
+import shutil
 
 import ipaddress
 
@@ -52,9 +53,11 @@ def _load_inline_yaml(val: str) -> dict:
 ###############################################################################
 def registry_init(args):
   if args.configuration:
+    log.activity(f"[REGISTRY] loading UVN configuration: {args.configuration}")
     serialized = yaml.safe_load(args.configuration.read_text())
     uvn_id = UvnId.deserialize(serialized)
   else:
+    log.activity(f"[REGISTRY] creating new UVN configuration")
     owner, owner_name = parse_id_str(args.admin)
     uvn_id=UvnId(
       name=args.name,
@@ -67,12 +70,16 @@ def registry_init(args):
       uvn_id.settings.backbone_vpn.deployment_strategy_args = _load_inline_yaml(args.deployment_args)
     if args.timing:
       uvn_id.settings.timing_profile = TimingProfile[args.timing.upper().replace("-", "_")]
+  log.activity(f"[REGISTRY] UVN configuration:")
+  log.activity(yaml.safe_dump(uvn_id.serialize()))
   root = args.root or Path.cwd() / uvn_id.name
   if root.is_dir() and next(root.glob("*"), None) is not None:
     raise RuntimeError("target directory not empty", root)
   root.mkdir(parents=True, exist_ok=True)
   registry = Registry(root=root, uvn_id=uvn_id)
   registry.save_to_disk()
+  registry.install_rti_license(args.license)
+  log.warning(f"[REGISTRY] initialized: {registry.root}")
 
 
 def registry_load(args) -> Registry:
@@ -150,7 +157,9 @@ def registry_generate_agents(args, registry: Optional[Registry]=None):
   if cells_dir.is_dir():
     import shutil
     shutil.rmtree(cells_dir)  
-  CellAgent.generate_all(registry, cells_dir,
+  CellAgent.generate_all(
+    registry,
+    cells_dir,
     bootstrap_package=True)
 
   particles_dir = registry.root / "particles"
@@ -214,7 +223,10 @@ def registry_plot(args):
 ###############################################################################
 ###############################################################################
 def cell_bootstrap(args):
-  agent = CellAgent.bootstrap(package=args.package, root=args.root)
+  agent = CellAgent.bootstrap(
+    package=args.package,
+    root=args.root,
+    system=args.system)
 
 
 def cell_agent(args):
@@ -305,7 +317,11 @@ def main():
     default=None,
     help="Load the whole UVN configuration from the specified YAML (file or inline). Other arguments will be ignored.")
 
-
+  cmd_registry_init.add_argument("-L", "--license",
+    metavar="RTI_LICENSE",
+    help="Path to a valid RTI license file to be used by the UVN agents.",
+    required=True,
+    type=Path)
 
   # cmd_registry_init.add_argument("-r", "--root",
   #   default=None,
@@ -507,6 +523,11 @@ def main():
   cmd_cell_bootstrap.add_argument("package",
     help="Package file for the UVN cell agent.",
     type=Path)
+
+  cmd_cell_bootstrap.add_argument("-s", "--system",
+    help="Install the agent as the system agent. The agent configuration will be placed in /etc/uvn, and /etc/init.d/uvn will be created.",
+    type=Path)
+
 
   #############################################################################
   # cell::start

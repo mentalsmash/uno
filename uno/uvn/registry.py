@@ -16,6 +16,7 @@
 ###############################################################################
 from pathlib import Path
 from typing import Optional, Mapping, Tuple
+import shutil
 
 import yaml
 import networkx
@@ -39,6 +40,7 @@ class Registry:
   CONFIG_FILENAME = "registry.yaml"
   AGENT_PACKAGE_FILENAME = "{}.uvn-agent"
   AGENT_CONFIG_FILENAME = "agent.yaml"
+  AGENT_LICENSE = "rti_license.dat"
 
   def __init__(self,
       root: Path,
@@ -60,6 +62,17 @@ class Registry:
       and self.backbone_vpn_config.deployment is not None
       and self.backbone_vpn_config.deployment.generation_ts is not None
     )
+
+
+  @property
+  def rti_license(self) -> Path:
+    return self.root / self.AGENT_LICENSE
+
+
+  def install_rti_license(self, license: Path) -> None:
+    self.rti_license.parent.mkdir(parents=True, exist_ok=True)
+    shutil.copy2(license, self.rti_license)
+    log.activity(f"[REGISTRY] RTI license installed: {license}")
 
 
   def configure(self) -> None:
@@ -280,4 +293,5 @@ class Registry:
     config_file.write_text(yaml.safe_dump(serialized.get("config", {})))
     config_file.chmod(0o600)
     uvn_file.chmod(0o600)
+    log.activity(f"[REGISTRY] configuration file UPDATED: {config_file}")
 

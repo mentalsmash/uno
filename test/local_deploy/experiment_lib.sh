@@ -24,6 +24,11 @@ log_info()
     printf "[i][experiment]%s\n" "$@"
 }
 
+log_error()
+{
+    printf "[ERROR][experiment]%s\n" "$@"
+}
+
 log_debug()
 {
     [ -z "${VERBOSE}" ] || printf "[d][experiment]%s\n" "$@"
@@ -142,13 +147,6 @@ docker_container()
         $([ -z "${host_uvn}" ] || printf -- "-v ${host_uvn}:/uvn") \
         $([ -z "${host_uvn}" ] || printf -- "-w /uvn") \
         $([ -z "${UNO_DIR}" ] || printf -- "-v ${UNO_DIR}:/uno") \
-        $(
-          if [ -z "${RTI_LICENSE_FILE}" ]; then
-            printf -- "-e RTI_LICENSE_FILE=/uno/rti_license.dat"
-          else
-            printf -- "-v ${RTI_LICENSE_FILE}=/rti_license.dat"
-          fi
-        ) \
         uno:latest \
         $([ -n "${host_uvn}" -a -z "${NO_AGENT}" ] || printf -- "sh") \
         >> ${EXPERIMENT_LOG} 2>&1
@@ -228,6 +226,11 @@ uvn_create()
           uvn_admin="${2}" \
           uvn_admin_name="${3}"
 
+    if [ -z "${RTI_LICENSE_FILE}" ]; then
+        log_error "Please set RTI_LICENSE_FILE to a valid rti_license.dat"
+        exit 1
+    fi
+
     log_debug " creating UVN: ${uvn_address}"
     (
         set -x
@@ -236,6 +239,7 @@ uvn_create()
             -a ${uvn_address} \
             -A "${uvn_admin_name} <${uvn_admin}>" \
             -r ${UVN_DIR} \
+            -L ${RTI_LICENSE_FILE} \
             $([ -z "${UVN_SETTINGS}" ] || printf -- "-s ${UVN_SETTINGS}") \
             $([ -z "${UVN_TIMING_FAST}" ] || printf -- "-T fast" ) \
             ${UVN_EXTRA_ARGS}

@@ -112,7 +112,7 @@
           <property>
             <value>
               <element>
-                <name>dds.license.license_file</name>
+                <name>dds.license.license_string</name>
                 <value>{{rti_license}}</value>
               </element>
             </value>

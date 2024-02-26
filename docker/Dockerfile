@@ -59,13 +59,8 @@ ENTRYPOINT [ "/uno/docker/entrypoint.sh" ]
 CMD ["__default__"]
 
 # Define volumes
-ENV RTI_LICENSE_FILE "/rti_license.dat"
 ENV UVN_DIR "/uvn"
 ENV UNO_DIR "/uno"
 ENV UVN_INIT_CONFIG "/uvn.yaml"
 
 VOLUME [ "${UVN_DIR}" , "${UNO_DIR}"]
-
-# RUN touch ${RTI_LICENSE_FILE} ${UVN_INIT_CONFIG}
-
-
