@@ -213,9 +213,10 @@ mimetype.assign = (
       time.sleep(1)
       lighttpd_stopped = True
     except Exception as e:
+      log.error(f"[WWW] error while stopping:")
+      log.exception(e)
       if lighttpd_stopped:
         log.error(f"[WWW] failed to stop lighttpd. Please check your system.")
-      raise e
     finally:
       self._lighttpd_pid = None
       self._lighttpd = None
