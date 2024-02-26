@@ -1004,8 +1004,10 @@ class CellAgent:
       log.warning(f"[AGENT] bootstrap agent from package {package} to {root}")
     else:
       root = Path("/etc/uvn")
+      sys_existed = False
       log.warning(f"[AGENT] bootstrap system agent from package {package} to {root}")
       if root.is_dir():
+        sys_existed = True
         log.warning(f"[AGENT] replacing existing system agent")
         shutil.rmtree(root)
 
@@ -1098,7 +1100,9 @@ class CellAgent:
 
     if system:
       log.warning(f"[AGENT] agent has been installed as a system service.")
-      log.warning(f"[AGENT] Use `systemctl start uvn` to start it.")
+      if sys_existed:
+        log.warning(f"[AGENT] Use `systemctl daemon-reload` to load the most recent configuration.")  
+      log.warning(f"[AGENT] Use `systemctl start uvn` to start the service.")
     return agent
 
 
