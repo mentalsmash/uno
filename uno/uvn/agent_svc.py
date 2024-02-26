@@ -66,14 +66,21 @@ class AgentServices:
       raise RuntimeError("failed to start")
 
 
-  def stop(self) -> None:
+  def stop(self,
+      lans: Optional[Iterable[LanDescriptor]]=None,
+      vpn_interfaces: Optional[Iterable[WireGuardInterface]]=None) -> None:
     try:
-      for vpn in list(self._vpn_nat):
+      vpns_nat = vpn_interfaces if vpn_interfaces is not None else list(self._vpn_nat)
+      vpns_up = vpn_interfaces if vpn_interfaces is not None else list(self._vpn_started)
+      lans_nat = lans if lans is not None else list(self._lans_nat)
+
+      for vpn in vpns_nat
         self._disable_vpn_nat(vpn)
-      for vpn in list(self._vpn_started):
+      for vpn in vpns_up:
         vpn.stop()
-        self._vpn_started.remove(vpn)
-      for lan in list(self._lans_nat):
+        if vpn in self._vpn_started:
+          self._vpn_started.remove(vpn)
+      for lan in lans_nat:
         self._disable_lan_nat(lan)
       if self._dds_started:
         self.dds.stop()
@@ -90,7 +97,8 @@ class AgentServices:
 
   def _disable_lan_nat(self, lan: LanDescriptor, ignore_errors: bool=False) -> None:
     ipv4_disable_output_nat(lan.nic.name, ignore_errors=ignore_errors)
-    self._lans_nat.remove(lan)
+    if lan in self._lans_nat:
+      self._lans_nat.remove(lan)
     log.debug(f"NAT DISABLED for LAN: {lan}")
 
 
@@ -112,7 +120,8 @@ class AgentServices:
     # if vpn.config.tunnel_root:
     #   ipv4_disable_forward(vpn.config.intf.name, v6=True, ignore_errors=ignore_errors)
     #   ipv4_disable_output_nat(vpn.config.intf.name, v6=True, ignore_errors=ignore_errors)
-    self._vpn_nat.remove(vpn)
+    if vpn in self._vpn_nat:
+      self._vpn_nat.remove(vpn)
     log.debug(f"NAT DISABLED for VPN: {vpn}")
 
 

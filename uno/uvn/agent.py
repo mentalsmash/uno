@@ -375,7 +375,9 @@ class CellAgent:
 
 
   def stop(self) -> None:
-    self._services.stop()
+    self._services.stop(
+      lans=self.lans,
+      vpn_interfaces=self.vpn_interfaces)
     log.warning("[AGENT] UVN services stopped")
 
 
