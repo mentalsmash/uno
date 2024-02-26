@@ -363,7 +363,7 @@ class CellAgent:
         self._on_peers_updated()
 
     try:
-      self._start()
+      self._start(boot=True)
       self._services.spin(
         until=until,
         max_spin_time=max_spin_time,
