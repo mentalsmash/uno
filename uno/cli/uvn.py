@@ -526,7 +526,8 @@ def main():
 
   cmd_cell_bootstrap.add_argument("-s", "--system",
     help="Install the agent as the system agent. The agent configuration will be placed in /etc/uvn, and /etc/init.d/uvn will be created.",
-    type=Path)
+    default=False,
+    action="store_true")
 
 
   #############################################################################
