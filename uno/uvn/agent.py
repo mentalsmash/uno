@@ -1027,6 +1027,9 @@ class CellAgent:
     # log.debug(f"[AGENT] bootstrapping cell {cell} of UVN {uvn_id} to {root}")
     root.mkdir(parents=True, exist_ok=True)
     root = root.resolve()
+    
+    # Make agent directory readable only by agent's user (i.e. root)
+    root.chmod(0o700)
 
     # # Generate a GPG database by importing the keys
     # gpg = IdentityDatabase(root)

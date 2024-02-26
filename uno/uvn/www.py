@@ -162,6 +162,7 @@ mimetype.assign = (
     if self._lighttpd_pid is not None:
       raise RuntimeError("httpd already started")
 
+    # Addresses are not used for anything at the moment
     addresses = list(addresses)
     lighttpd_started = False
     try:
@@ -213,7 +214,7 @@ mimetype.assign = (
       if pid is None:
         raise RuntimeError("failed to detect lighttpd process")
       log.debug(f"[WWW] lighttpd started: pid={pid}")
-      log.activity(f"[WWW] listening on port {self.port} of {len(addresses)} interfaces: {', '.join(map(str, addresses))}]")
+      log.activity(f"[WWW] listening on port 443")
     except Exception as e:
       self._lighttpd_pid = None
       self._lighttpd = None
