@@ -109,6 +109,14 @@
       <qos_profile name="BaseParticipant">
         <?rti-qos_snippet?>
         <participant_qos>
+          <property>
+            <value>
+              <element>
+                <name>dds.license.license_file</name>
+                <value>{{rti_license}}</value>
+              </element>
+            </value>
+          </property>
           <database>
             <shutdown_cleanup_period>
               <sec>0</sec>

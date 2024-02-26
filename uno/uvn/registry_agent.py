@@ -165,6 +165,11 @@ class RegistryAgent:
   def spin(self,
       until: Optional[Callable[[], bool]]=None,
       max_spin_time: Optional[int]=None) -> None:
+    rti_license = self.root / "rti_license.dat"
+    if not rti_license.is_file():
+      log.error(f"RTI license file not found: {rti_license}")
+      raise RuntimeError("Please provide a valid RTI license file")
+
     xml_config_tmplt = Templates.compile(
       DdsParticipantConfig.load_config_template(self.DDS_CONFIG_TEMPLATE))
     
@@ -174,6 +179,7 @@ class RegistryAgent:
       "cell": None,
       "initial_peers": [p.address for p in self.root_vpn_config.peers],
       "timing": self.registry.uvn_id.settings.timing_profile,
+      "license_file": rti_license,
     })
 
     writers = [

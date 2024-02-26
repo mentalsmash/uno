@@ -400,6 +400,11 @@ class CellAgent:
       *backbone_peers
     ]
 
+    rti_license = self.root / "rti_license.dat"
+    if not rti_license.is_file():
+      log.error(f"RTI license file not found: {rti_license}")
+      raise RuntimeError("Please provide a valid RTI license file")
+
     xml_config_tmplt = Templates.compile(
       DdsParticipantConfig.load_config_template(self.DDS_CONFIG_TEMPLATE))
     
@@ -409,6 +414,7 @@ class CellAgent:
       "cell": self.cell,
       "initial_peers": initial_peers,
       "timing": self.uvn_id.settings.timing_profile,
+      "license_file": rti_license,
     })
 
     writers = [
