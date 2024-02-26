@@ -135,10 +135,10 @@ docker_container()
         --cap-add net_admin \
         --cap-add sys_module \
         -e RC_LOCAL=/experiment/init.sh \
+        -e UVN_EXTRA_ARGS="${UVN_EXTRA_ARGS}" \
         -v ${EXPERIMENT_DIR}/${container_name}:/experiment \
         $([ -z "${CELL_ROAMING}" ] || printf -- "-e CELL_ROAMING=${CELL_ROAMING}") \
         $([ -z "${CELL_ID}" ] || printf -- "-e CELL_ID=${CELL_ID}") \
-        $([ -z "${UVN_EXTRA_ARGS}" ] || printf -- "-e UVN_EXTRA_ARGS=${UVN_EXTRA_ARGS}") \
         $([ -z "${host_uvn}" ] || printf -- "-v ${host_uvn}:/uvn") \
         $([ -z "${host_uvn}" ] || printf -- "-w /uvn") \
         $([ -z "${UNO_DIR}" ] || printf -- "-v ${UNO_DIR}:/uno") \

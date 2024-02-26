@@ -42,19 +42,26 @@ from http.server import SimpleHTTPRequestHandler, HTTPServer
 
 class UvnHttpd:
   LIGHTTPD_CONF_TEMPLATE = """\
-server.document-root = "{{fakeroot}}"
+server.modules = ("mod_openssl", "mod_auth", "mod_authn_file")
+# server.port = {{port + 1}}
 server.pid-file = "{{pid_file}}"
-server.port = {{port + 1}}
+server.document-root = "{{root}}"
+server.errorlog = "{{log_dir}}/lighttpd.error.log"
+accesslog.filename = "{{log_dir}}/lighttpd.access.log"
+$SERVER["socket"] == ":443" {
+  ssl.engine = "enable"
+  ssl.pemfile = "{{pem_file}}"
+}
 {% for addr in addresses -%}
 {%- if addr == "localhost" -%}
-$HTTP["host"]
+# $HTTP["host"]
 {%- else -%}
-$SERVER["socket"]
+# $SERVER["socket"]
 {%- endif %} == "{{addr}}:{{port}}" {
-server.document-root = "{{root}}"
-server.errorlog = "{{log_dir}}/lighttpd.{{addr}}.error.log"
-accesslog.filename = "{{log_dir}}/lighttpd.{{addr}}.access.log"
-}
+# server.document-root = "{{root}}"
+# server.errorlog = "{{log_dir}}/lighttpd.{{addr}}.error.log"
+# accesslog.filename = "{{log_dir}}/lighttpd.{{addr}}.access.log"
+# }
 {% endfor %}
 index-file.names = ( "index.html" )
 mimetype.assign = (
@@ -69,6 +76,7 @@ mimetype.assign = (
     self.agent = agent
     self.min_update_delay = self.agent.uvn_id.settings.timing_profile.status_min_delay
     self.root = self.agent.root / "www"
+    self.doc_root = self.root / "root"
     self.port = 8080
     self._http_servers = {}
     self._http_threads = {}
@@ -76,6 +84,7 @@ mimetype.assign = (
     self._dirty = True
     self._lighttpd_pid = None
     self._lighttpd_conf = self.agent.root / "lighttpd.conf"
+    self._lighttpd_pem =  self.agent.root / "lighttpd.pem"
     self._fakeroot = None
 
 
@@ -97,6 +106,35 @@ mimetype.assign = (
     with as_file(files(www_data).joinpath("style.css")) as tmp_f:
       return tmp_f.read_text()
 
+
+  def _assert_ssl_cert(self, regenerate: bool=True) -> None:
+    log.debug(f"[WWW] creating server SSL certificate")
+    if self._lighttpd_pem.is_file():
+      if not regenerate:
+        return
+      self._lighttpd_pem.unlink()
+
+    country_id = "US"
+    state_id = "Denial"
+    location_id = "Springfield"
+    org_id = self.agent.uvn_id.name
+    common_name = self.agent.cell.name
+    pem_subject = f"/C={country_id}/ST={state_id}/L={location_id}/O={org_id}/CN={common_name}"
+    exec_command([
+      "openssl",
+        "req",
+        "-x509",
+        "-newkey", "ec",
+        "-pkeyopt", "ec_paramgen_curve:secp384r1",
+        "-keyout", self._lighttpd_pem,
+        "-out",  self._lighttpd_pem,
+        "-days", "365",
+        "-nodes",
+        "-subj", pem_subject,
+    ])
+    self._lighttpd_pem.chmod(0o400)
+    log.debug(f"[WWW] SSL certificate: {self._lighttpd_pem}")
+    
 
   def _generate_index_html(self) -> None:
     log.debug("[WWW] regenerating agent status...")
@@ -142,7 +180,8 @@ mimetype.assign = (
     try:
       self._lighttpd_pid = self._lighttpd_conf.parent / "lighttpd.pid"
 
-      self._fakeroot = TemporaryDirectory()
+      # self._fakeroot = TemporaryDirectory()
+      self._assert_ssl_cert()
 
       conf_tmplt = Templates.compile(self.LIGHTTPD_CONF_TEMPLATE)
       conf = Templates.render(conf_tmplt, {
@@ -150,8 +189,9 @@ mimetype.assign = (
         "port": self.port,
         "addresses": addresses,
         "pid_file": self._lighttpd_pid,
+        "pem_file": self._lighttpd_pem,
         "log_dir": self.agent.log_dir,
-        "fakeroot": Path(self._fakeroot.name),
+        # "fakeroot": Path(self._fakeroot.name),
       })
       self._lighttpd_conf.parent.mkdir(parents=True, exist_ok=True)
       self._lighttpd_conf.write_text(conf)

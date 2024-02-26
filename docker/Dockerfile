@@ -29,6 +29,7 @@ RUN export DEBIAN_FRONTEND="noninteractive" \
       qrencode \
       iputils-ping \
       lighttpd \
+      openssl \
       $([ -z "${INSTALL_EXTRA_PACKAGES}" ] || \
         echo \
           rng-tools \
