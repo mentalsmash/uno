@@ -328,9 +328,6 @@ class WireGuardInterface:
 
 
   def create(self):
-    if self.created:
-      # Already created
-      return
     # Check if interface already exists with "ip link show..."
     result = exec_command(
       ["ip", "link", "show", self.config.intf.name],
@@ -359,9 +356,6 @@ class WireGuardInterface:
 
 
   def delete(self):
-    if not self.created:
-      # Not created yet
-      return
     # Remove interface with "ip link delete dev..."
     try:
       log.debug(f"[WG] {self.config.intf.name}: deleting interface")
@@ -376,9 +370,6 @@ class WireGuardInterface:
 
 
   def bring_up(self):
-    if self.up:
-      # Already up
-      return
     try:
       # Generate a temporary file with wg configuration
       tmp_file_h = NamedTemporaryFile(
@@ -438,9 +429,6 @@ class WireGuardInterface:
 
 
   def tear_down(self):
-    if not self.up:
-      # Already down
-      return
     # Disable interface with "ip link set down dev..."
     try:
       log.debug(f"[WG] {self.config.intf.name}: disabling interface")
