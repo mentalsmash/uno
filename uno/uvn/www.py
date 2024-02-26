@@ -43,26 +43,13 @@ from http.server import SimpleHTTPRequestHandler, HTTPServer
 class UvnHttpd:
   LIGHTTPD_CONF_TEMPLATE = """\
 server.modules = ("mod_openssl", "mod_auth", "mod_authn_file")
-# server.port = {{port + 1}}
+server.port = 443
 server.pid-file = "{{pid_file}}"
 server.document-root = "{{root}}"
 server.errorlog = "{{log_dir}}/lighttpd.error.log"
 accesslog.filename = "{{log_dir}}/lighttpd.access.log"
-$SERVER["socket"] == ":443" {
-  ssl.engine = "enable"
-  ssl.pemfile = "{{pem_file}}"
-}
-{% for addr in addresses -%}
-{%- if addr == "localhost" -%}
-# $HTTP["host"]
-{%- else -%}
-# $SERVER["socket"]
-{%- endif %} == "{{addr}}:{{port}}" {
-# server.document-root = "{{root}}"
-# server.errorlog = "{{log_dir}}/lighttpd.{{addr}}.error.log"
-# accesslog.filename = "{{log_dir}}/lighttpd.{{addr}}.access.log"
-# }
-{% endfor %}
+ssl.engine = "enable"
+ssl.pemfile = "{{pem_file}}"
 index-file.names = ( "index.html" )
 mimetype.assign = (
   ".html" => "text/html", 
