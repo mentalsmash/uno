@@ -113,10 +113,13 @@ class Router:
 
     exec_command(["cp", tmp_file, self.FRR_CONF], root=True)
     exec_command(["service", "frr", "restart"], root=True)
+    log.activity(f"[ROUTER] frrouting: started")
 
 
   def stop(self) -> None:
+    log.debug(f"[ROUTER] stopping frrouting...")
     exec_command(["service", "frr", "stop"], root=True)
+    log.activity(f"[ROUTER] frrouting: stopped")
 
 
   @property
