@@ -233,6 +233,7 @@ def cell_agent(args):
   root = args.root or Path.cwd()
   agent = CellAgent.load(root)
   agent.enable_www = args.www
+  # HACK set NDDSHOME so that the Connext Python API finds the license file
   import os
   os.environ["NDDSHOME"] = str(agent.root)
   agent.spin(

@@ -1064,13 +1064,21 @@ class CellAgent:
 
     if system:
       # Install init.d script
-      log.activity("[AGENT] installing agent init script")
-      agent_init = Path("/etc/init.d/uvn")
-      agent_init.write_text(Templates.render("service/uno_init.sh", {
+      # log.activity("[AGENT] installing agent init script")
+      # agent_init = Path("/etc/init.d/uvn")
+      # agent_init.write_text(Templates.render("service/uno_init.sh", {
+
+      # }))
+      # agent_init.chmod(0o755)
+      # log.warning(f"[AGENT] init script installed: {agent_init}")
+
+      # Install systemd service definition
+      agent_svc = Path("/etc/systemd/system/uvn.service")
+      agent_svc.write_text(Templates.render("service/uvn.service", {
 
       }))
-      agent_init.chmod(0o755)
-      log.warning(f"[AGENT] init script installed: {agent_init}")
+      agent_svc.chmod(0o644)
+      log.warning(f"[AGENT] service installed: {agent_svc}")
 
     # Load the imported agent
     log.activity(f"[AGENT] loading imported agent: {root}")
@@ -1078,9 +1086,8 @@ class CellAgent:
     log.warning(f"[AGENT] bootstrap completed: {agent.cell}@{agent.uvn_id} [{agent.root}]")
 
     if system:
-      log.warning(f"[AGENT] the following steps are required to start the agent service:")
-      log.warning(f"[AGENT] - reload systemctl configuration: `systemctl daemon-reload`")
-      log.warning(f"[AGENT] - start agent service: `service uvn start`")
+      log.warning(f"[AGENT] agent has been installed as a system service.")
+      log.warning(f"[AGENT] Use `systemctl start uvn` to start it.")
     return agent
 
 
