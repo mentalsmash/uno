@@ -49,7 +49,9 @@ sudo apt install \
   iputils-ping \
   tar \
   qrencode \
-  git 
+  git \
+  lighttpd \
+  openssl
 ```
 
 After installing the system dependencies, you can install **uno** from
@@ -57,10 +59,24 @@ this git repository:
 
 ```sh
 git clone https://github.com/mentalsmash/uno
+
+# Install uno as root if you plan on running an agent on the host.
+# uno must be installed in the system packages if you plan on
+# deploying the agent as a service.
+# You can use a virtual environment if you are going to start the
+# agent manually
+sudo pip install ./uno
+
+# Alternatively, you can install uno as a regular user if you plan
+# on using the host only to manage the UVN's registry,
+# A virtual environment installation is recommended in this case.
+python3 -m venv -m uno-venv
+. ./uno-venv/bin/activate
 pip install ./uno
 ```
 
-**uno**'s agents use the RTI Connext DDS Python API, which requires a valid RTI license file. [You can request a free evaluation license from the RTI website](https://www.rti.com/free-trial).
+**uno**'s agents use the RTI Connext DDS Python API, which requires a valid RTI license file.
+[You can request a free evaluation license from the RTI website](https://www.rti.com/free-trial).
 
 ### Docker Agent
 
@@ -82,9 +98,10 @@ the `Dockerfile` included in this repository:
    ```
 
 3. Deploy agents using the generated image. The containers must be
-   created with "privileged" credentials in order to be able to manipulate
-   the host's network stack. You will also need to pass a valid
-   RTI Connext DDS license file.
+   created with root credentials in order to be able to manipulate
+   the host's network stack. The agent directory will be mounted
+   as a volume, and it must have been initialized using
+   `uvn cell bootstrap`.
 
    Example invocation:
 
@@ -97,22 +114,67 @@ the `Dockerfile` included in this repository:
      uno:latest
    ```
 
-## UVN Setup
+## UVN Howto
 
-1. Create a new UVN registry:
+1. Create a new UVN registry.
+
+   At a minimum, you must specify a name for the UVN, and the identity of the UVN's
+   administrator.
+
+   An RTI license file must be specified, and it will be copied in the registry's
+   directory, so that it can be later included in agent bundles.
+
+   The UVN registry must be initialized in an empty (or non-existent) directory,
+   and it is created using command `uvn registry init`:
 
    ```sh
-   mkdir my-uvn
+   # make sure the directory doesn't exist
+   rm -rf my-uvn
 
-   cd my-uvn
-
+   # initialize the UVN registry
    uvn registry init \
+     -r my-uvn \
      -n my-uvn \
      -A "John Doe <john@example.com>" \
      -L /path/to/rti_license.dat
+  
+   # check the generated directory
+   ls -l my-uvn/
    ```
 
-2. Define two or more UVN "cells", one for every agent:
+2. Define one or more UVN "cells".
+
+   Each cell represents an agent that will be
+   deployed to an host to attach one or more LANs to the UVN.
+
+   Every cell must be assigned a unique name, and it will be assigned
+   a numerical id in order of registration (starting with 1).
+
+   A cell may be assigned a public address which will be used by
+   other nodes to establish VPN connection.
+
+   If a cell doesn't have a public address, uno will assume the agent
+   is deployed behind a NAT, and it will configure it to connect
+   to other cells that are publicly reachable. Privately deployed
+   cells will not be available for particle connections.
+
+   In order to be deployed, a UVN requires at least one public cell.
+
+   Every cell must be configured with list of local networks they
+   will be attaching to the UVN. This allows uno to validate the UVN's
+   configuration by checking that no conflicts will be present in
+   the unified routing domain.
+
+   The list will also be used by each
+   agent to filter their active network interface, and only announce
+   relevant ones to the routing domain.
+
+   An agent will fail to start if it can't detect the expected networks.
+
+   If an agent's cell has an empty list of networks, the agent will operate
+   in "roaming" mode, and only act as an additional router for the UVN.
+
+   Cells are added with command `uvn registry add-cell`:
 
    ```sh
    uvn registry add-cell \
@@ -128,12 +190,23 @@ the `Dockerfile` included in this repository:
 
    # ...
 
-   uvn registry add-cell \
-     --name cloud \
-     --address cloud.my-organization.org
    ```
 
-3. Optionally, define one or more UVN "particles", one for mobile user:
+3. Optionally, define one or more UVN "particles".
+
+   Each particle represents a mobile user that is authorized to connect to the UVN
+   through any of the publicly reachable cells with an active Particle VPN port.
+
+   uno will generate a set of WireGuard configurations for every particle,
+   one for every cell the particle can connect to.
+
+   The configurations can be easily imported into mobile WireGuard clients using QR codes.
+
+   Once connected, all traffic will be forwarded through the VPN link, allowing the
+   particle to access all of the UVN's hosts, but also to reach the public Internet's through the
+   cell's local gateway.
+
+   Particle are registered using command `uvn registry add-particle`:
 
    ```sh
    uvn registry add-particle --name john
@@ -141,129 +214,95 @@ the `Dockerfile` included in this repository:
    uvn registry add-particle --name jane --owner "Jane Doe <jane@example.com"
    ```
 
-4. Generate a deployment configuration for the UVN:
+4. Generate a deployment configuration for the UVN.
+
+   A deployment configuration defines the "backbone" links that the UVN agents will
+   be establish between each other to carry out the routing protocol.
+
+   These links are generated using one of the available strategies:
+
+   - *crossed*: default strategy. Public cells are ordered in a "circular buffer", and they are
+     assigned up to 3 backbone links between them: the cells before them, the cell after them, and
+     the cell across them (this last one is skipped for the last cell, if odd numbered).
+     Private cells are evenly divided between each public cell (which are assigned an additional
+     backbone link for every private cell). Each private cell has a single backbone link to its
+     assigned public cell.
+
+   - *circular*: similar to *crossed*, but it only assigns 2 links to public cells (the previous
+     and the following).
+
+   - *full-mesh*: allocate a full mesh of backbone connection between all cells. Every cell will be
+     connected to every other cell with a public address.
+
+   - *static*: specify a static configuration. The configuration is specified as a dictionary mapping
+     each cell to its peers. 
+  
+   - *random*: experimental strategy which tries to build a fully routed, redudant graph between cells
+     by randomly exploring it. The algorithm will allocate up to "# of cells" links for every
+     public cell, and up to 2 backbone links for every private cell. The algorithm is quite naive, and
+     it may fail to generate a valid graph.
+
+   The deployment configuration is generated (or updated) using command `uvn registry deploy`:
 
    ```sh
    uvn registry deploy
    ```
 
-5. Copy each agent's configuration file to the host where it should be deployed using a secure
-   method, e.g.:
+   The command will generate a new configuration and save it to disk.
+
+   When using the *static* strategy, the deployment configuration must be passed with argument `--deployment-args`,
+   as the path to a YAML file or as an inline YAML string, e.g.:
 
    ```sh
+   uvn registry deploy -S static -D "{1: [2], 2: [3, 1], 3: [2, 4], 4: [3]}"
+   ```
+
+5. Generate agent bundles and deploy them to each agent's target host.
+
+   Command `uvn registry generate-agents` will create a `*.uvn-agent` file for every cell agent,
+   under directory `<registry-root>/cells/`.
+
+   These bundles must be securely copied to the hosts where each agent is to be deployed.
+
+   Once copied, the bundles can be extracted using command `uvn cell bootstrap`, which
+   will initialize the agent's root directory and allow the agent to be deployed on the host.
+
+   The installation can be performed using the `--system` flag to install the agent as a system
+   service
+
+   For example:
+
+   ```sh
+   # Copy agent bundle to target host.
    scp cells/lan-a.uvn-agent lan-a-agent-host:~/
 
-   scp cells/lan-b.uvn-agent lan-b-agent-host:~/
+   # Log into the target host.
+   ssh lan-a-agent-host
 
-   scp cells/lan-c.uvn-agent lan-c-agent-host:~/
+   # Install the agent
+   sudo uvn cell bootstrap --system lan-a.uvn-agent
 
-   scp cells/lan-d.uvn-agent lan-d-agent-host:~/
+   # Delete the package
+   rm lan-a.uvn-agent
 
-   scp cells/cloud.uvn-agent cloud-agent-host:~/
+   # Reload systemd
+   sudo systemctl daemon-reload
+
+   # Start the agent
+   sudo systemctl start uvn
+
+   # Enable agent at boot
+   sudo systemctl enable uvn
    ```
 
-6. You can perform all of the above steps in an automated way using an input configuration file.
+6. Configure port forwarding to the agents of every public cell.
 
-   Create `uvn.yaml` with the following contents:
+   UVN agents use the following UDP ports:
 
-   ```yaml
-   name: my-uvn
-   owner: john@example.com
-   owner_name: John Doe
-   cells:
-   - name: lan-a
-     address: lan-a.my-organization.com
-   - name: lan-b
-     address: lan-b.my-organization.com
-   - name: lan-c
-     address: lan-c.my-organization.com
-   - name: lan-d
-     address: lan-d.my-organization.com
-   - name: cloud
-     address: cloud.my-organization.com
-   particles:
-   - name: john
-   - name: jane
-     owner: jane@example.com
-     owner_name: Jane Doe
-   ```
+   - `63448`: used by private cells to connect to the registry (e.g. to pull new configurations).
+   - `63449`: used by the registry node to connect to public cells (e.g. to push new configurations).
+   - `63550` - `63550 + N`: ports used to establish backbone links between cells. The exact number
+     depends on the deployment strategy used.
 
-   Then use it to initialize the UVN:
-
-   ```sh
-   uvn registry init \
-     -C uvn.yaml \
-     -L /path/to/rti_license.dat \
-     -r my-uvn/
-   ```
-
-   You can also use a Docker container:
-
-   ```sh
-   mkdir my-uvn
-   mv uvn.yaml my-uvn/
-
-   docker run --rm \
-     -v $(pwd)/my-uvn:/uvn \
-     -v $(pwd)/uvn.yaml:/uvn.yaml \
-     -e UVN_INIT=y \
-     uno:latest
-   ```
-
-7. Install the agent on each host, e.g.:
-
-   ```sh
-   ssh lan-a.my-organization.org
-
-   mkdir lan-a
-
-   cd lan-a
-   
-   uvn cell bootstrap ~/lan-a.uvn-agent
-   
-   rm ~/lan-a.yaml
-   ```
-
-8. Configure NAT port forwarding to each agent's host for the following TCP ports:
-
-   - `63550`: WireGuard interface to push configuration updates.
-   - `63450-63452`: WireGuard interfaces for backbone links between cells.
-   - `63449`: WireGuard interface for particle connections.
-
-   - Enable `ospfd` and `zebra`:
-
-     ```sh
-     sed -i -r 's/^(zebra|ospfd)=no$/\1=yes/g' /etc/frr/daemons
-     ```
-
-   - Enable IPv4 forwarding, e.g.:
-
-     ```sh
-     echo 1 > /proc/sys/net/ipv4/ip_forward
-     ```
-
-9. Configure static routes on the LAN's router to designate the agent's host
-   as the gateway for other LANs.
-
-10. Start the agent:
-
-    - Directly:
-
-      ```sh
-      cd lan-a/
-
-      uvn cell agent
-      ```
-
-    - Or using Docker:
-
-      ```sh
-      cd lan-a/
-
-      docker run \
-        --net host \
-        --privileged \
-        -v $(pwd):/uvn \
-        -e CELL_ID=lan-a \
-        uno:latest
-      ```
+7. Configure static routes on the LAN's router to designate the agent's host
+   as the gateway for other remote LANs.

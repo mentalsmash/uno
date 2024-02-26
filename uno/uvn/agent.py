@@ -14,6 +14,7 @@
 # You should have received a copy of the GNU Affero General Public License
 # along with this program. If not, see <https://www.gnu.org/licenses/>.
 ###############################################################################
+from functools import cached_property
 import rti.connextdds as dds
 import shutil
 from pathlib import Path
@@ -90,21 +91,6 @@ class CellAgent:
     self.peers_tester = UvnPeersTester(self,
       max_test_delay=self.uvn_id.settings.timing_profile.tester_max_delay)
 
-    def _allowed_nic(nic: NicDescriptor) -> bool:
-      for allowed_lan in self.cell.allowed_lans:
-        if nic.address in allowed_lan:
-          return True
-      return False
-
-    self.lans = set() if self.roaming else {
-      LanDescriptor(nic=nic, gw=gw)
-      for nic in list_local_networks(skip=[
-        i.config.intf.name for i in self.vpn_interfaces
-      ]) if _allowed_nic(nic)
-        for gw in [ipv4_get_route(nic.subnet.network_address)]
-    }
-    
-
     self._services = AgentServices(peers=self.peers)
 
     self.www = UvnHttpd(self)
@@ -148,9 +134,26 @@ class CellAgent:
 
 
   @property
+  def lans(self) -> set[LanDescriptor]:
+    def _allowed_nic(nic: NicDescriptor) -> bool:
+      for allowed_lan in self.cell.allowed_lans:
+        if nic.address in allowed_lan:
+          return True
+      return False
+    if self.roaming:
+      return set()
+    return {
+      LanDescriptor(nic=nic, gw=gw)
+      for nic in list_local_networks(skip=[
+        i.config.intf.name for i in self.vpn_interfaces
+      ]) if _allowed_nic(nic)
+        for gw in [ipv4_get_route(nic.subnet.network_address)]
+    }
+
+
+  @property
   def roaming(self) -> bool:
     return len(self.cell.allowed_lans) == 0
-
 
 
   @property
@@ -469,13 +472,10 @@ class CellAgent:
         self.peers.updated_condition,
       ])
 
-    try:
-      self._services.start(
-        dds_config=dds_config,
-        lans=self.lans,
-        vpn_interfaces=self.vpn_interfaces)
-    except Exception as e:
-      raise RuntimeError(f"failed to start services, {self.rti_license}")
+    self._services.start(
+      dds_config=dds_config,
+      lans=self.lans,
+      vpn_interfaces=self.vpn_interfaces)
 
     self.router.start()
 

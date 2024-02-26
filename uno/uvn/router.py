@@ -103,16 +103,23 @@ class Router:
   def start(self) -> None:
     log.debug(f"[ROUTER] starting frrouting...")
     
-    
-    tmp_file_h = tempfile.NamedTemporaryFile()
-    tmp_file = Path(tmp_file_h.name)
-    tmp_file.write_text(self.frr_config)
-
+    # Make sure log directory exists and is writable
+    # TODO(asorbini) fix these ugly permissions
     self.log_dir.mkdir(parents=True, exist_ok=True)
     self.log_dir.chmod(0o777)
 
+    # Generate and install frr.conf
+    tmp_file_h = tempfile.NamedTemporaryFile()
+    tmp_file = Path(tmp_file_h.name)
+    tmp_file.write_text(self.frr_config)
     exec_command(["cp", tmp_file, self.FRR_CONF], root=True)
+    
+    # Make sure the required frr daemons are enabled
+    exec_command(["sed", "-i", "-r", r"s/^(zebra|ospfd)=no$/\1=yes/g", "/etc/frr/daemons"], root=True)
+
+    # (Re)start frr
     exec_command(["service", "frr", "restart"], root=True)
+
     log.activity(f"[ROUTER] started")
 
 
