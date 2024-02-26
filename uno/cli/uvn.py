@@ -599,4 +599,8 @@ def main():
   if cmd is None:
     raise RuntimeError("no command specified")
 
-  cmd(args)
+  try:
+    cmd(args)
+  except KeyboardInterrupt:
+    pass
+  
