@@ -132,6 +132,7 @@ class WireGuardInterfaceConfig:
     self.privkey = privkey
     self.address = address
     self.netmask = netmask
+    self.subnet = ipaddress.ip_network(f"{self.address}/{self.netmask}", strict=False)
     self.port = port
     self.endpoint = endpoint
 
@@ -220,9 +221,13 @@ class WireGuardConfig:
   def __init__(self,
       intf: WireGuardInterfaceConfig,
       peers: Sequence[WireGuardInterfacePeerConfig],
+      tunnel: bool=False,
+      tunnel_root: bool=False,
       generation_ts: Optional[str]=None) -> None:
     self.intf = intf
     self.peers = list(peers)
+    self.tunnel = tunnel
+    self.tunnel_root = tunnel_root
     self.generation_ts = generation_ts or Timestamp.now().format()
 
 
@@ -237,9 +242,15 @@ class WireGuardConfig:
       "intf": self.intf.serialize(),
       "peers": [p.serialize() for p in self.peers],
       "generation_ts": self.generation_ts,
+      "tunnel": self.tunnel,
+      "tunnel_root": self.tunnel_root,
     }
     if len(self.peers) == 0:
       del serialized["peers"]
+    if not self.tunnel:
+      del serialized["tunnel"]
+    if not self.tunnel_root:
+      del serialized["tunnel_root"]
     return serialized
 
 
@@ -251,12 +262,19 @@ class WireGuardConfig:
         WireGuardInterfacePeerConfig.deserialize(p)
           for p in serialized.get("peers", [])
       ],
+      tunnel=serialized.get("tunnel", False),
+      tunnel_root=serialized.get("tunnel_root", False),
       generation_ts=serialized["generation_ts"])
 
 
 class WireGuardInterface:
   WG_CONFIG = Templates.compile("""\
 [Interface]
+{% if tunnel and not tunnel_root %}
+Address = {{intf.address}}/32
+{% elif tunnel and tunnel_root and False %}
+Address = {{intf.subnet}}
+{% endif %}
 {% if intf.port %}
 ListenPort = {{intf.port}}
 {% endif %}
@@ -269,7 +287,9 @@ Endpoint = {{peer.endpoint}}
 {% endif %}
 PublicKey = {{peer.pubkey}}
 PresharedKey = {{peer.psk}}
-{% if peer.allowed -%}
+{% if tunnel and not tunnel_root %}
+AllowedIPs = 0.0.0.0/0
+{% elif peer. allowed %}
 AllowedIPs = {{peer.allowed}}
 {% endif %}
 {% if peer.keepalive -%}

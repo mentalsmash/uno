@@ -52,7 +52,7 @@ class CentralizedVpnConfig:
     self.keymat = keymat or CentralizedVpnKeyMaterial()
 
 
-  def generate(self) -> None:
+  def generate(self, tunnel: bool=False) -> None:
     self.keymat.assert_keys(self.peer_ids)
 
     vpn_base_ip = self.settings.base_ip
@@ -84,7 +84,9 @@ class CentralizedVpnConfig:
         for peer_id in self.peer_ids
           for peer_key, peer_psk in [self.keymat.get_peer_material(peer_id)]
             for peer_endpoint in [self.peer_endpoints.get(peer_id)]
-      ])
+      ],
+      tunnel=tunnel,
+      tunnel_root=True)
 
 
     self.peer_configs = {
@@ -113,7 +115,9 @@ class CentralizedVpnConfig:
             # that the peer will be behind NAT, and thus require the NAT mapping
             # to be kept valid for communication to be initiated by the server.
             keepalive=None if peer_endpoint else self.DEFAULT_KEEPALIVE)
-        ])
+        ],
+        tunnel=tunnel,
+        tunnel_root=False)
        for peer_id in self.peer_ids
           for peer_key, peer_psk in [self.keymat.get_peer_material(peer_id)]
             for peer_endpoint in [self.peer_endpoints.get(peer_id)]

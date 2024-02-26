@@ -102,7 +102,7 @@ class Registry:
         peer_ids=particle_ids,
         settings=self.uvn_id.settings.particles_vpn,
         keymat=existing_config.keymat if existing_config and not drop_keys else None)
-      particles_vpn.generate()
+      particles_vpn.generate(tunnel=True)
 
 
   def configure_backbone_vpn(self, drop_keys: bool=False) -> None:
