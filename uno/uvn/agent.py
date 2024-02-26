@@ -466,10 +466,13 @@ class CellAgent:
         self.peers.updated_condition,
       ])
 
-    self._services.start(
-      dds_config=dds_config,
-      lans=self.lans,
-      vpn_interfaces=self.vpn_interfaces)
+    try:
+      self._services.start(
+        dds_config=dds_config,
+        lans=self.lans,
+        vpn_interfaces=self.vpn_interfaces)
+    except Exception as e:
+      raise RuntimeError(f"failed to start services, {self.rti_license}")
 
     self.router.start()
 
@@ -1073,6 +1076,11 @@ class CellAgent:
     log.activity(f"[AGENT] loading imported agent: {root}")
     agent = CellAgent.load(root)
     log.warning(f"[AGENT] bootstrap completed: {agent.cell}@{agent.uvn_id} [{agent.root}]")
+
+    if system:
+      log.warning(f"[AGENT] the following steps are required to start the agent service:")
+      log.warning(f"[AGENT] - reload systemctl configuration: `systemctl daemon-reload`")
+      log.warning(f"[AGENT] - start agent service: `service uvn start`")
     return agent
 
 
