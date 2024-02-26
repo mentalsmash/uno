@@ -36,10 +36,7 @@ def write_particle_configuration(
   particle_cfg_file = output_dir / f"{output_filename}.wireguard"
   particle_qr_file = output_dir / f"{output_filename}.png"
   output_dir.mkdir(parents=True, exist_ok=True)
-  particle_cfg_file.write_text(
-    Templates.render(
-      WireGuardInterface.WG_CONFIG,
-      particle_vpn_config.serialize()))
+  particle_cfg_file.write_text(particle_vpn_config.contents)
   encode_qr_from_file(particle_cfg_file, particle_qr_file)
   return {particle_cfg_file, particle_qr_file}
 

@@ -1,5 +1,7 @@
 #!/bin/sh
 
+set -e
+
 ### BEGIN INIT INFO
 # Provides:          uvn
 # Required-Start:    $local_fs $remote_fs $network $syslog
@@ -12,7 +14,7 @@
 ### END INIT INFO
 
 PATH=/sbin:/bin:/usr/sbin:/usr/bin
-CONFIG_DIR=/etc/uvn/
+CONFIG_DIR=/etc/uvn
 NAME=uvn
 DESC="agent {{agent.cell.name}} for UVN {{agent.uvn_id.name}}"
 SCRIPTNAME=/etc/init.d/$NAME
@@ -88,10 +90,10 @@ frr_stop()
 uvn_start()
 {
   echo 1 > /proc/sys/net/ipv4/ip_forward
-  for nic in ${vpn_interfaces}; do
+  for nic in ${VPN_INTERFACES}; do
     vpn_start ${nic}
   done
-  for nic in ${lan_interfaces}; do
+  for nic in ${LAN_INTERFACES}; do
     lan_start ${nic}
   done
   frr_start
@@ -100,17 +102,17 @@ uvn_start()
 uvn_stop()
 {
   frr_stop
-  for nic in ${vpn_interfaces}; do
+  for nic in ${VPN_INTERFACES}; do
     vpn_stop ${nic}
   done
-  for nic in ${lan_interfaces}; do
+  for nic in ${LAN_INTERFACES}; do
     lan_stop ${nic}
   done
 }
 
 case "${1}" in
   start)
-    log_daemon_msg "Starting $DESC" $NAME
+    log_daemon_msg "Starting $DESC"
     if ! uvn_start; then
       log_end_msg 1
     else
@@ -118,7 +120,7 @@ case "${1}" in
     fi
     ;;
   stop)
-    log_daemon_msg "Stopping $DESC" $NAME
+    log_daemon_msg "Stopping $DESC"
     if ! uvn_stop; then
       log_end_msg 1
     else
