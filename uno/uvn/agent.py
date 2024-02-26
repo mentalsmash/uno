@@ -126,6 +126,9 @@ class CellAgent:
     self._fully_routed = False
     self._dirty = True
 
+    # Only enable HTTP server if requested
+    self.enable_www = False
+
 
   @property
   def vpn_interfaces(self) -> Sequence[WireGuardInterface]:
@@ -139,6 +142,7 @@ class CellAgent:
   @property
   def roaming(self) -> bool:
     return len(self.cell.allowed_lans) == 0
+
 
 
   @property
@@ -483,11 +487,12 @@ class CellAgent:
 
     # Start the internal web server on localhost
     # and on the VPN interfaces
-    self.www.start([
-      "localhost",
-      *(vpn.config.intf.address for vpn in self.vpn_interfaces),
-      *(l.nic.address for l in self.lans),
-    ])
+    if self.self.enable_www:
+      self.www.start([
+        "localhost",
+        *(vpn.config.intf.address for vpn in self.vpn_interfaces),
+        *(l.nic.address for l in self.lans),
+      ])
 
     self.peers.update_peer(self.peers.local_peer,
       status=UvnPeerStatus.ONLINE,
