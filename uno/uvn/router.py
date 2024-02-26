@@ -59,8 +59,8 @@ class Router:
     self.agent = agent
     self.log_dir = self.agent.root / "router-log"
 
-
-  def _frr_config(self) -> dict:
+  @property
+  def frr_config(self) -> str:
     def _frr_serialize_vpn(vpn: WireGuardInterface) -> dict:
       return {
         "name": vpn.config.intf.name,
@@ -71,7 +71,7 @@ class Router:
     # FRR configuration for cell agent
     #########################################################################
     static_routes = []
-    return {
+    ctx = {
       "timing": self.agent.uvn_id.settings.timing_profile,
       "message_digest_key": f"{self.agent.uvn_id.name}-{self.agent.deployment.generation_ts}",
       "hostname": self.agent.cell.address,
@@ -97,16 +97,16 @@ class Router:
       "router_id": str(self.agent.root_vpn.config.intf.address),
       "log_dir": self.log_dir,
     }
+    return Templates.render("router/frr.conf", ctx)
 
 
   def start(self) -> None:
     log.debug(f"[ROUTER] starting frrouting...")
     
-    frr_config_ctx = self._frr_config()
-    frr_config_str = Templates.render("router/frr.conf", frr_config_ctx)
+    
     tmp_file_h = tempfile.NamedTemporaryFile()
     tmp_file = Path(tmp_file_h.name)
-    tmp_file.write_text(frr_config_str)
+    tmp_file.write_text(self.frr_config)
 
     self.log_dir.mkdir(parents=True, exist_ok=True)
     self.log_dir.chmod(0o777)

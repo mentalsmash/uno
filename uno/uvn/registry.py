@@ -135,8 +135,15 @@ class Registry:
     else:
       keymat=None
       log.warning("[REGISTRY] generating keys for Backbone VPN")
+    # Inject all the attached networks as allowed ips
+    backbone_vpn_settings = BackboneVpnSettings.deserialize(
+      self.uvn_id.settings.backbone_vpn.serialize())
+    backbone_vpn_settings.allowed_ips = [
+      *backbone_vpn_settings.allowed_ips,
+      *(str(l) for c in self.uvn_id.cells.values() for l in c.allowed_lans),
+    ]
     self.backbone_vpn_config = P2PVpnConfig(
-      settings=self.uvn_id.settings.backbone_vpn,
+      settings=backbone_vpn_settings,
       peer_endpoints=peer_endpoints,
       keymat=keymat)
     self.deploy()

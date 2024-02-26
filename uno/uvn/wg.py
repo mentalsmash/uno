@@ -218,6 +218,33 @@ class WireGuardInterfacePeerConfig:
 
 
 class WireGuardConfig:
+  CONFIG_TEMPLATE = Templates.compile("""\
+[Interface]
+{% if tunnel and not tunnel_root %}
+Address = {{intf.address}}/32
+{% endif %}
+{% if intf.port %}
+ListenPort = {{intf.port}}
+{% endif %}
+PrivateKey = {{intf.privkey}}
+
+{% for peer in peers %}
+[Peer]
+{% if peer.endpoint %}
+Endpoint = {{peer.endpoint}}
+{% endif %}
+PublicKey = {{peer.pubkey}}
+PresharedKey = {{peer.psk}}
+{% if tunnel and not tunnel_root %}
+AllowedIPs = 0.0.0.0/0
+{% elif peer.allowed %}
+AllowedIPs = {{peer.allowed}}
+{% endif %}
+{% if peer.keepalive -%}
+PersistentKeepalive = {{peer.keepalive}}
+{% endif %}
+{% endfor %}
+""")
   def __init__(self,
       intf: WireGuardInterfaceConfig,
       peers: Sequence[WireGuardInterfacePeerConfig],
@@ -235,6 +262,12 @@ class WireGuardConfig:
     if not isinstance(other, WireGuardConfig):
       return False
     return self.generation_ts == other.generation_ts
+
+  @property
+  def contents(self) -> str:
+    return Templates.render(
+      self.CONFIG_TEMPLATE,
+      self.serialize())
 
 
   def serialize(self) -> dict:
@@ -268,33 +301,6 @@ class WireGuardConfig:
 
 
 class WireGuardInterface:
-  WG_CONFIG = Templates.compile("""\
-[Interface]
-{% if tunnel and not tunnel_root %}
-Address = {{intf.address}}/32
-{% endif %}
-{% if intf.port %}
-ListenPort = {{intf.port}}
-{% endif %}
-PrivateKey = {{intf.privkey}}
-
-{% for peer in peers %}
-[Peer]
-{% if peer.endpoint %}
-Endpoint = {{peer.endpoint}}
-{% endif %}
-PublicKey = {{peer.pubkey}}
-PresharedKey = {{peer.psk}}
-{% if tunnel and not tunnel_root %}
-AllowedIPs = 0.0.0.0/0
-{% elif peer.allowed %}
-AllowedIPs = {{peer.allowed}}
-{% endif %}
-{% if peer.keepalive -%}
-PersistentKeepalive = {{peer.keepalive}}
-{% endif %}
-{% endfor %}
-""")
 
   def __init__(self, config: WireGuardConfig):
     self.config = config
@@ -318,6 +324,7 @@ PersistentKeepalive = {{peer.keepalive}}
     self.delete()
     import time
     time.sleep(1)
+
 
 
   def create(self):
@@ -378,8 +385,7 @@ PersistentKeepalive = {{peer.keepalive}}
         prefix=f"{self.config.intf.name}-",
         suffix="-wgconf")
       wg_config = Path(tmp_file_h.name)
-      wg_config.write_text(
-        Templates.render(self.WG_CONFIG, self.config.serialize()))
+      wg_config.write_text(self.config.contents)
     except:
       raise WireGuardError(f"failed to generate configuration for wireguard interface: {self.config.intf.name}")
     # Disable and reset interface

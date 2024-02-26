@@ -367,7 +367,19 @@ class CellAgent:
       self._stop()
 
 
-  def _start(self) -> None:
+  def start(self) -> None:
+    self._services.start(
+      lans=self.lans,
+      vpn_interfaces=self.vpn_interfaces)
+    log.warning("[AGENT] UVN services started")
+
+
+  def stop(self) -> None:
+    self._services.stop()
+    log.warning("[AGENT] UVN services stopped")
+
+
+  def _start(self, dds: bool=False) -> None:
     log.activity("[AGENT] starting services...")
 
     # Pick the address of the first backbone port for every peer
@@ -1028,4 +1040,24 @@ class CellAgent:
     serialized = yaml.safe_load(config_file.read_text())
     agent = CellAgent.deserialize(serialized, root=root, **init_args)
     return agent
+
+
+  def generate_service(self, output_dir: Path) -> None:
+    output_dir.mkdir(parents=True, exist_ok=True)
+    svc_sh = output_dir / "etc/init.d/uvn"
+    svc_sh.parent.mkdir(parents=True, exist_ok=True)
+    svc_sh.write_text(Templates.render("service/uvn_service.sh", {
+      "agent": self,
+    }))
+    svc_sh.chmod(0o755)
+
+    frr_conf = output_dir / "etc/uvn/frr.conf"
+    frr_conf.parent.mkdir(parents=True, exist_ok=True)
+    frr_conf.write_text(self.router.frr_config)
+
+    for vpn in self.vpn_interfaces:
+      vpn_cfg = output_dir / f"etc/uvn/wg-{vpn.config.intf.name}.conf"  
+      vpn_cfg.parent.mkdir(parents=True, exist_ok=True)
+      vpn_cfg.write_text(vpn.config.contents)
+
 

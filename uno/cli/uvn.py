@@ -226,6 +226,24 @@ def cell_agent(args):
     if args.max_run_time >= 0 else None)
 
 
+def cell_install_service(args):
+  root = args.root or Path.cwd()
+  agent = CellAgent.load(root)
+  agent.generate_service(root)
+
+
+def cell_start(args):
+  root = args.root or Path.cwd()
+  agent = CellAgent.load(root)
+  agent.start()
+
+
+def cell_stop(args):
+  root = args.root or Path.cwd()
+  agent = CellAgent.load(root)
+  agent.stop()
+
+
 def main():
   #############################################################################
   # define arguments parser
@@ -479,6 +497,34 @@ def main():
   subparsers_cell = cmd_cell.add_subparsers(help="Cell Commands")
 
   #############################################################################
+  # cell::bootstrap
+  #############################################################################
+  cmd_cell_bootstrap = subparsers_cell.add_parser("bootstrap",
+    help="Install a UVN cell agent.")
+  cmd_cell_bootstrap.set_defaults(cmd=cell_bootstrap)
+  registry_common_args(cmd_cell_bootstrap)
+
+  cmd_cell_bootstrap.add_argument("package",
+    help="Package file for the UVN cell agent.",
+    type=Path)
+
+  #############################################################################
+  # cell::start
+  #############################################################################
+  cmd_cell_start = subparsers_cell.add_parser("start",
+    help="Connect a cell to the UVN.")
+  cmd_cell_start.set_defaults(cmd=cell_start)
+  registry_common_args(cmd_cell_start)
+
+  #############################################################################
+  # cell::stop
+  #############################################################################
+  cmd_cell_stop = subparsers_cell.add_parser("stop",
+    help="Disconnect a cell from the UVN.")
+  cmd_cell_stop.set_defaults(cmd=cell_stop)
+  registry_common_args(cmd_cell_stop)
+
+  #############################################################################
   # cell::agent
   #############################################################################
   cmd_cell_agent = subparsers_cell.add_parser("agent",
@@ -498,16 +544,12 @@ def main():
     help="Start a webserver to serve the agent's status.")
 
   #############################################################################
-  # cell::bootstrap
+  # cell::install-service
   #############################################################################
-  cmd_cell_bootstrap = subparsers_cell.add_parser("bootstrap",
-    help="Install a UVN cell agent.")
-  cmd_cell_bootstrap.set_defaults(cmd=cell_bootstrap)
-  registry_common_args(cmd_cell_bootstrap)
-
-  cmd_cell_bootstrap.add_argument("package",
-    help="Package file for the UVN cell agent.",
-    type=Path)
+  cmd_cell_install_service = subparsers_cell.add_parser("install-service",
+    help="Install a UVN cell agent as a system service.")
+  cmd_cell_install_service.set_defaults(cmd=cell_install_service)
+  registry_common_args(cmd_cell_install_service)
 
 
   #############################################################################
