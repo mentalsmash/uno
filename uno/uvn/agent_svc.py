@@ -74,7 +74,7 @@ class AgentServices:
       vpns_up = vpn_interfaces if vpn_interfaces is not None else list(self._vpn_started)
       lans_nat = lans if lans is not None else list(self._lans_nat)
 
-      for vpn in vpns_nat
+      for vpn in vpns_nat:
         self._disable_vpn_nat(vpn)
       for vpn in vpns_up:
         vpn.stop()
