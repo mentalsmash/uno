@@ -79,6 +79,14 @@ class Registry:
         c.id: c.address
         for c in self.uvn_id.cells.values()
       }
+    if self.root_vpn_config and not drop_keys:
+      log.debug(f"[REGISTRY] preserving existing keys for Root VPN")
+      keymat = self.root_vpn_config.keymat
+    elif self.root_vpn_config and drop_keys:
+      log.warning(f"[REGISTRY] dropping existing keys for Root VPN")
+      keymat = None
+    else:
+      log.warning(f"[REGISTRY] generating keys for Particle VPN")
     self.root_vpn_config = CentralizedVpnConfig(
       root_endpoint=self.uvn_id.address
         if next((c for c in self.uvn_id.cells.values() if not c.address), None) else None,
@@ -94,23 +102,40 @@ class Registry:
 
   def configure_particles_vpns(self, drop_keys: bool=False) -> None:
     particle_ids = list(self.uvn_id.particles.keys())
-    self.particles_vpn_configs = {}
+    new_particles_vpn_configs = {}
     for cell in self.uvn_id.cells.values():
       existing_config = self.particles_vpn_configs.get(cell.id)
-      self.particles_vpn_configs[cell.id] = particles_vpn = CentralizedVpnConfig(
+      if existing_config and not drop_keys:
+        log.debug(f"[REGISTRY] preserving existing keys for Particle VPN: {cell}")
+        keymat = existing_config.keymat
+      elif existing_config and drop_keys:
+        log.warning(f"[REGISTRY] dropping existing keys for Particle VPN: {cell}")
+        keymat = None
+      else:
+        log.warning(f"[REGISTRY] generating keys for Particle VPN: {cell}")
+      new_particles_vpn_configs[cell.id] = particles_vpn = CentralizedVpnConfig(
         root_endpoint=cell.address,
         peer_ids=particle_ids,
         settings=self.uvn_id.settings.particles_vpn,
-        keymat=existing_config.keymat if existing_config and not drop_keys else None)
+        keymat=keymat)
       particles_vpn.generate(tunnel=True)
+    self.particles_vpn_configs = new_particles_vpn_configs
 
 
   def configure_backbone_vpn(self, drop_keys: bool=False) -> None:
     peer_endpoints = {c.id: c.address for c in self.uvn_id.cells.values()}
+    if self.backbone_vpn_config and not drop_keys:
+      log.debug("[REGISTRY] preserving existing keys for Backbone VPN")
+      keymat = self.backbone_vpn_config.keymat
+    elif self.backbone_vpn_config and drop_keys:
+      log.warning("[REGISTRY] dropping existing keys for Backbone VPN")
+      keymat = None
+    else:
+      log.warning("[REGISTRY] generating keys for Backbone VPN")
     self.backbone_vpn_config = P2PVpnConfig(
       settings=self.uvn_id.settings.backbone_vpn,
       peer_endpoints=peer_endpoints,
-      keymat=self.backbone_vpn_config.keymat if self.backbone_vpn_config and not drop_keys else None)
+      keymat=keymat)
     self.deploy()
 
 

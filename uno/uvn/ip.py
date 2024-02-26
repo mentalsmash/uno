@@ -204,42 +204,46 @@ def ipv4_disable_source_nat(nic, src_network):
         root=True)
 
 
-def ipv4_enable_output_nat(nic):
+def ipv4_enable_output_nat(nic, v6: bool=False):
+    iptables = "iptables6" if v6 else "iptables"
     exec_command([
-        "iptables", "-t", "nat", "-A", "POSTROUTING", "-o", str(nic), "-j", "MASQUERADE"],
+        iptables, "-t", "nat", "-A", "POSTROUTING", "-o", str(nic), "-j", "MASQUERADE"],
         root=True)
 
 
-def ipv4_disable_output_nat(nic, ignore_errors=False):
+def ipv4_disable_output_nat(nic, v6: bool=False, ignore_errors=False):
+    iptables = "iptables6" if v6 else "iptables"
     exec_command([
-        "iptables", "-t", "nat", "-D", "POSTROUTING", "-o", str(nic), "-j", "MASQUERADE"],
+        iptables, "-t", "nat", "-D", "POSTROUTING", "-o", str(nic), "-j", "MASQUERADE"],
         root=True,
         noexcept=ignore_errors)
 
 
-def ipv4_enable_forward(nic):
+def ipv4_enable_forward(nic, v6: bool=False):
+    iptables = "iptables6" if v6 else "iptables"
     exec_command(
-        ["iptables", "-A", "FORWARD", "-i", str(nic), "-j", "ACCEPT"],
+        [iptables, "-A", "FORWARD", "-i", str(nic), "-j", "ACCEPT"],
         root=True)
     exec_command(
-        ["iptables", "-A", "FORWARD", "-o", str(nic), "-j", "ACCEPT"],
+        [iptables, "-A", "FORWARD", "-o", str(nic), "-j", "ACCEPT"],
         root=True)
     exec_command(
-        ["iptables", "-A", "INPUT", "-i", str(nic), "-j", "ACCEPT"],
+        [iptables, "-A", "INPUT", "-i", str(nic), "-j", "ACCEPT"],
         root=True)
 
 
-def ipv4_disable_forward(nic, ignore_errors=False):
+def ipv4_disable_forward(nic, v6: bool=False, ignore_errors=False):
+    iptables = "iptables6" if v6 else "iptables"
     exec_command(
-        ["iptables", "-D", "FORWARD", "-i", str(nic), "-j", "ACCEPT"],
+        [iptables, "-D", "FORWARD", "-i", str(nic), "-j", "ACCEPT"],
         root=True,
         noexcept=ignore_errors)
     exec_command(
-        ["iptables", "-D", "FORWARD", "-o", str(nic), "-j", "ACCEPT"],
+        [iptables, "-D", "FORWARD", "-o", str(nic), "-j", "ACCEPT"],
         root=True,
         noexcept=ignore_errors)
     exec_command(
-        ["iptables", "-D", "INPUT", "-i", str(nic), "-j", "ACCEPT"],
+        [iptables, "-D", "INPUT", "-i", str(nic), "-j", "ACCEPT"],
         root=True,
         noexcept=ignore_errors)
 
@@ -248,6 +252,7 @@ def ipv4_enable_kernel_forwarding():
         ["echo", "1", ">", "/proc/sys/net/ipv4/ip_forward"],
         shell=True,
         fail_msg="failed to enable ipv4 forwarding")
+
 
 def ipv4_add_route_to_network(net_addr, net_nic, net_gw):
     exec_command(

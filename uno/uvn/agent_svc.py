@@ -25,6 +25,7 @@ from .ip import (
   ipv4_disable_forward,
   ipv4_disable_output_nat,
   ipv4_from_bytes,
+  ipv4_enable_kernel_forwarding,
   NicDescriptor,
   LanDescriptor,
 )
@@ -91,6 +92,10 @@ class AgentServices:
   def _enable_vpn_nat(self, vpn: WireGuardInterface) -> None:
     ipv4_enable_forward(vpn.config.intf.name)
     ipv4_enable_output_nat(vpn.config.intf.name)
+    # # For "tunnel" interfaces we must enable ipv6 too
+    # if vpn.config.tunnel_root:
+    #   ipv4_enable_forward(vpn.config.intf.name, v6=True)
+    #   ipv4_enable_output_nat(vpn.config.intf.name, v6=True)
     self._vpn_nat.append(vpn)
     log.debug(f"NAT ENABLED for VPN interface: {vpn}")
 
@@ -98,6 +103,10 @@ class AgentServices:
   def _disable_vpn_nat(self, vpn: WireGuardInterface, ignore_errors: bool=False) -> None:
     ipv4_disable_forward(vpn.config.intf.name, ignore_errors=ignore_errors)
     ipv4_disable_output_nat(vpn.config.intf.name, ignore_errors=ignore_errors)
+    # # For "tunnel" interfaces we must enable ipv6 too
+    # if vpn.config.tunnel_root:
+    #   ipv4_disable_forward(vpn.config.intf.name, v6=True, ignore_errors=ignore_errors)
+    #   ipv4_disable_output_nat(vpn.config.intf.name, v6=True, ignore_errors=ignore_errors)
     self._vpn_nat.remove(vpn)
     log.debug(f"NAT DISABLED for VPN: {vpn}")
 
