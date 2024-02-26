@@ -487,7 +487,7 @@ class CellAgent:
 
     # Start the internal web server on localhost
     # and on the VPN interfaces
-    if self.self.enable_www:
+    if self.enable_www:
       self.www.start([
         "localhost",
         *(vpn.config.intf.address for vpn in self.vpn_interfaces),
