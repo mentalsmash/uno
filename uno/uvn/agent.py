@@ -129,6 +129,9 @@ class CellAgent:
     # Only enable HTTP server if requested
     self.enable_www = False
 
+    # Only enable Systemd support on request
+    self.enable_systemd = False
+
 
   @property
   def rti_license(self) -> Path:
@@ -386,7 +389,7 @@ class CellAgent:
     log.warning("[AGENT] UVN services stopped")
 
 
-  def _start(self, dds: bool=False) -> None:
+  def _start(self, boot: bool=False) -> None:
     log.activity("[AGENT] starting services...")
 
     # Pick the address of the first backbone port for every peer
@@ -540,6 +543,14 @@ class CellAgent:
     self._on_agent_state_changed()
 
     log.activity("[AGENT] started")
+
+    # Notify systemd upon boot, if enabled
+    if boot and self.enable_systemd:
+      log.debug("[AGENT] notifying systemd")
+      import sdnotify
+      notifier = sdnotify.SystemdNotifier()
+      notifier.notify("READY=1")
+      log.debug("[AGENT] systemd notified")
 
 
   def _stop(self) -> None:

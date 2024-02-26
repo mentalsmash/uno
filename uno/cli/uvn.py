@@ -568,6 +568,11 @@ def main():
     action="store_true",
     help="Start a webserver to serve the agent's status.")
 
+  cmd_cell_bootstrap.add_argument("-s", "--system",
+    help="Start the agent with support for Systemd. Used when the agent is installed as a service.",
+    default=False,
+    action="store_true")
+
   #############################################################################
   # cell::install-service
   #############################################################################
