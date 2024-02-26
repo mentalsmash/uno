@@ -993,7 +993,7 @@ class CellAgent:
       log.warning(f"[AGENT] bootstrap system agent from package {package} to {root}")
       if root.is_dir():
         log.warning(f"[AGENT] replacing existing system agent")
-        root.unlink()
+        shutil.rmtree(root)
 
     package = package.resolve()
 
