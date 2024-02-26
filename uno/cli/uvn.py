@@ -233,6 +233,8 @@ def cell_agent(args):
   root = args.root or Path.cwd()
   agent = CellAgent.load(root)
   agent.enable_www = args.www
+  import os
+  os.environ["NDDSHOME"] = str(agent.root)
   agent.spin(
     max_spin_time=args.max_run_time
     if args.max_run_time >= 0 else None)
