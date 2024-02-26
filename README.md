@@ -235,7 +235,7 @@ the `Dockerfile` included in this repository:
      connected to every other cell with a public address.
 
    - *static*: specify a static configuration. The configuration is specified as a dictionary mapping
-     each cell to its peers. 
+     each cell to its peers.
   
    - *random*: experimental strategy which tries to build a fully routed, redudant graph between cells
      by randomly exploring it. The algorithm will allocate up to "# of cells" links for every

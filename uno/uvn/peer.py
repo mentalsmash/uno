@@ -279,6 +279,10 @@ class UvnPeersList:
         peer.cell = cell
         peer.local = self.local_peer.cell == cell
       except KeyError:
+        peer = None
+      except IndexError:
+        peer = None
+      if not peer:
         peer = UvnPeer(uvn_id=uvn_id, cell=cell)
       peers.append(peer)
 
