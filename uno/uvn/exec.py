@@ -57,7 +57,7 @@ def exec_command(
     raise RuntimeError(
       "failed to execute command" if fail_msg is None else fail_msg,
       cmd_args,
-      result.stdout.decode("utf-8"),
-      result.stderr.decode("utf-8"))
+      result.stdout.decode("utf-8") if result.stdout else "",
+      result.stderr.decode("utf-8") if result.stderr else "")
 
   return result

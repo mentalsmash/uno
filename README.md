@@ -231,6 +231,18 @@ the `Dockerfile` included in this repository:
    - `63450-63452`: WireGuard interfaces for backbone links between cells.
    - `63449`: WireGuard interface for particle connections.
 
+   - Enable `ospfd` and `zebra`:
+
+     ```sh
+     sed -i -r 's/^(zebra|ospfd)=no$/\1=yes/g' /etc/frr/daemons
+     ```
+
+   - Enable IPv4 forwarding, e.g.:
+
+     ```sh
+     echo 1 > /proc/sys/net/ipv4/ip_forward
+     ```
+
 9. Configure static routes on the LAN's router to designate the agent's host
    as the gateway for other LANs.
 

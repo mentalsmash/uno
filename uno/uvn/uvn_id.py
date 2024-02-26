@@ -346,6 +346,11 @@ class UvnSettings:
     return self._timing_profile
 
 
+  @timing_profile.setter
+  def timing_profile(self, val: TimingProfile) -> None:
+    self._timing_profile = val
+
+
   @property
   def enable_particles_vpn(self) -> bool:
     if self._enable_particles_vpn is None:
@@ -353,11 +358,21 @@ class UvnSettings:
     return self._enable_particles_vpn
 
 
+  @enable_particles_vpn.setter
+  def enable_particles_vpn(self, val: bool) -> None:
+    self._enable_particles_vpn = val
+
+
   @property
   def enable_root_vpn(self) -> bool:
     if self._enable_root_vpn is None:
       return self.DEFAULT_ENABLE_ROOT_VPN
     return self._enable_root_vpn
+
+
+  @enable_root_vpn.setter
+  def enable_root_vpn(self, val: bool) -> None:
+    self._enable_root_vpn = val
 
 
   def serialize(self) -> dict:

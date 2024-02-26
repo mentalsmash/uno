@@ -86,6 +86,7 @@ class Registry:
       log.warning(f"[REGISTRY] dropping existing keys for Root VPN")
       keymat = None
     else:
+      keymat = None
       log.warning(f"[REGISTRY] generating keys for Particle VPN")
     self.root_vpn_config = CentralizedVpnConfig(
       root_endpoint=self.uvn_id.address
@@ -96,7 +97,7 @@ class Registry:
       },
       peer_ids=self.uvn_id.cells.keys(),
       settings=self.uvn_id.settings.root_vpn,
-      keymat=self.root_vpn_config.keymat if self.root_vpn_config and not drop_keys else None)
+      keymat=keymat)
     self.root_vpn_config.generate()
 
 
@@ -112,6 +113,7 @@ class Registry:
         log.warning(f"[REGISTRY] dropping existing keys for Particle VPN: {cell}")
         keymat = None
       else:
+        keymat = None
         log.warning(f"[REGISTRY] generating keys for Particle VPN: {cell}")
       new_particles_vpn_configs[cell.id] = particles_vpn = CentralizedVpnConfig(
         root_endpoint=cell.address,
@@ -131,6 +133,7 @@ class Registry:
       log.warning("[REGISTRY] dropping existing keys for Backbone VPN")
       keymat = None
     else:
+      keymat=None
       log.warning("[REGISTRY] generating keys for Backbone VPN")
     self.backbone_vpn_config = P2PVpnConfig(
       settings=self.uvn_id.settings.backbone_vpn,

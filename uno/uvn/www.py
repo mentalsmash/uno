@@ -14,14 +14,16 @@
 # You should have received a copy of the GNU Affero General Public License
 # along with this program. If not, see <https://www.gnu.org/licenses/>.
 ###############################################################################
+import time
 from functools import partial
 import os
 from pathlib import Path
-from tempfile import TemporaryDirectory
+from tempfile import TemporaryDirectory, NamedTemporaryFile
 import shutil
 import json
 from typing import TYPE_CHECKING, Iterable
 import threading
+import subprocess
 
 from .data import www as www_data
 from importlib.resources import as_file, files
@@ -30,6 +32,7 @@ import yaml
 
 from .render import Templates
 from .time import Timestamp
+from .exec import exec_command
 
 if TYPE_CHECKING:
   from .agent import CellAgent
@@ -38,14 +41,42 @@ from .log import Logger as log
 from http.server import SimpleHTTPRequestHandler, HTTPServer
 
 class UvnHttpd:
+  LIGHTTPD_CONF_TEMPLATE = """\
+server.document-root = "{{fakeroot}}"
+server.pid-file = "{{pid_file}}"
+server.port = {{port + 1}}
+{% for addr in addresses -%}
+{%- if addr == "localhost" -%}
+$HTTP["host"]
+{%- else -%}
+$SERVER["socket"]
+{%- endif %} == "{{addr}}:{{port}}" {
+server.document-root = "{{root}}"
+server.errorlog = "{{log_dir}}/lighttpd.{{addr}}.error.log"
+accesslog.filename = "{{log_dir}}/lighttpd.{{addr}}.access.log"
+}
+{% endfor %}
+index-file.names = ( "index.html" )
+mimetype.assign = (
+  ".html" => "text/html", 
+  ".txt" => "text/plain",
+  ".jpg" => "image/jpeg",
+  ".png" => "image/png" 
+)
+"""
+
   def __init__(self, agent: "CellAgent"):
     self.agent = agent
     self.min_update_delay = self.agent.uvn_id.settings.timing_profile.status_min_delay
     self.root = self.agent.root / "www"
+    self.port = 8080
     self._http_servers = {}
     self._http_threads = {}
     self._last_update_ts = None
     self._dirty = True
+    self._lighttpd_pid = None
+    self._lighttpd_conf = self.agent.root / "lighttpd.conf"
+    self._fakeroot = None
 
 
   def update(self) -> None:
@@ -103,44 +134,133 @@ class UvnHttpd:
 
 
   def start(self, addresses: Iterable[str]) -> None:
-    raise NotImplementedError()
+    if self._lighttpd_pid is not None:
+      raise RuntimeError("httpd already started")
 
-    assert(not self._http_servers)
+    addresses = list(addresses)
+    lighttpd_started = False
+    try:
+      self._lighttpd_pid = self._lighttpd_conf.parent / "lighttpd.pid"
 
-    port = 8080
+      self._fakeroot = TemporaryDirectory()
 
-    def _http_thread(server, address):
-      try:
-        log.warning(f"[HTTPD] now serving {address}:{port}")
-        with server:
-          server.serve_forever()
-      except Exception as e:
-        log.error(f"[HTTPD] error in thread serving {address}:{port}")
-        log.exception(e)
-        raise e
+      conf_tmplt = Templates.compile(self.LIGHTTPD_CONF_TEMPLATE)
+      conf = Templates.render(conf_tmplt, {
+        "root": self.root,
+        "port": self.port,
+        "addresses": addresses,
+        "pid_file": self._lighttpd_pid,
+        "log_dir": self.agent.log_dir,
+        "fakeroot": Path(self._fakeroot.name),
+      })
+      self._lighttpd_conf.parent.mkdir(parents=True, exist_ok=True)
+      self._lighttpd_conf.write_text(conf)
 
-    self._http_servers = {
-      a: HTTPServer((str(a), port),
-        partial(SimpleHTTPRequestHandler,
-          directory=self.root))
-        for a in addresses
-    }
+      # Delete pid file if it exists
+      if self._lighttpd_pid.is_file():
+        self._lighttpd_pid.unlink()
 
-    self._http_threads = {
-      a: threading.Thread(
-        target=_http_thread,
-        args=[self._http_servers[a], a])
-      for a in addresses
-    }
-    for t in self._http_threads:
-      t.start()
+      # Make sure that required directories exist
+      self.root.mkdir(parents=True, exist_ok=True)
+      self._lighttpd_pid.parent.mkdir(parents=True, exist_ok=True)
+      
+      # Start lighttpd in daemon mode
+      log.debug(f"[WWW] starting lighttpd...")
+      # exec_command(["lighttpd", "-D", "-f", self._lighttpd_conf],
+      #   fail_msg="failed to start lighttpd")
+      self._lighttpd = subprocess.Popen(["lighttpd", "-D", "-f", self._lighttpd_conf])
+      lighttpd_started = True
+
+      # Wait for lighttpd to come online and
+      max_wait = 5
+      pid = None
+      for i in range(max_wait):
+        log.debug("[WWW] waiting for lighttpd to come online...")
+        if self._lighttpd_pid.is_file():
+          try:
+            pid = int(self._lighttpd_pid.read_text())
+            break
+          except:
+            continue
+        time.sleep(1)
+      if pid is None:
+        raise RuntimeError("failed to detect lighttpd process")
+      log.debug(f"[WWW] lighttpd started: pid={pid}")
+      log.activity(f"[WWW] listening on port {self.port} of {len(addresses)} interfaces: {', '.join(map(str, addresses))}]")
+    except Exception as e:
+      self._lighttpd_pid = None
+      self._lighttpd = None
+      log.error("failed to start lighttpd")
+      log.exception(e)
+      if lighttpd_started:
+        # lighttpd was started by we couldn't detect its pid
+        log.error("[WWW] lighttpd process was started but possibly not stopped. Please check your system.")
+      raise e
 
 
   def stop(self) -> None:
-    if self._http_servers:
-      for s in self._http_servers.values():
-        s.shutdown()
-      for t in self._http_threads.values():
-        t.join()
-      self._http_servers = {}
-      self._http_threads = {}
+    if self._lighttpd_pid is None:
+      # Not started
+      return
+
+    lighttpd_stopped = False
+    try:
+      pid = int(self._lighttpd_pid.read_text())
+      log.debug(f"[WWW] stopping lighttpd: pid={pid}")
+      exec_command(["kill", "-s", "SIGTERM", str(pid)],
+        fail_msg="failed to signal lighttpd process")
+      # TODO(asorbini) check that lighttpd actually stopped
+      time.sleep(1)
+      lighttpd_stopped = True
+    except Exception as e:
+      if lighttpd_stopped:
+        log.error(f"[WWW] failed to stop lighttpd. Please check your system.")
+      raise e
+    finally:
+      self._lighttpd_pid = None
+      self._lighttpd = None
+      self._fakeroot = None
+      log.activity(f"[WWW] stopped")
+
+
+
+  # def start(self, addresses: Iterable[str]) -> None:
+  #   assert(not self._http_servers)
+
+  #   port = 8080
+
+  #   def _http_thread(server, address):
+  #     try:
+  #       log.warning(f"[HTTPD] now serving {address}:{port}")
+  #       with server:
+  #         server.serve_forever()
+  #     except Exception as e:
+  #       log.error(f"[HTTPD] error in thread serving {address}:{port}")
+  #       log.exception(e)
+  #       raise e
+
+  #   self._http_servers = {
+  #     a: HTTPServer((str(a), port),
+  #       partial(SimpleHTTPRequestHandler,
+  #         directory=self.root))
+  #       for a in addresses
+  #   }
+
+  #   self._http_threads = {
+  #     a: threading.Thread(
+  #       target=_http_thread,
+  #       args=[self._http_servers[a], a])
+  #     for a in addresses
+  #   }
+  #   for t in self._http_threads:
+  #     t.start()
+
+
+  # def stop(self) -> None:
+  #   if self._http_servers:
+  #     for s in self._http_servers.values():
+  #       s.shutdown()
+  #     for t in self._http_threads.values():
+  #       t.join()
+  #     self._http_servers = {}
+  #     self._http_threads = {}

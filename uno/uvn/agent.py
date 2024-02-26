@@ -483,10 +483,10 @@ class CellAgent:
 
     # Start the internal web server on localhost
     # and on the VPN interfaces
-    # self.www.start([
-    #   "localhost",
-    #   *(vpn.config.intf.address for vpn in self.vpn_interfaces),
-    # ])
+    self.www.start([
+      "localhost",
+      *(vpn.config.intf.address for vpn in self.vpn_interfaces),
+    ])
 
     self.peers.update_peer(self.peers.local_peer,
       status=UvnPeerStatus.ONLINE,
@@ -515,7 +515,7 @@ class CellAgent:
       status=UvnPeerStatus.OFFLINE,
       routed_sites=[])
     # TODO(asorbini) re-enable httpd server
-    # self.www.stop()
+    self.www.stop()
     self.peers_tester.stop()
     # TODO(asorbini) re-enable ns server
     # self.ns.stop()

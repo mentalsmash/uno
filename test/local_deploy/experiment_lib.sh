@@ -232,6 +232,7 @@ uvn_create()
     (
         set -x
         ${UVN} registry init \
+            -n ${uvn_address} \
             -a ${uvn_address} \
             -A "${uvn_admin_name} <${uvn_admin}>" \
             -r ${UVN_DIR} \

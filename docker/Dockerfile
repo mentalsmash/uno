@@ -25,10 +25,10 @@ RUN export DEBIAN_FRONTEND="noninteractive" \
       gnupg2 \
       wireguard-dkms \
       wireguard-tools \
-      dnsmasq \
       frr \
       qrencode \
       iputils-ping \
+      lighttpd \
       $([ -z "${INSTALL_EXTRA_PACKAGES}" ] || \
         echo \
           rng-tools \
@@ -42,6 +42,7 @@ RUN export DEBIAN_FRONTEND="noninteractive" \
           tcpdump \
           curl \
           elinks \
+          net-tools \
       ) \
     && apt-get clean
 

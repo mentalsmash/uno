@@ -272,8 +272,6 @@ class WireGuardInterface:
 [Interface]
 {% if tunnel and not tunnel_root %}
 Address = {{intf.address}}/32
-{% elif tunnel and tunnel_root and False %}
-Address = {{intf.subnet}}
 {% endif %}
 {% if intf.port %}
 ListenPort = {{intf.port}}
@@ -289,7 +287,7 @@ PublicKey = {{peer.pubkey}}
 PresharedKey = {{peer.psk}}
 {% if tunnel and not tunnel_root %}
 AllowedIPs = 0.0.0.0/0
-{% elif peer. allowed %}
+{% elif peer.allowed %}
 AllowedIPs = {{peer.allowed}}
 {% endif %}
 {% if peer.keepalive -%}
