@@ -1,0 +1,9 @@
+[Unit]
+Description=uno agent to connect a cell to a UVN.
+
+[Service]
+Type=simple
+ExecStart=/usr/local/bin/uvn cell agent -W -r /etc/uvn -vv
+
+[Install]
+WantedBy=multi-user.target
