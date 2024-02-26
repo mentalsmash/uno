@@ -205,12 +205,12 @@ mimetype.assign = (
 
     lighttpd_stopped = False
     try:
-      pid = int(self._lighttpd_pid.read_text())
-      log.debug(f"[WWW] stopping lighttpd: pid={pid}")
-      exec_command(["kill", "-s", "SIGTERM", str(pid)],
-        fail_msg="failed to signal lighttpd process")
+      if self._lighttpd_pid.is_file():
+        pid = int(self._lighttpd_pid.read_text())
+        log.debug(f"[WWW] stopping lighttpd: pid={pid}")
+        exec_command(["kill", "-s", "SIGTERM", str(pid)],
+          fail_msg="failed to signal lighttpd process")
       # TODO(asorbini) check that lighttpd actually stopped
-      time.sleep(1)
       lighttpd_stopped = True
     except Exception as e:
       log.error(f"[WWW] error while stopping:")
