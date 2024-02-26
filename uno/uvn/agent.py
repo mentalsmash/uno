@@ -331,7 +331,8 @@ class CellAgent:
       if self._reload_config:
         new_config = self._reload_config
         self._reload_config = None
-        self.reload(new_config)
+        # Parse/save/load new configuration
+        self.reload(new_config, save_to_disk=True)
       if self._dirty:
         self._write_cell_info()
         self._regenerate_plots()
@@ -716,7 +717,7 @@ class CellAgent:
     _write_output(output_file, unreachable)
 
 
-  def reload(self, new_config: dict) -> bool:
+  def reload(self, new_config: dict, save_to_disk: bool=False) -> bool:
     log.activity("[AGENT] parsing received configuration")
     updated_agent = CellAgent.deserialize(new_config, self.root)
     updaters = []
@@ -764,6 +765,9 @@ class CellAgent:
       log.activity(f"[AGENT] peforming updates...")
       for updater in updaters:
         updater()
+      # Save configuration to disk if requested
+      if save_to_disk:
+        self.save_to_disk()
       log.activity(f"[AGENT] restarting services with new configuration...")
       self._start()
       log.warning(f"[AGENT] new configuration loaded: uvn_id={self.uvn_id.generation_ts}, root_vpn={self.root_vpn_config.generation_ts}, particles_vpn={self.particles_vpn_config.root_config.generation_ts}, backbone={self.deployment.generation_ts}")
