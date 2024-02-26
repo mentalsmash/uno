@@ -187,7 +187,7 @@ class UvnPeersTester:
   # @staticmethod
   def run(self) -> None:
     try:
-      log.activity("[LAN] tester started")
+      log.debug("[LAN] tester started")
       while self._active:
         self._trigger_sem.acquire(timeout=self.max_test_delay)
         with self._state_lock:
@@ -252,7 +252,7 @@ class UvnPeersTester:
       log.error(f"[LAN] exception in tester thread:")
       log.exception(e)
       raise e
-    log.activity("[LAN] tester stopped")
+    log.debug("[LAN] tester stopped")
 
 
   def _ping_test(self, peer_status: UvnPeerLanStatus) -> bool:
@@ -261,7 +261,7 @@ class UvnPeersTester:
         ["ping", "-w", str(self.DEFAULT_PING_LEN),"-c", str(self.DEFAULT_PING_COUNT), str(peer_status.lan.gw)],
         noexcept=True)
     result = result.returncode == 0
-    log.activity(f"[LAN] PING {'OK' if result else 'FAILED'}: {peer_status}")
+    log.debug(f"[LAN] PING {'OK' if result else 'FAILED'}: {peer_status}")
     return result
   
 

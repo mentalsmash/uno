@@ -3,7 +3,7 @@ Description=uno agent to connect a cell to a UVN.
 
 [Service]
 Type=simple
-ExecStart=/usr/local/bin/uvn cell agent -W -r /etc/uvn -vv
+ExecStart=/usr/local/bin/uvn cell agent -W -r /etc/uvn -v
 
 [Install]
 WantedBy=multi-user.target

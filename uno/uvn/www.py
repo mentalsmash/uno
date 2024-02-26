@@ -155,7 +155,7 @@ mimetype.assign = (
         shutil.rmtree(particles_dir_www)
       shutil.copytree(particles_dir, particles_dir_www)
 
-    log.activity("[WWW] agent status updated")
+    log.debug("[WWW] agent status updated")
 
 
   def start(self, addresses: Iterable[str]) -> None:
