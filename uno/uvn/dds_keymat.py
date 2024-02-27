@@ -273,7 +273,7 @@ class DdsKeyMaterial:
         self.governance.unlink()
       self.perm_ca.sign_file(tmp_file, self.governance)
 
-    log.debug(f"[DDS] assert key material for {len(peers)} peers...")
+    log.debug(f"[DDS] assert key material for {len(peers)} peers: {list(peers.keys())}")
 
     for peer, (published, subscribed) in peers.items():
       peer_key = self.key(peer)
