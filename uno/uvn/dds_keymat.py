@@ -283,7 +283,7 @@ class DdsKeyMaterial:
         if not (peer_key.is_file() and peer_cert.is_file()):
           raise RuntimeError("incomplete DDS material for peer", peer_key, peer_cert)
         log.debug(f"[DDS] peer key material already updated: {peer}")
-        return
+        continue
 
       try:
         self._assert_peer(peer, published, subscribed)
