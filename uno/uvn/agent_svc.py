@@ -52,6 +52,9 @@ class AgentServices:
       vpn_interfaces: Optional[Iterable[WireGuardInterface]]=None,
       dds_config: Optional[DdsParticipantConfig]=None) -> None:
     try:
+      # Make sure kernel forwarding is enabled
+      ipv4_enable_kernel_forwarding()
+
       for vpn in (vpn_interfaces or []):
         vpn.start()
         self._vpn_started.append(vpn)
@@ -73,9 +76,6 @@ class AgentServices:
       vpns_nat = vpn_interfaces if vpn_interfaces is not None else list(self._vpn_nat)
       vpns_up = vpn_interfaces if vpn_interfaces is not None else list(self._vpn_started)
       lans_nat = lans if lans is not None else list(self._lans_nat)
-
-      # Make sure kernel forwarding is enabled
-      ipv4_enable_kernel_forwarding()
 
       for vpn in vpns_nat:
         self._disable_vpn_nat(vpn)
