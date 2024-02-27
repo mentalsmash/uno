@@ -116,9 +116,16 @@
                 <value>{{rti_license}}</value>
               </element>
               <!-- <element>
-                <name>dds.domain_participant.domain_tag</name>
-                <value>{{uvn.name}}</value>
-                <propagate>true</propagate>
+                <name>com.rti.serv.load_plugin</name>
+                <value>com.rti.serv.secure</value>
+              </element>
+              <element>
+                <name>com.rti.serv.secure.library</name>
+                <value>nddssecurity</value>
+              </element>
+              <element>
+                <name>com.rti.serv.secure.create_function</name>
+                <value>RTI_Security_PluginSuite_create</value>
               </element> -->
               <element>
                 <name>dds.sec.auth.identity_ca</name>
