@@ -115,6 +115,11 @@
                 <name>dds.license.license_string</name>
                 <value>{{rti_license}}</value>
               </element>
+              <element>
+                <name>dds.domain_participant.domain_tag</name>
+                <value>{{uvn.name}}</value>
+                <propagate>true</propagate>
+              </element>
             </value>
           </property>
           <database>
@@ -272,68 +277,75 @@
       </qos_profile>
       <qos_profile name="StatusTopic" base_name="UnoQosProfiles::BaseTopic">
         <datareader_qos>
-          <ownership>
+          <!-- <ownership>
             <kind>EXCLUSIVE_OWNERSHIP_QOS</kind>
-          </ownership>
+          </ownership> -->
+          <history>
+              <kind>KEEP_LAST_HISTORY_QOS</kind>
+              <depth>1</depth>
+          </history>
+          <resource_limits>
+              <max_samples>1</max_samples>
+              <max_instances>1</max_instances>
+              <initial_samples>1</initial_samples>
+              <max_samples_per_instance>1</max_samples_per_instance>
+              <initial_instances>1</initial_instances>
+          </resource_limits>
         </datareader_qos>
         <datawriter_qos>
-          <ownership>
+          <!-- <ownership>
             <kind>EXCLUSIVE_OWNERSHIP_QOS</kind>
           </ownership>
           <ownership_strength>
             <value>10000</value>
-          </ownership_strength>
+          </ownership_strength> -->
+          <history>
+              <kind>KEEP_LAST_HISTORY_QOS</kind>
+              <depth>1</depth>
+          </history>
+          <resource_limits>
+              <max_samples>1</max_samples>
+              <max_instances>1</max_instances>
+              <initial_samples>1</initial_samples>
+              <max_samples_per_instance>1</max_samples_per_instance>
+              <initial_instances>1</initial_instances>
+          </resource_limits>
+          <protocol>
+            <rtps_reliable_writer>
+              <heartbeats_per_max_samples>1</heartbeats_per_max_samples>
+            </rtps_reliable_writer>
+          </protocol>
         </datawriter_qos>
       </qos_profile>
       <qos_profile name="PeerStatusTopic" base_name="UnoQosProfiles::StatusTopic">
-      </qos_profile>
-      <qos_profile name="UvnInfo" base_name="UnoQosProfiles::PeerStatusTopic">
-      </qos_profile>
-      <qos_profile name="CellInfo" base_name="UnoQosProfiles::StatusTopic">
-        <!-- <datawriter_qos>
-          <liveliness>
-            <lease_duration>
-              <sec>10</sec>
-              <nanosec>0</nanosec>
-            </lease_duration>
-          </liveliness>
-        </datawriter_qos>
         <datareader_qos>
-          <liveliness>
-            <lease_duration>
-              <sec>10</sec>
-              <nanosec>0</nanosec>
-            </lease_duration>
-          </liveliness>
-        </datareader_qos> -->
+          <!-- adjust resource limits to account for multiple peers -->
+          <resource_limits>
+              <max_samples>{{((uvn.cells|length) + 1) * 2}}</max_samples>
+              <max_instances>{{(uvn.cells|length) + 1}}</max_instances>
+              <initial_samples>1</initial_samples>
+              <max_samples_per_instance>1</max_samples_per_instance>
+              <initial_instances>{{uvn.cells|length}}</initial_instances>
+          </resource_limits>
+        </datareader_qos>
       </qos_profile>
-      <qos_profile name="Nameserver" base_name="UnoQosProfiles::StatusTopic">
+      <qos_profile name="UvnInfo" base_name="UnoQosProfiles::StatusTopic">
+      </qos_profile>
+      <qos_profile name="CellInfo" base_name="UnoQosProfiles::PeerStatusTopic">
+      </qos_profile>
+      <qos_profile name="Nameserver" base_name="UnoQosProfiles::PeerStatusTopic">
       </qos_profile>
       <qos_profile name="UvnDeployment" base_name="UnoQosProfiles::BaseTopic">
-      </qos_profile>
-      <qos_profile name="CellAgentGateway" base_name="UnoQosProfiles::UvnCellAgent">
-        <participant_qos>
-          <participant_name>
-            <name>CellAgentGateway</name>
-            <role_name>RoutingService</role_name>
-          </participant_name>
-        </participant_qos>
-      </qos_profile>
-      <qos_profile name="CellAgentBackbone" base_name="UnoQosProfiles::UvnCellAgent">
-        <participant_qos>
-          <participant_name>
-            <name>CellAgentBackbone</name>
-            <role_name>RoutingService</role_name>
-          </participant_name>
-        </participant_qos>
-      </qos_profile>
-      <qos_profile name="RegistryRelay" base_name="UnoQosProfiles::UvnRootAgent">
-        <participant_qos>
-          <participant_name>
-            <name>RegistryRelay</name>
-            <role_name>RoutingService</role_name>
-          </participant_name>
-        </participant_qos>
+        <datawriter_qos>
+          <!-- adjust resource limits to account for multiple peers -->
+          <resource_limits>
+              <max_samples>{{(uvn.cells|length) * 2}}</max_samples>
+              <max_instances>{{uvn.cells|length}}</max_instances>
+              <initial_samples>{{uvn.cells|length}}</initial_samples>
+              <max_samples_per_instance>1</max_samples_per_instance>
+              <initial_instances>{{uvn.cells|length}}</initial_instances>
+          </resource_limits>
+        </datawriter_qos>
       </qos_profile>
     </qos_library>
 
