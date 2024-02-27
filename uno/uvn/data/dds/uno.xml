@@ -115,11 +115,11 @@
                 <name>dds.license.license_string</name>
                 <value>{{rti_license}}</value>
               </element>
-              <element>
+              <!-- <element>
                 <name>dds.domain_participant.domain_tag</name>
                 <value>{{uvn.name}}</value>
                 <propagate>true</propagate>
-              </element>
+              </element> -->
             </value>
           </property>
           <database>
