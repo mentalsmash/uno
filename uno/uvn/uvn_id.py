@@ -137,6 +137,7 @@ class VpnSettings:
   DEFAULT_SUBNET = "0.0.0.0/32"
   DEFAULT_INTERFACE = "vpn{}"
   DEFAULT_ALLOWED_IPS = []
+  DEFAULT_PEER_MTU = None
 
 
   def __init__(self,
@@ -144,12 +145,14 @@ class VpnSettings:
       peer_port: Optional[int]=None,
       subnet: Optional[Union[str, ipaddress.IPv4Network]]=None,
       interface: Optional[str]=None,
-      allowed_ips: Optional[Iterable[str]]=None) -> None:
+      allowed_ips: Optional[Iterable[str]]=None,
+      peer_mtu: Optional[int]=None) -> None:
     self._port = port
     self._peer_port = peer_port
     self._subnet = None if subnet is None else ipaddress.ip_network(subnet)
     self._interface = interface
     self._allowed_ips = list(allowed_ips) if allowed_ips else None
+    self._peer_mtu = peer_mtu
 
 
   @cached_property
@@ -183,6 +186,13 @@ class VpnSettings:
 
 
   @cached_property
+  def peer_mtu(self) -> Optional[int]:
+    if self._peer_mtu is None:
+      return self.DEFAULT_PEER_MTU
+    return self._peer_mtu
+
+
+  @cached_property
   def subnet(self) -> ipaddress.IPv4Network:
     if self._subnet is None:
       return ipaddress.ip_network(self.DEFAULT_SUBNET)
@@ -206,6 +216,7 @@ class VpnSettings:
       "subnet": str(self.subnet),
       "interface": self.interface,
       "allowed_ips": list(self.allowed_ips),
+      "peer_mtu": self.peer_mtu,
     }
     if self._allowed_ips is None:
       del serialized["allowed_ips"]
@@ -217,6 +228,8 @@ class VpnSettings:
       del serialized["subnet"]
     if self._interface is None:
       del serialized["interface"]
+    if self.peer_mtu is None:
+      del serialized["peer_mtu"]
     return serialized
 
 
@@ -229,7 +242,8 @@ class VpnSettings:
       peer_port=serialized.get("peer_port"),
       subnet=serialized.get("subnet"),
       interface=serialized.get("interface"),
-      allowed_ips=serialized.get("allowed_ips"))
+      allowed_ips=serialized.get("allowed_ips"),
+      peer_mtu=serialized.get("peer_mtu"))
 
 
 class RootVpnSettings(VpnSettings):
@@ -250,6 +264,8 @@ class ParticlesVpnSettings(VpnSettings):
   DEFAULT_ALLOWED_IPS = [
     # "0.0.0.0/0",
   ]
+  # Lower MTU to allow for WireGuard headers
+  DEFAULT_PEER_MTU = 1348
 
   @staticmethod
   def deserialize(serialized: dict) -> "ParticlesVpnSettings":

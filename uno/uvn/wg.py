@@ -127,7 +127,8 @@ class WireGuardInterfaceConfig:
       address: ipaddress.IPv4Address,
       netmask: int,
       port: Optional[int]=None,
-      endpoint: Optional[str]=None) -> None:
+      endpoint: Optional[str]=None,
+      mtu: Optional[int]=None) -> None:
     self.name = name
     self.privkey = privkey
     self.address = address
@@ -135,6 +136,7 @@ class WireGuardInterfaceConfig:
     self.subnet = ipaddress.ip_network(f"{self.address}/{self.netmask}", strict=False)
     self.port = port
     self.endpoint = endpoint
+    self.mtu = mtu
 
 
   def serialize(self) -> dict:
@@ -145,6 +147,7 @@ class WireGuardInterfaceConfig:
       "netmask": self.netmask,
       "port": self.port,
       "endpoint": self.endpoint,
+      "mtu": self.mtu,
     }
 
     if self.port is None:
@@ -152,6 +155,9 @@ class WireGuardInterfaceConfig:
 
     if self.endpoint is None:
       del serialized["endpoint"]
+
+    if self.mtu is None:
+      del serialized["mtu"]
 
     return serialized
 
@@ -164,7 +170,8 @@ class WireGuardInterfaceConfig:
       address=ipaddress.ip_address(serialized["address"]),
       netmask=serialized["netmask"],
       port=serialized.get("port"),
-      endpoint=serialized.get("endpoint"))
+      endpoint=serialized.get("endpoint"),
+      mtu=serialized.get("mtu"))
 
 
 class WireGuardInterfacePeerConfig:
@@ -227,7 +234,9 @@ Address = {{intf.address}}/32
 ListenPort = {{intf.port}}
 {% endif %}
 PrivateKey = {{intf.privkey}}
-
+{%- if mtu %}
+MTU = {{mtu}}
+{% endif %}
 {% for peer in peers %}
 [Peer]
 {% if peer.endpoint %}
