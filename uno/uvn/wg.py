@@ -520,7 +520,7 @@ class WireGuardInterface:
     return endpoints
 
 
-  def _list_allowed_ips(self) -> Mapping[str, Iterable[Union[ipaddress.IPv4Network, ipaddress.IPv6Address]]]:
+  def _list_allowed_ips(self) -> Mapping[str, Iterable[ipaddress.IPv4Network]]:
     try:
       result = exec_command(
         ["wg", "show", self.config.intf.name, "allowed-ips"],
@@ -538,14 +538,14 @@ class WireGuardInterface:
     return allowed_ips
 
 
-  def _list_allowed_ips_peer(self, peer: WireGuardInterfacePeerConfig) -> Iterable[str]:
+  def _list_allowed_ips_peer(self, peer: WireGuardInterfacePeerConfig) -> Iterable[ipaddress.IPv4Network]:
     ips = self._list_allowed_ips()
     return ips.get(peer.pubkey, set())
 
 
   def _update_allowed_ips(self,
       peer: WireGuardInterfacePeerConfig,
-      allowed_ips: Iterable[ipaddress.IPv4Address]) -> None:
+      allowed_ips: Iterable[ipaddress.IPv4Network]) -> None:
     # sort ips for tidyness in `wg show`'s output
     allowed_ips_str = sorted(map(str,allowed_ips))
     try:
@@ -563,23 +563,11 @@ class WireGuardInterface:
     #   # list of allowed peers contains unexpected addresses
     #   pass
 
-
-  def get_peer_allowed_ips(self, peer_i: int) -> Sequence[Union[ipaddress.IPv4Address, ipaddress.IPv4Network]]:
-    peer = self.config.peers[peer_i]
-    allowed_ips = set()
-    for allowed_ip in self._list_allowed_ips_peer(peer):
-      try:
-        allowed_ips.add(ipaddress.ip_network(allowed_ip))
-      except:
-        allowed_ips.add(ipaddress.ip_address(allowed_ip))
-    return allowed_ips
-
-
-  def allow_ips_for_peer(self, peer_i: int, addresses: Sequence[ipaddress.IPv4Address]) -> None:
+  def allow_ips_for_peer(self, peer_i: int, addresses: Sequence[ipaddress.IPv4Network]) -> None:
     # addr = ipaddress.ip_network(addr)
     peer = self.config.peers[peer_i]
     allowed_ips_nic = set(self._list_allowed_ips_peer(peer))
-    not_yet_allowed = set(map(str, addresses)) - allowed_ips_nic
+    not_yet_allowed = set(addresses) - allowed_ips_nic
     if len(not_yet_allowed) > 0:
       allowed_ips = {*allowed_ips_nic, *not_yet_allowed}
       self._update_allowed_ips(peer, allowed_ips)
@@ -588,11 +576,10 @@ class WireGuardInterface:
     #   raise WireGuardError(f"failed to allow address on interface: {self.config.intf.name}, {addr}")
 
 
-  def disallow_ips_for_peer(self, peer_i: int, addresses: Sequence[ipaddress.IPv4Address]) -> None:
+  def disallow_ips_for_peer(self, peer_i: int, addresses: Sequence[ipaddress.IPv4Network]) -> None:
     peer = self.config.peers[peer_i]
     allowed_ips_nic = set(self._list_allowed_ips_peer(peer))
-    # addr = ipaddress.ip_network(addr)
-    allowed = allowed_ips_nic - set(map(str, addresses))
+    allowed = allowed_ips_nic - set(addresses)
     if allowed != allowed_ips_nic:
       self._update_allowed_ips(peer, allowed)
     # allowed_ips_nic = self._list_allowed_ips_peer(peer)
