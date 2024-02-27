@@ -34,6 +34,7 @@ from .deployment import (
 from .vpn_config import CentralizedVpnConfig, P2PVpnConfig, P2PLinksMap
 from .gpg import IdentityDatabase
 from .log import Logger as log
+from .dds_keymat import DdsKeyMaterial, CertificateSubject
 
 class Registry:
   UVN_FILENAME = "uvn.yaml"
@@ -53,6 +54,10 @@ class Registry:
     self.root_vpn_config = root_vpn_config
     self.particles_vpn_configs = particles_vpn_configs or {}
     self.backbone_vpn_config = backbone_vpn_config
+    self.dds_keymat = DdsKeyMaterial(
+      root=self.root,
+      org=self.uvn_id.name,
+      generation_ts=self.uvn_id.init_ts)
 
 
   @property
@@ -80,6 +85,7 @@ class Registry:
     self.configure_root_vpn()
     self.configure_particles_vpns()
     self.configure_backbone_vpn()
+    self.configure_dds_keymat()
 
 
   def assert_gpg_keys(self) -> None:
@@ -160,6 +166,31 @@ class Registry:
       peer_endpoints=peer_endpoints,
       keymat=keymat)
     self.deploy()
+
+
+  def configure_dds_keymat(self, drop_keys: bool=False) -> None:
+    peers = {
+      "root": ([
+        "uno/uvn/info",
+        "uno/uvn/deployment",
+      ], [
+        "uno/uvn/ns",
+        "uno/cell/info",
+      ])
+    }
+    peers.update({
+      c: ([
+        "uno/uvn/ns",
+        "uno/cell/info",
+      ], [
+        "uno/uvn/info",
+        "uno/uvn/ns",
+        "uno/uvn/deployment",
+        "uno/cell/info",
+      ])
+      for c in self.uvn_id.cells.values()
+    })
+    self.dds_keymat.init(peers, reset=drop_keys)
 
 
   def deploy(self) -> str:

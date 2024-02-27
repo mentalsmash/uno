@@ -443,6 +443,12 @@ class CellAgent:
       "initial_peers": initial_peers,
       "timing": self.uvn_id.settings.timing_profile,
       "license_file": self.rti_license.read_text(),
+      "ca_cert": self.root / "ca-cert.pem",
+      "perm_ca_cert": self.root / "perm-ca-cert.pem",
+      "cert": self.root / "cert.pem",
+      "key": self.root / "key.pem",
+      "governance": self.root / "governance.p7s",
+      "permissions": self.root / "permissions.p7s",
     })
 
     writers = [
@@ -978,9 +984,24 @@ class CellAgent:
     # agent_config_enc = id_db.encrypt_file(
     #   cell, agent_config, tmp_dir)
 
+    # agent_license = tmp_dir / Registry.AGENT_LICENSE
+    # shutil.copy2(registry.rti_license, agent_license)
+
     # Include the RTI license file
-    agent_license = tmp_dir / Registry.AGENT_LICENSE
-    shutil.copy2(registry.rti_license, agent_license)
+    # Include DDS Security artifacts
+    for src, dst in [
+        (registry.rti_license, None),
+        (registry.dds_keymat.cert(cell.name), "cert.pem"),
+        (registry.dds_keymat.key(cell.name), "key.pem"),
+        (registry.dds_keymat.governance, "governance.p7s"),
+        (registry.dds_keymat.permissions(cell.name), "permissions.p7s"),
+        (registry.dds_keymat.ca.cert, "ca-cert.pem"),
+        (registry.dds_keymat.perm_ca.cert, "perm-ca-cert.pem"),
+      ]:
+      dst = dst or src.name
+      tgt = tmp_dir / dst
+      shutil.copy2(src, tgt)
+      package_extra_files.append(tgt)
 
     # Store all files in a single archive
     agent_package = output_dir / f"{cell.name}.uvn-agent"
@@ -990,7 +1011,6 @@ class CellAgent:
         # agent_config_sig_enc.relative_to(tmp_dir),
         # agent_config_enc.relative_to(tmp_dir),
         agent_config.relative_to(tmp_dir),
-        agent_license.relative_to(tmp_dir),
         *(f.relative_to(tmp_dir) for f in package_extra_files)],
       cwd=tmp_dir)
     agent_config_out = output_dir / f"{cell.name}.yaml"
@@ -1094,15 +1114,29 @@ class CellAgent:
     #   signature_file=agent_config_sig,
     #   output_dir=root)
 
-    # Copy agent configuration to root
-    agent_config_tmp = tmp_dir / Registry.AGENT_CONFIG_FILENAME
-    agent_config = root / Registry.AGENT_CONFIG_FILENAME
-    exec_command(["cp", agent_config_tmp, agent_config])
+    # # Copy agent configuration to root
+    # agent_config_tmp = tmp_dir / Registry.AGENT_CONFIG_FILENAME
+    # agent_config = root / Registry.AGENT_CONFIG_FILENAME
+    # exec_command(["cp", agent_config_tmp, agent_config])
 
-    # Copy RTI license
-    agent_license_tmp = tmp_dir / Registry.AGENT_LICENSE
-    agent_license = root / Registry.AGENT_LICENSE
-    exec_command(["cp", agent_license_tmp, agent_license])
+    # # Copy RTI license
+    # agent_license_tmp = tmp_dir / Registry.AGENT_LICENSE
+    # agent_license = root / Registry.AGENT_LICENSE
+    # exec_command(["cp", agent_license_tmp, agent_license])
+
+    for f in [
+        Registry.AGENT_CONFIG_FILENAME,
+        Registry.AGENT_LICENSE,
+        "governance.p7s",
+        "permissions.p7s",
+        "key.pem",
+        "cert.pem",
+        "ca-cert.pem",
+        "perm-ca-cert.pem",
+      ]:
+      src = tmp_dir / f
+      dst = root / f
+      shutil.copy2(src, dst)
 
     if system:
       # Install init.d script

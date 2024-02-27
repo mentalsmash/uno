@@ -179,6 +179,12 @@ class RegistryAgent:
       "initial_peers": [p.address for p in self.root_vpn_config.peers],
       "timing": self.registry.uvn_id.settings.timing_profile,
       "license_file": self.registry.rti_license.read_text(),
+      "ca_cert": self.registry.dds_keymat.ca.cert,
+      "perm_ca_cert": self.registry.dds_keymat.perm_ca.cert,
+      "cert": self.registry.dds_keymat.cert("root"),
+      "key": self.registry.dds_keymat.cert("key"),
+      "governance": self.registry.dds_keymat.governance,
+      "permissions": self.registry.dds_keymat.permissions("root"),
     })
 
     writers = [

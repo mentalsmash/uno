@@ -624,7 +624,8 @@ class UvnId:
       particles: Optional[Mapping[int, ParticleId]] = None,
       hosts: Optional[Iterable[NameserverRecord]] = None,
       settings: Optional[UvnSettings]=None,
-      generation_ts: Optional[str]=None) -> None:
+      generation_ts: Optional[str]=None,
+      init_ts: Optional[str]=None) -> None:
     self.name = name
     self.owner = owner
     self.owner_name = owner_name if owner_name is not None else self.owner
@@ -637,6 +638,7 @@ class UvnId:
     }
     self.settings = settings or UvnSettings()
     self.generation_ts = generation_ts or Timestamp.now().format()
+    self.init_ts = init_ts or Timestamp.now().format()
 
     if not self.name:
       raise ValueError("invalid UVN name")
@@ -672,6 +674,7 @@ class UvnId:
       "particles": [p.serialize() for p in sorted(self.particles.values(), key=lambda v: v.id)],
       "hosts": {r.hostname: r.address for r in self.hosts},
       "generation_ts": self.generation_ts,
+      "init_ts": self.init_ts,
       "settings": self.settings.serialize(),
     }
     if self.name == self.address:
@@ -713,6 +716,7 @@ class UvnId:
       particles=particles,
       hosts=hosts,
       generation_ts=serialized.get("generation_ts"),
+      init_ts=serialized["init_ts"],
       settings=UvnSettings.deserialize(serialized.get("settings", {})))
 
 
@@ -736,6 +740,8 @@ class UvnId:
 
 
   def add_cell(self, name: str, **cell_args) -> CellId:
+    if name == "root":
+      raise ValueError("reserved cell name", name)
     if next((c for c in self.cells.values() if c.name == name), None) is not None:
       raise KeyError("duplicate cell", name)
     cell_id = self._next_cell_id()
