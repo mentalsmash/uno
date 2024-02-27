@@ -395,6 +395,16 @@ class CellAgent:
   def _start(self, boot: bool=False) -> None:
     log.activity("[AGENT] starting services...")
 
+    # Check that the agent detected all of the expected networks
+    allowed_lans = (str(net) for net in self.cell.allowed_lans)
+    enabled_lans = (str(lan.nic.subnet) for lan in self.lans)
+    if allowed_lans and allowed_lans != enabled_lans:
+      log.error("[AGENT] failed to detect all of the expected network interfaces:")
+      log.error(f"[AGENT] - expected: {', '.join(sorted(allowed_lans))}")
+      log.error(f"[AGENT] - detected: {', '.join(sorted(enabled_lans))}")
+      log.error(f"[AGENT] - missing : {', '.join(sorted(allowed_lans - enabled_lans))}")
+      raise RuntimeError("invalid network interfaces")
+
     # Pick the address of the first backbone port for every peer
     # and all addresses for peers connected directly to this one
     backbone_peers = {
