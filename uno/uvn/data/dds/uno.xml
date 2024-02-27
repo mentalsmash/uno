@@ -162,11 +162,12 @@
             </shutdown_cleanup_period>
           </database>
           <transport_builtin>
-            <mask>UDPv4 | SHMEM</mask>
+            <!-- <mask>UDPv4 | SHMEM</mask> -->
+            <mask>UDPv4</mask>
           </transport_builtin>
           <discovery>
             <initial_peers>
-              <element>shmem://</element>
+              <!-- <element>shmem://</element> -->
               {%- for peer in initial_peers %}
               <element>{{peer}}</element>
               {%- endfor %}
@@ -389,9 +390,9 @@
         <register_type name="UvnInfo" type_ref="uno::UvnInfo"/>
         <register_type name="CellInfo" type_ref="uno::CellInfo"/>
         <register_type name="UvnDeployment" type_ref="uno::UvnDeployment"/>
-        <register_type name="NameserverDatabase" type_ref="uno::NameserverDatabase"/>
+        <!-- <register_type name="NameserverDatabase" type_ref="uno::NameserverDatabase"/> -->
         <topic name="uno/uvn/info" register_type_ref="UvnInfo"/>
-        <topic name="uno/uvn/ns" register_type_ref="NameserverDatabase"/>
+        <!-- <topic name="uno/uvn/ns" register_type_ref="NameserverDatabase"/> -->
         <topic name="uno/uvn/deployment" register_type_ref="UvnDeployment"/>
         <topic name="uno/cell/info" register_type_ref="CellInfo"/>
       </domain>
@@ -407,13 +408,13 @@
             <datareader_qos base_name="UnoQosProfiles::CellInfo">
             </datareader_qos>
           </data_reader>
-          <data_reader name="NameserverReader" topic_ref="uno/uvn/ns">
+          <!-- <data_reader name="NameserverReader" topic_ref="uno/uvn/ns">
             <content_filter name="RootNameserverFilter" kind="builtin.sql">
               <expression>cell.uvn.name MATCH &apos;{{uvn.name}}&apos;</expression>
             </content_filter>
             <datareader_qos base_name="UnoQosProfiles::Nameserver">
             </datareader_qos>
-          </data_reader>
+          </data_reader> -->
           <subscriber_qos>
             <base_name>
               <element>UnoQosProfiles::BaseSubscriber</element>
@@ -425,10 +426,10 @@
             <datawriter_qos base_name="UnoQosProfiles::UvnInfo">
             </datawriter_qos>
           </data_writer>
-          <data_writer name="NameserverWriter" topic_ref="uno/uvn/ns">
+          <!-- <data_writer name="NameserverWriter" topic_ref="uno/uvn/ns">
             <datawriter_qos base_name="UnoQosProfiles::Nameserver">
             </datawriter_qos>
-          </data_writer>
+          </data_writer> -->
           <publisher_qos>
             <base_name>
               <element>UnoQosProfiles::BasePublisher</element>
@@ -453,13 +454,13 @@
             <datareader_qos base_name="UnoQosProfiles::CellInfo">
             </datareader_qos>
           </data_reader>
-          <data_reader name="NameserverReader" topic_ref="uno/uvn/ns">
+          <!-- <data_reader name="NameserverReader" topic_ref="uno/uvn/ns">
             <content_filter name="NameserverFilter" kind="builtin.sql">
               <expression>cell.uvn.name MATCH &apos;{{uvn.name}}&apos; AND NOT cell.name MATCH &apos;{{cell.name}}&apos;</expression>
             </content_filter>
             <datareader_qos base_name="UnoQosProfiles::Nameserver">
             </datareader_qos>
-          </data_reader>
+          </data_reader> -->
           <data_reader name="UvnInfoReader" topic_ref="uno/uvn/info">
             <content_filter name="UvnInfoFilter" kind="builtin.sql">
               <expression>id.name MATCH &apos;{{uvn.name}}&apos;</expression>
@@ -478,10 +479,10 @@
             <datawriter_qos base_name="UnoQosProfiles::CellInfo">
             </datawriter_qos>
           </data_writer>
-          <data_writer name="NameserverWriter" topic_ref="uno/uvn/ns">
+          <!-- <data_writer name="NameserverWriter" topic_ref="uno/uvn/ns">
             <datawriter_qos base_name="UnoQosProfiles::Nameserver">
             </datawriter_qos>
-          </data_writer>
+          </data_writer> -->
           <publisher_qos>
             <base_name>
               <element>UnoQosProfiles::BasePublisher</element>

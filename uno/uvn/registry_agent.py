@@ -191,7 +191,7 @@ class RegistryAgent:
     writers = [
       UvnTopic.UVN_ID,
       UvnTopic.BACKBONE,
-      UvnTopic.DNS,
+      # UvnTopic.DNS,
     ]
 
     # TODO(asorbini) get rid of these queries, since the topics are already filtered
@@ -202,12 +202,12 @@ class RegistryAgent:
           f"'{self.registry.uvn_id.name}'"
         ],
       },
-      UvnTopic.DNS: {
-        "query": "cell.uvn.name MATCH %0",
-        "params": [
-          f"'{self.registry.uvn_id.name}'"
-        ]
-      },
+      # UvnTopic.DNS: {
+      #   "query": "cell.uvn.name MATCH %0",
+      #   "params": [
+      #     f"'{self.registry.uvn_id.name}'"
+      #   ]
+      # },
     }
 
     dds_config = DdsParticipantConfig(

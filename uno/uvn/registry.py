@@ -42,6 +42,7 @@ class Registry:
   AGENT_PACKAGE_FILENAME = "{}.uvn-agent"
   AGENT_CONFIG_FILENAME = "agent.yaml"
   AGENT_LICENSE = "rti_license.dat"
+  UVN_SECRET = "uvn.secret"
 
   def __init__(self,
       root: Path,
@@ -68,10 +69,14 @@ class Registry:
       and self.backbone_vpn_config.deployment.generation_ts is not None
     )
 
-
   @property
   def rti_license(self) -> Path:
     return self.root / self.AGENT_LICENSE
+
+
+  @property
+  def uvn_secret(self) -> Path:
+    return self.root / self.UVN_SECRET
 
 
   def install_rti_license(self, license: Path) -> None:

@@ -87,7 +87,7 @@ class CellAgent:
     self.log_dir.mkdir(parents=True, exist_ok=True)
     self.log_dir.chmod(0o777)
 
-    self.ns = Nameserver(self.root, db=self.uvn_id.hosts)
+    # self.ns = Nameserver(self.root, db=self.uvn_id.hosts)
     self.peers = UvnPeersList(
       uvn_id=self.uvn_id,
       local_peer_id=cell_id)
@@ -120,6 +120,9 @@ class CellAgent:
 
     # Only enable Systemd support on request
     self.enable_systemd = False
+
+    # UVN secret is inject at runtime
+    self.uvn_secret = None
 
 
   @property
@@ -454,12 +457,12 @@ class CellAgent:
 
     writers = [
       UvnTopic.CELL_ID,
-      UvnTopic.DNS,
+      # UvnTopic.DNS,
     ]
 
     readers = {
       UvnTopic.CELL_ID: {},
-      UvnTopic.DNS: {},
+      # UvnTopic.DNS: {},
       UvnTopic.UVN_ID: {},
       UvnTopic.BACKBONE: {},
     }
@@ -502,8 +505,8 @@ class CellAgent:
           for peer in [self.uvn_id.cells[backbone_vpn.config.peers[0].id]]
       ),
     ]
-    self.ns.assert_records(ns_records)
     # TODO(asorbini) re-enable ns server once thought through
+    # self.ns.assert_records(ns_records)
     # self.ns.start(self.uvn_id.address)
 
     self.peers_tester.start()
@@ -601,7 +604,7 @@ class CellAgent:
         server=ns_server_name)
       for entry in sample["entries"]  
     ]
-    self.ns.assert_records(ns_records)
+    # self.ns.assert_records(ns_records)
     return
 
 
@@ -619,7 +622,7 @@ class CellAgent:
     if not ns_peer:
       log.debug(f"[AGENT] DNS dispose for unknown instance: {instance}")
       return
-    self.ns.purge_server(ns_peer.cell.name)
+    # self.ns.purge_server(ns_peer.cell.name)
     return
 
 

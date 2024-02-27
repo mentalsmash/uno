@@ -347,14 +347,14 @@ class UvnSettings:
       backbone_vpn: Optional[BackboneVpnSettings]=None,
       timing_profile: Optional[TimingProfile]=None,
       enable_particles_vpn: Optional[bool]=None,
-      enable_root_vpn: Optional[bool]=None) -> None:
+      enable_root_vpn: Optional[bool]=None,
+      master_secret: Optional[str]=None) -> None:
     self.root_vpn = root_vpn or RootVpnSettings()
     self.particles_vpn = particles_vpn or ParticlesVpnSettings()
     self.backbone_vpn = backbone_vpn or BackboneVpnSettings()
     self._timing_profile = timing_profile
     self._enable_particles_vpn = enable_particles_vpn
     self._enable_root_vpn = enable_root_vpn
-    self.full_mesh = False
 
   @property
   def timing_profile(self) -> TimingProfile:
