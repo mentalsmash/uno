@@ -171,7 +171,7 @@ class RegistryAgent:
 
     xml_config_tmplt = Templates.compile(
       DdsParticipantConfig.load_config_template(self.DDS_CONFIG_TEMPLATE))
-    
+
     xml_config = Templates.render(xml_config_tmplt, {
       "deployment_id": self.registry.backbone_vpn_config.deployment.generation_ts,
       "uvn": self.registry.uvn_id,
@@ -185,6 +185,7 @@ class RegistryAgent:
       "key": self.registry.dds_keymat.cert("key"),
       "governance": self.registry.dds_keymat.governance,
       "permissions": self.registry.dds_keymat.permissions("root"),
+      "enable_dds_security": False,
     })
 
     writers = [
@@ -193,6 +194,7 @@ class RegistryAgent:
       UvnTopic.DNS,
     ]
 
+    # TODO(asorbini) get rid of these queries, since the topics are already filtered
     readers = {
       UvnTopic.CELL_ID: {
         "query": "id.uvn.name MATCH %0",

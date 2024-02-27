@@ -115,7 +115,8 @@
                 <name>dds.license.license_string</name>
                 <value>{{rti_license}}</value>
               </element>
-              <!-- <element>
+              {% if enable_dds_security %}
+              <element>
                 <name>com.rti.serv.load_plugin</name>
                 <value>com.rti.serv.secure</value>
               </element>
@@ -126,7 +127,8 @@
               <element>
                 <name>com.rti.serv.secure.create_function</name>
                 <value>RTI_Security_PluginSuite_create</value>
-              </element> -->
+              </element>
+              {% endif %}
               <element>
                 <name>dds.sec.auth.identity_ca</name>
                 <value>{{ca_cert}}</value>

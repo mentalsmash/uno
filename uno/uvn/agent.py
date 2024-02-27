@@ -449,6 +449,7 @@ class CellAgent:
       "key": self.root / "key.pem",
       "governance": self.root / "governance.p7s",
       "permissions": self.root / "permissions.p7s",
+      "enable_dds_security": False,
     })
 
     writers = [
@@ -457,33 +458,10 @@ class CellAgent:
     ]
 
     readers = {
-      UvnTopic.CELL_ID: {
-        # "query": "id.uvn.name MATCH %0 AND NOT id.name MATCH %1",
-        # "params": [
-        #   f"'{self.uvn_id.name}'",
-        #   f"'{self.cell.name}'",
-        # ],
-      },
-      UvnTopic.DNS: {
-        # "query": "cell.uvn.name MATCH %0 AND NOT cell.name MATCH %1",
-        # "params": [
-        #   f"'{self.uvn_id.name}'",
-        #   f"'{self.cell.name}'",
-        # ]
-      },
-      UvnTopic.UVN_ID: {
-        # "query": "id.name MATCH %0",
-        # "params": [
-        #   f"'{self.uvn_id.name}'",
-        # ],
-      },
-      UvnTopic.BACKBONE: {
-        # "query": "cell.uvn.name MATCH %0 AND cell.name MATCH %1",
-        # "params": [
-        #   f"'{self.uvn_id.name}'",
-        #   f"'{self.cell.name}'",
-        # ],
-      },
+      UvnTopic.CELL_ID: {},
+      UvnTopic.DNS: {},
+      UvnTopic.UVN_ID: {},
+      UvnTopic.BACKBONE: {},
     }
 
     dds_config = DdsParticipantConfig(
