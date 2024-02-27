@@ -193,9 +193,10 @@
         <datareader_qos>
           <protocol>
             <rtps_reliable_reader>
-              <nack_period>
-                <sec>180</sec>
-              </nack_period>
+              <!-- <max_heartbeat_response_delay>
+                <sec>0</sec>
+                <nanosec>0</nanosec>
+              </max_heartbeat_response_delay> -->
             </rtps_reliable_reader>
           </protocol>
           <property>
@@ -215,17 +216,18 @@
           <protocol>
             <rtps_reliable_writer>
               <heartbeat_period>
-                <sec>60</sec>
-                <nanosec>0</nanosec>
+                <sec>0</sec>
+                <nanosec>200000000</nanosec><!--200ms-->
               </heartbeat_period>
               <fast_heartbeat_period>
-                <sec>10</sec>
-                <nanosec>0</nanosec>
+                <sec>0</sec>
+                <nanosec>200000000</nanosec><!--200ms-->
               </fast_heartbeat_period>
               <late_joiner_heartbeat_period>
-                <sec>5</sec>
-                <nanosec>0</nanosec>
+                <sec>0</sec>
+                <nanosec>200000000</nanosec><!--200ms-->
               </late_joiner_heartbeat_period>
+              <max_heartbeat_retries>1000000</max_heartbeat_retries>
             </rtps_reliable_writer>
           </protocol>
           <property>
