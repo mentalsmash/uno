@@ -273,6 +273,8 @@ class DdsKeyMaterial:
         self.governance.unlink()
       self.perm_ca.sign_file(tmp_file, self.governance)
 
+    log.debug(f"[DDS] assert key material for {len(peers)} peers...")
+
     for peer, (published, subscribed) in peers.items():
       peer_key = self.key(peer)
       peer_cert = self.cert(peer)
@@ -280,6 +282,7 @@ class DdsKeyMaterial:
       if not reset and (peer_key.is_file() or peer_cert.is_file()):
         if not (peer_key.is_file() and peer_cert.is_file()):
           raise RuntimeError("incomplete DDS material for peer", peer_key, peer_cert)
+        log.debug(f"[DDS] peer key material already updated: {peer}")
         return
 
       try:
