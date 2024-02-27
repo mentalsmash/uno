@@ -849,7 +849,7 @@ class CellAgent:
       "uvn_id": self.uvn_id.serialize(),
       "cell_id": self.cell.id,
       "deployment": self.deployment.serialize(),
-      "ns": self.ns.serialize(orig=persist),
+      # "ns": self.ns.serialize(orig=persist),
       "peers": self.peers.serialize(),
       "root_vpn_config": self.root_vpn_config.serialize(),
       "particles_vpn_config": self.particles_vpn_config.serialize(),
@@ -859,8 +859,8 @@ class CellAgent:
     }
     if not serialized["cell_id"]:
       del serialized["cell_id"]
-    if not serialized["ns"]:
-      del serialized["ns"]
+    # if not serialized["ns"]:
+    #   del serialized["ns"]
     if not serialized["backbone_vpn_configs"]:
       del serialized["backbone_vpn_configs"]
     return serialized
