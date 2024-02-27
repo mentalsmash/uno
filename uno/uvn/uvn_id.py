@@ -87,7 +87,7 @@ class TimingProfile(Enum):
     # elif self == TimingProfile.MINIMAL:
     #   return 300
     else:
-      return 240
+      return 240 # 4m
 
 
   @property
@@ -97,7 +97,7 @@ class TimingProfile(Enum):
     # elif self == TimingProfile.MINIMAL:
     #   return 100
     else:
-      return 60
+      return 60 # 1m
 
 
   @property
@@ -107,7 +107,8 @@ class TimingProfile(Enum):
     # elif self == TimingProfile.MINIMAL:
     #   return 200
     else:
-      return 90
+      # return 90 # 1m 30s
+      return 2
 
 
   @property
@@ -117,7 +118,7 @@ class TimingProfile(Enum):
     # elif self == TimingProfile.MINIMAL:
     #   return 600
     else:
-      return 120
+      return 120 # 2m
 
 
   @property
