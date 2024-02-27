@@ -1,5 +1,5 @@
 [Unit]
-Description=uno agent to connect a cell to a UVN.
+Description=UVN agent.
 
 [Service]
 #Type=simple
