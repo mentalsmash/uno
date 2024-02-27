@@ -147,13 +147,13 @@ mimetype.assign = (
       "peers_offline": self.agent.peers.offline_peers_count,
       "peers_online": self.agent.peers.online_peers_count,
     }))
+    
     # Copy particle configurations if they exist
-    particles_dir = self.agent.root / "particles"
-    if particles_dir.is_dir():
+    if self.agent.particle_configurations_dir.is_dir():
       particles_dir_www = self.root / "particles"
       if particles_dir_www.is_dir():
         shutil.rmtree(particles_dir_www)
-      shutil.copytree(particles_dir, particles_dir_www)
+      shutil.copytree(self.agent.particle_configurations_dir, particles_dir_www)
 
     log.debug("[WWW] agent status updated")
 

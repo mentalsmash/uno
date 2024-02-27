@@ -126,7 +126,7 @@ def cell_agent_status(
   if root_vpn_config:
     sample["root_vpn_id"] = root_vpn_config.generation_ts
 
-  if particles_vpn_config:
+  if particles_vpn_config and particles_vpn_config.root_config:
     sample["particles_vpn_id"] = particles_vpn_config.root_config.generation_ts
   
   if backbone_vpn_configs:

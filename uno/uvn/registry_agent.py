@@ -59,7 +59,7 @@ class RegistryAgent:
         if p.cell
           and p.deployment_id == self.registry.backbone_vpn_config.deployment.generation_ts
           and p.root_vpn_id == self.registry.root_vpn_config.peer_configs[p.id].generation_ts
-          and p.particles_vpn_id == self.registry.particles_vpn_configs[p.id].root_config.generation_ts
+          and p.particles_vpn_id == self.registry.particles_vpn_configs[p.id].generation_ts
           and next((cfg_id for i, cfg_id in enumerate(p.backbone_vpn_ids)
               if cfg_id != self.registry.backbone_vpn_config.peer_configs[p.id][i].generation_ts), None) is None
     )

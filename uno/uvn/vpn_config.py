@@ -42,7 +42,8 @@ class CentralizedVpnConfig:
       peer_endpoints: Optional[Mapping[int, str]]=None,
       root_config: Optional[WireGuardConfig]=None,
       peer_configs: Optional[Mapping[int, WireGuardConfig]]=None,
-      keymat: Optional[CentralizedVpnKeyMaterial]=None) -> None:
+      keymat: Optional[CentralizedVpnKeyMaterial]=None,
+      generation_ts: Optional[str]=None) -> None:
     self.peer_ids = list(peer_ids)
     self.settings = settings
     self.root_endpoint = root_endpoint
@@ -50,6 +51,7 @@ class CentralizedVpnConfig:
     self.root_config = root_config
     self.peer_configs = peer_configs or {}
     self.keymat = keymat or CentralizedVpnKeyMaterial()
+    self.generation_ts = generation_ts or Timestamp.now().format()
 
 
   def generate(self, tunnel: bool=False) -> None:
@@ -136,6 +138,7 @@ class CentralizedVpnConfig:
       },
       "peer_endpoints": self.peer_endpoints,
       "keymat": self.keymat.serialize(),
+      "generation_ts": self.generation_ts,
     }
     if not serialized["root_endpoint"]:
       del serialized["root_endpoint"]
@@ -166,7 +169,8 @@ class CentralizedVpnConfig:
       root_endpoint=serialized.get("root_endpoint"),
       peer_endpoints=serialized.get("peer_endpoints", []),
       root_config=WireGuardConfig.deserialize(serialized.get("root_config", {})),
-      keymat=CentralizedVpnKeyMaterial.deserialize(serialized.get("keymat", {})))
+      keymat=CentralizedVpnKeyMaterial.deserialize(serialized.get("keymat", {})),
+      generation_ts=serialized["generation_ts"])
 
 
 

@@ -707,13 +707,22 @@ tbody .badge {
                       <td>{{particle.name}}</td>
                       <td><a href="mailto:{{cell.owner}}">{{particle.owner_name}}</a></td>
                       <td>
+                        {% if agent.enable_particles_vpn %}
                         <a href="particles/{{particle.name}}.png">
                           QR
                         </a>
+                        {% else %}
+                        N/A
+                        {% endif %}
                       </td>
-                      <td><a href="particles/{{particle.name}}.wireguard">
+                      <td>
+                        {% if agent.enable_particles_vpn %}
+                        <a href="particles/{{particle.name}}.wireguard">
                           Text
                         </a>
+                        {% else %}
+                        N/A
+                        {% endif %}
                       </td>
                     </tr>
                     {% else %}

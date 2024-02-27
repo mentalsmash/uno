@@ -77,7 +77,10 @@ class CellAgent:
     self.backbone_vpns = [WireGuardInterface(v) for v in self.backbone_vpn_configs]
     self.root_vpn = WireGuardInterface(self.root_vpn_config)
     self.particles_vpn_config = particles_vpn_config
-    self.particles_vpn = WireGuardInterface(self.particles_vpn_config.root_config)
+    self.particles_vpn = (
+      WireGuardInterface(self.particles_vpn_config.root_config)
+      if self.enable_particles_vpn else None
+    )
     self.root: Path = root.resolve()
 
     self.log_dir = self.root / "log"
@@ -322,6 +325,11 @@ class CellAgent:
       self._on_agent_state_changed()
 
 
+  @property
+  def particle_configurations_dir(self) -> Path:
+    return self.root / "particles"
+
+
   def _on_agent_state_changed(self) -> None:
     # self.www.request_update()
     # self._regenerate_plots()
@@ -518,12 +526,7 @@ class CellAgent:
     self.peers_tester.trigger()
 
     # Write particle configuration to disk
-    particles_dir = self.root / "particles"
-    if particles_dir.is_dir():
-      shutil.rmtree(particles_dir)
-    for particle_id, particle_client_cfg in self.particles_vpn_config.peer_configs.items():
-      particle = self.uvn_id.particles[particle_id]
-      write_particle_configuration(particle, particle_client_cfg, particles_dir)
+    self._write_particle_configurations()
 
     # Start the internal web server on localhost
     # and on the VPN interfaces
@@ -539,7 +542,7 @@ class CellAgent:
       routed_sites=self.lans,
       deployment_id=self.deployment.generation_ts,
       root_vpn_id=self.root_vpn.config.generation_ts if self.root_vpn else None,
-      particles_vpn_id=self.particles_vpn.config.generation_ts,
+      particles_vpn_id=self.particles_vpn_config.generation_ts,
       backbone_vpn_ids=[nic.config.generation_ts for nic in self.backbone_vpns],
       backbone_peers=[p.id for nic in self.backbone_vpns for p in nic.config.peers])
 
@@ -771,6 +774,16 @@ class CellAgent:
     _write_output(output_file, unreachable)
 
 
+  def _write_particle_configurations(self) -> None:
+    if self.particle_configurations_dir.is_dir():
+      shutil.rmtree(self.particle_configurations_dir)
+    if not self.enable_particles_vpn:
+      return
+    for particle_id, particle_client_cfg in self.particles_vpn_config.peer_configs.items():
+      particle = self.uvn_id.particles[particle_id]
+      write_particle_configuration(particle, particle_client_cfg, self.particle_configurations_dir)
+
+
   def reload(self, new_config: dict, save_to_disk: bool=False) -> bool:
     log.activity("[AGENT] parsing received configuration")
     updated_agent = CellAgent.deserialize(new_config, self.root)
@@ -806,11 +819,14 @@ class CellAgent:
       log.warning(f"[AGENT] Backbone Deployment changed: {self.deployment.generation_ts} -> {updated_agent.deployment.generation_ts}")
       updaters.append(_update_deployment)
 
-    if updated_agent.particles_vpn_config.root_config.generation_ts != self.particles_vpn_config.root_config.generation_ts:
+    if updated_agent.particles_vpn_config.generation_ts != self.particles_vpn_config.generation_ts:
       def _update_particles_vpn():
         self.particles_vpn_config = updated_agent.particles_vpn_config
-        self.particles_vpn = WireGuardInterface(self.particles_vpn_config.root_config)
-      log.warning(f"[AGENT] Particles VPN configuration changed: {self.particles_vpn_config.root_config.generation_ts} -> {updated_agent.particles_vpn_config.root_config.generation_ts}")
+        self.particles_vpn = (
+          WireGuardInterface(self.particles_vpn_config.root_config)
+          if self.enable_particles_vpn else None
+        )
+      log.warning(f"[AGENT] Particles VPN configuration changed: {self.particles_vpn_config.generation_ts} -> {updated_agent.particles_vpn_config.generation_ts}")
       updaters.append(_update_particles_vpn)
 
     if updaters:
@@ -824,7 +840,7 @@ class CellAgent:
         self.save_to_disk()
       log.activity(f"[AGENT] restarting services with new configuration...")
       self._start()
-      log.warning(f"[AGENT] new configuration loaded: uvn_id={self.uvn_id.generation_ts}, root_vpn={self.root_vpn_config.generation_ts}, particles_vpn={self.particles_vpn_config.root_config.generation_ts}, backbone={self.deployment.generation_ts}")
+      log.warning(f"[AGENT] new configuration loaded: uvn_id={self.uvn_id.generation_ts}, root_vpn={self.root_vpn_config.generation_ts}, particles_vpn={self.particles_vpn_config.generation_ts}, backbone={self.deployment.generation_ts}")
       return True
 
     return False
