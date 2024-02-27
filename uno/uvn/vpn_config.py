@@ -66,7 +66,7 @@ class CentralizedVpnConfig:
 
     self.root_config = WireGuardConfig(
       intf=WireGuardInterfaceConfig(
-        name=self.settings.interface.format(0),
+        name=self.settings.interface.format(1),
         privkey=self.keymat.root_key.privkey,
         address=root_ip,
         netmask=self.settings.netmask,
