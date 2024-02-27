@@ -184,7 +184,7 @@ class Registry:
       ])
     }
     peers.update({
-      c: ([
+      c.name: ([
         "uno/uvn/ns",
         "uno/cell/info",
       ], [
