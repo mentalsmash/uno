@@ -139,16 +139,16 @@ docker_container()
         --privileged \
         --cap-add net_admin \
         --cap-add sys_module \
-        -e RC_LOCAL=/experiment/init.sh \
-        -e UVN_EXTRA_ARGS="${UVN_EXTRA_ARGS}" \
+        -e INIT=/experiment/init.sh \
         -v ${EXPERIMENT_DIR}/${container_name}:/experiment \
-        $([ -z "${CELL_ROAMING}" ] || printf -- "-e CELL_ROAMING=${CELL_ROAMING}") \
-        $([ -z "${CELL_ID}" ] || printf -- "-e CELL_ID=${CELL_ID}") \
+        $([ -z "${CELL_ID}" ] || printf -- "-e CELL=${CELL_ID}") \
+        $([ -z "${CELL_ID}" ] || printf -- "-v ${UVN_DIR}/cells/${net}.uvn-agent:/package.uvn-agent" ) \
+        $([ -z "${CELL_ID}" ] || printf -- "-e STATIC=y" ) \
+        $([ -z "${UNO_DIR}" ] || printf -- "-v ${UNO_DIR}:/uno") \
         $([ -z "${host_uvn}" ] || printf -- "-v ${host_uvn}:/uvn") \
         $([ -z "${host_uvn}" ] || printf -- "-w /uvn") \
-        $([ -z "${UNO_DIR}" ] || printf -- "-v ${UNO_DIR}:/uno") \
         uno:latest \
-        $([ -n "${host_uvn}" -a -z "${NO_AGENT}" ] || printf -- "sh") \
+        $([ -n "${host_uvn}" ] || printf -- "sh") \
         >> ${EXPERIMENT_LOG} 2>&1
     log_info "[created] docker container: ${container_name}"
 }
@@ -375,8 +375,8 @@ uvn_backup()
 {
     rm -rf ${BACKUP_DIR}
     mkdir -p ${BACKUP_DIR}
-    cp -r ${CELLS_DIR} ${UVN_DIR} ${BACKUP_DIR}
-    # cp -r ${UVN_DIR} ${BACKUP_DIR}
+    # cp -r ${CELLS_DIR} ${UVN_DIR} ${BACKUP_DIR}
+    cp -r ${UVN_DIR} ${BACKUP_DIR}
     log_info "[backed up] UVN state"
 }
 

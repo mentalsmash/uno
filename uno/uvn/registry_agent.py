@@ -18,12 +18,13 @@ from typing import  Optional, Callable
 
 from .wg import WireGuardInterface
 from .ip import LanDescriptor
-from .dds import DdsParticipantConfig, UvnTopic
+from .dds import DdsParticipant, DdsParticipantConfig, UvnTopic
 from .registry import Registry
 from .peer import UvnPeersList, UvnPeerStatus, UvnPeer
 from .render import Templates
 from .dds_data import uvn_info, cell_agent_config
-from .agent_svc import AgentServices
+from .agent_net import AgentNetworking
+from . import agent_run as Runner
 
 from .log import Logger as log
 
@@ -43,7 +44,8 @@ class RegistryAgent:
       uvn_id=self.registry.uvn_id,
       local_peer_id=0)
 
-    self._services = AgentServices(peers=self.peers)
+    self.net = AgentNetworking(static_dir=self.registry.root / "static")
+    self.dp = DdsParticipant()
 
 
   @property
@@ -103,10 +105,10 @@ class RegistryAgent:
 
   def _write_uvn_info(self) -> None:
     sample = uvn_info(
-      participant=self._services.dds,
+      participant=self.dp,
       uvn_id=self.registry.uvn_id,
       deployment=self.registry.backbone_vpn_config.deployment)
-    self._services.dds.writers[UvnTopic.UVN_ID].write(sample)
+    self.dp.writers[UvnTopic.UVN_ID].write(sample)
     log.activity(f"[AGENT] published uvn info: {self}")
 
 
@@ -117,12 +119,12 @@ class RegistryAgent:
       config_file = cells_dir / f"{cell.name}.yaml"
       config_str = config_file.read_text()
       sample = cell_agent_config(
-        participant=self._services.dds,
+        participant=self.dp,
         uvn_id=self.registry.uvn_id,
         cell_id=cell.id,
         deployment=self.registry.backbone_vpn_config.deployment,
         config_string=config_str)
-      self._services.dds.writers[UvnTopic.BACKBONE].write(sample)
+      self.dp.writers[UvnTopic.BACKBONE].write(sample)
       log.activity(f"[AGENT] published agent configuration: {cell}")
 
 
@@ -218,18 +220,19 @@ class RegistryAgent:
 
 
     try:
-      self._services.start(
-        dds_config=dds_config,
-        lans=[],
-        vpn_interfaces=[self.root_vpn])
+      self.net.start(vpn_interfaces=[self.root_vpn])
+      self.dp.start(dds_config)
       self.peers.update_peer(self.peers.local_peer,
         status=UvnPeerStatus.ONLINE)
       self._write_uvn_info()
       self._write_backbone()
-      self._services.spin(
+      Runner.spin(
+        dp=self.dp,
+        peers=self.peers,
         until=until,
         max_spin_time=max_spin_time)
     finally:
       self.peers.update_peer(self.peers.local_peer,
         status=UvnPeerStatus.OFFLINE)
-      self._services.stop()
+      self.dp.stop()
+      self.net.stop()

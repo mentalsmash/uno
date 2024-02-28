@@ -213,9 +213,6 @@ test_rc_uvn_attach()
     fi
 
     for net in ${TEST_NETWORKS_PRIVATE}; do
-        if printf -- "${HOST_ONLY_CELLS}\n" | grep -q ${net}; then
-            continue
-        fi
         if printf -- "${TEST_NETWORKS_BEHIND_NAT}\n" | grep -q ${net}; then
             local net_address=
         else
@@ -265,9 +262,6 @@ test_rc_uvn_install()
     
     rm -rf ${CELLS_DIR}
     for net in ${TEST_NETWORKS_PRIVATE}; do
-        if printf -- "${HOST_ONLY_CELLS}\n" | grep -q ${net}; then
-            continue
-        fi
         uvn_install     babylon.internet    ${net}    ${with_deployment}
     done
 
@@ -327,12 +321,7 @@ test_rc_docker_router()
 test_rc_docker_uvn()
 {
     for net in ${TEST_NETWORKS_PRIVATE}; do
-        if printf -- "${HOST_ONLY_CELLS}\n" | grep -q ${net}; then
-            local no_agent=y
-        else
-            local no_agent=
-        fi
-        CELL_ID=${net} NO_AGENT=${no_agent} \
+        CELL_ID=${net} \
         docker_container cell ${net} \
                          $(eval "echo \${IP_${net}_cell}") ${CELLS_DIR}/${net}
     done
@@ -342,7 +331,6 @@ test_rc_docker_uvn()
         docker_container    roam        internet    ${IP_internet_roam}     ${CELLS_DIR}/roam
     fi
 
-    NO_AGENT=y \
     docker_container    babylon     internet    ${IP_internet_babylon}  ${UVN_DIR}
 }
 
@@ -719,7 +707,7 @@ else
     ! rc_check UVN_NS           || test_rc_uvn_ns
     ! rc_check UVN_PARTICLES    || test_rc_uvn_particles
     ! rc_check UVN_DEPLOY       || test_rc_uvn_deploy
-    ! rc_check UVN_INSTALL      || test_rc_uvn_install
+    # ! rc_check UVN_INSTALL      || test_rc_uvn_install
     ! rc_check UVN_BACKUP       || test_rc_uvn_backup
 fi
 ! rc_check DOCKER_WIPE      || test_rc_docker_wipe

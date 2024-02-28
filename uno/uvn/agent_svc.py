@@ -47,10 +47,9 @@ class AgentServices:
     self.dds = DdsParticipant()
 
 
-  def start(self,
+  def start_network(self,
       lans: Optional[Iterable[LanDescriptor]]=None,
-      vpn_interfaces: Optional[Iterable[WireGuardInterface]]=None,
-      dds_config: Optional[DdsParticipantConfig]=None) -> None:
+      vpn_interfaces: Optional[Iterable[WireGuardInterface]]=None) -> None:
     try:
       # Make sure kernel forwarding is enabled
       ipv4_enable_kernel_forwarding()
@@ -61,15 +60,12 @@ class AgentServices:
         self._enable_vpn_nat(vpn)
       for lan in (lans or []):
         self._enable_lan_nat(lan)
-      if dds_config:
-        self.dds.start(dds_config)
-        self._dds_started = True
     except Exception as e:
       self.stop()
-      raise RuntimeError("failed to start")
+      raise RuntimeError("failed to configure network interfaces")
 
 
-  def stop(self,
+  def stop_network(self,
       lans: Optional[Iterable[LanDescriptor]]=None,
       vpn_interfaces: Optional[Iterable[WireGuardInterface]]=None) -> None:
     try:
@@ -85,9 +81,6 @@ class AgentServices:
           self._vpn_started.remove(vpn)
       for lan in lans_nat:
         self._disable_lan_nat(lan)
-      if self._dds_started:
-        self.dds.stop()
-        self._dds_started = False
     except Exception as e:
       raise RuntimeError("failed to start")
 

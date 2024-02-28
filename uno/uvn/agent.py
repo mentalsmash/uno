@@ -34,7 +34,7 @@ from .ip import (
   NicDescriptor,
 )
 from .ns import Nameserver, NameserverRecord
-from .dds import DdsParticipantConfig, UvnTopic
+from .dds import DdsParticipant, DdsParticipantConfig, UvnTopic
 from .registry import Registry
 from .peer import UvnPeersList, UvnPeerStatus, UvnPeer
 from .exec import exec_command
@@ -46,8 +46,9 @@ from .particle import write_particle_configuration
 from .graph import cell_agent_status_plot, backbone_deployment_graph
 from .render import Templates
 from .dds_data import dns_database, cell_agent_status
-from .agent_svc import AgentServices
+from .agent_net import AgentNetworking
 from .router import Router
+from . import agent_run as Runner
 
 from .log import Logger as log
 
@@ -94,8 +95,8 @@ class CellAgent:
     self.peers_tester = UvnPeersTester(self,
       max_test_delay=self.uvn_id.settings.timing_profile.tester_max_delay)
 
-    self._services = AgentServices(peers=self.peers)
-
+    self.dp = DdsParticipant()
+    self.net = AgentNetworking(static_dir=self.root / "static")
     self.www = UvnHttpd(self)
     self.router = Router(self)
 
@@ -128,6 +129,11 @@ class CellAgent:
   @property
   def rti_license(self) -> Path:
     return self.root / Registry.AGENT_LICENSE
+
+
+  @property
+  def systemd_service_def(self) -> Path:
+    return Path("/etc/systemd/system/uvn.service")
 
 
   @property
@@ -333,89 +339,9 @@ class CellAgent:
     return self.root / "particles"
 
 
-  def _on_agent_state_changed(self) -> None:
-    # self.www.request_update()
-    # self._regenerate_plots()
-    # self._write_cell_info()
-    self._dirty = True
 
-
-  def _assert_fully_routed(self) -> None:
-    reachable = set()
-    for s in self._reachable_sites:
-      if s.lan not in self.routed_sites:
-        continue
-      reachable.add(s.lan)
-    missing = self.routed_sites - reachable
-    self.fully_routed = len(missing) == 0
-
-
-  def spin(self,
-      until: Optional[Callable[[], bool]]=None,
-      max_spin_time: Optional[int]=None) -> None:
-    def _on_spin(ts_start: Timestamp, ts_now: Timestamp, spin_len: float) -> None:
-      if self._reload_config:
-        new_config = self._reload_config
-        self._reload_config = None
-        # Parse/save/load new configuration
-        self.reload(new_config, save_to_disk=True)
-      if self._dirty:
-        self._write_cell_info()
-        self._regenerate_plots()
-        self.www.request_update()
-        self._dirty = False
-      # Periodically update the status page for various statistics
-      self.www.update()
-
-
-    def _on_user_condition(condition: dds.GuardCondition):
-      if condition == self.peers_tester.result_available_condition:#
-        # New peers tester result 
-        self._on_peers_tester_result()
-      elif condition == self.peers.updated_condition:
-        # Peer statistics updated
-        self._on_peers_updated()
-
-    try:
-      self._start(boot=True)
-      self._services.spin(
-        until=until,
-        max_spin_time=max_spin_time,
-        on_reader_data=self._on_reader_data,
-        on_reader_offline=self._on_reader_offline,
-        on_spin=_on_spin,
-        on_user_condition=_on_user_condition)
-    finally:
-      self._stop()
-
-
-  def start(self) -> None:
-    self._services.start(
-      lans=self.lans,
-      vpn_interfaces=self.vpn_interfaces)
-    log.warning("[AGENT] UVN services started")
-
-
-  def stop(self) -> None:
-    self._services.stop(
-      lans=self.lans,
-      vpn_interfaces=self.vpn_interfaces)
-    log.warning("[AGENT] UVN services stopped")
-
-
-  def _start(self, boot: bool=False) -> None:
-    log.activity("[AGENT] starting services...")
-
-    # Check that the agent detected all of the expected networks
-    allowed_lans = set(str(net) for net in self.cell.allowed_lans)
-    enabled_lans = set(str(lan.nic.subnet) for lan in self.lans)
-    if allowed_lans and allowed_lans != enabled_lans:
-      log.error("[AGENT] failed to detect all of the expected network interfaces:")
-      log.error(f"[AGENT] - expected: {', '.join(sorted(allowed_lans))}")
-      log.error(f"[AGENT] - detected: {', '.join(sorted(enabled_lans))}")
-      log.error(f"[AGENT] - missing : {', '.join(sorted(allowed_lans - enabled_lans))}")
-      raise RuntimeError("invalid network interfaces")
-
+  @property
+  def dds_config(self) -> DdsParticipantConfig:
     # Pick the address of the first backbone port for every peer
     # and all addresses for peers connected directly to this one
     backbone_peers = {
@@ -467,7 +393,7 @@ class CellAgent:
       UvnTopic.BACKBONE: {},
     }
 
-    dds_config = DdsParticipantConfig(
+    return DdsParticipantConfig(
       participant_xml_config=xml_config,
       participant_profile=DdsParticipantConfig.PARTICIPANT_PROFILE_CELL,
       writers=writers,
@@ -477,14 +403,10 @@ class CellAgent:
         self.peers.updated_condition,
       ])
 
-    self._services.start(
-      dds_config=dds_config,
-      lans=self.lans,
-      vpn_interfaces=self.vpn_interfaces)
 
-    self.router.start()
-
-    ns_records = [
+  @property
+  def ns_records(self) -> Sequence[NameserverRecord]:
+    return [
       NameserverRecord(
         hostname=f"registry.{self.uvn_id.address}",
         address=str(self.root_vpn_config.peers[0].address),
@@ -505,8 +427,114 @@ class CellAgent:
           for peer in [self.uvn_id.cells[backbone_vpn.config.peers[0].id]]
       ),
     ]
+
+
+  def _on_agent_state_changed(self) -> None:
+    # self.www.request_update()
+    # self._regenerate_plots()
+    # self._write_cell_info()
+    self._dirty = True
+
+
+  def _assert_fully_routed(self) -> None:
+    reachable = set()
+    for s in self._reachable_sites:
+      if s.lan not in self.routed_sites:
+        continue
+      reachable.add(s.lan)
+    missing = self.routed_sites - reachable
+    self.fully_routed = len(missing) == 0
+
+
+  def spin(self,
+      until: Optional[Callable[[], bool]]=None,
+      max_spin_time: Optional[int]=None) -> None:
+    def _on_spin(ts_start: Timestamp, ts_now: Timestamp, spin_len: float) -> None:
+      if self._reload_config:
+        new_config = self._reload_config
+        self._reload_config = None
+        # Parse/save/load new configuration
+        self.reload(new_config, save_to_disk=True)
+      if self._dirty:
+        self._write_cell_info()
+        self._regenerate_plots()
+        self.www.request_update()
+        self._dirty = False
+      # Periodically update the status page for various statistics
+      self.www.update()
+
+
+    def _on_user_condition(condition: dds.GuardCondition):
+      if condition == self.peers_tester.result_available_condition:#
+        # New peers tester result 
+        self._on_peers_tester_result()
+      elif condition == self.peers.updated_condition:
+        # Peer statistics updated
+        self._on_peers_updated()
+
+    try:
+      self._start(boot=True)
+      Runner.spin(
+        dp=self.dp,
+        peers=self.peers,
+        until=until,
+        max_spin_time=max_spin_time,
+        on_reader_data=self._on_reader_data,
+        on_reader_offline=self._on_reader_offline,
+        on_spin=_on_spin,
+        on_user_condition=_on_user_condition)
+    finally:
+      self._stop()
+
+
+  def start(self) -> None:
+    self.net.start(
+      lans=self.lans,
+      vpn_interfaces=self.vpn_interfaces)
+    self.router.start()
+    log.warning("[AGENT] UVN services started")
+
+
+  def stop(self) -> None:
+    self.net.stop(
+      lans=self.lans,
+      vpn_interfaces=self.vpn_interfaces)
+    self.router.stop()
+    log.warning("[AGENT] UVN services stopped")
+
+
+  def _start(self, boot: bool=False) -> None:
+    log.activity("[AGENT] starting services...")
+
+    # Check that the agent detected all of the expected networks
+    allowed_lans = set(str(net) for net in self.cell.allowed_lans)
+    enabled_lans = set(str(lan.nic.subnet) for lan in self.lans)
+    if allowed_lans and allowed_lans != enabled_lans:
+      log.error("[AGENT] failed to detect all of the expected network interfaces:")
+      log.error(f"[AGENT] - expected: {', '.join(sorted(allowed_lans))}")
+      log.error(f"[AGENT] - detected: {', '.join(sorted(enabled_lans))}")
+      log.error(f"[AGENT] - missing : {', '.join(sorted(allowed_lans - enabled_lans))}")
+      raise RuntimeError("invalid network interfaces")
+
+
+    # If the system has already been statically initialized, avoid
+    # configuring the network and assume the router was already started
+    if self.net.is_statically_configured:
+      log.warning(f"[AGENT] static uvn initialization detected.")
+      # Stop the static initialization process and take over configuration
+      self.net.take_over_configuration(
+        lans=self.lans,
+        vpn_interfaces=self.vpn_interfaces)
+    else:
+      self.net.start(
+        lans=self.lans,
+        vpn_interfaces=self.vpn_interfaces)
+      self.router.start()
+
+    self.dp.start(self.dds_config)
+
     # TODO(asorbini) re-enable ns server once thought through
-    # self.ns.assert_records(ns_records)
+    # self.ns.assert_records(self.ns_records)
     # self.ns.start(self.uvn_id.address)
 
     self.peers_tester.start()
@@ -533,12 +561,6 @@ class CellAgent:
       backbone_vpn_ids=[nic.config.generation_ts for nic in self.backbone_vpns],
       backbone_peers=[p.id for nic in self.backbone_vpns for p in nic.config.peers])
 
-    # # Write Cell Info
-    # self._write_cell_info()
-    
-    # Write DNS Topic
-    # self._write_dns()
-
     # Trigger updates on the next spin
     self._on_agent_state_changed()
 
@@ -558,7 +580,7 @@ class CellAgent:
     self.peers.update_peer(self.peers.local_peer,
       status=UvnPeerStatus.OFFLINE,
       routed_sites=[])
-    # TODO(asorbini) re-enable httpd server
+    self.dp.stop()
     self.www.stop()
     self.peers_tester.stop()
     # TODO(asorbini) re-enable ns server
@@ -567,7 +589,7 @@ class CellAgent:
     self.routed_sites = []
     self.discovery_completed = False
     self.registry_connected = False
-    self._services.stop()
+    self.net.stop()
     log.activity("[AGENT] stopped")
 
 
@@ -628,7 +650,7 @@ class CellAgent:
 
   def _write_cell_info(self) -> None:
     sample = cell_agent_status(
-      participant=self._services.dds,
+      participant=self.dp,
       uvn_id=self.uvn_id,
       cell_id=self.cell.id,
       deployment=self.deployment,
@@ -638,16 +660,16 @@ class CellAgent:
       lans=self.lans,
       reachable_sites=self.reachable_sites,
       unreachable_sites=self.unreachable_sites)
-    self._services.dds.writers[UvnTopic.CELL_ID].write(sample)
+    self.dp.writers[UvnTopic.CELL_ID].write(sample)
 
 
   def _write_dns(self) -> None:
     sample = dns_database(
-      participant=self._services.dds,
+      participant=self.dp,
       uvn_id=self.uvn_id,
       ns=self.ns,
       server_name=self.cell.name)
-    self._services.dds.writers[UvnTopic.DNS].write(sample)
+    self.dp.writers[UvnTopic.DNS].write(sample)
 
 
   def _on_peers_tester_result(self) -> None:
@@ -769,6 +791,36 @@ class CellAgent:
     for particle_id, particle_client_cfg in self.particles_vpn_config.peer_configs.items():
       particle = self.uvn_id.particles[particle_id]
       write_particle_configuration(particle, particle_client_cfg, self.particle_configurations_dir)
+
+
+  def _generate_static_config(self, output_dir: Path) -> None:
+    log.activity(f"[AGENT] generating static configuration: {output_dir}")
+    output_dir.mkdir(parents=True, exist_ok=True)
+    output = output_dir / "uvn.sh"
+    output.write_text(Templates.render("static_config/uvn.sh", {}))
+    output.chmod(0o755)
+    output = output_dir / "uvn.config"
+    output.write_text(Templates.render("static_config/config", {
+      "agent": self,
+      "generation_ts": Timestamp.now().format(),
+    }))
+    output.chmod(0o600)
+    wg_dir = output_dir / "wg"
+    if wg_dir.is_dir():
+      shutil.rmtree(wg_dir)
+    wg_dir.mkdir(parents=True, exist_ok=False)
+    wg_dir.chmod(0o700)
+    output = output_dir / "wg-ip.config"
+    output.write_text(Templates.render("static_config/wg-ip.config", {
+      "agent": self,
+    }))
+    for vpn in self.vpn_interfaces:
+      wg_config = wg_dir / f"{vpn.config.intf.name}.conf"
+      wg_config.write_text(vpn.config.contents)
+    output = output_dir / "frr.conf"
+    output.write_text(self.router.frr_config)
+    log.activity(f"[AGENT] static configuration created: {output_dir}")
+
 
 
   def reload(self, new_config: dict, save_to_disk: bool=False) -> bool:
@@ -1021,22 +1073,13 @@ class CellAgent:
   def bootstrap(
       package: Path,
       root: Path,
-      system: bool=False) -> "CellAgent":
+      service: Optional[str]=None) -> "CellAgent":
     # Extract package to a temporary directory
     tmp_dir_h = tempfile.TemporaryDirectory()
     tmp_dir = Path(tmp_dir_h.name)
 
     # log.debug(f"[AGENT] extracting package contents: {package}")
-    if not system:
-      log.warning(f"[AGENT] bootstrap agent from package {package} to {root}")
-    else:
-      root = Path("/etc/uvn")
-      sys_existed = False
-      log.warning(f"[AGENT] bootstrap system agent from package {package} to {root}")
-      if root.is_dir():
-        sys_existed = True
-        log.warning(f"[AGENT] replacing existing system agent")
-        shutil.rmtree(root)
+    log.warning(f"[AGENT] bootstrap agent from package {package} to {root}")
 
     package = package.resolve()
 
@@ -1119,34 +1162,28 @@ class CellAgent:
       dst = root / f
       shutil.copy2(src, dst)
 
-    if system:
-      # Install init.d script
-      # log.activity("[AGENT] installing agent init script")
-      # agent_init = Path("/etc/init.d/uvn")
-      # agent_init.write_text(Templates.render("service/uno_init.sh", {
-
-      # }))
-      # agent_init.chmod(0o755)
-      # log.warning(f"[AGENT] init script installed: {agent_init}")
-
-      # Install systemd service definition
-      agent_svc = Path("/etc/systemd/system/uvn.service")
-      agent_svc.write_text(Templates.render("service/uvn.service", {
-
-      }))
-      agent_svc.chmod(0o644)
-      log.warning(f"[AGENT] service installed: {agent_svc}")
-
     # Load the imported agent
     log.activity(f"[AGENT] loading imported agent: {root}")
     agent = CellAgent.load(root)
     log.warning(f"[AGENT] bootstrap completed: {agent.cell}@{agent.uvn_id} [{agent.root}]")
 
-    if system:
-      log.warning(f"[AGENT] agent has been installed as a system service.")
-      if sys_existed:
-        log.warning(f"[AGENT] Use `systemctl daemon-reload` to load the most recent configuration.")  
-      log.warning(f"[AGENT] Use `systemctl start uvn` to start the service.")
+    # Generate static configuration
+    agent._generate_static_config(agent.root / "static")
+
+    if service == "static":
+      service_def = Templates.render("service/uvn.service.static", {"agent": agent,})
+    elif service == "system":
+      service_def = Templates.render("service/uvn.service", {"agent": agent,})
+    else:
+      service_def = None
+
+    # Install systemd service definition
+    if service_def:
+      agent.systemd_service_def.write_text(service_def)
+      agent.systemd_service_def.chmod(0o644)
+      log.warning(f"[AGENT] service installed ({service}): {agent.systemd_service_def}")
+      log.warning(f"[AGENT] Use `systemctl start uvn` to start it.")
+
     return agent
 
 

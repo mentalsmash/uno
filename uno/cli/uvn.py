@@ -226,7 +226,7 @@ def cell_bootstrap(args):
   agent = CellAgent.bootstrap(
     package=args.package,
     root=args.root,
-    system=args.system)
+    service=args.service)
 
 
 def cell_agent(args):
@@ -528,10 +528,10 @@ def main():
     help="Package file for the UVN cell agent.",
     type=Path)
 
-  cmd_cell_bootstrap.add_argument("-s", "--system",
-    help="Install the agent as the system agent. The agent configuration will be placed in /etc/uvn, and /etc/init.d/uvn will be created.",
-    default=False,
-    action="store_true")
+  cmd_cell_bootstrap.add_argument("-s", "--service",
+    choices=["agent", "static"],
+    help="Install the UVN as a systemd service. Default: %(default)s",
+    default=None)
 
 
   #############################################################################

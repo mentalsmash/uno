@@ -4,7 +4,7 @@ Description=UVN agent.
 [Service]
 #Type=simple
 Type=notify
-ExecStart=/usr/local/bin/uvn cell agent -s -W -r /etc/uvn -v
+ExecStart=/usr/local/bin/uvn cell agent -s -W -r {{agent.root}} -v
 KillSignal=SIGINT
 
 [Install]
