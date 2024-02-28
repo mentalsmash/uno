@@ -73,7 +73,8 @@ class CentralizedVpnConfig:
         address=root_ip,
         netmask=self.settings.netmask,
         port=None if self.root_endpoint is None else self.settings.port,
-        endpoint=f"{self.root_endpoint}:{self.settings.port}" if self.root_endpoint is not None else None),
+        endpoint=f"{self.root_endpoint}:{self.settings.port}" if self.root_endpoint is not None else None,
+        mtu=self.settings.peer_mtu),
       peers=[
         WireGuardInterfacePeerConfig(
           id=peer_id,

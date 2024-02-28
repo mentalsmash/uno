@@ -282,6 +282,7 @@ class BackboneVpnSettings(VpnSettings):
   ]
   DEFAULT_LINK_NETMASK = 31
   DEFAULT_DEPLOYMENT_STRATEGY = DeploymentStrategyKind.CROSSED
+  DEFAULT_PEER_MTU = 1392
 
   def __init__(self,
       port: int | None = None,
