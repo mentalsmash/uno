@@ -233,6 +233,7 @@ uvn_router_start()
     return 1
   fi
   if ! (
+    set -x
     cp "${frr_conf}" /etc/frr/frr.conf
   ); then
     uvn_log_failed "failed to intall frr configuration"
