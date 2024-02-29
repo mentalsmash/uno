@@ -562,7 +562,7 @@ class CellAgent:
         vpn_interfaces=self.vpn_interfaces)
       self.router.start()
       self._router_started = True
-    
+
     # Regenerate static configuration
     self._generate_static_config()
 
@@ -1066,17 +1066,19 @@ class CellAgent:
 
     # Include the RTI license file
     # Include DDS Security artifacts
-    for src, dst in [
-        (registry.rti_license, None),
-        (registry.dds_keymat.cert(cell.name), "cert.pem"),
-        (registry.dds_keymat.key(cell.name), "key.pem"),
-        (registry.dds_keymat.governance, "governance.p7s"),
-        (registry.dds_keymat.permissions(cell.name), "permissions.p7s"),
-        (registry.dds_keymat.ca.cert, "ca-cert.pem"),
-        (registry.dds_keymat.perm_ca.cert, "perm-ca-cert.pem"),
+    for src, dst, optional in [
+        (registry.rti_license, None, True),
+        (registry.dds_keymat.cert(cell.name), "cert.pem", False),
+        (registry.dds_keymat.key(cell.name), "key.pem", False),
+        (registry.dds_keymat.governance, "governance.p7s", False),
+        (registry.dds_keymat.permissions(cell.name), "permissions.p7s", False),
+        (registry.dds_keymat.ca.cert, "ca-cert.pem", False),
+        (registry.dds_keymat.perm_ca.cert, "perm-ca-cert.pem", False),
       ]:
       dst = dst or src.name
       tgt = tmp_dir / dst
+      if optional and not src.exists():
+        continue
       shutil.copy2(src, tgt)
       package_extra_files.append(tgt)
 

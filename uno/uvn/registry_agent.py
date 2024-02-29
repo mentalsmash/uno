@@ -167,6 +167,7 @@ class RegistryAgent:
   def spin(self,
       until: Optional[Callable[[], bool]]=None,
       max_spin_time: Optional[int]=None) -> None:
+
     if not self.registry.rti_license.is_file():
       log.error(f"RTI license file not found: {self.registry.rti_license}")
       raise RuntimeError("RTI license file not found")
