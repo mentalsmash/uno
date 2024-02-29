@@ -124,15 +124,12 @@ class AgentNetworking:
 
   @property
   def static_pid_file(self) -> Path:
-    return Path("/run/uno/uvn-net.pid")
+    return Path("/run/uno/uvn-net.up")
 
 
   @property
   def is_statically_configured(self) -> bool:
-    return (
-      self.static_pid_file is not None
-      and self.static_pid_file.is_file()
-    )
+    return self.static_pid_file.is_file()
 
 
   @property
