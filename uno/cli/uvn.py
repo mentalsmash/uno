@@ -196,7 +196,7 @@ def cell_service_enable(args):
   root = args.root or Path.cwd()
   # Load the agent to make sure the directory contains a valid configuration
   agent = CellAgent.load(root)
-  CellAgent.generate_services(root=agent.root)
+  CellAgent.generate_services(agent_root=agent.root)
   if args.boot:
     CellAgent.enable_service(agent=args.agent)
   if args.start:
