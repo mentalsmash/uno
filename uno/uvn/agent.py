@@ -24,7 +24,7 @@ import yaml
 import tempfile
 import time
 
-from .uvn_id import UvnId, CellId
+from .uvn_id import UvnId, CellId, ParticlesVpnSettings, RootVpnSettings
 from .wg import WireGuardConfig, WireGuardInterface
 from .ip import (
   list_local_networks,
@@ -59,6 +59,13 @@ class CellAgent:
   LOCAL_NETWORKS_TABLE_FILENAME = "networks.local"
   REACHABLE_NETWORKS_TABLE_FILENAME = "networks.reachable"
   UNREACHABLE_NETWORKS_TABLE_FILENAME = "networks.unreachable"
+  SYSTEMD_SERVICE_NET = Path("/etc/systemd/system/uvn-net.service")
+  SYSTEMD_SERVICE_AGENT = Path("/etc/systemd/system/uvn-agent.service")
+  SYSTEMD_SERVICES = [
+    SYSTEMD_SERVICE_NET,
+    SYSTEMD_SERVICE_AGENT,
+  ]
+  GLOBAL_UVN_ID = Path("/etc/uvn/root")
 
   def __init__(self,
       root: Path,
@@ -96,7 +103,9 @@ class CellAgent:
       max_test_delay=self.uvn_id.settings.timing_profile.tester_max_delay)
 
     self.dp = DdsParticipant()
-    self.net = AgentNetworking(static_dir=self.root / "static")
+    self.net = AgentNetworking(
+      static_dir=self.root / "static",
+      deployment_id=self.deployment.generation_ts)
     self.www = UvnHttpd(self)
     self.router = Router(self)
 
@@ -115,6 +124,7 @@ class CellAgent:
     self._unreachable_sites = set()
     self._fully_routed = False
     self._dirty = True
+    self._started = False
 
     # Only enable HTTP server if requested
     self.enable_www = False
@@ -122,18 +132,21 @@ class CellAgent:
     # Only enable Systemd support on request
     self.enable_systemd = False
 
-    # UVN secret is inject at runtime
-    self.uvn_secret = None
+    # Switch network to static configuration
+    # on shutdown
+    self._router_started = False
+    self._took_over_static = False
+    self._replaced_static = False
 
 
   @property
   def rti_license(self) -> Path:
-    return self.root / Registry.AGENT_LICENSE
+    return self.root / "rti_license.dat"
 
 
   @property
-  def systemd_service_def(self) -> Path:
-    return Path("/etc/systemd/system/uvn.service")
+  def pid_file(self) -> Path:
+    return Path("/var/run/uno/uvn-agent.pid")
 
 
   @property
@@ -262,23 +275,27 @@ class CellAgent:
     prev = self._routed_sites
     self._routed_sites = set(val)
 
+    # Don't update state if the agen't isn't active
+    if not self._started:
+      return
+
     new_sites = self._routed_sites - prev
     for s in new_sites:
       log.warning(f"[AGENT] ATTACHED: {s}")
-    if new_sites:
-      subnets = {l.nic.subnet for l in new_sites}
-      log.debug(f"[AGENT] enabling {len(new_sites)} new routed sites: {list(map(str, new_sites))}")
-      for backbone_vpn in self.backbone_vpns:
-        backbone_vpn.allow_ips_for_peer(0, subnets)
+    # if new_sites:
+    #   subnets = {l.nic.subnet for l in new_sites}
+    #   log.debug(f"[AGENT] enabling {len(new_sites)} new routed sites: {list(map(str, new_sites))}")
+    #   for backbone_vpn in self.backbone_vpns:
+    #     backbone_vpn.allow_ips_for_peer(0, subnets)
     
     gone_sites = prev - self._routed_sites
     for s in gone_sites:
       log.error(f"[AGENT] DETACHED: {s}")
-    if gone_sites:
-      subnets = {l.nic.subnet for l in gone_sites}
-      log.activity(f"[AGENT] disabling {len(gone_sites)} inactive routed sites: {list(map(str, gone_sites))}")
-      for backbone_vpn in self.backbone_vpns:
-        backbone_vpn.disallow_ips_for_peer(0, subnets)
+    # if gone_sites:
+    #   subnets = {l.nic.subnet for l in gone_sites}
+    #   log.activity(f"[AGENT] disabling {len(gone_sites)} inactive routed sites: {list(map(str, gone_sites))}")
+    #   for backbone_vpn in self.backbone_vpns:
+    #     backbone_vpn.disallow_ips_for_peer(0, subnets)
     
     if new_sites or gone_sites:
       self._on_agent_state_changed()
@@ -381,27 +398,14 @@ class CellAgent:
       "enable_dds_security": False,
     })
 
-    writers = [
-      UvnTopic.CELL_ID,
-      # UvnTopic.DNS,
-    ]
-
-    readers = {
-      UvnTopic.CELL_ID: {},
-      # UvnTopic.DNS: {},
-      UvnTopic.UVN_ID: {},
-      UvnTopic.BACKBONE: {},
-    }
-
     return DdsParticipantConfig(
       participant_xml_config=xml_config,
       participant_profile=DdsParticipantConfig.PARTICIPANT_PROFILE_CELL,
-      writers=writers,
-      readers=readers,
       user_conditions=[
         self.peers_tester.result_available_condition,
         self.peers.updated_condition,
-      ])
+      ],
+      **Registry.AGENT_CELL_TOPICS)
 
 
   @property
@@ -472,7 +476,40 @@ class CellAgent:
         # Peer statistics updated
         self._on_peers_updated()
 
+    # Check if another agent is running
+    import os
+    if self.pid_file.is_file():
+      other_pid = int(self.pid_file.read_text().strip())
+      log.debug(f"[AGENT] possible agent process detected: {self.pid_file} [{other_pid}]")
+      try:
+        os.kill(other_pid, 0)
+      except OSError:
+        log.debug(f"[AGENT] process {other_pid} doesn't exist, removing pid file")
+        self.pid_file.unlink()
+      else:
+        raise RuntimeError("agent already running on system", other_pid)
+
+    # Write PID to file
+    # TODO(asorbini) replace this with a context manager
+    self.pid_file.parent.mkdir(exist_ok=True, parents=True)
+    self.pid_file.write_text(str(os.getpid()))
+
     try:
+      # If the system has already been statically initialized, avoid
+      # configuring the network and assume the router was already started
+      if self.net.is_statically_configured:
+        if not self.net.compatible_static_configuration:
+          log.warning(f"[AGENT] stopping incompatible static uvn initialization.")
+          self.net.stop_static_configuration()
+          self._replaced_static = True
+        else:
+          log.warning(f"[AGENT] taking over static uvn initialization.")
+          # Stop the static initialization process and take over configuration
+          # but delegate the services back to static configuration on shutdown
+          self.net.take_over_configuration(
+            lans=self.lans,
+            vpn_interfaces=self.vpn_interfaces)
+          self._took_over_static = True
       self._start(boot=True)
       Runner.spin(
         dp=self.dp,
@@ -484,7 +521,10 @@ class CellAgent:
         on_spin=_on_spin,
         on_user_condition=_on_user_condition)
     finally:
-      self._stop()
+      try:
+        self._stop(remain_online=self._took_over_static or self._replaced_static)
+      finally:
+        self.pid_file.unlink()
 
 
   def start(self) -> None:
@@ -516,29 +556,22 @@ class CellAgent:
       log.error(f"[AGENT] - missing : {', '.join(sorted(allowed_lans - enabled_lans))}")
       raise RuntimeError("invalid network interfaces")
 
-
-    # If the system has already been statically initialized, avoid
-    # configuring the network and assume the router was already started
-    if self.net.is_statically_configured:
-      log.warning(f"[AGENT] static uvn initialization detected.")
-      # Stop the static initialization process and take over configuration
-      self.net.take_over_configuration(
-        lans=self.lans,
-        vpn_interfaces=self.vpn_interfaces)
-    else:
+    if not self._took_over_static:
       self.net.start(
         lans=self.lans,
         vpn_interfaces=self.vpn_interfaces)
       self.router.start()
+      self._router_started = True
+    
+    # Regenerate static configuration
+    self._generate_static_config()
 
     self.dp.start(self.dds_config)
 
     # TODO(asorbini) re-enable ns server once thought through
     # self.ns.assert_records(self.ns_records)
     # self.ns.start(self.uvn_id.address)
-
     self.peers_tester.start()
-    self.peers_tester.trigger()
 
     # Write particle configuration to disk
     self._write_particle_configurations()
@@ -561,6 +594,8 @@ class CellAgent:
       backbone_vpn_ids=[nic.config.generation_ts for nic in self.backbone_vpns],
       backbone_peers=[p.id for nic in self.backbone_vpns for p in nic.config.peers])
 
+    self._started = True
+
     # Trigger updates on the next spin
     self._on_agent_state_changed()
 
@@ -575,7 +610,7 @@ class CellAgent:
       log.debug("[AGENT] systemd notified")
 
 
-  def _stop(self) -> None:
+  def _stop(self, remain_online: bool=False) -> None:
     log.activity("[AGENT] performing shutdown...")
     self.peers.update_peer(self.peers.local_peer,
       status=UvnPeerStatus.OFFLINE,
@@ -585,11 +620,18 @@ class CellAgent:
     self.peers_tester.stop()
     # TODO(asorbini) re-enable ns server
     # self.ns.stop()
-    self.router.stop()
+    if not remain_online:
+      if self._router_started:
+        self._router_started = False
+        self.router.stop()
+      self.net.stop()
+    elif self.net.started:
+      log.warning(f"[AGENT] resuming static uvn initialization")
+      self.net.delegate_configuration()
+    self._started = False
     self.routed_sites = []
     self.discovery_completed = False
     self.registry_connected = False
-    self.net.stop()
     log.activity("[AGENT] stopped")
 
 
@@ -793,14 +835,16 @@ class CellAgent:
       write_particle_configuration(particle, particle_client_cfg, self.particle_configurations_dir)
 
 
-  def _generate_static_config(self, output_dir: Path) -> None:
+  def _generate_static_config(self, output_dir: Path | None=None) -> None:
+    if output_dir is None:
+      output_dir = self.root / "static"
     log.activity(f"[AGENT] generating static configuration: {output_dir}")
     output_dir.mkdir(parents=True, exist_ok=True)
-    output = output_dir / "uvn.sh"
-    output.write_text(Templates.render("static_config/uvn.sh", {}))
+    output = output_dir / "uno.sh"
+    output.write_text(Templates.render("static_config/uno.sh", {}))
     output.chmod(0o755)
     output = output_dir / "uvn.config"
-    output.write_text(Templates.render("static_config/config", {
+    output.write_text(Templates.render("static_config/uvn.config", {
       "agent": self,
       "generation_ts": Timestamp.now().format(),
     }))
@@ -928,7 +972,9 @@ class CellAgent:
       cell_id=serialized["cell_id"],
       deployment=P2PLinksMap.deserialize(serialized["deployment"]),
       root_vpn_config=WireGuardConfig.deserialize(serialized["root_vpn_config"]),
-      particles_vpn_config=CentralizedVpnConfig.deserialize(serialized["particles_vpn_config"]),
+      particles_vpn_config=CentralizedVpnConfig.deserialize(
+        serialized["particles_vpn_config"],
+        settings_cls=ParticlesVpnSettings),
       backbone_vpn_configs=[
         WireGuardConfig.deserialize(v)
         for v in serialized.get("backbone_vpn_configs", [])
@@ -940,8 +986,7 @@ class CellAgent:
   def generate(
       registry: Registry,
       cell: CellId,
-      output_dir: Path,
-      bootstrap_package: bool=False) -> Path:
+      output_dir: Path) -> Path:
     # Check that the uvn has been deployed
     if not registry.deployed:
       raise RuntimeError("uvn not deployed")
@@ -952,43 +997,42 @@ class CellAgent:
 
     package_extra_files: Sequence[Path] = []
 
-    # if bootstrap_package:
-    #   # Export all keys to a common directory
-    #   keys_dir = tmp_dir / "gpg"
+    # # Export all keys to a common directory
+    # keys_dir = tmp_dir / "gpg"
 
-    #   id_db = IdentityDatabase(registry.root)
+    # id_db = IdentityDatabase(registry.root)
 
-    #   # Export the cell's private key
-    #   agent_pubkey, agent_privkey, agent_pass = id_db.export_key(
-    #     cell,
-    #     with_privkey=True,
-    #     with_passphrase=True,
+    # # Export the cell's private key
+    # agent_pubkey, agent_privkey, agent_pass = id_db.export_key(
+    #   cell,
+    #   with_privkey=True,
+    #   with_passphrase=True,
+    #   output_dir=keys_dir)
+    
+    # # Export the UVN's public key
+    # uvn_pubkey, _, _ = id_db.export_key(
+    #   registry.uvn_id,
+    #   output_dir=keys_dir)
+
+    # # Export the public key for all other cells
+    # other_keys = []
+    # for other in (c for c in registry.uvn_id.cells.values() if c != cell):
+    #   other_pubkey, _, _ = id_db.export_key(
+    #     other,
     #     output_dir=keys_dir)
-      
-    #   # Export the UVN's public key
-    #   uvn_pubkey, _, _ = id_db.export_key(
-    #     registry.uvn_id,
-    #     output_dir=keys_dir)
+    #   other_keys.append(other_pubkey)
+    
+    # package_extra_files.append(keys_dir)
 
-    #   # Export the public key for all other cells
-    #   other_keys = []
-    #   for other in (c for c in registry.uvn_id.cells.values() if c != cell):
-    #     other_pubkey, _, _ = id_db.export_key(
-    #       other,
-    #       output_dir=keys_dir)
-    #     other_keys.append(other_pubkey)
-      
-    #   package_extra_files.append(keys_dir)
+    # # Store the cell id in a separate file
+    # cell_id_file = tmp_dir / "cell.id"
+    # cell_id_file.write_text(str(cell.id))
+    # package_extra_files.append(cell_id_file)
 
-    #   # Store the cell id in a separate file
-    #   cell_id_file = tmp_dir / "cell.id"
-    #   cell_id_file.write_text(str(cell.id))
-    #   package_extra_files.append(cell_id_file)
-
-    #   # Store the uvn id in a separate file
-    #   uvn_id_file = tmp_dir / "uvn.id"
-    #   uvn_id_file.write_text(yaml.safe_dump(registry.uvn_id.serialize()))
-    #   package_extra_files.append(uvn_id_file)
+    # # Store the uvn id in a separate file
+    # uvn_id_file = tmp_dir / "uvn.id"
+    # uvn_id_file.write_text(yaml.safe_dump(registry.uvn_id.serialize()))
+    # package_extra_files.append(uvn_id_file)
 
 
     # Write agent config
@@ -1046,40 +1090,22 @@ class CellAgent:
         agent_config.relative_to(tmp_dir),
         *(f.relative_to(tmp_dir) for f in package_extra_files)],
       cwd=tmp_dir)
-    agent_config_out = output_dir / f"{cell.name}.yaml"
-    exec_command(["cp", agent_config, agent_config_out])
 
+    log.warning(f"[AGENT] package generated: {agent_package}")
 
-    log.activity(f"[AGENT] created cell agent package: {agent_package}")
     return agent_package
 
 
   @staticmethod
-  def generate_all(
-      registry: Registry,
-      output_dir: Path,
-      bootstrap_package: bool=False) -> Mapping[int, Path]:
-    return {
-      cell.id: CellAgent.generate(
-        registry,
-        cell,
-        output_dir=output_dir,
-        bootstrap_package=bootstrap_package)
-      for cell in registry.uvn_id.cells.values()
-    }
-
-
-  @staticmethod
-  def bootstrap(
+  def extract(
       package: Path,
-      root: Path,
-      service: Optional[str]=None) -> "CellAgent":
+      root: Path) -> "CellAgent":
     # Extract package to a temporary directory
     tmp_dir_h = tempfile.TemporaryDirectory()
     tmp_dir = Path(tmp_dir_h.name)
 
     # log.debug(f"[AGENT] extracting package contents: {package}")
-    log.warning(f"[AGENT] bootstrap agent from package {package} to {root}")
+    log.warning(f"[AGENT] installing agent from package {package} to {root}")
 
     package = package.resolve()
 
@@ -1150,7 +1176,7 @@ class CellAgent:
 
     for f in [
         Registry.AGENT_CONFIG_FILENAME,
-        Registry.AGENT_LICENSE,
+        "rti_license.dat",
         "governance.p7s",
         "permissions.p7s",
         "key.pem",
@@ -1168,21 +1194,7 @@ class CellAgent:
     log.warning(f"[AGENT] bootstrap completed: {agent.cell}@{agent.uvn_id} [{agent.root}]")
 
     # Generate static configuration
-    agent._generate_static_config(agent.root / "static")
-
-    if service == "static":
-      service_def = Templates.render("service/uvn.service.static", {"agent": agent,})
-    elif service == "system":
-      service_def = Templates.render("service/uvn.service", {"agent": agent,})
-    else:
-      service_def = None
-
-    # Install systemd service definition
-    if service_def:
-      agent.systemd_service_def.write_text(service_def)
-      agent.systemd_service_def.chmod(0o644)
-      log.warning(f"[AGENT] service installed ({service}): {agent.systemd_service_def}")
-      log.warning(f"[AGENT] Use `systemctl start uvn` to start it.")
+    agent._generate_static_config()
 
     return agent
 
@@ -1195,22 +1207,110 @@ class CellAgent:
     return agent
 
 
-  def generate_service(self, output_dir: Path) -> None:
-    output_dir.mkdir(parents=True, exist_ok=True)
-    svc_sh = output_dir / "etc/init.d/uvn"
-    svc_sh.parent.mkdir(parents=True, exist_ok=True)
-    svc_sh.write_text(Templates.render("service/uvn_service.sh", {
-      "agent": self,
-    }))
-    svc_sh.chmod(0o755)
+  @staticmethod
+  def generate_services(agent_root: Path, reload: bool=True) -> None:
+    if CellAgent.GLOBAL_UVN_ID.is_file():
+      existing_svc_root = Path(CellAgent.GLOBAL_UVN_ID.read_text())
+      if existing_svc_root != agent_root:
+        log.error(f"[AGENT] cannot install services for selected cell: {agent_root}")
+        log.error(f"[AGENT] services have already been configured for a different cell: {existing_svc_root}")
+        log.error(f"[AGENT] delete the existing services before installing new ones.")
+        raise RuntimeError("services already installed for a different cell")
 
-    frr_conf = output_dir / "etc/uvn/frr.conf"
-    frr_conf.parent.mkdir(parents=True, exist_ok=True)
-    frr_conf.write_text(self.router.frr_config)
+    services = {
+      CellAgent.SYSTEMD_SERVICE_NET: ("service/uvn-net.service", {
+        "static_dir": agent_root / "static",
+      }),
+      CellAgent.SYSTEMD_SERVICE_AGENT: ("service/uvn-agent.service", {
+        "root": agent_root,
+      }),
+    }
 
-    for vpn in self.vpn_interfaces:
-      vpn_cfg = output_dir / f"etc/uvn/wg-{vpn.config.intf.name}.conf"  
-      vpn_cfg.parent.mkdir(parents=True, exist_ok=True)
-      vpn_cfg.write_text(vpn.config.contents)
+    for svc, (tmplt, ctx) in services.items():
+      log.activity(f"[AGENT] generating service definition: {svc}")
+      svc.write_text(Templates.render(tmplt, ctx))
+      svc.chmod(0o644)
+    
+    CellAgent.GLOBAL_UVN_ID.parent.mkdir(parents=True, exist_ok=True)
+    CellAgent.GLOBAL_UVN_ID.write_text(str(agent_root.resolve()))
+    
+    if reload:
+      log.activity(f"[AGENT] reloading systemd configuration")
+      exec_command(["systemctl", "daemon-reload"])
 
+    log.warning(f"[AGENT] services installed: {[s.stem for s in services]}")
+
+
+  @staticmethod
+  def delete_services(agent_root: Path, reload: bool=True) -> None:
+    if not CellAgent.GLOBAL_UVN_ID.is_file():
+      log.warning(f"[AGENT] global uvn id not found, continuing without matching agent to service.")
+    else:
+      existing_svc_root = Path(CellAgent.GLOBAL_UVN_ID.read_text())
+      if existing_svc_root != agent_root:
+        log.error(f"[AGENT] cannot delete services for selected cell: {agent_root}")
+        log.error(f"[AGENT] services have already been configured for a different cell: {existing_svc_root}")
+        log.error(f"[AGENT] delete the services from that cell, or delete {CellAgent.GLOBAL_UVN_ID} to force deletion.")
+        raise RuntimeError("services belong to a different cell")
+
+    CellAgent.stop_services()
+    CellAgent.disable_services()
+
+    # Delete the global id so if things go wrong, the logic will try to
+    # stop the services again in another invocation.
+    CellAgent.GLOBAL_UVN_ID.unlink()
+
+    deleted = []
+    for svc in CellAgent.SYSTEMD_SERVICES:
+      if svc.is_file():
+        svc.unlink()
+        deleted.append(svc)
+
+    if reload:
+      log.activity(f"[AGENT] reloading systemd configuration")
+      exec_command(["systemctl", "daemon-reload"])
+
+    log.warning(f"[AGENT] services deleted: {[s.stem for s in deleted]}")
+
+
+  @staticmethod
+  def enable_service(agent: bool=False) -> None:
+    CellAgent.disable_services()
+
+    if agent:
+      svc =  CellAgent.SYSTEMD_SERVICE_AGENT
+    else:
+      svc =  CellAgent.SYSTEMD_SERVICE_NET
+    
+    log.activity(f"[AGENT] enabling service at boot: {svc.stem}")
+    exec_command(["systemctl", "enable", svc.stem])
+    log.warning(f"[AGENT] service enabled at boot: {svc.stem}")
+
+
+  @staticmethod
+  def disable_services() -> None:
+    for svc in CellAgent.SYSTEMD_SERVICES:
+      log.debug(f"[AGENT] making sure service is disabled: {svc.stem}")
+      exec_command(["systemctl", "disable", svc.stem])
+
+
+  @staticmethod
+  def start_service(agent: bool=False) -> None:
+    CellAgent.stop_services()
+
+    if agent:
+      svc =  CellAgent.SYSTEMD_SERVICE_AGENT
+    else:
+      svc =  CellAgent.SYSTEMD_SERVICE_NET
+    
+    log.activity(f"[AGENT] starting service: {svc.stem}")
+    exec_command(["systemctl", "start", svc.stem])
+    log.warning(f"[AGENT] service started: {svc.stem}")
+
+
+  @staticmethod
+  def stop_services() -> None:
+    for svc in CellAgent.SYSTEMD_SERVICES:
+      log.debug(f"[AGENT] making sure service is stopped: {svc.stem}")
+      exec_command(["systemctl", "stop", svc.stem])
 

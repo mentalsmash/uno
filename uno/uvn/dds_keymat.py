@@ -225,7 +225,8 @@ class DdsKeyMaterial:
   def not_after(self) -> str:
     not_before = datetime.datetime.strptime(self.not_before, self.GRANT_TIME_FORMAT)
     not_after = datetime.datetime(
-      year=not_before.year + 10,
+      # Use 12 so we can accomodate leap years
+      year=not_before.year + 12,
       month=not_before.month,
       day=not_before.day,
       hour=not_before.hour,

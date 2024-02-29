@@ -242,6 +242,8 @@ class P2PVpnConfig:
       del serialized["deployment"]
     if not serialized["keymat"]:
       del serialized["keymat"]
+    if not serialized["peer_configs"]:
+      del serialized["peer_configs"]
     return serialized
 
 

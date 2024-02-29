@@ -69,6 +69,8 @@ class P2PLinksMap:
         } for peer_a_id, peer_a in self.peers.items()
       },
     }
+    if not serialized["peers"]:
+      del serialized["peers"]
     return serialized
 
 
@@ -91,7 +93,6 @@ class P2PLinksMap:
       })
 
 
-
 class DeploymentStrategyKind(Enum):
   CROSSED = 1
   CIRCULAR = 2
@@ -99,6 +100,10 @@ class DeploymentStrategyKind(Enum):
   RANDOM = 4
   FULL_MESH = 5
   # ASYMMETRIC = 3
+
+  @staticmethod
+  def parse(val: str) -> "DeploymentStrategyKind":
+    return DeploymentStrategyKind[val.upper().replace("-", "_")]
 
 
 class DeploymentStrategy:
@@ -130,7 +135,7 @@ class DeploymentStrategy:
 
   def deploy(self, network_map: P2PLinkAllocationMap) -> P2PLinksMap:
     deployed_peers, deployed_peers_count, deployed_peers_connections = (
-      self._generate_deployment() if len(self.peers) > 0 else
+      self._generate_deployment() if len(self.public_peers) > 0 else
       self.EMPTY_DEPLOYMENT
     )
 
@@ -256,10 +261,6 @@ class CrossedDeploymentStrategy(StaticDeploymentStrategy):
 
 
   def _generate_deployment(self)  -> Tuple[Sequence[int], Callable[[int], int], Sequence[Callable[[int], int]]]:
-    log.debug(f"public peers: {self.public_peers}")
-    log.debug(f"private peers: {self.private_peers}")
-
-
     if len(self.public_peers) > 1:
       public_peers_id, pub_peers_peers_count, pub_peers_peer_generators = self._generate_deployment_all_public(self.public_peers)
       if not self.private_peers:

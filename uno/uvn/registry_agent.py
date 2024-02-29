@@ -44,7 +44,7 @@ class RegistryAgent:
       uvn_id=self.registry.uvn_id,
       local_peer_id=0)
 
-    self.net = AgentNetworking(static_dir=self.registry.root / "static")
+    self.net = AgentNetworking()
     self.dp = DdsParticipant()
 
 
@@ -190,33 +190,10 @@ class RegistryAgent:
       "enable_dds_security": False,
     })
 
-    writers = [
-      UvnTopic.UVN_ID,
-      UvnTopic.BACKBONE,
-      # UvnTopic.DNS,
-    ]
-
-    # TODO(asorbini) get rid of these queries, since the topics are already filtered
-    readers = {
-      UvnTopic.CELL_ID: {
-        "query": "id.uvn.name MATCH %0",
-        "params": [
-          f"'{self.registry.uvn_id.name}'"
-        ],
-      },
-      # UvnTopic.DNS: {
-      #   "query": "cell.uvn.name MATCH %0",
-      #   "params": [
-      #     f"'{self.registry.uvn_id.name}'"
-      #   ]
-      # },
-    }
-
     dds_config = DdsParticipantConfig(
       participant_xml_config=xml_config,
       participant_profile=DdsParticipantConfig.PARTICIPANT_PROFILE_ROOT,
-      writers=writers,
-      readers=readers)
+      **Registry.AGENT_REGISTRY_TOPICS)
 
 
     try:

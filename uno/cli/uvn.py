@@ -14,169 +14,126 @@
 # You should have received a copy of the GNU Affero General Public License
 # along with this program. If not, see <https://www.gnu.org/licenses/>.
 ###############################################################################
-import yaml
 from pathlib import Path
 import argparse
-from typing import Tuple, Optional
-import shutil
+from typing import Optional
 
 import ipaddress
 
-from uno.uvn.uvn_id import UvnId, UvnSettings, BackboneVpnSettings, TimingProfile
+from uno.uvn.uvn_id import print_serialized, TimingProfile
 from uno.uvn.registry import Registry
 from uno.uvn.agent import CellAgent
 from uno.uvn.registry_agent import RegistryAgent
 from uno.uvn.log import set_verbosity, level as log_level, Logger as log
 from uno.uvn.deployment import DeploymentStrategyKind
-from uno.uvn.time import Timestamp
-from uno.uvn.particle import generate_particle_packages
 from uno.uvn.graph import backbone_deployment_graph
 
-def parse_id_str(admin: str) -> Tuple[str, str]:
-  owner = admin[admin.find("<")+1:admin.rfind(">")].strip()
-  owner_name=admin[:admin.find("<")].strip()
-  return owner, owner_name
-
-
-def _load_inline_yaml(val: str) -> dict:
-  # Try to interpret the string as a Path
-  args_file = Path(val)
-  if args_file.is_file():
-    return yaml.safe_load(args_file.read_text())
-  # Interpret the string as inline YAML
-  return yaml.safe_load(val)
 
 ###############################################################################
 ###############################################################################
 # Registry Commands
 ###############################################################################
 ###############################################################################
-def registry_init(args):
-  if args.configuration:
-    log.activity(f"[REGISTRY] loading UVN configuration: {args.configuration}")
-    serialized = yaml.safe_load(args.configuration.read_text())
-    uvn_id = UvnId.deserialize(serialized)
-  else:
-    log.activity(f"[REGISTRY] creating new UVN configuration")
-    owner, owner_name = parse_id_str(args.admin)
-    uvn_id=UvnId(
-      name=args.name,
-      address=args.address,
-      owner=owner,
-      owner_name=owner_name)
-    if args.strategy:
-      uvn_id.settings.backbone_vpn.deployment_strategy = DeploymentStrategyKind[args.strategy.upper().replace("-", "_")]
-    if args.deployment_args:
-      uvn_id.settings.backbone_vpn.deployment_strategy_args = _load_inline_yaml(args.deployment_args)
-    if args.timing:
-      uvn_id.settings.timing_profile = TimingProfile[args.timing.upper().replace("-", "_")]
-  log.activity(f"[REGISTRY] UVN configuration:")
-  log.activity(yaml.safe_dump(uvn_id.serialize()))
-  root = args.root or Path.cwd() / uvn_id.name
-  if root.is_dir() and next(root.glob("*"), None) is not None:
-    raise RuntimeError("target directory not empty", root)
-  root.mkdir(parents=True, exist_ok=True)
-  registry = Registry(root=root, uvn_id=uvn_id)
-  registry.save_to_disk()
-  registry.install_rti_license(args.license)
-  log.warning(f"[REGISTRY] initialized: {registry.root}")
-
+def registry_configure_args(args):
+  return {
+    **{
+      k_on: False if getattr(args, k_off, False) else None
+      for k_on, k_off in [
+        ("enable_particles_vpn", "disable_particles_vpn"),
+        ("enable_root_vpn", "disable_root_vpn"),
+      ]
+    },
+    **{
+      k: getattr(args, k, None)
+      for k in [
+        "owner_id",
+        "address",
+        "timing_profile",
+        "rti_license",
+        "root_vpn_push_port",
+        "root_vpn_pull_port",
+        "root_vpn_subnet",
+        "root_vpn_mtu",
+        "particles_vpn_port",
+        "particles_vpn_subnet",
+        "particles_vpn_mtu",
+        "backbone_vpn_port",
+        "backbone_vpn_subnet",
+        "backbone_vpn_mtu",
+        "deployment_strategy",
+        "deployment_strategy_args",
+      ]
+    }
+  }
 
 def registry_load(args) -> Registry:
   registry = Registry.load(args.root or Path.cwd())
-  if getattr(args, "print", False):
-    print(yaml.safe_dump(registry.serialize()))
   return registry
 
-
-def registry_add_cell(args):
-  registry = registry_load(args)
-  if args.admin:
-    owner, owner_name = parse_id_str(args.admin)
+def registry_configure(args):
+  configure_args = registry_configure_args(args)
+  if not args.update:
+    registry = Registry.create(
+      root=args.root,
+      name=args.name,
+      **configure_args)
   else:
-    owner = registry.uvn_id.owner
-    owner_name = registry.uvn_id.owner_name
-  cell = registry.uvn_id.add_cell(
-    name=args.name if args.name is not None else args.address,
-    address=args.address,
-    owner=owner,
-    owner_name=owner_name,
-    allowed_lans=args.network,
-    **({"enable_particles_vpn": False} if args.no_particles else {}))
-  # registry.configure()
-  registry.save_to_disk()
+    registry = registry_load(args)
+    if args.print:
+      print_serialized(registry, verbose=args.verbose > 0)
+    modified = registry.configure(**configure_args)
+    if not modified and not args.print:
+      log.warning("[REGISTRY] loaded successfuly")
 
 
-def registry_add_particle(args):
+def registry_cell(args):
   registry = registry_load(args)
-  if args.admin:
-    owner, owner_name = parse_id_str(args.admin)
+  config_args = {
+    "owner_id": args.owner_id,
+    "address": args.address,
+    "allowed_lans": args.network if args.network else None,
+    "enable_particles_vpn": False if args.disable_particles_vpn else None,
+  }
+  if args.update:
+    method = registry.uvn_id.update_cell
   else:
-    owner = registry.uvn_id.owner
-    owner_name = registry.uvn_id.owner_name
-  particle = registry.uvn_id.add_particle(
-    name=args.name if args.name is not None else args.address,
-    owner=owner,
-    owner_name=owner_name)
-  # registry.configure()
-  registry.save_to_disk()
-
-
-def registry_deploy(args):
-  registry = registry_load(args)
-
-  strategy_args = _load_inline_yaml(args.deployment_args) if args.deployment_args else None
-  updated = False
-  if args.strategy:
-    strategy = DeploymentStrategyKind[args.strategy.upper().replace("-", "_")]
-    if registry.uvn_id.settings.backbone_vpn.deployment_strategy != strategy:
-      registry.uvn_id.settings.backbone_vpn.deployment_strategy = strategy
-      updated = True
-      # Reset args (unless the user already provided some)
-      if strategy_args is None:
-        strategy_args = {}
-
-  if strategy_args is not None:
-    registry.uvn_id.settings.backbone_vpn.deployment_strategy_args = strategy_args
-    updated = True
-
-  if updated:
-    registry.uvn_id.generation_ts = Timestamp.now().format()
-
+    method = registry.uvn_id.add_cell
+  cell = method(name=args.name, **config_args)
+  if args.print:
+    print_serialized(cell, verbose=args.verbose > 0)
   registry.configure()
-  registry.save_to_disk()
-
-  if args.push:
-    registry_generate_agents(args)
 
 
-def registry_generate_agents(args, registry: Optional[Registry]=None):
+def registry_particle(args):
+  registry = registry_load(args)
+  config_args = {
+    "owner_id": args.owner_id,
+  }
+  if args.update:
+    method = registry.uvn_id.update_particle
+  else:
+    method = registry.uvn_id.add_particle
+  particle = method(name=args.name, **config_args)
+  if args.print:
+    print_serialized(particle, verbose=args.verbose > 0)
+  registry.configure()
+
+
+def registry_redeploy(args):
+  registry = registry_load(args)
+
+  registry.configure(
+    deployment_strategy=args.deployment_strategy,
+    deployment_strategy_args=args.deployment_strategy_args,
+    redeploy=True)
+
+
+def registry_sync(args, registry: Optional[Registry]=None):
   registry = registry or registry_load(args)
-
-  cells_dir = registry.root / "cells"
-  if cells_dir.is_dir():
-    import shutil
-    shutil.rmtree(cells_dir)  
-  CellAgent.generate_all(
-    registry,
-    cells_dir,
-    bootstrap_package=True)
-
-  particles_dir = registry.root / "particles"
-  if particles_dir.is_dir():
-    import shutil
-    shutil.rmtree(particles_dir)  
-  generate_particle_packages(
-    uvn_id=registry.uvn_id,
-    particle_vpn_configs=registry.particles_vpn_configs,
-    output_dir=particles_dir)
-
-
-  if args.push:
-    agent = RegistryAgent(registry)
-    agent.spin_until_consistent(
-      config_only=args.consistent_config,
-      max_spin_time=args.max_wait_time)
+  agent = RegistryAgent(registry)
+  agent.spin_until_consistent(
+    config_only=args.consistent_config,
+    max_spin_time=args.max_wait_time)
 
 
 def registry_common_args(parser: argparse.ArgumentParser):
@@ -194,14 +151,6 @@ def registry_agent(args):
   registry = registry_load(args)
   agent = RegistryAgent(registry)
   agent.spin()
-
-
-def registry_check_status(args):
-  registry = registry_load(args)
-  agent = RegistryAgent(registry)
-  agent.spin_until_consistent(
-    config_only=args.consistent_config,
-    max_spin_time=args.max_wait_time)
 
 
 def registry_plot(args):
@@ -223,17 +172,18 @@ def registry_plot(args):
 ###############################################################################
 ###############################################################################
 def cell_bootstrap(args):
-  agent = CellAgent.bootstrap(
-    package=args.package,
-    root=args.root,
-    service=args.service)
-
+  if not args.update:
+    agent = CellAgent.extract(
+      package=args.package,
+      root=args.root)
+  else:
+    pass
 
 def cell_agent(args):
   root = args.root or Path.cwd()
   agent = CellAgent.load(root)
   agent.enable_www = args.www
-  agent.enable_systemd = args.system
+  agent.enable_systemd = args.systemd
   # HACK set NDDSHOME so that the Connext Python API finds the license file
   import os
   os.environ["NDDSHOME"] = str(agent.root)
@@ -242,22 +192,195 @@ def cell_agent(args):
     if args.max_run_time >= 0 else None)
 
 
-def cell_install_service(args):
+def cell_service_enable(args):
+  root = args.root or Path.cwd()
+  # Load the agent to make sure the directory contains a valid configuration
+  agent = CellAgent.load(root)
+  CellAgent.generate_services(root=agent.root)
+  if args.boot:
+    CellAgent.enable_service(agent=args.agent)
+  if args.start:
+    CellAgent.start_service(agent=args.agent)
+
+
+def cell_service_disable(args):
   root = args.root or Path.cwd()
   agent = CellAgent.load(root)
-  agent.generate_service(root)
+  CellAgent.delete_services()
 
 
-def cell_start(args):
+def cell_net_up(args):
   root = args.root or Path.cwd()
   agent = CellAgent.load(root)
   agent.start()
 
 
-def cell_stop(args):
+def cell_net_down(args):
   root = args.root or Path.cwd()
   agent = CellAgent.load(root)
   agent.stop()
+
+
+def _define_registry_config_args(parser, owner_id_required: bool=False):
+  parser.add_argument("-o", "--owner-id",
+    metavar="OWNER",
+    required=owner_id_required,
+    help="'NAME <EMAIL>', or just 'EMAIL', of the UVN's administrator.")
+
+  parser.add_argument("-a", "--address",
+    # required=True,
+    help="The public address for the UVN registry.")
+
+  parser.add_argument("--timing-profile",
+    default=None,
+    choices=[v.name.lower().replace("_", "-") for v in TimingProfile],
+    help="Timing profile to use.")
+
+  parser.add_argument("--disable-root-vpn",
+    help="",
+    default=False,
+    action="store_true")
+
+  parser.add_argument("--root-vpn-push-port",
+    metavar="PORT",
+    help="",
+    default=None,
+    type=int)
+
+  parser.add_argument("--root-vpn-pull-port",
+    metavar="PORT",
+    help="",
+    default=None,
+    type=int)
+  
+  parser.add_argument("--root-vpn-subnet",
+    metavar="SUBNET",
+    help="",
+    default=None,
+    type=ipaddress.IPv4Network)
+
+  parser.add_argument("--root-vpn-mtu",
+    metavar="MTU",
+    help="",
+    default=None,
+    type=int)
+
+  parser.add_argument("--disable-particles-vpn",
+    help="",
+    default=False,
+    action="store_true")
+
+  parser.add_argument("--particles-vpn-port",
+    metavar="PORT",
+    help="",
+    default=None,
+    type=int)
+  
+  parser.add_argument("--particles-vpn-subnet",
+    metavar="SUBNET",
+    help="",
+    default=None,
+    type=ipaddress.IPv4Network)
+
+  parser.add_argument("--particles-vpn-mtu",
+    metavar="MTU",
+    help="",
+    default=None,
+    type=int)
+
+  parser.add_argument("--backbone-vpn-port",                
+    metavar="PORT",
+    help="",
+    default=None,
+    type=int)
+  
+  parser.add_argument("--backbone-vpn-subnet",
+    metavar="SUBNET",
+    help="",
+    default=None,
+    type=ipaddress.IPv4Network)
+
+  parser.add_argument("--backbone-vpn-mtu",
+    metavar="MTU",
+    help="",
+    default=None,
+    type=int)
+
+  parser.add_argument("-L", "--rti-license",
+    metavar="FILE",
+    help="Path to a valid RTI license file to be used by the UVN agents.",
+    # required=True,
+    type=Path)
+
+  _define_deployment_args(parser)
+  _define_print_args(parser)
+
+
+def _define_print_args(parser):
+  parser.add_argument("-p", "--print",
+    default=False,
+    action="store_true",
+    help="Print UVN configuration to stdout.")
+
+
+def _define_deployment_args(parser):
+  parser.add_argument("-S", "--deployment-strategy",
+    help="Algorithm used to generate the UVN backbone's deployment map.",
+    default=None,
+    choices=[k.name.lower().replace("_", "-") for k in DeploymentStrategyKind])
+
+  parser.add_argument("-D", "--deployment-strategy-args",
+    metavar="YAML",
+    help="A YAML file or an inline string specifying custom arguments for the selected deployment strategy.",
+    default=None)
+
+
+def _define_cell_config_args(parser):
+  parser.add_argument("-a", "--address",
+    # required=True,
+    default=None,
+    help="The public address for the UVN cell.")
+
+  parser.add_argument("-o", "--owner-id",
+    metavar="OWNER",
+    help="'NAME <EMAIL>', or just 'EMAIL', of the cell's administrator.")
+
+  parser.add_argument("-N", "--network",
+    metavar="A.B.C.D/n",
+    default=[],
+    action="append",
+    type=ipaddress.IPv4Network,
+    help="IP subnetwork that the cell will attach to the UVN. Repeat to attach multiple networks.")
+
+  parser.add_argument("--disable-particles-vpn",
+    help="Disable particles VPN for this cell.",
+    default=False,
+    action="store_true")
+  _define_print_args(parser)
+
+
+def _define_particle_config_args(parser):
+  parser.add_argument("-o", "--owner-id",
+    metavar="OWNER",
+    help="'NAME <EMAIL>', or just 'EMAIL', of the particle's administrator.")
+  _define_print_args(parser)
+
+
+def _define_sync_args(parser):
+  parser.add_argument("-C", "--consistent-config",
+    help="Wait only until all cell agents have a consistent,"
+      " updated, configuration, instead of waiting until the UVN is fully"
+      " routed.",
+    default=False,
+    action="store_true")
+
+  parser.add_argument("-t", "--max-wait-time",
+    metavar="SECONDS",
+    help="Maximum time to wait for cells agents and UVN to become consistent."
+    " Default: %(default)s sec",
+    default=3600,
+    type=int)
+
 
 
 def main():
@@ -267,291 +390,188 @@ def main():
   parser = argparse.ArgumentParser()
   parser.set_defaults(cmd=None)
 
-  subparsers = parser.add_subparsers(help="Available Commands")
-
-  #############################################################################
-  #############################################################################
-  # registry commands
-  #############################################################################
-  #############################################################################
-  cmd_registry = subparsers.add_parser("registry",
-    help="Manipulate the UVN's global registry.")
-  subparsers_registry = cmd_registry.add_subparsers(help="Registry Commands")
+  subparsers = parser.add_subparsers(help="Top-level Commands")
 
 
   #############################################################################
-  # registry::create
+  # uno define ...
   #############################################################################
-  cmd_registry_init = subparsers_registry.add_parser("init",
-    help="Initialize a directory with an empty UVN.")
-  cmd_registry_init.set_defaults(cmd=registry_init)
-  registry_common_args(cmd_registry_init)
-
-  cmd_registry_init.add_argument("-a", "--address",
-    # required=True,
-    help="The public address for the UVN registry.")
-
-  cmd_registry_init.add_argument("-n", "--name",
-    default=None,
-    help="A unique name for the UVN. The address will be used if unspecified")
-
-  cmd_registry_init.add_argument("-A", "--admin",
-    # required=True,
-    metavar="'NAME <EMAIL>'",
-    help="Name and email of the UVN's administrator.")
-
-  cmd_registry_init.add_argument("-T", "--timing",
-    default=None,
-    choices=[v.name.lower().replace("_", "-") for v in TimingProfile],
-    help="Timing profile to use.")
-
-  cmd_registry_init.add_argument("-S", "--strategy",
-    help="Algorithm used to generate the UVN backbone's deployment map.",
-    default=None,
-    choices=[k.name.lower().replace("_", "-") for k in DeploymentStrategyKind])
-
-  cmd_registry_init.add_argument("-D", "--deployment-args",
-    metavar="YAML",
-    help="A YAML file or an inline string specifying custom arguments for the selected deployment strategy.",
-    default=None)
-
-  cmd_registry_init.add_argument("-C", "--configuration",
-    metavar="YAML",
-    type=Path,
-    default=None,
-    help="Load the whole UVN configuration from the specified YAML (file or inline). Other arguments will be ignored.")
-
-  cmd_registry_init.add_argument("-L", "--license",
-    metavar="RTI_LICENSE",
-    help="Path to a valid RTI license file to be used by the UVN agents.",
-    required=True,
-    type=Path)
-
-  # cmd_registry_init.add_argument("-r", "--root",
-  #   default=None,
-  #   type=Path,
-  #   help="Custom root directory for the generated uvn. The directory must not exist or be empty.")
-
+  cmd_define = subparsers.add_parser("define",
+    help="Create a new UVN, add cells, add particles.")
+  subparsers_define = cmd_define.add_subparsers(help="UVN definition")
 
   #############################################################################
-  # registry::load
+  # uno define uvn ...
   #############################################################################
-  cmd_registry_load = subparsers_registry.add_parser("load",
-    help="Load the registry and validate its configuration.")
-  cmd_registry_load.set_defaults(cmd=registry_load)
-  registry_common_args(cmd_registry_load)
+  cmd_define_uvn = subparsers_define.add_parser("uvn",
+    help="Create a new UVN.")
+  cmd_define_uvn.set_defaults(
+    cmd=registry_configure,
+    update=False)
 
-  cmd_registry_load.add_argument("-p", "--print",
-    default=False,
-    action="store_true",
-    help="Print registry configuration to stdout.")
+  cmd_define_uvn.add_argument("name",
+    help="A unique name for the UVN.")
 
+  _define_registry_config_args(cmd_define_uvn, owner_id_required=True)
+  registry_common_args(cmd_define_uvn)
 
   #############################################################################
-  # registry::add_cell
+  # uno define cell ...
   #############################################################################
-  cmd_registry_add_cell = subparsers_registry.add_parser("add-cell",
+  cmd_define_cell = subparsers_define.add_parser("cell",
     help="Add a new cell to the UVN.")
-  cmd_registry_add_cell.set_defaults(cmd=registry_add_cell)
-  registry_common_args(cmd_registry_add_cell)
+  cmd_define_cell.set_defaults(
+    cmd=registry_cell,
+    update=False)
 
-  cmd_registry_add_cell.add_argument("-a", "--address",
-    # required=True,
-    default=None,
-    help="The public address for the UVN cell.")
+  cmd_define_cell.add_argument("name",
+    help="A unique name for the cell.")
 
-  cmd_registry_add_cell.add_argument("-n", "--name",
-    # default=None,
-    required=True,
-    help="A unique name for the UVN cell.")
-
-  cmd_registry_add_cell.add_argument("-A", "--admin",
-    # required=True,
-    metavar="'NAME <EMAIL>'",
-    help="Name and email of the UVN cell's administrator.")
-
-  cmd_registry_add_cell.add_argument("-N", "--network",
-    metavar="A.B.C.D/n",
-    default=[],
-    action="append",
-    type=ipaddress.IPv4Network,
-    help="IP subnetwork that the cell will attach to the UVN. Repeat to attach multiple networks.")
-
-  cmd_registry_add_cell.add_argument("--no-particles",
-    help="Disable particles VPN for this cell.",
-    default=False,
-    action="store_true")
+  _define_cell_config_args(cmd_define_cell)
+  registry_common_args(cmd_define_cell)
 
   #############################################################################
-  # registry::add_particle
+  # uno define particle ...
   #############################################################################
-  cmd_registry_add_particle = subparsers_registry.add_parser("add-particle",
+  cmd_define_particle = subparsers_define.add_parser("particle",
     help="Add a new particle to the UVN.")
-  cmd_registry_add_particle.set_defaults(cmd=registry_add_particle)
-  registry_common_args(cmd_registry_add_particle)
+  cmd_define_particle.set_defaults(
+    cmd=registry_particle,
+    update=False)
 
-  cmd_registry_add_particle.add_argument("-n", "--name",
-    required=True,
-    default=None,
-    help="A unique name for the UVN particle.")
+  cmd_define_particle.add_argument("name",
+    help="A unique name for the particle.")
 
-  cmd_registry_add_particle.add_argument("-A", "--admin",
-    # required=True,
-    metavar="'NAME <EMAIL>'",
-    help="Name and email of the UVN particle's administrator.")
+  _define_particle_config_args(cmd_define_particle)
+  registry_common_args(cmd_define_particle)
 
 
   #############################################################################
-  # registry::deploy
+  # uno config ...
   #############################################################################
-  cmd_registry_deploy = subparsers_registry.add_parser("deploy",
+  cmd_config = subparsers.add_parser("config",
+    help="Modify the configuration of the UVN, cells, particles.")
+  subparsers_config = cmd_config.add_subparsers(help="UVN configuration")
+
+
+  #############################################################################
+  # uno config uvn ...
+  #############################################################################
+  cmd_config_uvn = subparsers_config.add_parser("uvn",
+    help="Update the UVN's configuration.")
+  cmd_config_uvn.set_defaults(
+    cmd=registry_configure,
+    update=True)
+
+  _define_registry_config_args(cmd_config_uvn)
+  registry_common_args(cmd_config_uvn)
+
+  #############################################################################
+  # uno config cell ...
+  #############################################################################
+  cmd_config_cell = subparsers_config.add_parser("cell",
+    help="Update a cell's configuration.")
+  cmd_config_cell.set_defaults(
+    cmd=registry_cell,
+    update=True)
+
+  cmd_config_cell.add_argument("name",
+    help="The cell's unique name.")
+
+  _define_cell_config_args(cmd_config_cell)
+  registry_common_args(cmd_config_cell)
+
+  #############################################################################
+  # uno config particle ...
+  #############################################################################
+  cmd_config_particle = subparsers_config.add_parser("particle",
+    help="Add a new particle to the UVN.")
+  cmd_config_particle.set_defaults(
+    cmd=registry_particle,
+    update=True)
+
+  cmd_config_particle.add_argument("name",
+    help="The particle's unique name.")
+
+  _define_particle_config_args(cmd_config_particle)
+  registry_common_args(cmd_config_particle)
+
+  #############################################################################
+  # uno redeploy ...
+  #############################################################################
+  cmd_redeploy = subparsers.add_parser("redeploy",
     help="Update the UVN configuration with a new backbone deployment.")
-  cmd_registry_deploy.set_defaults(cmd=registry_deploy)
-  registry_common_args(cmd_registry_deploy)
-
-  cmd_registry_deploy.add_argument("-p", "--push",
-    help="Push new deployment to cell agents.",
-    default=False,
-    action="store_true")
+  cmd_redeploy.set_defaults(cmd=registry_redeploy)
+  _define_deployment_args(cmd_redeploy)
+  registry_common_args(cmd_redeploy)
   
-  cmd_registry_deploy.add_argument("-C", "--consistent-config",
-    help="When pushing, waiting only until all cell agents have a consistent,"
-      " updated, configuration, instead of waiting until the UVN is fully"
-      " routed.",
-    default=False,
-    action="store_true")
+  
+  #############################################################################
+  # uno sync ...
+  #############################################################################
+  cmd_sync = subparsers.add_parser("sync",
+    help="Push current configuration to cell agents.")
+  cmd_sync.set_defaults(cmd=registry_sync)
 
-  cmd_registry_deploy.add_argument("-t", "--max-wait-time",
-    metavar="SECONDS",
-    help="Maximum time to wait for cells agents and UVN to become consistent."
-    " Default: %(default)s sec",
-    default=3600,
-    type=int)
-
-  cmd_registry_deploy.add_argument("-S", "--strategy",
-    help="Algorithm used to generate the UVN backbone's deployment map.",
-    default=None,
-    choices=[k.name.lower().replace("_", "-") for k in DeploymentStrategyKind])
-
-  cmd_registry_deploy.add_argument("-D", "--deployment-args",
-    help="A YAML file or an inline string specifying custom arguments for the selected deployment strategy.",
-    default=None)
+  _define_sync_args(cmd_sync)
+  registry_common_args(cmd_sync)
 
 
   #############################################################################
-  # registry::generate-agents
+  # uno plot
   #############################################################################
-  cmd_registry_generate_agents = subparsers_registry.add_parser("generate-agents",
-    help="Generate packages to deploy individual UVN agents")
-  cmd_registry_generate_agents.set_defaults(cmd=registry_generate_agents)
-  registry_common_args(cmd_registry_generate_agents)
-
-  cmd_registry_generate_agents.add_argument("-o", "--output-dir",
-    help="Directory where to generate agent packages. The directory will be created if it doesn't exist.",
-    default=None,
-    type=Path)
-
-  cmd_registry_generate_agents.add_argument("-p", "--push",
-    help="Push configuration to cell agents.",
-    default=False,
-    action="store_true")
-
-  cmd_registry_generate_agents.add_argument("-C", "--consistent-config",
-    help="When pushing, waiting only until all cell agents have a consistent,"
-      " updated, configuration, instead of waiting until the UVN is fully"
-      " routed.",
-    default=False,
-    action="store_true")
-
-  cmd_registry_generate_agents.add_argument("-t", "--max-wait-time",
-    metavar="SECONDS",
-    help="Maximum time to wait for cells agents and UVN to become consistent."
-    " Default: %(default)s sec",
-    default=3600,
-    type=int)
-
-
-  #############################################################################
-  # registry::check-status
-  #############################################################################
-  cmd_registry_check_status = subparsers_registry.add_parser("check-status",
-    help="Check the status of the UVN and validate its consistency.")
-  cmd_registry_check_status.set_defaults(cmd=registry_check_status)
-  registry_common_args(cmd_registry_check_status)
-
-  cmd_registry_check_status.add_argument("-C", "--consistent-config",
-    help="Waiting only until all cell agents have a consistent configuration,"
-      " instead of waiting until the UVN is fully routed.",
-    default=False,
-    action="store_true")
-
-  cmd_registry_check_status.add_argument("-t", "--max-wait-time",
-    metavar="SECONDS",
-    help="Maximum time to wait for cells agents and UVN to become consistent."
-    " Default: %(default)s sec",
-    default=3600,
-    type=int)
-
-
-  #############################################################################
-  # registry::plot
-  #############################################################################
-  cmd_registry_plot = subparsers_registry.add_parser("plot",
+  cmd_plot = subparsers.add_parser("plot",
     help="Generate an image of the current backbone deployment.")
-  cmd_registry_plot.set_defaults(cmd=registry_plot)
-  registry_common_args(cmd_registry_plot)
+  cmd_plot.set_defaults(cmd=registry_plot)
 
-  cmd_registry_plot.add_argument("-o", "--output",
+  cmd_plot.add_argument("-o", "--output",
     help="Save the generated image to a custom path.",
     default=None,
     type=Path)
 
+  registry_common_args(cmd_plot)
+
 
   #############################################################################
-  #############################################################################
-  # cell commands
-  #############################################################################
+  # uno cell ...
   #############################################################################
   cmd_cell = subparsers.add_parser("cell",
-    help="Manipulate a UVN cell.")
-  subparsers_cell = cmd_cell.add_subparsers(help="Cell Commands")
+    help="Perform operation on a deployed cell.")
+  subparsers_cell = cmd_cell.add_subparsers(help="Cell operations")
+
 
   #############################################################################
-  # cell::bootstrap
+  # uno cell install ...
   #############################################################################
-  cmd_cell_bootstrap = subparsers_cell.add_parser("bootstrap",
-    help="Install a UVN cell agent.")
-  cmd_cell_bootstrap.set_defaults(cmd=cell_bootstrap)
-  registry_common_args(cmd_cell_bootstrap)
+  cmd_cell_install = subparsers_cell.add_parser("install",
+    help="Install a cell agent package.")
+  cmd_cell_install.set_defaults(
+    cmd=cell_bootstrap,
+    update=False)
 
-  cmd_cell_bootstrap.add_argument("package",
-    help="Package file for the UVN cell agent.",
+  cmd_cell_install.add_argument("package",
+    help="Package file to install.",
     type=Path)
 
-  cmd_cell_bootstrap.add_argument("-s", "--service",
-    choices=["agent", "static"],
-    help="Install the UVN as a systemd service. Default: %(default)s",
-    default=None)
-
+  registry_common_args(cmd_cell_install)
 
   #############################################################################
-  # cell::start
+  # uno cell update ...
   #############################################################################
-  cmd_cell_start = subparsers_cell.add_parser("start",
-    help="Connect a cell to the UVN.")
-  cmd_cell_start.set_defaults(cmd=cell_start)
-  registry_common_args(cmd_cell_start)
+  cmd_cell_update = subparsers_cell.add_parser("update",
+    help="Update an existing cell agent with a new package.")
+  cmd_cell_update.set_defaults(
+    cmd=cell_bootstrap,
+    update=True)
+
+  cmd_cell_update.add_argument("package",
+    help="New package file to install.",
+    type=Path)
+
+  registry_common_args(cmd_cell_update)
 
   #############################################################################
-  # cell::stop
-  #############################################################################
-  cmd_cell_stop = subparsers_cell.add_parser("stop",
-    help="Disconnect a cell from the UVN.")
-  cmd_cell_stop.set_defaults(cmd=cell_stop)
-  registry_common_args(cmd_cell_stop)
-
-  #############################################################################
-  # cell::agent
+  # uno cell agent ...
   #############################################################################
   cmd_cell_agent = subparsers_cell.add_parser("agent",
     help="Start a UVN cell agent.")
@@ -569,24 +589,91 @@ def main():
     action="store_true",
     help="Start a webserver to serve the agent's status.")
 
-  cmd_cell_agent.add_argument("-s", "--system",
-    help="Start the agent with support for Systemd. Used when the agent is installed as a service.",
+  cmd_cell_agent.add_argument("--systemd",
+    # help="Start the agent with support for Systemd. Used when the agent is installed as a service.",
+    help=argparse.SUPPRESS,
     default=False,
     action="store_true")
 
   #############################################################################
-  # cell::install-service
+  # uno cell net ...
   #############################################################################
-  cmd_cell_install_service = subparsers_cell.add_parser("install-service",
-    help="Install a UVN cell agent as a system service.")
-  cmd_cell_install_service.set_defaults(cmd=cell_install_service)
-  registry_common_args(cmd_cell_install_service)
+  cmd_cell_net = subparsers_cell.add_parser("net",
+    help="Control the cell's network services.")
+  subparsers_cell_net = cmd_cell_net.add_subparsers(help="Cell network operations")
+
+  #############################################################################
+  # uno cell net up
+  #############################################################################
+  cmd_cell_net_up = subparsers_cell_net.add_parser("up",
+    help="Enable all system services required to connect the cell to the UVN.")
+  cmd_cell_net_up.set_defaults(cmd=cell_net_up)
+
+  registry_common_args(cmd_cell_net_up)
+
+  #############################################################################
+  # uno cell net down
+  #############################################################################
+  cmd_cell_net_down = subparsers_cell_net.add_parser("down",
+    help="Stop all system services that the cell uses to connect the UVN.")
+  cmd_cell_net_down.set_defaults(cmd=cell_net_down)
+
+  registry_common_args(cmd_cell_net_down)
+
+
+  #############################################################################
+  # uno cell service ...
+  #############################################################################
+  cmd_cell_service = subparsers_cell.add_parser("service",
+    help="Install and control the cell as a systemd service.")
+  subparsers_service = cmd_cell_service.add_subparsers(help="Systemd service configuration")
+
+
+  #############################################################################
+  # uno cell service install ...
+  #############################################################################
+  cmd_cell_service_enable = subparsers_service.add_parser("install",
+    help="Install the cell as a systemd service.")
+  cmd_cell_service_enable.set_defaults(
+    cmd=cell_service_enable)
+
+  cmd_cell_service_enable.add_argument("-a", "--agent",
+    help="Run the cell agent as a service instead of just starting network services.",
+    default=False,
+    action="store_true")
+
+  cmd_cell_service_enable.add_argument("-s", "--start",
+    help="Start the service after installing it..",
+    default=False,
+    action="store_true")
+
+  cmd_cell_service_enable.add_argument("-b", "--boot",
+    help="Enable the service at boot",
+    default=False,
+    action="store_true")
+
+  registry_common_args(cmd_cell_service_enable)
+
+
+  #############################################################################
+  # uno cell service remove ...
+  #############################################################################
+  cmd_cell_service_disable = subparsers_service.add_parser("remove",
+    help="Disable the cell from being available as a systemd service.")
+  cmd_cell_service_disable.set_defaults(
+    cmd=cell_service_disable)
+
+  registry_common_args(cmd_cell_service_disable)
 
 
   #############################################################################
   # parse arguments and run selected command
   #############################################################################
   args = parser.parse_args()
+
+  cmd = args.cmd
+  if cmd is None:
+    raise RuntimeError("no command specified")
 
   if args.verbose >= 2:
     set_verbosity(log_level.debug)
@@ -595,12 +682,7 @@ def main():
   else:
     set_verbosity(log_level.warning)
 
-  cmd = args.cmd
-  if cmd is None:
-    raise RuntimeError("no command specified")
-
   try:
     cmd(args)
   except KeyboardInterrupt:
     pass
-  

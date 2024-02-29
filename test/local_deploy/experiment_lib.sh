@@ -234,13 +234,10 @@ uvn_create()
     log_debug " creating UVN: ${uvn_address}"
     (
         set -x
-        ${UVN} registry init \
-            -n ${uvn_address} \
+        ${UNO} define uvn ${uvn_address} \
             -a ${uvn_address} \
-            -A "${uvn_admin_name} <${uvn_admin}>" \
+            -o "${uvn_admin_name} <${uvn_admin}>" \
             -r ${UVN_DIR} \
-            -L ${RTI_LICENSE_FILE} \
-            $([ -z "${UVN_SETTINGS}" ] || printf -- "-s ${UVN_SETTINGS}") \
             $([ -z "${UVN_TIMING_FAST}" ] || printf -- "-T fast" ) \
             ${UVN_EXTRA_ARGS}
     )
@@ -259,11 +256,10 @@ uvn_attach()
     (
         cd ${UVN_DIR}
         set -x
-        ${UVN} registry add-cell \
-            --name ${cell_name} \
-            --admin "${cell_admin_name} <${cell_admin}>" \
-            $([ -z "${cell_address}" ] || printf -- "--address ${cell_address}") \
-            $([ -z "${cell_subnet}" ] || printf -- "--network ${cell_subnet}") \
+        ${UNO} define cell ${cell_name} \
+            -o "${cell_admin_name} <${cell_admin}>" \
+            $([ -z "${cell_address}" ] || printf -- "-a ${cell_address}") \
+            $([ -z "${cell_subnet}" ] || printf -- "-N ${cell_subnet}") \
             ${UVN_EXTRA_ARGS}
     )
     log_info "[created] UVN cell: ${cell_name}"
@@ -277,43 +273,41 @@ uvn_particle()
     (
         cd ${UVN_DIR}
         set -x
-        ${UVN} registry add-particle \
-            --name ${particle_name} \
-            --admin "${particle_contact}" \
+        ${UNO} define particle ${particle_name} \
+            -o "${particle_contact}" \
             ${UVN_EXTRA_ARGS}
     )
     log_info "[created] UVN particle: ${particle_name}"
 }
 
-uvn_ns()
-{
-    local ns_cell=${1} \
-          ns_host=${2} \
-          ns_ip=${3} \
-          ns_tags="${4}"
+# uvn_ns()
+# {
+#     local ns_cell=${1} \
+#           ns_host=${2} \
+#           ns_ip=${3} \
+#           ns_tags="${4}"
 
-    tags=
-    for t in ${ns_tags}; do
-        tags="${tags} -t ${t}"
-    done
-    (
-        cd ${UVN_DIR}
-        set -x
-        ${UVN} nameserver a ${ns_cell} ${ns_host} ${ns_ip} ${tags} ${UVN_EXTRA_ARGS}
-    )
-    log_info "[asserted] DNS record: [${ns_cell}] ${ns_host}/${ns_ip}"
-}
+#     tags=
+#     for t in ${ns_tags}; do
+#         tags="${tags} -t ${t}"
+#     done
+#     (
+#         cd ${UVN_DIR}
+#         set -x
+#         ${UVN} nameserver a ${ns_cell} ${ns_host} ${ns_ip} ${tags} ${UVN_EXTRA_ARGS}
+#     )
+#     log_info "[asserted] DNS record: [${ns_cell}] ${ns_host}/${ns_ip}"
+# }
 
 uvn_deploy()
 {
     (
         cd ${UVN_DIR}
         set -x
-        ${UVN} registry deploy \
+        ${UNO} redeploy \
             $([ -z "${UVN_STRATEGY}" ] || printf -- "-S ${UVN_STRATEGY}") \
             ${UVN_EXTRA_ARGS}
-        ${UVN} registry generate-agents ${UVN_EXTRA_ARGS}
-        ${UVN} registry plot ${UVN_EXTRA_ARGS}
+        ${UNO} plot ${UVN_EXTRA_ARGS}
     )
 }
 
@@ -323,7 +317,7 @@ uvn_install()
           cell_name="${2}" \
           with_deployment="${3}"
     
-    ${UVN} cell bootstrap \
+    ${UNO} cell install \
         -r "${CELLS_DIR}/${cell_name}" \
         "${UVN_DIR}/cells/${cell_name}.uvn-agent"
 
@@ -345,31 +339,6 @@ uvn_install()
     log_info "[installed] UVN cell: ${cell_name}"
 }
 
-uvn_runner()
-{
-    local uvn_dir="${1}"
-
-    (
-        cd "${uvn_dir}"
-        if [ -d "${UNO_DEV}" ]; then
-            UVN_EXTRA_ARGS="${UVN_EXTRA_ARGS} --dev"
-        fi
-        if [ -n "${REBUILD}" ]; then
-            UVN_EXTRA_ARGS="${UVN_EXTRA_ARGS} --rebuild"
-        fi
-        uvn=$(which ${UVN})
-        set -x
-        ${UVN_SUDO} CONNEXTDDS_DIR="${CONNEXTDDS_DIR}" \
-                    OAUTH_TOKEN=${OAUTH_TOKEN} \
-            ${uvn} runner build \
-                --package iptables \
-                --package netcat \
-                --package iperf \
-                --package tcpdump \
-                ${UVN_EXTRA_ARGS}
-    )
-    log_info "[created] UVN runner"
-}
 
 uvn_backup()
 {
@@ -877,20 +846,20 @@ INIT_HOST="${TEST_LIB_DIR}/_init_host.sh"
 INIT_COMMON="${TEST_LIB_DIR}/_init_common.sh"
 
 # Docker client executable
-DOCKER=${DOCKER:-docker}
+: "${DOCKER:=docker}"
 
-# uvn executable
-UVN=${UVN:-uvn}
+# uno executable
+: "${UNO:=uno}"
 
 # Other executables
-SSH=${SSH:-ssh}
-RSYNC=${RSYNC:-rsync}
+: "${SSH:=ssh}
+: "${RSYNC:=rsync}
 
 # Disable commands for "no-op" mode
 if [ -n "${NOOP}" ]; then
     DOCKER="echo ${DOCKER}"
-    UVN="echo ${UVN}"
-    UVN_SUDO=""
+    UNO="echo ${UNO}"
+    UNO_SUDO=""
     SUDO="echo "
     SSH="echo ${SSH}"
     RSYNC="echo ${RSYNC}"
@@ -899,7 +868,7 @@ fi
 # Check if we are running as root, otherwise enable sudo
 if [ -z "$(id | grep '^uid=0(root)' )" ]; then
     DOCKER="sudo ${DOCKER}"
-    UVN_SUDO="sudo "
+    UNO_SUDO="sudo "
     SUDO="sudo "
 fi
 

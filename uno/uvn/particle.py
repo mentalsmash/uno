@@ -65,7 +65,7 @@ def generate_particle_packages(
         "particle": particle,
         "generation_ts": Timestamp.now().format(),
       }))
-    log.activity(f"[AGENT] PARTICLE package GENERATED: {particle_dir}")
+    log.warning(f"[PARTICLE] package generated: {particle_dir}")
 
   return generated
 

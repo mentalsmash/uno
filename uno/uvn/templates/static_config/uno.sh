@@ -287,13 +287,6 @@ uvn_cell_start()
 
   uvn_router_start \
     "${cell_dir}/frr.conf"
-
-  # Start a process that will spin forever
-  nohup sh -c "while :; do sleep 3600; done" &
-  local uvn_pid=$!
-
-  # Write pid to file
-  echo ${uvn_pid} > ${cell_dir}/uvn.pid
 }
 
 
@@ -303,12 +296,6 @@ uvn_cell_stop()
   local vpn_interfaces="${1}"
         lan_interfaces="${2}"
 
-  local pid_file="${cell_dir}/uvn.pid"
-
-  if [ -e "${pid_file}" ]; then
-    uvn_log_info "not started, performing emergency cleanup"
-  fi
-
   if ! uvn_net_stop \
     "${vpn_interfaces}" \
     "${lan_interfaces}"; then
@@ -317,9 +304,19 @@ uvn_cell_stop()
   fi
 
   uvn_router_stop || true
-
-  rm -rf ${pid_file}
 }
+
+# Check if the agent is running
+uvn_detect_agent()
+{
+  if [ -e "${UVN_AGENT_PID}" ]; then
+    uvn_log_failed "cell agent detected: ${UVN_AGENT_PID}"
+    uvn_log_failed "refusing to perform static configuration operations while agent is running."
+    return
+  fi
+  return 1
+}
+
 
 # All cell configuration is located in UVN_CELL_ROOT
 # which the defaults to the script's location.
@@ -338,20 +335,40 @@ fi
 # Load configuration variables
 . "${UVN_CELL_CONF}"
 
+UVN_PID=/var/run/uno/uvn.pid
+UVN_AGENT_PID=/var/run/uno/uvn-agent.pid
+
 case "${1}" in
 start)
+  if uvn_detect_agent; then
+    exit 1
+  fi
+
   uvn_cell_start \
     "${UVN_CELL_ROOT}" \
     "${UVN_CELL_VPN_INTERFACES}" \
     "${UVN_CELL_LAN_INTERFACES}"
+  
+  mkdir -p $(dirname ${UVN_PID})
+  echo ${UVN_DEPLOYMENT} > ${UVN_PID}
+
+  uvn_log_info "cell services started"
   ;;
 stop)
+  if uvn_detect_agent; then
+    exit 1
+  fi
+
   uvn_cell_stop \
     "${UVN_CELL_VPN_INTERFACES}" \
     "${UVN_CELL_LAN_INTERFACES}"
+
+  rm -rf ${UVN_PID}
+
+  uvn_log_info "cell services stopped"
   ;;
 *)
-  uvn_log_failed "invalid arguments"
+  uvn_log_failed "invalid arguments: '$@'"
   printf -- "usage: $(basename ${0}) start|stop"
   exit 254
 esac

@@ -125,17 +125,17 @@ the `Dockerfile` included in this repository:
    directory, so that it can be later included in agent bundles.
 
    The UVN registry must be initialized in an empty (or non-existent) directory,
-   and it is created using command `uvn registry init`:
+   and it is created using command `uvn registry create`:
 
    ```sh
    # make sure the directory doesn't exist
    rm -rf my-uvn
 
    # initialize the UVN registry
-   uvn registry init \
+   uvn registry create \
      -r my-uvn \
      -n my-uvn \
-     -A "John Doe <john@example.com>" \
+     -o "John Doe <john@example.com>" \
      -L /path/to/rti_license.dat
   
    # check the generated directory

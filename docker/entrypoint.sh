@@ -16,24 +16,22 @@ if [ -z "${CELL}" ]; then
   # Check if a init configuration was provided, and
   # use it to initialize a new uvn
   if [ -f /uvn.yaml ]; then
-    uvn registry init ${VERBOSE} -C /uvn.yaml -r ${UVN_DIR}
-    uvn registry deploy ${VERBOSE} -r ${UVN_DIR}
-    uvn registry registry-generate ${VERBOSE} -r ${UVN_DIR}
+    uno import uvn ${VERBOSE} -C /uvn.yaml -r ${UVN_DIR}
+    # uno redeploy ${VERBOSE} -r ${UVN_DIR}
     exit
   fi
 
   # Read action from environment, one of:
-  # - deploy: generate a new deployment, and optionally push it to agents
-  # - check-status: connect to agents and check the UVN's status
+  # - deploy: generate a new deployment
+  # - sync: push current configuration to agents
   # - sh|<none>: start a shell
   case "${ACTION}" in
   deploy)
-    uvn registry deploy ${VERBOSE} -r ${UVN_DIR} \
-      $([ -z "${PUSH}" ] || printf -- "-p" )
+    uno redeploy ${VERBOSE} -r ${UVN_DIR} \
       $([ -z "${STRATEGY}" ] || printf -- "-S ${STRATEGY}" )
     ;;
-  check-status)
-    uvn registry check-status ${VERBOSE} -r ${UVN_DIR}
+  sync)
+    uno sync ${VERBOSE} -r ${UVN_DIR}
     ;;
   sh|"")
     # Start a shell
@@ -50,16 +48,16 @@ fi
 
 # Check if we have a package, and if so, bootstrap it
 if [ -f /package.uvn-agent ]; then
-  uvn cell bootstrap ${VERBOSE} /package.uvn-agent -r ${UVN_DIR}
+  uno cell install ${VERBOSE} /package.uvn-agent -r ${UVN_DIR}
 fi
 
 if [ -n "${STATIC}" ]; then
   # Use static configuration to start the agent
-  ${UVN_DIR}/static/uvn.sh start
+  ${UVN_DIR}/static/uno.sh start
   cd ${UVN_DIR}
   exec bash
   exit
 fi
 
 # Start the cell agent process
-exec uvn cell agent ${VERBOSE} -W -r ${UVN_DIR}
+exec uno cell agent ${VERBOSE} -W -r ${UVN_DIR}

@@ -1,0 +1,11 @@
+[Unit]
+Description=UVN cell connection
+
+[Service]
+Type=forking
+ExecStart={{static_dir}}/uno.sh start
+ExecStop={{static_dir}}/uno.sh stop
+PIDFile={{static_dir}}/uvn.pid
+
+[Install]
+WantedBy=multi-user.target

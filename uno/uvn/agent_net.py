@@ -16,6 +16,7 @@
 ###############################################################################
 from typing import Iterable, Optional
 from pathlib import Path
+import time
 
 from .wg import WireGuardInterface
 from .ip import (
@@ -33,11 +34,18 @@ from .log import Logger as log
 
 
 class AgentNetworking:
-  def __init__(self, static_dir: Path) -> None:
+  def __init__(self,
+      deployment_id: str | None = None,
+      static_dir: Path | None=None) -> None:
     self.static_dir = static_dir
+    self.deployment_id = deployment_id
     self._lans_nat = []
     self._vpn_started = []
     self._vpn_nat = []
+
+
+  def started(self) -> bool:
+    return len(self._lans_nat) > 0 or len(self._vpn_started) > 0
 
 
   def start(self,
@@ -115,21 +123,63 @@ class AgentNetworking:
 
 
   @property
-  def static_pid_file(self) -> bool:
-    return self.static_dir / "uvn.pid"
+  def static_pid_file(self) -> Path:
+    return Path("/var/run/uno/uvn.pid")
 
 
   @property
   def is_statically_configured(self) -> bool:
-    return self.static_pid_file.is_file()
-  
+    return (
+      self.static_pid_file is not None
+      and self.static_pid_file.is_file()
+    )
+
+
+  @property
+  def compatible_static_configuration(self) -> bool:
+    return (
+      self.is_statically_configured
+      and self.static_pid_file.read_text().strip() == self.deployment_id
+    )
+
+
+  def stop_static_configuration(self) -> None:
+    uno_sh = self.static_dir / "uno.sh"
+    exec_command(["sh", "-c", f"{uno_sh} stop"], capture_output=True)
+
 
   def take_over_configuration(self,
       lans: Optional[Iterable[LanDescriptor]]=None,
       vpn_interfaces: Optional[Iterable[WireGuardInterface]]=None) -> None:
-    exec_command(["kill", str(int(self.static_pid_file.read_text()))])
+    if not self.is_statically_configured:
+      raise RuntimeError("static configuration not detected")
+
+    # exec_command(["kill", str(int(self.static_pid_file.read_text()))])
     self.static_pid_file.unlink()
     # TODO(asorbini) verify that the specified interface have actually been initialized
     self._lans = list(lans)
     self._vpn_nat = list(vpn_interfaces)
     self._vpn_started = list(self._vpn_nat)
+
+
+  def delegate_configuration(self) -> None:
+    if self.static_pid_file is None:
+      raise RuntimeError("cannot delegate to static configuration")
+
+    self.static_pid_file.write_text(self.deployment_id)
+
+    # uno_sh = self.static_dir / "uno.sh"
+    # exec_command(["sh", "-c", f"{uno_sh} take-over"], capture_output=True)
+    # max_wait = 5
+    # for i in range(max_wait):
+    #   if self.is_statically_configured:
+    #     break
+    #   log.debug(f"[AGENT] waiting for static configuration to take over")
+    #   time.sleep(1)
+
+    if not self.is_statically_configured and not self.compatible_static_configuration:
+      raise RuntimeError("failed to delegate networking to static configuration")
+
+    log.warning(f"[AGENT] services delegated to static configuration")
+  
+  

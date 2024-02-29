@@ -200,7 +200,7 @@ etc_hosts_all()
 test_rc_uvn_create()
 {
     ${SUDO} rm -rf ${UVN_DIR} ${CELLS_DIR}
-    uvn_create              babylon.internet        root@babylon    "Root"
+    uvn_create              babylon.internet        root@babylon    "Roger"
 }
 
 
@@ -228,15 +228,14 @@ test_rc_uvn_attach()
 }
 
 # Define nameserver entries
-test_rc_uvn_ns()
-{
-    # for net in ${TEST_NETWORKS_PRIVATE}; do
-    #     uvn_ns ${net} router.${net} $(eval "echo \${IP_${net}_router}") "lan router gw"
-    #     uvn_ns ${net} cell.${net}   $(eval "echo \${IP_${net}_cell}")   "lan cell router"
-    #     uvn_ns ${net} host.${net}   $(eval "echo \${IP_${net}_host}")   "lan host"
-    # done
-    true
-}
+# test_rc_uvn_ns()
+# {
+#     for net in ${TEST_NETWORKS_PRIVATE}; do
+#         uvn_ns ${net} router.${net} $(eval "echo \${IP_${net}_router}") "lan router gw"
+#         uvn_ns ${net} cell.${net}   $(eval "echo \${IP_${net}_cell}")   "lan cell router"
+#         uvn_ns ${net} host.${net}   $(eval "echo \${IP_${net}_host}")   "lan host"
+#     done
+# }
 
 test_rc_uvn_particles()
 {
@@ -288,13 +287,6 @@ test_rc_docker_wipe()
 {
     docker_wipe_containers      ${TEST_HOSTS}
     docker_wipe_networks        ${TEST_NETWORKS}
-}
-
-# Create test container images
-test_rc_docker_image()
-{
-    # uvn_runner          "${UVN_DIR}"
-    true
 }
 
 # Define test networks
@@ -704,14 +696,13 @@ if [ -n "${WITH_BACKUP}" ]; then
 else
     ! rc_check UVN_CREATE       || test_rc_uvn_create
     ! rc_check UVN_ATTACH       || test_rc_uvn_attach
-    ! rc_check UVN_NS           || test_rc_uvn_ns
+    # ! rc_check UVN_NS           || test_rc_uvn_ns
     ! rc_check UVN_PARTICLES    || test_rc_uvn_particles
     ! rc_check UVN_DEPLOY       || test_rc_uvn_deploy
     # ! rc_check UVN_INSTALL      || test_rc_uvn_install
     ! rc_check UVN_BACKUP       || test_rc_uvn_backup
 fi
 ! rc_check DOCKER_WIPE      || test_rc_docker_wipe
-! rc_check DOCKER_IMAGE     || test_rc_docker_image
 ! rc_check DOCKER_NETWORK   || test_rc_docker_network
 ! rc_check DOCKER_ENV       || test_rc_docker_env
 ! rc_check DOCKER_ROUTER    || test_rc_docker_router
