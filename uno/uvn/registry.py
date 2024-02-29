@@ -100,11 +100,11 @@ class Registry(Versioned):
     registry = Registry(root=root, uvn_id=uvn_id)
     registry.configure(**configure_args)
     # Make sure we have an RTI license, since we're gonna need it later.
-    if rti_license is None:
+    if not registry.rti_license.is_file():
       rti_license = locate_rti_license(search_path=[registry.root])
-    if not rti_license or not rti_license.is_file():
-      raise RuntimeError("RTI license not found", rti_license)
-    registry.rti_license = rti_license
+      if not rti_license or not rti_license.is_file():
+        raise RuntimeError("RTI license not found", rti_license)
+      registry.rti_license = rti_license
     
     log.warning(f"[REGISTRY] initialized UVN {registry.uvn_id.name}: {registry.root}")
 
