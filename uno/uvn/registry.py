@@ -100,10 +100,14 @@ class Registry(Versioned):
     registry = Registry(root=root, uvn_id=uvn_id)
     registry.configure(**configure_args)
     # Make sure we have an RTI license, since we're gonna need it later.
-    # The check occurs implicitly when the attribute is accessed.
-    # Set the attribute so the file is copied to the registry's root.
-    registry.rti_license = registry.rti_license
-
+    if rti_license is None:
+      rti_license = locate_rti_license(search_path=[registry.root])
+    if not rti_license or not rti_license.is_file():
+      raise RuntimeError("RTI license not found", rti_license)
+    if registry.rti_license != rti_license:
+      log.warning(f"[REGISTRY] caching RTI license: {rti_license} -> {registry.rti_license}")
+      exec_command(["cp", rti_license, registry.rti_license])
+    
     log.warning(f"[REGISTRY] initialized UVN {registry.uvn_id.name}: {registry.root}")
 
     return registry
