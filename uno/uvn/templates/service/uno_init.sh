@@ -14,7 +14,7 @@ PATH=/bin:/usr/bin:/sbin:/usr/sbin:/usr/local/bin
 DESC="local agent"
 NAME=uvn
 DAEMON=/usr/local/bin/uvn
-PIDFILE=/var/run/uvn.pid
+PIDFILE=/run/uvn.pid
 SCRIPTNAME=/etc/init.d/$NAME
 
 . /lib/lsb/init-functions

@@ -146,7 +146,7 @@ class CellAgent:
 
   @property
   def pid_file(self) -> Path:
-    return Path("/var/run/uno/uvn-agent.pid")
+    return Path("/run/uno/uvn-agent.pid")
 
 
   @property

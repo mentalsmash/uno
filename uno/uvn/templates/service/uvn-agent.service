@@ -6,7 +6,7 @@ Description=UVN agent.
 Type=notify
 ExecStart=/usr/local/bin/uvn cell agent --systemd -W -r {{root}} -vv
 KillSignal=SIGINT
-PIDFile=/var/run/uno/uvn-agent.pid
+PIDFile=/run/uno/uvn-agent.pid
 
 [Install]
 WantedBy=multi-user.target

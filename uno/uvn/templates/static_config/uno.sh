@@ -326,8 +326,8 @@ fi
 # Load configuration variables
 . "${UVN_CELL_CONF}"
 
-UVN_NET_PID=/var/run/uno/uvn-net.up
-UVN_AGENT_PID=/var/run/uno/uvn-agent.pid
+UVN_NET_PID=/run/uno/uvn-net.up
+UVN_AGENT_PID=/run/uno/uvn-agent.pid
 
 case "${1}" in
 start)
