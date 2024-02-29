@@ -99,16 +99,14 @@ the `Dockerfile` included in this repository:
 
 3. Deploy agents using the generated image. The containers must be
    created with root credentials in order to be able to manipulate
-   the host's network stack. The agent directory will be mounted
-   as a volume, and it must have been initialized using
-   `uvn cell bootstrap`.
+   the host's network stack.
 
    Example invocation:
 
    ```sh
    docker run --rm --detach \
-     -v /path/to/agent-dir:/uvn \
-     -e CELL_ID=agent-id \
+     -v /path/to/cell.uvn-agent:/package.uvn-agent \
+     -e CELL=agent-id \
      --privileged \
      --net host \
      uno:latest
@@ -125,16 +123,16 @@ the `Dockerfile` included in this repository:
    directory, so that it can be later included in agent bundles.
 
    The UVN registry must be initialized in an empty (or non-existent) directory,
-   and it is created using command `uvn registry create`:
+   and it is created using command `uno define uvn`:
 
    ```sh
    # make sure the directory doesn't exist
    rm -rf my-uvn
 
    # initialize the UVN registry
-   uvn registry create \
+   uno define uvn \
      -r my-uvn \
-     -n my-uvn \
+     my-uvn \
      -o "John Doe <john@example.com>" \
      -L /path/to/rti_license.dat
   
@@ -174,16 +172,16 @@ the `Dockerfile` included in this repository:
    If an agent's cell has an empty list of networks, the agent will operate
    in "roaming" mode, and only act as an additional router for the UVN.
 
-   Cells are added with command `uvn registry add-cell`:
+   Cells are added with command `uno define cell`:
 
    ```sh
-   uvn registry add-cell \
-     --name lan-a \
+   uno define cell \
+     lan-a \
      --address lan-a.my-organization.org \
      --network 192.168.1.0/24
 
-   uvn registry add-cell \
-     --name lan-b \
+   uno define cell \
+     lan-b \
      --address lan-b.my-organization.org \
      --owner "Jane Doe <jane@example.com" \
      --network 192.168.2.0/24
@@ -206,12 +204,12 @@ the `Dockerfile` included in this repository:
    particle to access all of the UVN's hosts, but also to reach the public Internet's through the
    cell's local gateway.
 
-   Particle are registered using command `uvn registry add-particle`:
+   Particle are registered using command `uno define particle`:
 
    ```sh
-   uvn registry add-particle --name john
+   uno define particle --name john
 
-   uvn registry add-particle --name jane --owner "Jane Doe <jane@example.com"
+   uno define particle --name jane --owner "Jane Doe <jane@example.com"
    ```
 
 4. Generate a deployment configuration for the UVN.
@@ -242,33 +240,32 @@ the `Dockerfile` included in this repository:
      public cell, and up to 2 backbone links for every private cell. The algorithm is quite naive, and
      it may fail to generate a valid graph.
 
-   The deployment configuration is generated (or updated) using command `uvn registry deploy`:
+   The deployment configuration is generated (or updated) using command `uno redeploy`:
 
    ```sh
-   uvn registry deploy
+   uno redeploy
    ```
 
    The command will generate a new configuration and save it to disk.
 
-   When using the *static* strategy, the deployment configuration must be passed with argument `--deployment-args`,
+   When using the *static* strategy, the deployment configuration must be passed with argument `--deployment-strategy-args`,
    as the path to a YAML file or as an inline YAML string, e.g.:
 
    ```sh
-   uvn registry deploy -S static -D "{1: [2], 2: [3, 1], 3: [2, 4], 4: [3]}"
+   uno redeploy -S static -D "{1: [2], 2: [3, 1], 3: [2, 4], 4: [3]}"
    ```
 
 5. Generate agent bundles and deploy them to each agent's target host.
 
-   Command `uvn registry generate-agents` will create a `*.uvn-agent` file for every cell agent,
-   under directory `<registry-root>/cells/`.
+   A `*.uvn-agent` file will be created for every cell agent under directory `<registry-root>/cells/`.
 
    These bundles must be securely copied to the hosts where each agent is to be deployed.
 
-   Once copied, the bundles can be extracted using command `uvn cell bootstrap`, which
-   will initialize the agent's root directory and allow the agent to be deployed on the host.
+   Once copied, the bundles can be extracted using command `uno cell install`, which
+   will initialize the agent's root directory.
 
-   The installation can be performed using the `--system` flag to install the agent as a system
-   service
+   After extracting the agent's directory, the agent may be installed as a service
+   using command `uno cell service enable`.
 
    For example:
 
@@ -280,19 +277,16 @@ the `Dockerfile` included in this repository:
    ssh lan-a-agent-host
 
    # Install the agent
-   sudo uvn cell bootstrap --system lan-a.uvn-agent
+   sudo uno cell install lan-a.uvn-agent -r /opt/uvn
 
    # Delete the package
    rm lan-a.uvn-agent
 
-   # Reload systemd
-   sudo systemctl daemon-reload
+   # Enable static configuration service
+   sudo uno cell service enable -r /opt/uvn
 
-   # Start the agent
-   sudo systemctl start uvn
-
-   # Enable agent at boot
-   sudo systemctl enable uvn
+   # Start agent to monitor state of the UVN
+   sudo uno cell agent
    ```
 
 6. Configure port forwarding to the agents of every public cell.

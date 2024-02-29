@@ -214,7 +214,7 @@ mimetype.assign = (
       if pid is None:
         raise RuntimeError("failed to detect lighttpd process")
       log.debug(f"[WWW] lighttpd started: pid={pid}")
-      log.activity(f"[WWW] listening on port 443")
+      log.warning(f"[WWW] listening on 0.0.0.0:443")
     except Exception as e:
       self._lighttpd_pid = None
       self._lighttpd = None
