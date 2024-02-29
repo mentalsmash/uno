@@ -117,7 +117,6 @@ class Registry(Versioned):
       root_vpn_config: Optional[CentralizedVpnConfig]=None,
       particles_vpn_configs: Optional[Mapping[int, CentralizedVpnConfig]]=None,
       backbone_vpn_config: Optional[P2PVpnConfig]=None,
-      rti_license: Optional[Path]=None,
       **super_args) -> None:
     super().__init__(**super_args)
     self.root = root.resolve()
@@ -125,7 +124,6 @@ class Registry(Versioned):
     self.root_vpn_config = root_vpn_config
     self.particles_vpn_configs = particles_vpn_configs
     self.backbone_vpn_config = backbone_vpn_config
-    self.rti_license = rti_license
     self.dds_keymat = DdsKeyMaterial(
       root=self.root,
       org=self.uvn_id.name,
