@@ -270,15 +270,6 @@ uvn_cell_start()
         vpn_interfaces="${2}"
         lan_interfaces="${3}"
 
-  # If the pid file already exists, do nothing
-  # and assume initialization is complete
-  local pid_file="${cell_dir}/uvn.pid"
-
-  if [ -f "${pid_file}" ]; then
-    uvn_log_info "already initialized: ${pid_file}"
-    return
-  fi
-
   uvn_net_start \
     "${cell_dir}/wg" \
     "${vpn_interfaces}" \
@@ -335,7 +326,7 @@ fi
 # Load configuration variables
 . "${UVN_CELL_CONF}"
 
-UVN_PID=/var/run/uno/uvn.pid
+UVN_NET_PID=/var/run/uno/uvn-net.up
 UVN_AGENT_PID=/var/run/uno/uvn-agent.pid
 
 case "${1}" in
@@ -344,13 +335,23 @@ start)
     exit 1
   fi
 
+  if [ -e "${UVN_NET_PID}" ]; then
+    if [ "$(cat ${UVN_NET_PID} 2>/dev/null)" = "${UVN_DEPLOYMENT}" ]; then
+      uvn_log_info "already initialized: ${UVN_DEPLOYMENT}"
+      exit 0
+    else
+      uvn_log_failed "system is already initialized with another deployment: ${UVN_DEPLOYMENT}"
+      exit 1
+    fi
+  fi
+
   uvn_cell_start \
     "${UVN_CELL_ROOT}" \
     "${UVN_CELL_VPN_INTERFACES}" \
     "${UVN_CELL_LAN_INTERFACES}"
   
-  mkdir -p $(dirname ${UVN_PID})
-  echo ${UVN_DEPLOYMENT} > ${UVN_PID}
+  mkdir -p $(dirname ${UVN_NET_PID})
+  echo ${UVN_DEPLOYMENT} > ${UVN_NET_PID}
 
   uvn_log_info "cell services started"
   ;;
@@ -359,11 +360,18 @@ stop)
     exit 1
   fi
 
+  if [ -e "${UVN_NET_PID}" ]; then
+    if [ "$(cat ${UVN_NET_PID} 2>/dev/null)" != "${UVN_DEPLOYMENT}" ]; then
+      uvn_log_failed "system is already initialized with another deployment: ${UVN_DEPLOYMENT}"
+      exit 1
+    fi
+  fi
+
   uvn_cell_stop \
     "${UVN_CELL_VPN_INTERFACES}" \
     "${UVN_CELL_LAN_INTERFACES}"
 
-  rm -rf ${UVN_PID}
+  rm -rf ${UVN_NET_PID}
 
   uvn_log_info "cell services stopped"
   ;;

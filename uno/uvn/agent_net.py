@@ -124,7 +124,7 @@ class AgentNetworking:
 
   @property
   def static_pid_file(self) -> Path:
-    return Path("/var/run/uno/uvn.pid")
+    return Path("/var/run/uno/uvn-net.pid")
 
 
   @property
