@@ -155,8 +155,9 @@ class Registry(Versioned):
     # Copy file to registry's root
     if val is not None:
       rti_license = self.root / "rti_license.dat"
-      log.warning(f"[REGISTRY] caching RTI license: {val} -> {rti_license}")
-      exec_command(["cp", val, rti_license])
+      if val != rti_license:
+        log.warning(f"[REGISTRY] caching RTI license: {val} -> {rti_license}")
+        exec_command(["cp", val, rti_license])
     else:
       rti_license = None
     self.update("_rti_license", rti_license)
