@@ -104,9 +104,7 @@ class Registry(Versioned):
       rti_license = locate_rti_license(search_path=[registry.root])
     if not rti_license or not rti_license.is_file():
       raise RuntimeError("RTI license not found", rti_license)
-    if registry.rti_license != rti_license:
-      log.warning(f"[REGISTRY] caching RTI license: {rti_license} -> {registry.rti_license}")
-      exec_command(["cp", rti_license, registry.rti_license])
+    registry.rti_license = rti_license
     
     log.warning(f"[REGISTRY] initialized UVN {registry.uvn_id.name}: {registry.root}")
 
@@ -146,25 +144,16 @@ class Registry(Versioned):
 
   @property
   def rti_license(self) -> Path:
-    rti_license = self._rti_license
-    if rti_license is None:
-      rti_license = locate_rti_license(search_path=[self.root])
-    if not rti_license or not rti_license.is_file():
-      raise RuntimeError("RTI license not found", rti_license)
-    return rti_license
+    return self.root / "rti_license.dat"
 
 
   @rti_license.setter
   def rti_license(self, val: Path | None) -> None:
     # Copy file to registry's root
-    if val is not None:
-      rti_license = self.root / "rti_license.dat"
-      if val != rti_license:
-        log.warning(f"[REGISTRY] caching RTI license: {val} -> {rti_license}")
-        exec_command(["cp", val, rti_license])
-    else:
-      rti_license = None
-    self.update("_rti_license", rti_license)
+    if val != self.rti_license:
+      log.warning(f"[REGISTRY] caching RTI license: {val} -> {self.rti_license}")
+      exec_command(["cp", val, self.rti_license])
+      self.updated()
 
 
   @property
