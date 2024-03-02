@@ -353,13 +353,13 @@ class UvnAgentService(UvnService):
 
 
   def install(self, reload: bool=False) -> None:
-    self.uvn_net.install(reload=reload)
     super().install(reload=reload)
+    self.uvn_net.install(reload=reload)
 
 
   def remove(self) -> None:
-    self.uvn_net.remove()
     super().remove()
+    self.uvn_net.remove()
 
 
   def extra_files(self) -> Iterable[Path]:
