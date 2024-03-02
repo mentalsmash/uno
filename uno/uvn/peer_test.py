@@ -43,7 +43,7 @@ class UvnPeerLanStatus:
 
 
   def __str__(self) -> str:
-    return f"{self.peer} -> {self.lan} gw {self.lan.gw}"
+    return f"{self.peer} → {self.lan} gw {self.lan.gw}"
 
 
   @property

@@ -238,7 +238,7 @@ class UvnNetService(UvnService):
   #   self.marker.parent.mkdir(parents=True, exist_ok=True)
   #   exec_command(["cp", "-v", new_config, self.marker])
   #   self.dir_marker.write_text(str(self.config_file.parent))
-  #   log.warning(f"[SERVICE] installed {self} configuration: {new_config} -> {self.marker}")
+  #   log.warning(f"[SERVICE] installed {self} configuration: {new_config} → {self.marker}")
 
 
   def configure(self, config_dir: Path) -> None:
@@ -249,7 +249,7 @@ class UvnNetService(UvnService):
       self.global_uvn_id.parent.mkdir(parents=True)
       self.global_uvn_id.parent.chmod(0o700)
     self.global_uvn_id.write_text(str(config_dir))
-    log.warning(f"[SERVICE] {self} configured: {self.global_uvn_id} -> {config_dir}")
+    log.warning(f"[SERVICE] {self} configured: {self.global_uvn_id} → {config_dir}")
     if was_started:
       self.uvn_net_start()
 

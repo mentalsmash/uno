@@ -1565,7 +1565,7 @@ class UvnId(Versioned):
         peer_b_endpoint: str,
         arrow: str) -> None:
       if not logged or logged[-1] != peer_a:
-        log.warning(f"[BACKBONE] {peer_a} ->")
+        log.warning(f"[BACKBONE] {peer_a} →")
         logged.append(peer_a)
       log.warning(f"[BACKBONE]   [{peer_a_port_i}] {peer_a_endpoint} {arrow} {peer_b}[{peer_b_port_i}] {peer_b_endpoint}")
 
@@ -1584,11 +1584,11 @@ class UvnId(Versioned):
           peer_a_endpoint = f"{peer_a.address}:{self.settings.backbone_vpn.port + peer_a_port_i}"
         if not peer_b.address:
           peer_b_endpoint = "private LAN"
-          arrow = "<-- "
+          arrow = "←  "
         else:
           peer_b_endpoint = f"{peer_b.address}:{self.settings.backbone_vpn.port + peer_b_port_i}"
           if peer_a.address:
-            arrow = "<-->"
+            arrow = "← →"
           else:
-            arrow = " -->"
+            arrow = "  →"
         logger(peer_a, peer_a_port_i, peer_a_endpoint, peer_b, peer_b_port_i, peer_b_endpoint, arrow)

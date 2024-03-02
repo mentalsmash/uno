@@ -187,7 +187,7 @@ class StaticDeploymentStrategy(DeploymentStrategy):
         try:
           res = self.static_deployment[peer_a_i]
         except IndexError:
-          log.warning(f"[STATIC-STRATEGY] unknown peer ({peer_a_i}) detected for link: {peer_a_i} -> {peer_b_i}")
+          log.warning(f"[STATIC-STRATEGY] unknown peer ({peer_a_i}) detected for link: {peer_a_i} → {peer_b_i}")
           return None
         peer_id, static_peers = res
         res = static_peers[peer_b_i]

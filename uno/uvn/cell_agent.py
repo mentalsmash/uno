@@ -764,14 +764,14 @@ class CellAgent(Agent):
         self.peers.uvn_id = self.uvn_id
         # self.ns = Nameserver(self.root, db=self.uvn_id.hosts)
         # self.ns.assert_records(self.ns_records())
-      log.warning(f"[AGENT] UVN configuration changed: {self.uvn_id.generation_ts} -> {updated_agent.uvn_id.generation_ts}")
+      log.warning(f"[AGENT] UVN configuration changed: {self.uvn_id.generation_ts} → {updated_agent.uvn_id.generation_ts}")
       updaters.append(_update_uvn_id)
     
     if updated_agent.root_vpn_config.generation_ts != self.root_vpn_config.generation_ts:
       def _update_root_vpn():
         self.root_vpn_config = updated_agent.root_vpn_config
         self.root_vpn = WireGuardInterface(self.root_vpn_config)
-      log.warning(f"[AGENT] Root VPN configuration changed: {self.root_vpn_config.generation_ts} -> {updated_agent.root_vpn_config.generation_ts}")
+      log.warning(f"[AGENT] Root VPN configuration changed: {self.root_vpn_config.generation_ts} → {updated_agent.root_vpn_config.generation_ts}")
       updaters.append(_update_root_vpn)
 
     if updated_agent.deployment.generation_ts != self.deployment.generation_ts:
@@ -781,7 +781,7 @@ class CellAgent(Agent):
         self.backbone_vpn_configs = list(updated_agent.backbone_vpn_configs)
         self.backbone_vpns = [WireGuardInterface(v) for v in self.backbone_vpn_configs]
         self._regenerate_plots()
-      log.warning(f"[AGENT] Backbone Deployment changed: {self.deployment.generation_ts} -> {updated_agent.deployment.generation_ts}")
+      log.warning(f"[AGENT] Backbone Deployment changed: {self.deployment.generation_ts} → {updated_agent.deployment.generation_ts}")
       updaters.append(_update_deployment)
 
     if updated_agent.particles_vpn_config.generation_ts != self.particles_vpn_config.generation_ts:
@@ -791,7 +791,7 @@ class CellAgent(Agent):
           WireGuardInterface(self.particles_vpn_config.root_config)
           if self.enable_particles_vpn else None
         )
-      log.warning(f"[AGENT] Particles VPN configuration changed: {self.particles_vpn_config.generation_ts} -> {updated_agent.particles_vpn_config.generation_ts}")
+      log.warning(f"[AGENT] Particles VPN configuration changed: {self.particles_vpn_config.generation_ts} → {updated_agent.particles_vpn_config.generation_ts}")
       updaters.append(_update_particles_vpn)
 
     if updaters:

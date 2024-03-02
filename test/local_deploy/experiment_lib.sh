@@ -184,14 +184,14 @@ docker_connect()
           host_net="${2}" \
           host_ip="${3}" \
     
-    log_debug " connecting docker container to network: ${host_name} -> ${host_net}"
+    log_debug " connecting docker container to network: ${host_name} → ${host_net}"
     (
         set -x
         ${DOCKER} network connect \
             --ip ${host_ip} ${host_net} ${host_name} \
             >> ${EXPERIMENT_LOG} 2>&1
     )
-    log_info "[connected] docker container to network: ${host_name} -> ${host_net}"
+    log_info "[connected] docker container to network: ${host_name} → ${host_net}"
 }
 
 docker_start()

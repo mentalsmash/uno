@@ -165,7 +165,7 @@ class Registry(Versioned):
   def rti_license(self, val: Path | None) -> None:
     # Copy file to registry's root
     if val != self.rti_license:
-      log.warning(f"[REGISTRY] caching RTI license: {val} -> {self.rti_license}")
+      log.warning(f"[REGISTRY] caching RTI license: {val} → {self.rti_license}")
       exec_command(["cp", val, self.rti_license])
       self.updated()
 

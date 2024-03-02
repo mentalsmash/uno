@@ -170,7 +170,7 @@ etc_hosts_internet()
     done
     etc_hosts_line  roam.internet           ${IP_internet_roam} >> ${outfile}
     etc_hosts_line  babylon.internet        ${IP_internet_babylon} >> ${outfile}
-    log_debug "[added] network hosts: internet -> ${outfile}"
+    log_debug "[added] network hosts: internet → ${outfile}"
 }
 
 etc_hosts_subnet()
@@ -181,7 +181,7 @@ etc_hosts_subnet()
     etc_hosts_line  router.${net}   $(eval "echo \${${IP_${net}_router}}") >> ${outfile}
     etc_hosts_line  cell.${net}     $(eval "echo \${${IP_${net}_cell}}") >> ${outfile}
     etc_hosts_line  host.${net}     $(eval "echo \${${IP_${net}_host}}") >> ${outfile}
-    log_debug "[added] network hosts: ${net} -> ${outfile}"
+    log_debug "[added] network hosts: ${net} → ${outfile}"
 }
 
 etc_hosts_all()
@@ -190,7 +190,7 @@ etc_hosts_all()
     for net in ${TEST_NETWORKS_PRIVATE}; do
         etc_hosts_subnet ${1} ${net}
     done
-    log_info "[added] network hosts -> ${1}"
+    log_info "[added] network hosts → ${1}"
 }
 
 ################################################################################

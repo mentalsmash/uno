@@ -90,7 +90,7 @@ fi
 for port_entry in $(cat ${EXPERIMENT_DIR}/forwarded); do
     udp_port=$(echo ${port_entry} | cut -d: -f1)
     fwd_host=$(echo ${port_entry} | cut -d: -f2)
-    printf "Forwarding UDP port: %s:%s -> %s:%s\n" \
+    printf "Forwarding UDP port: %s:%s → %s:%s\n" \
            "${TEST_NET_PUB_IP}" "${udp_port}" \
            "${fwd_host}" "${udp_port}"
     iptables -t nat -A PREROUTING -i ${TEST_NET_PUB_NIC} -p udp --dport ${udp_port} \

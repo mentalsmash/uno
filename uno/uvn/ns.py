@@ -61,7 +61,7 @@ def resolv_conf_install(text: str) -> None:
   resolv_conf_bkp = Path("/etc/resolv.conf.uno.bkp")
   if not resolv_conf_bkp.exists():
     exec_command(["cp", resolv_conf, resolv_conf_bkp])
-    log.activity(f"[DNS] BACKUP created: {resolv_conf} -> {resolv_conf_bkp}")
+    log.activity(f"[DNS] BACKUP created: {resolv_conf} → {resolv_conf_bkp}")
   else:
     log.warning(f"[DNS] BACKUP not overwritten: {resolv_conf_bkp}")
   tmp_file_h = NamedTemporaryFile()
@@ -82,7 +82,7 @@ def resolv_conf_restore() -> None:
     return
   exec_command(["cp", resolv_conf_bkp, resolv_conf])
   exec_command(["rm", resolv_conf_bkp])
-  log.activity(f"[DNS] BACKUP restored: {resolv_conf_bkp} -> {resolv_conf}")
+  log.activity(f"[DNS] BACKUP restored: {resolv_conf_bkp} → {resolv_conf}")
 
 
 class NameserverRecord:

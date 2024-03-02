@@ -380,7 +380,7 @@ class UvnPeersList:
     updated = peer.update(**updated_fields)
     if not updated:
       return False
-    log.activity(f"updated: {peer} -> {peer.updated_fields}")
+    log.activity(f"updated: {peer} → {peer.updated_fields}")
     self._on_peers_updated()
     return True
 
@@ -395,7 +395,7 @@ class UvnPeersList:
         continue
       p_updated = peer.update(**updated_fields)
       if p_updated:
-        log.activity(f"updated: {peer} -> {peer.updated_fields}")
+        log.activity(f"updated: {peer} → {peer.updated_fields}")
         updated[peer.id] = p_updated
     if not updated:
       return False
