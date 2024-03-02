@@ -6,7 +6,7 @@ BindsTo=uvn-net-registry.service
 
 [Service]
 Type=notify
-ExecStart=/usr/local/bin/uno agent --registry --systemd -vv
+ExecStart=/usr/local/bin/uno agent --registry --systemd -v
 KillSignal=SIGINT
 PIDFile=/run/uno/uvn-agent.pid
 

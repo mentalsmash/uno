@@ -6,7 +6,7 @@ BindsTo=uvn-net-cell.service
 
 [Service]
 Type=notify
-ExecStart=/usr/local/bin/uno agent --systemd -vv
+ExecStart=/usr/local/bin/uno agent --systemd -v
 KillSignal=SIGINT
 PIDFile=/run/uno/uvn-agent.pid
 
