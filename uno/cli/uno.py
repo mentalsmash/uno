@@ -22,11 +22,12 @@ import ipaddress
 
 from uno.uvn.uvn_id import print_serialized, TimingProfile
 from uno.uvn.registry import Registry
-from uno.uvn.agent import CellAgent
+from uno.uvn.cell_agent import CellAgent
 from uno.uvn.registry_agent import RegistryAgent
 from uno.uvn.log import set_verbosity, level as log_level, Logger as log
 from uno.uvn.deployment import DeploymentStrategyKind
 from uno.uvn.graph import backbone_deployment_graph
+from uno.uvn.ask import ask_assume_no, ask_assume_yes
 
 
 ###############################################################################
@@ -66,6 +67,12 @@ def registry_configure_args(args):
     }
   }
 
+
+def _update_registry_agent(registry) -> None:
+  agent = RegistryAgent(registry)
+  agent.net.generate_configuration()
+
+
 def registry_load(args) -> Registry:
   registry = Registry.load(args.root or Path.cwd())
   return registry
@@ -77,11 +84,14 @@ def registry_configure(args):
       root=args.root,
       name=args.name,
       **configure_args)
+    _update_registry_agent(registry)
   else:
     registry = registry_load(args)
     if args.print:
       print_serialized(registry, verbose=args.verbose > 0)
     modified = registry.configure(**configure_args)
+    if modified:
+      _update_registry_agent(registry)
     if not modified and not args.print:
       log.warning("[REGISTRY] loaded successfuly")
 
@@ -101,7 +111,9 @@ def registry_cell(args):
   cell = method(name=args.name, **config_args)
   if args.print:
     print_serialized(cell, verbose=args.verbose > 0)
-  registry.configure()
+  modified = registry.configure()
+  if modified:
+    _update_registry_agent(registry)
 
 
 def registry_particle(args):
@@ -116,16 +128,21 @@ def registry_particle(args):
   particle = method(name=args.name, **config_args)
   if args.print:
     print_serialized(particle, verbose=args.verbose > 0)
-  registry.configure()
+  modified = registry.configure()
+  if modified:
+    _update_registry_agent(registry)
 
 
 def registry_redeploy(args):
   registry = registry_load(args)
 
-  registry.configure(
+  modified = registry.configure(
     deployment_strategy=args.deployment_strategy,
     deployment_strategy_args=args.deployment_strategy_args,
     redeploy=True)
+
+  if modified:
+    _update_registry_agent(registry)
 
 
 def registry_sync(args, registry: Optional[Registry]=None):
@@ -145,6 +162,17 @@ def registry_common_args(parser: argparse.ArgumentParser):
     action="count",
     default=0,
     help="Increase output verbosity. Repeat for increased verbosity.")
+  opts = parser.add_argument_group("User Interaction Options")
+  opts.add_argument("-y", "--yes",
+    help="Do not prompt the user with questions, and always assume "
+    "'yes' is the answer.",
+    action="store_true",
+    default=False)
+  opts.add_argument("--no",
+    help="Do not prompt the user with questions, and always assume "
+    "'no' is the answer.",
+    action="store_true",
+    default=False)
 
 
 def registry_agent(args):
@@ -172,15 +200,20 @@ def registry_plot(args):
 ###############################################################################
 ###############################################################################
 def cell_bootstrap(args):
-  if not args.update:
-    agent = CellAgent.extract(
+  agent = CellAgent.extract(
       package=args.package,
       root=args.root)
-  else:
-    pass
+  if args.update and agent.net.uvn_agent.uvn_net.enabled():
+    agent.net.uvn_agent.uvn_net.restart()
+
 
 def cell_agent(args):
-  root = args.root or Path.cwd()
+  # if running as a systemd service, read the root location
+  # from the global UVN marker
+  if args.systemd:
+    root = Path(CellAgent.GLOBAL_UVN_ID.read_text().strip())
+  else:
+    root = args.root or Path.cwd()
   agent = CellAgent.load(root)
   agent.enable_www = args.www
   agent.enable_systemd = args.systemd
@@ -196,29 +229,60 @@ def cell_service_enable(args):
   root = args.root or Path.cwd()
   # Load the agent to make sure the directory contains a valid configuration
   agent = CellAgent.load(root)
-  CellAgent.generate_services(agent_root=agent.root)
+
+  agent.net.uvn_agent.install()
+  agent.net.uvn_agent.uvn_net.configure(agent.net.config_dir)
+
   if args.boot:
-    CellAgent.enable_service(agent=args.agent)
+    if args.agent:
+      agent.net.uvn_agent.enable_boot()
+    else:
+      agent.net.uvn_agent.disable_boot()
+      agent.net.uvn_agent.uvn_net.enable_boot()
+
   if args.start:
-    CellAgent.start_service(agent=args.agent)
+    if args.agent:
+      agent.net.uvn_agent.start()
+    else:
+      agent.net.uvn_agent.uvn_net.start()
 
 
 def cell_service_disable(args):
   root = args.root or Path.cwd()
   agent = CellAgent.load(root)
-  CellAgent.delete_services()
+  agent.net.uvn_agent.remove()
 
 
-def cell_net_up(args):
+def _load_agent(args):
   root = args.root or Path.cwd()
-  agent = CellAgent.load(root)
-  agent.start()
+  try:
+    return CellAgent.load(root)
+  except:
+    try:
+      registry = Registry.load(root)
+      return RegistryAgent(registry)
+    except:
+      raise RuntimeError(f"failed to load an agent from directory: {root}") from None
+
+# Net commands
+  
+def uvn_net_up(args):
+  agent = _load_agent(args)
+  agent.net.start()
 
 
-def cell_net_down(args):
-  root = args.root or Path.cwd()
-  agent = CellAgent.load(root)
-  agent.stop()
+def uvn_net_down(args):
+  agent = _load_agent(args)
+  agent.net.stop(assert_stopped=True)
+
+
+# Agent commands
+  
+def uno_agent(args):
+  agent = _load_agent(args)
+  agent.enable_www = True
+  agent.enable_systemd = args.systemd
+  agent.spin(max_spin_time=args.max_run_time)
 
 
 def _define_registry_config_args(parser, owner_id_required: bool=False):
@@ -596,75 +660,98 @@ def main():
     action="store_true")
 
   #############################################################################
-  # uno cell net ...
+  # uno net ...
   #############################################################################
-  cmd_cell_net = subparsers_cell.add_parser("net",
-    help="Control the cell's network services.")
-  subparsers_cell_net = cmd_cell_net.add_subparsers(help="Cell network operations")
+  cmd_net = subparsers.add_parser("net",
+    help="Control the UVN's network services.")
+  subparsers_cell_net = cmd_net.add_subparsers(help="UVN network operations")
 
 
   #############################################################################
-  # uno cell net up
+  # uno net up
   #############################################################################
-  cmd_cell_net_up = subparsers_cell_net.add_parser("up",
-    help="Enable all system services required to connect the cell to the UVN.")
-  cmd_cell_net_up.set_defaults(cmd=cell_net_up)
+  cmd_net_up = subparsers_cell_net.add_parser("up",
+    help="Enable all system services required to connect the host to the UVN.")
+  cmd_net_up.set_defaults(cmd=uvn_net_up)
 
-  registry_common_args(cmd_cell_net_up)
-
-  #############################################################################
-  # uno cell net down
-  #############################################################################
-  cmd_cell_net_down = subparsers_cell_net.add_parser("down",
-    help="Stop all system services that the cell uses to connect the UVN.")
-  cmd_cell_net_down.set_defaults(cmd=cell_net_down)
-
-  registry_common_args(cmd_cell_net_down)
-
+  registry_common_args(cmd_net_up)
 
   #############################################################################
-  # uno cell service ...
+  # uno net down
   #############################################################################
-  cmd_cell_service = subparsers_cell.add_parser("service",
-    help="Install and control the cell as a systemd service.")
-  subparsers_service = cmd_cell_service.add_subparsers(help="Systemd service configuration")
+  cmd_net_down = subparsers_cell_net.add_parser("down",
+    help="Stop all system services used to connect the UVN.")
+  cmd_net_down.set_defaults(cmd=uvn_net_down)
+
+  registry_common_args(cmd_net_down)
 
 
   #############################################################################
-  # uno cell service install ...
+  # uno service ...
   #############################################################################
-  cmd_cell_service_enable = subparsers_service.add_parser("install",
-    help="Install the cell as a systemd service.")
-  cmd_cell_service_enable.set_defaults(
+  cmd_service = subparsers.add_parser("service",
+    help="Install and control the UVN connection (and cell agent) as a systemd service.")
+  subparsers_service = cmd_service.add_subparsers(help="Systemd service configuration")
+
+
+  #############################################################################
+  # uno service install ...
+  #############################################################################
+  cmd_service_enable = subparsers_service.add_parser("install",
+    help="Install the uvn-net and uvn-agent systemd services, and enable them for the selected directory.")
+  cmd_service_enable.set_defaults(
     cmd=cell_service_enable)
 
-  cmd_cell_service_enable.add_argument("-a", "--agent",
-    help="Run the cell agent as a service instead of just starting network services.",
-    default=False,
-    action="store_true")
-
-  cmd_cell_service_enable.add_argument("-s", "--start",
+  cmd_service_enable.add_argument("-s", "--start",
     help="Start the service after installing it..",
     default=False,
     action="store_true")
+  
+  cmd_service_enable.add_argument("-a", "--agent",
+    help="Run the uvn-agent service instead of uvn-net.",
+    default=False,
+    action="store_true")
 
-  cmd_cell_service_enable.add_argument("-b", "--boot",
+  cmd_service_enable.add_argument("-b", "--boot",
     help="Enable the service at boot",
     default=False,
     action="store_true")
 
-  registry_common_args(cmd_cell_service_enable)
+  registry_common_args(cmd_service_enable)
 
 
   #############################################################################
-  # uno cell service remove ...
+  # uno service remove ...
   #############################################################################
-  cmd_cell_service_disable = subparsers_service.add_parser("remove",
-    help="Disable the cell from being available as a systemd service.")
-  cmd_cell_service_disable.set_defaults(
+  cmd_service_disable = subparsers_service.add_parser("remove",
+    help="Disable the uvn-net and uvn-agent systemd services. Stop them if they are active.")
+  cmd_service_disable.set_defaults(
     cmd=cell_service_disable)
 
-  registry_common_args(cmd_cell_service_disable)
+  registry_common_args(cmd_service_disable)
+
+
+  #############################################################################
+  # uno agent ..
+  #############################################################################
+  cmd_agent = subparsers.add_parser("agent",
+    help="Start an agent for the selected directory (either cell or registry).")
+  cmd_agent.set_defaults(
+    cmd=uno_agent)
+
+  cmd_agent.add_argument("-t", "--max-run-time",
+    metavar="SECONDS",
+    help="Run the agent for the specified time instead of indefinitely.",
+    default=None,
+    type=int)
+
+  cmd_agent.add_argument("--systemd",
+    # help="Start the agent with support for Systemd. Used when the agent is installed as a service.",
+    help=argparse.SUPPRESS,
+    default=False,
+    action="store_true")
+
+  registry_common_args(cmd_agent)
 
 
   #############################################################################
@@ -682,6 +769,14 @@ def main():
     set_verbosity(log_level.activity)
   else:
     set_verbosity(log_level.warning)
+
+  yes = getattr(args, "yes", False)
+  if yes:
+    ask_assume_yes()
+
+  no = getattr(args, "no", False)
+  if no:
+    ask_assume_no()
 
   try:
     cmd(args)

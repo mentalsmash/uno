@@ -55,16 +55,17 @@ def exec_command(
 
   if not noexcept and result.returncode != 0:
     cmd = ' '.join(map(str, cmd_args))
-    stdout = result.stdout.decode("utf-8") if result.stdout else "",
-    stderr = result.stderr.decode("utf-8") if result.stderr else ""
-    log.error(f"command failed: {cmd}")
-    log.error("-"*20)
-    log.error("stdout:")
-    log.error("-"*20)
-    log.error(stderr)
-    log.error("-"*20)
-    log.error("stderr:")
-    log.error("-"*20)
+    # stdout = result.stdout.decode("utf-8") if result.stdout else "",
+    # stderr = result.stderr.decode("utf-8") if result.stderr else ""
+    # log.error(f"command failed: {cmd}")
+    # log.error("-"*20)
+    # log.error("stdout:")
+    # log.error("-"*20)
+    # log.error(stdout)
+    # log.error("-"*20)
+    # log.error("stderr:")
+    # log.error("-"*20)
+    # log.error(stderr)
     raise RuntimeError(
       "failed to execute command" if fail_msg is None else fail_msg,
       cmd)

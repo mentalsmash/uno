@@ -1,0 +1,583 @@
+#!/bin/sh -ex
+set -e
+
+case "${1}" in
+root)
+  shift
+  UVN_ROOT=y
+  ;;
+*)
+  UVN_ROOT=
+  ;;
+esac
+
+
+# The script must read a configuration file whic is located inside
+# the uvn agent's root directory. The location of this directory
+# is specified in a global marker file, located at /etc/uno/root
+
+# After enabling services, the configuration file will be copied to a 
+# global location to act as a canary for following invocations of this
+# script, and for the agent process to detect static configuration.
+# The script must not interfere with an active agent, which can be
+# detected through its PID file.
+if [ -z "${UVN_ROOT}" ]; then
+  : ${UVN_ID:=/etc/uno/cell}
+  UVN_NET_CONF_NAME=uvn-net.conf
+  UVN_NET_CONF_MARKER=/run/uno/uvn-net/uvn-net.conf
+  UVN_AGENT_PID=/run/uno/uvn-agent.pid
+else
+  : ${UVN_ID:=/etc/uno/registry}
+  UVN_NET_CONF_NAME=uvn-net-root.conf
+  UVN_NET_CONF_MARKER=/run/uno/uvn-net/uvn-net-root.conf
+  UVN_AGENT_PID=/run/uno/uvn-agent-root.pid
+fi
+###############################################################################
+# Helper functions
+###############################################################################
+# https://stackoverflow.com/questions/5412761/using-colors-with-printf
+# https://stackoverflow.com/questions/4332478/read-the-current-text-color-in-a-xterm/4332530#4332530
+# https://unix.stackexchange.com/questions/9957/how-to-check-if-bash-can-print-colors
+# Check if we're running in a terminal
+if test -t 1; then
+  # see if it supports colors...
+  ncolors=$(tput colors)
+  # if so, enable colors
+  if test -n "$ncolors" && test $ncolors -ge 8; then
+    BLACK=$(tput setaf 0)
+    RED=$(tput setaf 1)
+    GREEN=$(tput setaf 2)
+    YELLOW=$(tput setaf 3)
+    LIME_YELLOW=$(tput setaf 190)
+    POWDER_BLUE=$(tput setaf 153)
+    BLUE=$(tput setaf 4)
+    MAGENTA=$(tput setaf 5)
+    CYAN=$(tput setaf 6)
+    WHITE=$(tput setaf 7)
+    BRIGHT=$(tput bold)
+    NORMAL=$(tput sgr0)
+    BLINK=$(tput blink)
+    REVERSE=$(tput smso)
+    UNDERLINE=$(tput smul)
+  fi
+fi
+
+
+# Log an info message
+uvn_log_info()
+{
+  printf -- "${GREEN}$(basename ${0})  [INFO] $@${NORMAL}\n" >&2
+}
+
+# Log an error message and possibly terminate the script
+# by returning a failure
+uvn_log_failed()
+{
+  printf -- "${RED}$(basename ${0}) [ERROR] $@${NORMAL}\n" >&2
+}
+
+uvn_log_warn()
+{
+  printf -- "${YELLOW}$(basename ${0})  [WARN] $@${NORMAL}\n" >&2
+}
+
+# Initialize a WireGuard VPN interface.
+uvn_vpn_start()
+{
+  local nic=${1} \
+        config="${2}" \
+        nic_addr=${3}
+
+  uvn_log_info "enabling VPN interface: ${nic}"
+
+  # Make sure the interface doesn't exist
+  ip link delete ${nic} || true
+
+  # Create the interface
+  if ! (
+    set -x
+    ip link add dev ${nic} type wireguard
+  ); then
+    uvn_log_failed "failed to create VPN interface: ${nic}"
+    return 1
+  fi
+
+  # Reset the interface's configuration if it exists
+  ip link set down dev ${nic} || true
+  ip address flush dev ${nic} || true
+
+  # Create the interface
+  if ! (
+    set -x
+    ip address add dev ${nic} ${nic_addr}
+  ); then
+    uvn_log_failed "failed to configure address on VPN interface: ${nic} = ${nic_addr}"
+    return 1
+  fi
+
+  # Configure WireGuard on the inteface
+  if ! (
+    set -x
+    wg setconf ${nic} "${config}"
+  ); then
+    uvn_log_failed "failed to configure VPN interface: ${nic}"
+    return 1
+  fi
+
+  # Enable the interface
+  if ! (
+    set -x
+    ip link set up dev ${nic}
+  ); then
+    uvn_log_failed "failed to enable VPN interface: ${nic}"
+    return 1
+  fi
+
+  if ! (
+    set -x
+
+    # Accept incoming packets from the interface
+    iptables -A INPUT -i ${nic} -j ACCEPT
+
+    # Enable in/out IP forwarding on the interface
+    iptables -A FORWARD -i ${nic} -j ACCEPT
+    iptables -A FORWARD -o ${nic} -j ACCEPT
+
+    # Enable output NAT on the interface 
+    iptables -t nat -A POSTROUTING -o ${nic} -j MASQUERADE
+  ); then
+    uvn_log_failed "failed to configure iptables for VPN interface: ${nic}"
+    return 1
+  fi
+
+  uvn_log_info "VPN interface ready: ${nic}"
+}
+
+
+# Disable a WireGuard VPN interface.
+uvn_vpn_stop()
+{
+  local nic=${1}
+
+  uvn_log_info "disabling VPN interface: ${nic}"
+  (
+    set -x
+
+    # Disable IP forwarding
+    iptables -D FORWARD -i ${nic} -j ACCEPT
+    iptables -D FORWARD -o ${nic} -j ACCEPT
+
+    # Stop accepting packets
+    iptables -D INPUT -i ${nic} -j ACCEPT
+
+    # Disable output NAT
+    iptables -t nat -D POSTROUTING -o ${nic} -j MASQUERADE
+
+    # Reset interface
+    ip link set down dev ${nic}
+    ip address flush dev ${nic}
+  ) || true # Ignore failures since we're going to delete the interface anyway
+
+  # delete the interface
+  if ! (
+    set -x
+    ip link delete ${nic}
+  ); then
+    uvn_log_failed "VPN interface not deleted: ${nic}"
+    return 1
+  fi
+
+  uvn_log_info "VPN interface deleted: ${nic}"
+}
+
+
+# Configure a LAN interface to communicate with the UVN
+uvn_lan_start()
+{
+  local nic=${1}
+
+  uvn_log_info "enabling LAN interface: ${nic}"
+  if ! (
+    set -x
+    # Enable output NAT
+    iptables -t nat -A POSTROUTING -o ${nic} -j MASQUERADE
+  ); then
+    uvn_log_failed "failed to configure iptables for LAN interface: ${nic}"
+    return 1
+  fi
+  uvn_log_info "LAN interface ready: ${nic}"
+}
+
+
+# Stop communication between a LAN interface and the UVN
+uvn_lan_stop()
+{
+  local nic=${1}
+
+  uvn_log_info "disabling LAN interface: ${nic}"
+  if ! (
+    set -x
+    # Disable output NAT
+    iptables -t nat -D POSTROUTING -o ${nic} -j MASQUERADE
+  ); then
+    uvn_log_failed " failed to disable iptables for LAN interface: ${nic}"
+    return 1
+  fi
+
+  uvn_log_info "LAN interface deconfigured: ${nic}"
+}
+
+
+# Configure all network interfaces associated with the UVN
+uvn_net_start()
+{
+  uvn_log_info "starting all network interfaces"
+
+  for nic in ${UVN_NET_VPN_INTERFACES}; do
+    # Read nic IP address from configuration file
+    local nic_addr=$(grep "^${nic}=" "${UVN_NET_CONF_DIR}/wg-ip.config" | cut -d= -f2- | xargs)
+    uvn_vpn_start ${nic} "${UVN_NET_CONF_DIR}/wg/${nic}.conf" ${nic_addr}
+  done
+
+  for nic in ${UVN_NET_LAN_INTERFACES}; do
+    uvn_lan_start ${nic}
+  done
+
+  # Make sure IPv4 forwarding is enabled in the kernel
+  echo 1 > /proc/sys/net/ipv4/ip_forward
+
+  uvn_log_info "network interfaces started"
+}
+
+
+# Disable all network interfaces associated with the UVN
+uvn_net_stop()
+{
+  uvn_log_info "stopping all network interfaces"
+
+  UVN_NET_STOP_FAILED=
+  local failed=
+
+  for nic in ${UVN_NET_VPN_INTERFACES}; do
+    if ! uvn_vpn_stop ${nic}; then
+      failed="${nic} ${failed}"
+    fi
+  done
+
+  for nic in ${UVN_NET_LAN_INTERFACES}; do
+    if ! uvn_lan_stop ${nic}; then
+      failed="${nic} ${failed}"
+    fi
+  done
+
+  UVN_NET_STOP_FAILED="${failed}"
+
+  if [ -n "${failed}" ]; then
+    return 1
+  fi
+
+  uvn_log_info "network interfaces stopped"
+}
+
+
+# Configure and start a cell's IP router.
+uvn_router_start()
+{
+  if [ -z "${UVN_NET_ROUTER}" ]; then
+    uvn_log_info "router not enabled"
+    return
+  fi
+
+  uvn_log_info "starting router"
+  if ! (
+    set -x
+    sed -i -r 's/^(zebra|ospfd)=no$/\1=yes/g' /etc/frr/daemons
+  ); then
+    uvn_log_failed "failed to enable frr daemons"
+    return 1
+  fi
+  if ! (
+    set -x
+    cp "${UVN_NET_CONF_DIR}/frr.conf" /etc/frr/frr.conf
+  ); then
+    uvn_log_failed "failed to intall frr configuration"
+    return 1
+  fi
+  if ! (
+    set -x
+    service frr restart
+  ); then
+    uvn_log_failed "failed to start frr service"
+    return 1
+  fi
+
+  uvn_log_info "router started"
+}
+
+
+# Stop a cell's IP router.
+uvn_router_stop()
+{
+  if [ -z "${UVN_NET_ROUTER}" ]; then
+    uvn_log_info "router not enabled"
+    return
+  fi
+
+  if ! (
+    set -x
+    service frr stop
+  ); then
+    uvn_log_failed "failed to stop frr service"
+    return 1
+  fi
+}
+
+
+# Check if the agent is running
+uvn_detect_agent()
+{
+  [ -e "${UVN_AGENT_PID}" ] && kill -0 "$(cat ${UVN_AGENT_PID})"
+}
+
+# Check if the system has already been configured
+uvn_net_is_enabled()
+{
+  [ -e "${UVN_NET_CONF_MARKER}.id" ]
+}
+
+
+uvn_net_create_marker()
+{
+  mkdir -p $(dirname ${UVN_NET_CONF_MARKER})
+  cp -v ${UVN_NET_CONF} ${UVN_NET_CONF_MARKER}
+  printf -- "${UVN_NET_CONF_ID}" > "${UVN_NET_CONF_MARKER}.id"
+  # rm -rf $(diname ${UVN_NET_CONF_MARKER})
+  # cp -rv ${UVN_NET_CONF_DIR} $(diname ${UVN_NET_CONF_MARKER})
+  # if [ ! -e "${UVN_NET_CONF_MARKER}" -o ! -e "${UVN_NET_CONF_MARKER}.id" ]; then
+  #   uvn_log_failed "failed to install configuration to '$(diname ${UVN_NET_CONF_MARKER})'"
+  #   return 1
+  # fi
+}
+
+uvn_net_delete_marker()
+{
+  (
+    set -x
+    rm -vrf ${UVN_NET_CONF_MARKER} ${UVN_NET_CONF_MARKER}.id
+  )
+}
+
+# The script requires a configuration file, which by default should be located in /etc/uno/uvn.conf.
+# For now, the path can be customized by setting variable UVN_CONF.
+# The configuration files must define the following variables:
+# - UVN_VPN_INTERFACES: list of WireGuard interfaces to create.
+# - UVN_LAN_INTERFACES: list of network interfaces to configure.
+# - UVN_CONF_ROOT: directory containing additional configuration files
+uvn_load_conf()
+{
+  if [ -z "${UVN_NET_CONF}" ]; then
+    if [ -z "${UVN_NET_CONF_DIR}" -a ! -f "${UVN_ID}" ]; then
+      uvn_log_failed "global UVN id not found: ${UVN_ID}"
+      return 1
+    elif [ -z "${UVN_NET_CONF_DIR}" ]; then
+      uvn_log_info "reading UVN location from ${UVN_ID}"
+      UVN_NET_CONF_DIR="$(cat ${UVN_ID})"
+      if [ -z "${UVN_NET_CONF_DIR}" ]; then
+        uvn_log_failed "empty global UVN id: ${UVN_ID}"
+        return 1
+      fi
+    fi
+    uvn_log_info "UVN config dir: ${UVN_NET_CONF_DIR}"
+
+    UVN_NET_CONF_DIR="$(cd ${UVN_NET_CONF_DIR} && pwd)"
+    UVN_NET_CONF="${UVN_NET_CONF_DIR}/${UVN_NET_CONF_NAME}"
+  fi
+
+  if [ ! -e "${UVN_NET_CONF}" ]; then
+    uvn_log_failed "UVN agent configuration not found: ${UVN_NET_CONF}"
+    return 1
+  fi
+
+  if [ ! -e "${UVN_NET_CONF}.id" ]; then
+    uvn_log_failed "UVN agent configuration id not found: ${UVN_NET_CONF}.id"
+    return 1
+  fi
+
+  UVN_NET_CONF_ID="$(cat ${UVN_NET_CONF}.id | xargs)"
+  if [ -z "${UVN_NET_CONF_ID}" ]; then
+    uvn_log_failed "invalid UVN agent configuration id"
+    return 1
+  fi
+
+  uvn_log_info "loading UVN configuration: ${UVN_NET_CONF} [${UVN_NET_CONF_ID}]"
+
+  . ${UVN_NET_CONF}
+
+  UVN_NET_CONF_DIR=$(dirname ${UVN_NET_CONF})
+}
+
+uvn_load_installed()
+{
+  if [ ! -e "${UVN_NET_CONF_MARKER}" ]; then
+    uvn_log_failed "installed configuration not found: ${UVN_NET_CONF_MARKER}"
+    return 1
+  fi
+
+  if [ ! -e "${UVN_NET_CONF_MARKER}.id" ]; then
+    uvn_log_warn "installed configuration id not found: ${UVN_NET_CONF_MARKER}"
+    UVN_NET_CONF_MARKER_ID="unknown"
+  else
+    UVN_NET_CONF_MARKER_ID="$(cat ${UVN_NET_CONF_MARKER}.id | xargs)"
+  fi
+
+  if [ -z "${UVN_NET_CONF_MARKER_ID}" ]; then
+    uvn_log_failed "invalid UVN agent configuration id"
+    UVN_NET_CONF_MARKER_ID="unknown"
+  fi
+
+  . ${UVN_NET_CONF_MARKER}
+}
+
+
+uvn_nic_status()
+{
+  local nic=${1}
+
+  uvn_log_info "checking nic status: ${nic}"
+
+  if ! ip a s ${nic}; then
+    uvn_log_failed "failed to inspect nic status: ${nic}"
+    return 1
+  fi
+}
+
+uvn_router_status()
+{
+  uvn_log_info "checking router processes"
+
+  ps aux | grep /frr | grep -v grep
+}
+
+###############################################################################
+# Begin actual script
+###############################################################################
+case "${1}" in
+start)
+  uvn_load_conf
+
+  if uvn_detect_agent; then
+    uvn_log_failed "agent process detected: $(cat ${UVN_AGENT_PID})"
+
+    if uvn_net_is_enabled; then
+      uvn_load_installed
+      if [ "${UVN_NET_CONF_ID}" = "${UVN_NET_CONF_MARKER_ID}" ]; then
+        uvn_log_info "services already running with expected configuration [${UVN_NET_CONF_MARKER_ID}]"
+        exit 0
+      else
+        uvn_log_info "services already running with different configuration [${UVN_NET_CONF_MARKER_ID}]"
+        exit 0
+      fi
+    fi
+
+    uvn_log_failed "cannot start services while agent is running"
+    exit 1
+  fi
+
+  uvn_load_conf
+
+  if uvn_net_is_enabled; then
+    uvn_load_installed
+
+    if [ "${UVN_NET_CONF_ID}" = "${UVN_NET_CONF_MARKER_ID}" ]; then
+      uvn_log_info "system already initialized"
+      exit
+    else
+      uvn_log_failed "system is already initialized with a different configuration"
+      uvn_log_failed "${UVN_NET_CONF_ID} != ${UVN_NET_CONF_MARKER_ID}"
+      exit 1
+    fi
+  fi
+
+  uvn_net_start
+
+  uvn_router_start
+
+  uvn_net_create_marker
+
+  uvn_log_info "cell services started"
+
+  exit 0
+  ;;
+status)
+  if uvn_detect_agent; then
+    uvn_log_info "uvn-agent: RUNNING ($(cat ${UVN_AGENT_PID}))"
+  else
+    uvn_log_info "uvn-agent: STOPPED"
+    if [ -f "${UVN_AGENT_PID}" ]; then
+      uvn_log_warn "agent PID file without active agent process: ${UVN_AGENT_PID} ($(cat ${UVN_AGENT_PID}))"
+    fi
+  fi
+
+  if uvn_net_is_enabled; then
+    if ! uvn_load_installed; then
+      uvn_log_failed "failed to load installed configuration!"
+      uvn_log_failed "uvn-net: INCONSISTENT (${UVN_NET_CONF_MARKER})"
+    else
+      uvn_log_info "uvn-net: ENABLED (${UVN_NET_CONF_MARKER_ID})"
+    fi
+    for nic in ${UVN_NET_VPN_INTERFACES}; do
+      uvn_nic_status ${nic} || true
+    done
+    for nic in ${UVN_NET_LAN_INTERFACES}; do
+      uvn_nic_status ${nic} || true
+    done
+    uvn_router_status || true
+  else
+    if ! uvn_load_conf; then
+      uvn_log_failed "uvn-net is not properly configured"
+      uvn_log_info "uvn-net: UNAVAILABLE (${UVN_NET_CONF:-no configuration})"
+    else
+      uvn_log_info "uvn-net: READY (${UVN_NET_CONF_ID})"
+    fi
+  fi
+  ;;
+stop)
+  if uvn_detect_agent; then
+    uvn_log_failed "cannot stop services while agent is running"
+    exit 1
+  fi
+
+  if ! uvn_net_is_enabled; then
+    uvn_log_info "services don't seem to be running, attempting emergency clean up"
+    uvn_load_conf || true
+    : "${FORCED_CLEANUP:=true}"
+  else
+    uvn_log_info "loading current configuration: ${UVN_NET_CONF_MARKER}"
+    uvn_load_installed || true
+    : "${FORCED_CLEANUP:=false}"
+  fi
+
+  RC=0
+  if ! uvn_net_stop; then
+    uvn_log_failed "errors encountered while disabling some network interfaces: ${UVN_NET_STOP_FAILED}"
+    RC=1
+  fi
+
+  uvn_router_stop || RC=1
+
+  uvn_net_delete_marker
+
+  uvn_log_info "cell services stopped"
+
+  if [ ${RC} -ne 0 ] && ! ${FORCED_CLEANUP}; then
+    exit ${RC}
+  fi
+
+  exit
+  ;;
+*)
+  uvn_log_failed "invalid arguments: '$(echo $@ | xargs)'"
+  printf -- "usage: $(basename ${0}) [root] (start|stop|status)"
+  exit 254
+esac
+

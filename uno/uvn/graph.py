@@ -8,7 +8,7 @@ from .deployment import P2PLinksMap
 from .peer import UvnPeerStatus
 
 if TYPE_CHECKING:
-  from .agent import CellAgent
+  from .cell_agent import CellAgent
 
 
 COLOR_ON_NODE = "#89f881"

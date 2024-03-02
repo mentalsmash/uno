@@ -15,17 +15,19 @@
 # along with this program. If not, see <https://www.gnu.org/licenses/>.
 ###############################################################################
 from pathlib import Path
-from typing import TYPE_CHECKING, Iterable
+from typing import TYPE_CHECKING, Iterable, Tuple
 import tempfile
 
 from .wg import WireGuardInterface
 from .render import Templates
 from .exec import exec_command
+from .ip import ipv4_list_routes
 
 from .log import Logger as log
 
+
 if TYPE_CHECKING:
-  from .agent import CellAgent
+  from .cell_agent import CellAgent
 
 class Vtysh:
     commands = {
@@ -54,10 +56,36 @@ class Vtysh:
 
 class Router:
   FRR_CONF = "/etc/frr/frr.conf"
+  ROUTER_USER = "frr"
+  ROUTER_GROUP = "frr"
 
   def __init__(self, agent: "CellAgent") -> None:
     self.agent = agent
-    self.log_dir = self.agent.root / "router-log"
+    self.routes = frozenset()
+    self.update_routes()
+
+
+  @property
+  def log_dir(self) -> Path:
+    log_dir = self.agent.log_dir / "frr"
+    if not log_dir.is_dir():
+      log_dir.mkdir(parents=True)
+      exec_command([
+        "chown", f"{Router.ROUTER_USER}:{Router.ROUTER_GROUP}", log_dir
+      ])
+    return log_dir
+
+
+
+  def update_routes(self) -> Tuple[set[str], set[str]]:
+    current_routes = ipv4_list_routes()
+    new_routes = current_routes - self.routes
+    gone_routes = self.routes - current_routes
+    if not (new_routes or gone_routes):
+      return (set(), set())
+    self.routes = current_routes
+    return (new_routes, gone_routes)
+
 
   @property
   def frr_config(self) -> str:
@@ -105,27 +133,27 @@ class Router:
     
     # Make sure log directory exists and is writable
     # TODO(asorbini) fix these ugly permissions
-    self.log_dir.mkdir(parents=True, exist_ok=True)
-    self.log_dir.chmod(0o777)
+    # self.log_dir.mkdir(parents=True, exist_ok=True)
+    # self.log_dir.chmod(0o777)
 
     # Generate and install frr.conf
     tmp_file_h = tempfile.NamedTemporaryFile()
     tmp_file = Path(tmp_file_h.name)
     tmp_file.write_text(self.frr_config)
-    exec_command(["cp", tmp_file, self.FRR_CONF], root=True)
+    exec_command(["cp", tmp_file, self.FRR_CONF])
     
     # Make sure the required frr daemons are enabled
-    exec_command(["sed", "-i", "-r", r"s/^(zebra|ospfd)=no$/\1=yes/g", "/etc/frr/daemons"], root=True)
+    exec_command(["sed", "-i", "-r", r"s/^(zebra|ospfd)=no$/\1=yes/g", "/etc/frr/daemons"])
 
     # (Re)start frr
-    exec_command(["service", "frr", "restart"], root=True)
+    exec_command(["service", "frr", "restart"])
 
     log.activity(f"[ROUTER] started")
 
 
   def stop(self) -> None:
     log.debug(f"[ROUTER] stopping frrouting...")
-    exec_command(["service", "frr", "stop"], root=True)
+    exec_command(["service", "frr", "stop"])
     log.activity(f"[ROUTER] stopped")
 
 
@@ -171,6 +199,5 @@ class Router:
     cmd = ["vtysh", "-E", "-c", *cmd]
     result = exec_command(cmd,
       fail_msg="failed to perform vtysh command",
-      root=True,
       capture_output=True)
     return result.stdout.decode("utf-8")

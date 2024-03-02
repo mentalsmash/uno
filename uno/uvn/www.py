@@ -35,7 +35,7 @@ from .time import Timestamp
 from .exec import exec_command
 
 if TYPE_CHECKING:
-  from .agent import CellAgent
+  from .cell_agent import CellAgent
 from .log import Logger as log
 
 from http.server import SimpleHTTPRequestHandler, HTTPServer
@@ -119,7 +119,7 @@ mimetype.assign = (
         "-nodes",
         "-subj", pem_subject,
     ])
-    self._lighttpd_pem.chmod(0o400)
+    self._lighttpd_pem.chmod(0o600)
     log.debug(f"[WWW] SSL certificate: {self._lighttpd_pem}")
     
 
@@ -149,11 +149,11 @@ mimetype.assign = (
     }))
     
     # Copy particle configurations if they exist
-    if self.agent.particle_configurations_dir.is_dir():
+    if self.agent.particles_dir.is_dir():
       particles_dir_www = self.root / "particles"
       if particles_dir_www.is_dir():
         shutil.rmtree(particles_dir_www)
-      shutil.copytree(self.agent.particle_configurations_dir, particles_dir_www)
+      shutil.copytree(self.agent.particles_dir, particles_dir_www)
 
     log.debug("[WWW] agent status updated")
 
@@ -219,7 +219,7 @@ mimetype.assign = (
       self._lighttpd_pid = None
       self._lighttpd = None
       log.error("failed to start lighttpd")
-      log.exception(e)
+      # log.exception(e)
       if lighttpd_started:
         # lighttpd was started by we couldn't detect its pid
         log.error("[WWW] lighttpd process was started but possibly not stopped. Please check your system.")
@@ -240,16 +240,16 @@ mimetype.assign = (
           fail_msg="failed to signal lighttpd process")
       # TODO(asorbini) check that lighttpd actually stopped
       lighttpd_stopped = True
+      log.activity(f"[WWW] stopped")
     except Exception as e:
       log.error(f"[WWW] error while stopping:")
-      log.exception(e)
       if lighttpd_stopped:
         log.error(f"[WWW] failed to stop lighttpd. Please check your system.")
+      raise
     finally:
       self._lighttpd_pid = None
       self._lighttpd = None
       self._fakeroot = None
-      log.activity(f"[WWW] stopped")
 
 
 

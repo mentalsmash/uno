@@ -1,0 +1,12 @@
+[Unit]
+Description=uno UVN connection
+
+[Service]
+Type=oneshot
+ExecStart=/usr/local/bin/uvn-net start
+RemainAfterExit=true
+ExecStop=/usr/local/bin/uvn-net stop
+Before=uvn-agent.service
+
+[Install]
+WantedBy=multi-user.target

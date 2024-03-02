@@ -186,65 +186,53 @@ def ipv4_netmask_to_cidr(mask):
 
 def ipv4_enable_source_nat(nic, src_network):
     exec_command(
-        ["iptables", "-I", "INPUT", "1", "-i", str(nic), "-j", "ACCEPT"],
-        root=True)
+        ["iptables", "-I", "INPUT", "1", "-i", str(nic), "-j", "ACCEPT"])
     exec_command([
         "iptables", "-t", "nat", "-I", "POSTROUTING", "1",
-        "-s", str(src_network), "-o", str(nic), "-j", "MASQUERADE"],
-        root=True)
+            "-s", str(src_network), "-o", str(nic), "-j", "MASQUERADE"])
 
 
 def ipv4_disable_source_nat(nic, src_network):
     exec_command(
-        ["iptables", "-D", "INPUT", "-i", str(nic), "-j", "ACCEPT"],
-        root=True)
+        ["iptables", "-D", "INPUT", "-i", str(nic), "-j", "ACCEPT"])
     exec_command([
         "iptables", "-t", "nat", "-D", "POSTROUTING",
-        "-s", str(src_network), "-o", str(nic), "-j", "MASQUERADE"],
-        root=True)
+        "-s", str(src_network), "-o", str(nic), "-j", "MASQUERADE"])
 
 
 def ipv4_enable_output_nat(nic, v6: bool=False):
     iptables = "iptables6" if v6 else "iptables"
-    exec_command([
-        iptables, "-t", "nat", "-A", "POSTROUTING", "-o", str(nic), "-j", "MASQUERADE"],
-        root=True)
+    exec_command(
+        [iptables, "-t", "nat", "-A", "POSTROUTING", "-o", str(nic), "-j", "MASQUERADE"])
 
 
 def ipv4_disable_output_nat(nic, v6: bool=False, ignore_errors=False):
     iptables = "iptables6" if v6 else "iptables"
-    exec_command([
-        iptables, "-t", "nat", "-D", "POSTROUTING", "-o", str(nic), "-j", "MASQUERADE"],
-        root=True,
+    exec_command(
+        [iptables, "-t", "nat", "-D", "POSTROUTING", "-o", str(nic), "-j", "MASQUERADE"],
         noexcept=ignore_errors)
 
 
 def ipv4_enable_forward(nic, v6: bool=False):
     iptables = "iptables6" if v6 else "iptables"
     exec_command(
-        [iptables, "-A", "FORWARD", "-i", str(nic), "-j", "ACCEPT"],
-        root=True)
+        [iptables, "-A", "FORWARD", "-i", str(nic), "-j", "ACCEPT"])
     exec_command(
-        [iptables, "-A", "FORWARD", "-o", str(nic), "-j", "ACCEPT"],
-        root=True)
+        [iptables, "-A", "FORWARD", "-o", str(nic), "-j", "ACCEPT"])
     exec_command(
-        [iptables, "-A", "INPUT", "-i", str(nic), "-j", "ACCEPT"],
-        root=True)
+        [iptables, "-A", "INPUT", "-i", str(nic), "-j", "ACCEPT"])
 
 
 def ipv4_disable_forward(nic, v6: bool=False, ignore_errors=False):
     iptables = "iptables6" if v6 else "iptables"
     exec_command(
         [iptables, "-D", "FORWARD", "-i", str(nic), "-j", "ACCEPT"],
-        root=True,
         noexcept=ignore_errors)
     exec_command(
         [iptables, "-D", "FORWARD", "-o", str(nic), "-j", "ACCEPT"],
-        root=True,
         noexcept=ignore_errors)
     exec_command(
         [iptables, "-D", "INPUT", "-i", str(nic), "-j", "ACCEPT"],
-        root=True,
         noexcept=ignore_errors)
 
 def ipv4_enable_kernel_forwarding():
@@ -299,7 +287,7 @@ def ipv4_nslookup(ip):
         return hostname
     raise StopIteration()
 
-def ipv4_list_routes(oneline=False, resolve=True, split=True):
+def ipv4_list_routes(oneline=True, resolve=True, split=True) -> set[str]:
     if not oneline:
         cmd = ["ip", "route"]
     else:
@@ -307,8 +295,9 @@ def ipv4_list_routes(oneline=False, resolve=True, split=True):
     result = exec_command(cmd, fail_msg="failed to list routes", capture_output=True)
     results = result.stdout.decode("utf-8")
     if split:
-        results = frozenset(results.split("\n")[:-1])
+        results = frozenset(l for l in results.splitlines() if l)
     return results
+
 
 def ipv4_resolve_address(ip, ns=None, cache=True, resolv_cache={}):
     try:
@@ -379,6 +368,7 @@ def ipv4_default_gateway() -> ipaddress.IPv4Address:
             gw = ipaddress.ip_address(l_split[2])
         except Exception as e:
             from .log import Logger as log
+            log.error(f"failed to parse gateway ip address: '{l_split[2]}'")
             log.exception(e)
             continue
         return gw

@@ -23,7 +23,7 @@ import jinja2
 from .time import Timestamp
 
 if TYPE_CHECKING:
-  from .agent import CellAgent
+  from .cell_agent import CellAgent
   from .peer import UvnPeer
 
 

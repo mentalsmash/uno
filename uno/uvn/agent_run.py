@@ -81,12 +81,12 @@ def _on_reader_status_active(
 def _on_cell_info_data(
     peers: UvnPeersList,
     info: dds.SampleInfo,
-    sample: dds.DynamicData) -> None:
+    sample: dds.DynamicData) -> UvnPeer|None:
   peer_uvn = sample["id.uvn.name"]
   if peer_uvn != peers.uvn_id.name:
     log.debug(f"[AGENT] IGNORING update from foreign agent:"
               f" uvn={sample['id.uvn.name']}", f"cell={sample['id.name']}")
-    return
+    return None
 
   peer_cell_name = sample["id.name"]
   peer_cell = next((c for c in peers.uvn_id.cells.values() if c.name == peer_cell_name), None)
@@ -94,7 +94,7 @@ def _on_cell_info_data(
     # Ignore sample from unknown cell
     log.warning(f"[AGENT] IGNORING update from unknown agent:"
                 f" uvn={sample['id.uvn.name']}", f"cell={sample['id.name']}")
-    return
+    return None
 
   def _site_to_descriptor(site):
     subnet_addr = ipv4_from_bytes(site["subnet.address.value"])
@@ -114,9 +114,11 @@ def _on_cell_info_data(
   peer_reachable_sites = [_site_to_descriptor(s) for s in sample["reachable_sites"]]
   backbone_peers = [p["n"] for p in sample["peers"]]
 
-  log.debug(f"[AGENT] cell info UPDATE: {peer_cell}")
-  peers.update_peer(peers[peer_cell.id],
+  log.activity(f"[AGENT] cell info UPDATE: {peer_cell}")
+  peer = peers[peer_cell.id]
+  updated = peers.update_peer(peer,
     deployment_id=sample["deployment_id"],
+    registry_id=sample["registry_id"],
     root_vpn_id=sample["root_vpn_id"],
     particles_vpn_id=sample["particles_vpn_id"],
     backbone_vpn_ids=sample["backbone_vpn_ids"],
@@ -126,26 +128,28 @@ def _on_cell_info_data(
     backbone_peers=backbone_peers,
     ih=info.instance_handle,
     ih_dw=info.publication_handle)
-
+  return peer if updated else None
 
 
 def _on_uvn_info_data(
     peers: UvnPeersList,
     info: dds.SampleInfo,
-    sample: dds.DynamicData) -> None:
+    sample: dds.DynamicData) -> UvnPeer | None:
   peer_uvn = sample["id.name"]
   if peer_uvn != peers.uvn_id.name:
     log.warning(f"[AGENT] IGNORING update for foreign UVN: uvn={sample['id.name']}")
-    return
+    return None
 
   log.debug(f"[AGENT] uvn info UPDATE: {peers.uvn_id}")
-  peers.update_peer(peers[0],
+  peer = peers[0]
+  updated = peers.update_peer(peer,
     uvn_id=peers.uvn_id,
     deployment_id=sample["deployment_id"],
+    registry_id=sample["registry_id"],
     status=UvnPeerStatus.ONLINE,
     ih=info.instance_handle,
     ih_dw=info.publication_handle)
-
+  return peer if updated else None
 
 
 def _on_reader_data_available(
@@ -154,13 +158,19 @@ def _on_reader_data_available(
     reader: dds.DataReader,
     condition: dds.QueryCondition | dds.ReadCondition,
     on_reader_data: Optional[Callable[[UvnTopic, dds.DataReader, dds.SampleInfo, dds.DynamicData], Sequence[UvnPeer]]]=None,
-    on_reader_offline: Optional[Callable[[UvnTopic, dds.DataReader, dds.SampleInfo], Sequence[UvnPeer]]]=None) -> None:
+    on_reader_offline: Optional[Callable[[UvnTopic, dds.DataReader, dds.SampleInfo], Sequence[UvnPeer]]]=None,
+    on_peer_updated: Callable[[UvnPeer], None]|None=None) -> None:
+  
   for s in reader.select().condition(condition).read():
     if s.info.valid:
       if topic == UvnTopic.CELL_ID:
-        _on_cell_info_data(peers, s.info, s.data)
+        updated_peer = _on_cell_info_data(peers, s.info, s.data)
+        if updated_peer and on_peer_updated:
+          on_peer_updated(updated_peer)
       elif topic == UvnTopic.UVN_ID:
-        _on_uvn_info_data(peers, s.info, s.data)
+        updated_peer = _on_uvn_info_data(peers, s.info, s.data)
+        if updated_peer and on_peer_updated:
+          on_peer_updated(updated_peer)
       elif on_reader_data:
         on_reader_data(topic, reader, s.info, s.data)
     elif (s.info.state.instance_state == dds.InstanceState.NOT_ALIVE_DISPOSED
@@ -171,7 +181,10 @@ def _on_reader_data_available(
         except KeyError:
           continue
         log.debug(f"[AGENT] peer writer offline: {peer}")
-        peers.update_peer(peer, status=UvnPeerStatus.OFFLINE)
+        updated = peers.update_peer(peer,
+          status=UvnPeerStatus.OFFLINE)
+        if updated and on_peer_updated:
+          on_peer_updated(peer)
       elif on_reader_offline:
         on_reader_offline(topic, reader, s.info)
 
@@ -185,6 +198,7 @@ def spin(
   on_reader_data = spin_listeners.get("on_reader_data")
   on_reader_offline = spin_listeners.get("on_reader_offline")
   on_user_condition = spin_listeners.get("on_user_condition")
+  on_peer_updated = spin_listeners.get("on_peer_updated")
   on_spin = spin_listeners.get("on_spin")
 
 
@@ -223,7 +237,8 @@ def spin(
         reader=reader,
         condition=query_cond,
         on_reader_data=on_reader_data,
-        on_reader_offline=on_reader_offline)
+        on_reader_offline=on_reader_offline,
+        on_peer_updated=on_peer_updated)
 
     for active_cond in extra_conds:
       active_cond.trigger_value = False

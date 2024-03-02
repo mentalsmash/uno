@@ -81,7 +81,7 @@ class CentralizedVpnConfig:
           pubkey=peer_key.pubkey,
           psk=peer_psk,
           address=peer_ips[peer_id],
-          allowed=f"{peer_ips[peer_id]}",
+          allowed=[str(peer_ips[peer_id])],
           endpoint=None if peer_endpoint is None else f"{peer_endpoint}:{self.settings.peer_port}",
           keepalive=None if self.root_endpoint is not None else self.DEFAULT_KEEPALIVE)
         for peer_id in self.peer_ids
@@ -108,7 +108,7 @@ class CentralizedVpnConfig:
             pubkey=self.keymat.root_key.pubkey,
             psk=peer_psk,
             address=root_ip,
-            allowed=allowed_vpn_net,
+            allowed=[str(allowed_vpn_net)],
             # Prefer a "push" architecture, where the root will connect to each
             # peer, unless the peer has not public endpoint, in which case the
             # peer will need to connect to the root
@@ -210,7 +210,7 @@ class P2PVpnConfig:
               pubkey=PairedValuesMap.pick(peer_a_id, peer_b_id, peer_b_id, peer_b_keymat).pubkey,
               psk=peer_b_psk,
               address=peer_b_address,
-              allowed=f"{self.settings.subnet},{','.join(self.settings.allowed_ips)}",
+              allowed=[str(self.settings.subnet), *map(str, self.settings.allowed_ips)],
               endpoint=f"{peer_b_endpoint}:{self.settings.port + peer_b_port_local}"
                 if peer_b_endpoint else None)
           ])

@@ -38,6 +38,7 @@ class UvnPeer:
   def __init__(self,
       uvn_id: UvnId,
       deployment_id: Optional[str]=None,
+      registry_id: Optional[str]=None,
       root_vpn_id: Optional[str]=None,
       particles_vpn_id: Optional[str]=None,
       backbone_vpn_ids: Optional[Iterable[str]]=None,
@@ -54,6 +55,7 @@ class UvnPeer:
       updated_fields: Optional[Iterable[str]]=None) -> None:
     self.uvn_id = uvn_id
     self.deployment_id = deployment_id
+    self.registry_id = registry_id
     self.root_vpn_id = root_vpn_id
     self.particles_vpn_id = particles_vpn_id
     self.backbone_vpn_ids = list(backbone_vpn_ids or [])
@@ -95,6 +97,11 @@ class UvnPeer:
       log.error(f"[PEER] OFFLINE: {self}")
 
 
+  @property
+  def reachable_subnets(self) -> set[ipaddress.IPv4Network]:
+    return {s.nic.subnet for s in self.reachable_sites}
+
+
   def __eq__(self, other: object) -> TYPE_CHECKING:
     if not isinstance(other, UvnPeer):
       return False
@@ -121,6 +128,7 @@ class UvnPeer:
     updated = []
     for f in [
           "deployment_id",
+          "registry_id",
           "root_vpn_id",
           "particles_vpn_id",
           "backbone_vpn_ids",
@@ -149,6 +157,7 @@ class UvnPeer:
     serialized = {
       "id": self.id,
       "deployment_id": self.deployment_id,
+      "registry_id": self.registry_id,
       "root_vpn_id": self.root_vpn_id,
       "particles_vpn_id": self.particles_vpn_id,
       "backbone_vpn_ids": list(self.backbone_vpn_ids),
@@ -161,6 +170,8 @@ class UvnPeer:
         if self.last_update_ts else None,
       "updated_fields": list(self.updated_fields),
     }
+    if not serialized["registry_id"]:
+      del serialized["registry_id"]
     if not serialized["deployment_id"]:
       del serialized["deployment_id"]
     if not serialized["root_vpn_id"]:
@@ -194,6 +205,7 @@ class UvnPeer:
     return UvnPeer(
       uvn_id=uvn_id,
       deployment_id=serialized.get("deployment_id"),
+      registry_id=serialized.get("registry_id"),
       root_vpn_id=serialized.get("root_vpn_id"),
       particles_vpn_id=serialized.get("particles_vpn_id"),
       backbone_vpn_ids=serialized.get("backbone_vpn_ids"),
@@ -340,7 +352,7 @@ class UvnPeersList:
     updated = peer.update(**updated_fields)
     if not updated:
       return False
-    log.debug(f"updated peer fields: {peer} -> {peer.updated_fields}")
+    log.activity(f"updated: {peer} -> {peer.updated_fields}")
     self._on_peers_updated()
     return True
 
@@ -355,7 +367,7 @@ class UvnPeersList:
         continue
       p_updated = peer.update(**updated_fields)
       if p_updated:
-        log.debug(f"updated peer fields: {peer} -> {peer.updated_fields}")
+        log.activity(f"updated: {peer} -> {peer.updated_fields}")
         updated[peer.id] = p_updated
     if not updated:
       return False

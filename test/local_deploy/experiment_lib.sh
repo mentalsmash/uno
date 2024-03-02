@@ -43,9 +43,12 @@ docker_image()
     local image_tag="${image_name}:latest"
 
     log_debug " deleting docker image: ${image_tag}"
-    (${DOCKER} rmi "${image_tag}" || [ -n image_doesnt_exists ]) 2>/dev/null
+    ((set -x; ${DOCKER} rmi "${image_tag}") || [ -n image_doesnt_exists ]) 2>/dev/null
     log_debug " building docker image: ${image_tag}"
-    ${DOCKER} build -t "${image_tag}" ${TEST_LIB_DIR}/${image_name}
+    (
+        set -x
+        ${DOCKER} build -t "${image_tag}" ${TEST_LIB_DIR}/${image_name}
+    )
     log_info "[built] docker image: ${image_tag}"
 }
 
@@ -60,16 +63,20 @@ docker_network()
 
     log_debug " deleting docker network: ${net_name}"
     (
+        set -x
         ${DOCKER} network rm ${net_name} || [ -n network_doesnt_exist ]
     ) >> ${EXPERIMENT_LOG} 2>&1
     log_debug " creating docker network: ${net_name}"
         # --gateway=${net_gw} 
-    ${DOCKER} network create \
-        --driver bridge \
-        --subnet=${net_subnet} \
-        -o com.docker.network.bridge.enable_ip_masquerade=${net_masquerade} \
-        ${net_name} \
-        >> ${EXPERIMENT_LOG} 2>&1
+    (
+        set -x
+        ${DOCKER} network create \
+            --driver bridge \
+            --subnet=${net_subnet} \
+            -o com.docker.network.bridge.enable_ip_masquerade=${net_masquerade} \
+            ${net_name} \
+            >> ${EXPERIMENT_LOG} 2>&1
+    )
     log_info "[created] docker network: ${net_name} [${net_subnet}]"
 }
 
@@ -84,6 +91,7 @@ docker_network_w_bridge()
 
     log_debug " deleting docker network: ${net_name}"
     (
+        set -x
         ${DOCKER} network rm ${net_name} || [ -n network_doesnt_exist ]
     ) >> ${EXPERIMENT_LOG} 2>&1
     log_debug " creating bridged docker network: ${net_name}"
@@ -91,15 +99,18 @@ docker_network_w_bridge()
     for ext_ip in ${external_ips}; do
         ext_ip_args="${ext_ip_args} --aux-address=${ext_ip}"
     done
-    ${DOCKER} network create \
-        --driver bridge \
-        --gateway=${bridge_gw} \
-        --ip-range=${net_client_range} \
-        --subnet=${net_subnet} \
-        -o com.docker.network.bridge.enable_ip_masquerade=false \
-        -o com.docker.network.bridge.name=${bridge_name} \
-        ${net_name} \
-        >> ${EXPERIMENT_LOG} 2>&1
+    (
+        set -x
+        ${DOCKER} network create \
+            --driver bridge \
+            --gateway=${bridge_gw} \
+            --ip-range=${net_client_range} \
+            --subnet=${net_subnet} \
+            -o com.docker.network.bridge.enable_ip_masquerade=false \
+            -o com.docker.network.bridge.name=${bridge_name} \
+            ${net_name} \
+            >> ${EXPERIMENT_LOG} 2>&1
+    )
 
     # Delete default address from Docker and reassign it in the client range subnet
     local client_range_ip=$(echo ${net_client_range} | cut -d/ -f1) \
@@ -127,29 +138,36 @@ docker_container()
     local container_name=${host_name}.${host_net}
 
     log_debug " deleting docker container: ${container_name}"
-    (${DOCKER} rm -f -v ${container_name} || [ -n network_doesnt_exist ]) \
+    ((set -x; ${DOCKER} rm -f -v ${container_name}) || [ -n network_doesnt_exist ]) \
         >> ${EXPERIMENT_LOG} 2>&1
     log_debug " creating docker container: ${container_name}"
-    ${DOCKER} create \
-        -ti \
-        --name ${container_name} \
-        --hostname "${container_name}" \
-        --net ${host_net} \
-        --ip ${host_ip} \
-        --privileged \
-        --cap-add net_admin \
-        --cap-add sys_module \
-        -e INIT=/experiment/init.sh \
-        -v ${EXPERIMENT_DIR}/${container_name}:/experiment \
-        $([ -z "${CELL_ID}" ] || printf -- "-e CELL=${CELL_ID}") \
-        $([ -z "${CELL_ID}" ] || printf -- "-v ${UVN_DIR}/cells/${net}.uvn-agent:/package.uvn-agent" ) \
-        $([ -z "${CELL_ID}" ] || printf -- "-e STATIC=y" ) \
-        $([ -z "${UNO_DIR}" ] || printf -- "-v ${UNO_DIR}:/uno") \
-        $([ -z "${host_uvn}" ] || printf -- "-v ${host_uvn}:/uvn") \
-        $([ -z "${host_uvn}" ] || printf -- "-w /uvn") \
-        uno:latest \
-        $([ -n "${host_uvn}" ] || printf -- "sh") \
-        >> ${EXPERIMENT_LOG} 2>&1
+    (
+        extra_args="
+            $([ -z "${CELL_ID}" ] || printf -- "-e CELL=${CELL_ID}") \
+            $([ -z "${CELL_ID}" ] || printf -- "-v ${UVN_DIR}/cells/${CELL_ID}.uvn-agent:/package.uvn-agent" ) \
+            $([ -z "${CELL_ID}" ] || printf -- "-e STATIC=y" ) \
+            $([ -z "${UNO_DIR}" ] || printf -- "-v ${UNO_DIR}:/uno") \
+            $([ -z "${host_uvn}" ] || printf -- "-v ${host_uvn}:/uvn") \
+            $([ -z "${host_uvn}" ] || printf -- "-w /uvn") \
+        "
+        cmd="$([ -n "${host_uvn}" ] || printf -- "sh")"
+        set -x
+        ${DOCKER} create \
+            -ti \
+            --name ${container_name} \
+            --hostname "${container_name}" \
+            --net ${host_net} \
+            --ip ${host_ip} \
+            --privileged \
+            --cap-add net_admin \
+            --cap-add sys_module \
+            -e INIT=/experiment/init.sh \
+            -v ${EXPERIMENT_DIR}/${container_name}:/experiment \
+            ${extra_args} \
+            uno:latest \
+            ${cmd} \
+            >> ${EXPERIMENT_LOG} 2>&1
+    )
     log_info "[created] docker container: ${container_name}"
 }
 
@@ -160,9 +178,12 @@ docker_connect()
           host_ip="${3}" \
     
     log_debug " connecting docker container to network: ${host_name} -> ${host_net}"
-    ${DOCKER} network connect \
-        --ip ${host_ip} ${host_net} ${host_name} \
-        >> ${EXPERIMENT_LOG} 2>&1
+    (
+        set -x
+        ${DOCKER} network connect \
+            --ip ${host_ip} ${host_net} ${host_name} \
+            >> ${EXPERIMENT_LOG} 2>&1
+    )
     log_info "[connected] docker container to network: ${host_name} -> ${host_net}"
 }
 
@@ -171,7 +192,10 @@ docker_start()
     local container_name=${1}
 
     log_debug " starting docker container: ${container_name}"
-    ${DOCKER} start ${container_name} >> ${EXPERIMENT_LOG}
+    (
+        set -x
+        ${DOCKER} start ${container_name} >> ${EXPERIMENT_LOG}
+    )
     log_info "[started] docker container: ${container_name}"
 }
 
@@ -182,7 +206,7 @@ docker_wipe_containers()
     #     >> ${EXPERIMENT_LOG} 2>&1
     # Delete containers one by one to avoid crashing Raspberry Pi
     for d in $@; do
-        (${DOCKER} rm -f $d || [ -n some_containers_didnt_exists ]) \
+        ((set -x; ${DOCKER} rm -f $d) || [ -n some_containers_didnt_exists ]) \
             >> ${EXPERIMENT_LOG} 2>&1
     done
     # ${DOCKER} rm -f $@
@@ -192,7 +216,7 @@ docker_wipe_containers()
 docker_wipe_networks()
 {
     log_debug " wiping all docker networks..."
-    (${DOCKER} network rm $@ || [ -n some_networks_didnt_exists ]) \
+    ((set -x; ${DOCKER} network rm $@) || [ -n some_networks_didnt_exists ]) \
         >> ${EXPERIMENT_LOG} 2>&1
     # ${DOCKER} network rm $@
     log_info "[wiped] all docker networks"
@@ -201,7 +225,7 @@ docker_wipe_networks()
 docker_wipe_images()
 {
     log_debug " wiping all docker images..."
-    (${DOCKER} rmi -f $@ || [ -n some_images_didnt_exists ]) \
+    ((set -x; ${DOCKER} rmi -f $@) || [ -n some_images_didnt_exists ]) \
         >> ${EXPERIMENT_LOG} 2>&1
     log_info "[wiped] all docker images"
 }
@@ -239,6 +263,7 @@ uvn_create()
             -o "${uvn_admin_name} <${uvn_admin}>" \
             -r ${UVN_DIR} \
             $([ -z "${UVN_TIMING_FAST}" ] || printf -- "-T fast" ) \
+            --yes \
             ${UVN_EXTRA_ARGS}
     )
     log_info "[created] UVN: ${uvn_address}"
@@ -255,11 +280,15 @@ uvn_attach()
 
     (
         cd ${UVN_DIR}
+        extra_args="
+            $([ -z "${cell_address}" ] || printf -- "-a ${cell_address}")
+            $([ -n "${CELL_ROAMING}" -o -z "${cell_subnet}" ] || printf -- "-N ${cell_subnet}")
+        "
         set -x
         ${UNO} define cell ${cell_name} \
             -o "${cell_admin_name} <${cell_admin}>" \
-            $([ -z "${cell_address}" ] || printf -- "-a ${cell_address}") \
-            $([ -z "${cell_subnet}" ] || printf -- "-N ${cell_subnet}") \
+            ${extra_args} \
+            --yes \
             ${UVN_EXTRA_ARGS}
     )
     log_info "[created] UVN cell: ${cell_name}"
@@ -275,6 +304,7 @@ uvn_particle()
         set -x
         ${UNO} define particle ${particle_name} \
             -o "${particle_contact}" \
+            --yes \
             ${UVN_EXTRA_ARGS}
     )
     log_info "[created] UVN particle: ${particle_name}"
@@ -306,6 +336,7 @@ uvn_deploy()
         set -x
         ${UNO} redeploy \
             $([ -z "${UVN_STRATEGY}" ] || printf -- "-S ${UVN_STRATEGY}") \
+            --yes \
             ${UVN_EXTRA_ARGS}
         ${UNO} plot ${UVN_EXTRA_ARGS}
     )

@@ -57,6 +57,7 @@
         </struct>
         <struct name="UvnInfo">
           <member name="id" type="nonBasic" nonBasicTypeName="uno::UvnId" key="true"/>
+          <member name="registry_id" type="string" stringMaxLength="-1"/>
           <member name="deployment_id" type="nonBasic" nonBasicTypeName="uno::DeploymentId"/>
           <member name="cells" type="nonBasic" nonBasicTypeName="uno::CellPeerSummary" sequenceMaxLength="uno::UVN_CELLS_MAX"/>
           <member name="cell_sites" type="nonBasic" nonBasicTypeName="uno::CellSiteSummary" sequenceMaxLength="-1"/>
@@ -66,6 +67,7 @@
         <struct name="CellInfo">
           <member name="id" type="nonBasic" nonBasicTypeName="uno::CellId" key="true"/>
           <member name="pid" type="uint32"/>
+          <member name="registry_id" type="string" stringMaxLength="-1"/>
           <member name="deployment_id" type="nonBasic" nonBasicTypeName="uno::DeploymentId"/>
           <member name="status" type="nonBasic" nonBasicTypeName="uno::CellStatusKind"/>
           <member name="peers" type="nonBasic" nonBasicTypeName="uno::CellPeerSummary" sequenceMaxLength="uno::CELL_PEERS_MAX"/>

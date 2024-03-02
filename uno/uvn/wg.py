@@ -187,7 +187,7 @@ class WireGuardInterfacePeerConfig:
     self.pubkey = pubkey
     self.psk = psk
     self.address = ipaddress.ip_address(address)
-    self.allowed = allowed
+    self.allowed = sorted(allowed or [])
     self.endpoint = endpoint
     self.keepalive = keepalive
 
@@ -198,13 +198,13 @@ class WireGuardInterfacePeerConfig:
       "pubkey": self.pubkey,
       "psk": str(self.psk),
       "address": str(self.address),
-      "allowed": self.allowed,
+      "allowed": list(self.allowed),
       "endpoint": self.endpoint,
       "keepalive": self.keepalive,
     }
     if self.endpoint is None:
       del serialized["endpoint"]
-    if self.allowed is None:
+    if not self.allowed:
       del serialized["allowed"]
     if not self.keepalive:
       del serialized["keepalive"]
@@ -247,7 +247,7 @@ PresharedKey = {{peer.psk}}
 {% if tunnel and not tunnel_root %}
 AllowedIPs = 0.0.0.0/0
 {% elif peer.allowed %}
-AllowedIPs = {{peer.allowed}}
+AllowedIPs = {{peer.allowed | join(",") }}
 {% endif %}
 {% if peer.keepalive -%}
 PersistentKeepalive = {{peer.keepalive}}
@@ -321,6 +321,10 @@ class WireGuardInterface:
     return self.config.intf.name
 
 
+  def __repr__(self) -> str:
+    return f"{self.__class__.__name__}({self.config.intf.name})"
+
+
   def start(self) -> None:
     self.create()
     self.bring_up()
@@ -340,23 +344,20 @@ class WireGuardInterface:
     # Check if interface already exists with "ip link show..."
     result = exec_command(
       ["ip", "link", "show", self.config.intf.name],
-      root=True,
       noexcept=True)
     # Delete interface if it already exists
     if result.returncode == 0:
       try:
         log.debug(f"[WG] {self.config.intf.name}: making sure interface doesn't exist")
         exec_command(
-          ["ip", "link", "delete", "dev", self.config.intf.name],
-          root=True)
+          ["ip", "link", "delete", "dev", self.config.intf.name])
       except:
         raise WireGuardError(f"failed to delete wireguard interface: {self.config.intf.name}")
     # Create interface
     try:
       log.debug(f"[WG] {self.config.intf.name}: creating WireGuard interface")
-      exec_command([
-        "ip", "link", "add", "dev", self.config.intf.name, "type", "wireguard"],
-        root=True)
+      exec_command(
+        ["ip", "link", "add", "dev", self.config.intf.name, "type", "wireguard"])
     except:
       raise WireGuardError(f"failed to create wiregaurd interface: {self.config.intf.name}")
     # Mark interface as up
@@ -369,8 +370,7 @@ class WireGuardInterface:
     try:
       log.debug(f"[WG] {self.config.intf.name}: deleting interface")
       exec_command(
-        ["ip", "link", "delete", "dev", self.config.intf.name],
-        root=True)
+        ["ip", "link", "delete", "dev", self.config.intf.name])
     except:
       raise WireGuardError(f"failed to delete wireguard interface: {self.config.intf.name}")
     # Mark interface as up
@@ -392,15 +392,13 @@ class WireGuardInterface:
     try:
       log.debug(f"[WG] {self.config.intf.name}: making sure interface is disabled")
       exec_command(
-        ["ip", "link", "set", "down", "dev", self.config.intf.name],
-        root=True)
+        ["ip", "link", "set", "down", "dev", self.config.intf.name])
     except:
       raise WireGuardError(f"failed to disable wireguard interface: {self.config.intf.name}")
     try:
       log.debug(f"[WG] {self.config.intf.name}: resetting interface configuration")
       exec_command(
-        ["ip", "address", "flush", "dev", self.config.intf.name],
-        root=True)
+        ["ip", "address", "flush", "dev", self.config.intf.name])
     except:
       raise WireGuardError(f"failed to reset wireguard interface: {self.config.intf.name}")
     # Configure interface with the expected address
@@ -408,24 +406,21 @@ class WireGuardInterface:
       log.debug(f"[WG] {self.config.intf.name}: creating interface with address {self.config.intf.address}/{self.config.intf.netmask}")
       exec_command(
         ["ip", "address", "add", "dev", self.config.intf.name,
-          f"{self.config.intf.address}/{self.config.intf.netmask}"],
-        root=True)
+          f"{self.config.intf.address}/{self.config.intf.netmask}"])
     except:
       raise WireGuardError(f"failed to configure address on wireguard interface: {self.config.intf.name}, {self.config.intf.address}/{self.config.intf.netmask}")
     # Set wireguard configuration with "wg setconf..."
     try:
       log.debug(f"[WG] {self.config.intf.name}: configuring WireGuard")
       exec_command(
-        ["wg", "setconf", self.config.intf.name, wg_config],
-        root=True)
+        ["wg", "setconf", self.config.intf.name, wg_config])
     except:
       raise WireGuardError(f"failed to set wireguard configuration on interface: {self.config.intf.name}")
     # Activate interface with "ip link set up dev..."
     try:
       log.debug(f"[WG] {self.config.intf.name}: enabling interface")
       exec_command(
-        ["ip", "link", "set", "up", "dev", self.config.intf.name],
-        root=True)
+        ["ip", "link", "set", "up", "dev", self.config.intf.name])
     except:
       raise WireGuardError(f"failed to enable wireguard interface: {self.config.intf.name}")
     # # Allow configured IP addresses
@@ -442,15 +437,13 @@ class WireGuardInterface:
     try:
       log.debug(f"[WG] {self.config.intf.name}: disabling interface")
       exec_command(
-        ["ip", "link", "set", "down", "dev", self.config.intf.name],
-        root=True)
+        ["ip", "link", "set", "down", "dev", self.config.intf.name])
     except:
       raise WireGuardError(f"failed to disable wireguard interface: {self.config.intf.name}")
     try:
       log.debug(f"[WG] {self.config.intf.name}: resetting interface configuration")
       exec_command(
-        ["ip", "address", "flush", "dev", self.config.intf.name],
-        root=True)
+        ["ip", "address", "flush", "dev", self.config.intf.name])
     except:
       raise WireGuardError(f"failed to reset wireguard interface: {self.config.intf.name}")
     # Mark interface as down
@@ -462,7 +455,6 @@ class WireGuardInterface:
     try:
       result = exec_command(
         ["wg", "show", self.config.intf.name, "peers"],
-        root=True,
         capture_output=True)
     except:
       raise WireGuardError(f"failed to list wireguard peers: {self.config.intf.name}")
@@ -475,7 +467,6 @@ class WireGuardInterface:
     try:
       result = exec_command(
         ["wg", "show", self.config.intf.name, "latest-handshakes"],
-        root=True,
         capture_output=True)
     except:
       raise WireGuardError(f"failed to list interfacec handshakes: {self.config.intf.name}")
@@ -490,7 +481,6 @@ class WireGuardInterface:
     try:
       result = exec_command(
         ["wg", "show", self.config.intf.name, "transfer"],
-        root=True,
         capture_output=True)
     except:
       raise WireGuardError(f"failed to list interface transfer amounts: {self.config.intf.name}")
@@ -508,7 +498,6 @@ class WireGuardInterface:
     try:
       result = exec_command(
         ["wg", "show", self.config.intf.name, "endpoints"],
-        root=True,
         capture_output=True)
     except:
       raise WireGuardError(f"failed to list endpoints for interface: {self.config.intf.name}")
@@ -533,7 +522,6 @@ class WireGuardInterface:
     try:
       result = exec_command(
         ["wg", "show", self.config.intf.name, "allowed-ips"],
-        root=True,
         capture_output=True)
     except:
       raise WireGuardError(f"failed to list peers for interface: {self.config.intf.name}")
@@ -561,8 +549,7 @@ class WireGuardInterface:
       log.debug(f"[WG] {self.config.intf.name}: setting allowed IPs for peer #{peer.id}")
       exec_command(
         ["wg", "set", self.config.intf.name,
-            "peer", peer.pubkey, "allowed-ips", ",".join(allowed_ips_str)],
-        root=True)
+            "peer", peer.pubkey, "allowed-ips", ",".join(allowed_ips_str)])
       log.activity(f"[WG] {self.config.intf.name}: allowed #{peer.id} = [{', '.join(allowed_ips_str)}]")
     except:
       raise WireGuardError(f"failed to set allowed peers on interface: {self.config.intf.name}")
@@ -596,40 +583,52 @@ class WireGuardInterface:
     #   raise WireGuardError(f"failed to disallow address on interface: {self.config.intf.name}, {addr}")
 
 
-  def peers(self) -> Sequence[str]:
-    try:
-      result = exec_command(
-        ["wg", "show", self.config.intf.name, "peers"],
-        root=True,
-        capture_output=True)
-    except:
-      raise WireGuardError(f"failed to list interface peers: {self.config.intf.name}")
-    return list(filter(lambda v: len(v) > 0, result.stdout.decode("utf-8").split("\n")))
+  # def peers(self) -> Sequence[str]:
+  #   try:
+  #     result = exec_command(
+  #       ["wg", "show", self.config.intf.name, "peers"],
+  #       capture_output=True)
+  #   except:
+  #     raise WireGuardError(f"failed to list interface peers: {self.config.intf.name}")
+  #   return list(filter(lambda v: len(v) > 0, result.stdout.decode("utf-8").split("\n")))
+
 
 
   def stat(self) -> dict:
-    peers = self._list_peers()
+    peer_keys = self._list_peers()
     handshakes = self._list_handshakes()
     transfers = self._list_transfer()
     endpoints = self._list_endpoints()
     allowed_ips = self._list_allowed_ips()
-    peers = {p : {
-      "last_handshake": str(handshakes[p]),
-      "transfer": {
-        "recv": transfers[p]["recv"],
-        # humanbytes(transfers[p]["recv"]),
-        "send": transfers[p]["send"],
-        # humanbytes(transfers[p]["send"])
-      },
-      "endpoint": {
-        "address": str(endpoints[p]["address"]),
-        "port": endpoints[p]["port"]
-      },
-      "allowed_ips": ", ".join(map(str, allowed_ips[p]))
-    } for p in peers}
+    peers = {
+      pubkey : {
+        "last_handshake": str(handshakes[pubkey]),
+        "transfer": {
+          "recv": transfers[pubkey]["recv"],
+          "send": transfers[pubkey]["send"],
+        },
+        "endpoint": {
+          "address": endpoints[pubkey]["address"],
+          "port": endpoints[pubkey]["port"]
+        },
+        "allowed_ips": allowed_ips[pubkey],
+      } for pubkey in peer_keys
+    }
     return {
-      "peers": peers,
+      "peers": {
+        peer.id: v
+          for pubkey, v in peers.items()
+            for peer in [next((p for p in self.config.peers if p.pubkey == pubkey), None)]
+              if peer is not None
+      },
+      "unknown_peers": {
+        pubkey: v
+          for pubkey, v in peers.items()
+            for peer in [next((p for p in self.config.peers if p.pubkey == pubkey), None)]
+              if peer is None
+      },
       "up": ip_nic_is_up(self.config.intf.name),
       "created": ip_nic_exists(self.config.intf.name),
+      # TODO(asorbini) read current interface address with "ip a s"
       "address": f"{self.config.intf.address}/{self.config.intf.netmask}"
     }

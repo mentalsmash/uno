@@ -27,22 +27,18 @@ from .log import Logger as log
 
 def dnsmasq_stop():
   exec_command(["service", "dnsmasq", "stop"],
-    root=True,
     fail_msg="failed to stop dnsmasq")
 
 def dnsmasq_start():
   exec_command(["service", "dnsmasq", "start"],
-    root=True,
     fail_msg="failed to start dnsmasq")
 
 def dnsmasq_reload():
   exec_command(["service", "dnsmasq", "force-reload"],
-    root=True,
     fail_msg="failed to reload dnsmasq")
 
 def systemd_resolved_running():
   res = exec_command(["killall", "-0", "systemd-resolved"],
-    root=True,
     noexcept=True,
     fail_msg="failed to check systemd-resolved status")
   return res.returncode == 0
@@ -50,14 +46,12 @@ def systemd_resolved_running():
 def systemd_resolved_disable():
   if systemd_resolved_running():
     exec_command(["systemctl", "disable", "--now", "systemd-resolved"],
-      root=True,
       fail_msg="failed to disable systemd-resolved")
     return True
   return False
 
 def systemd_resolved_enable():
   exec_command(["systemctl", "enable", "--now", "systemd-resolved"],
-    root=True,
     fail_msg="failed to re-enable systemd-resolved")
 
 
@@ -66,7 +60,7 @@ def resolv_conf_install(text: str) -> None:
   resolv_conf = Path("/etc/resolv.conf")
   resolv_conf_bkp = Path("/etc/resolv.conf.uno.bkp")
   if not resolv_conf_bkp.exists():
-    exec_command(["cp", resolv_conf, resolv_conf_bkp], root=True)
+    exec_command(["cp", resolv_conf, resolv_conf_bkp])
     log.activity(f"[DNS] BACKUP created: {resolv_conf} -> {resolv_conf_bkp}")
   else:
     log.warning(f"[DNS] BACKUP not overwritten: {resolv_conf_bkp}")
@@ -77,7 +71,7 @@ def resolv_conf_install(text: str) -> None:
     output.write("\n")
     # output.write(resolv_conf.read_text())
     # output.write("\n")
-  exec_command(["cp", tmp_file, resolv_conf], root=True)
+  exec_command(["cp", tmp_file, resolv_conf])
 
 
 def resolv_conf_restore() -> None:
@@ -86,8 +80,8 @@ def resolv_conf_restore() -> None:
   if not resolv_conf_bkp.is_file():
     log.error(f"[DNS] BACKUP file not restored: {resolv_conf_bkp}")
     return
-  exec_command(["cp", resolv_conf_bkp, resolv_conf], root=True)
-  exec_command(["rm", resolv_conf_bkp], root=True)
+  exec_command(["cp", resolv_conf_bkp, resolv_conf])
+  exec_command(["rm", resolv_conf_bkp])
   log.activity(f"[DNS] BACKUP restored: {resolv_conf_bkp} -> {resolv_conf}")
 
 
@@ -215,8 +209,7 @@ nameserver 127.0.0.1
       Templates.render(self.DNSMASQ_TEMPLATE, {
         "hosts_dir": hosts_file.parent,
       }))
-    exec_command(["cp", dnsmasq_conf_file, self.DNSMASQ_INSTALL_LOCATION],
-      root=True)
+    exec_command(["cp", dnsmasq_conf_file, self.DNSMASQ_INSTALL_LOCATION])
     log.activity(f"[DNS] GENERATED dnsmasq config [{len(db)} records]")
 
 

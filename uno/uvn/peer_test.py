@@ -43,7 +43,7 @@ class UvnPeerLanStatus:
 
 
   def __str__(self) -> str:
-    return f"{self.peer}::{self.lan}"
+    return f"{self.peer} -> {self.lan} gw {self.lan.gw}"
 
 
   @property
@@ -178,10 +178,13 @@ class UvnPeersTester:
 
 
   def trigger(self) -> None:
+    log.activity("[LAN] triggering tester...")
     with self._state_lock:
       if self._triggered:
+        log.debug("[LAN] test already queued.")
         return
       self._triggered = True
+    log.debug("[LAN] queued new test.")
     self._trigger_sem.release()
 
   # @staticmethod
@@ -203,10 +206,12 @@ class UvnPeersTester:
         if len(tested_peers) == 0:
           continue
 
-        log.debug(f"[LAN] testing {len(tested_peers)} peers")
+        log.activity(f"[LAN] testing {len(tested_peers)} peers")
         reachable = []
         unreachable = []
         for peer in tested_peers:
+          if not self._active:
+            break
           log.debug(f"[LAN] testing {len(peer.routed_sites)} LANs for peer {peer}")
           for lan in peer.routed_sites:
             status = self[(peer, lan)]
@@ -218,11 +223,13 @@ class UvnPeersTester:
             else:
               unreachable.append((status, next_hop))
 
+        if not self._active:
+          continue
 
         test_end = Timestamp.now()
         test_length = test_end.subtract(self._last_trigger_ts)
         
-        log.debug(f"[LAN] test completed in {test_length} seconds")
+        log.activity(f"[LAN] test completed in {test_length} seconds")
         
         with self._state_lock:
           for status, next_hop in reachable:

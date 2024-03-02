@@ -26,6 +26,7 @@ from enum import Enum
 
 from .uvn_id import UvnId, CellId, ParticleId
 from .exec import exec_command
+from .log import Logger as log
 
 class GpgKeyType(Enum):
   ROOT = 0
@@ -441,15 +442,20 @@ class IdentityDatabase:
     self.gpg = GpgDatabase(self.root)
 
   def drop_keys(self) -> None:
-    exec_command([
-      "rm", "-rf",
-        self.root / "private-keys-v1.d",
-        self.root / "pubring.kbx",
-        self.root / "pubring.kbx~",
-        self.root / "random_seed",
-        self.root / "trustdb.gpg",
-        self.root / "openpgp-revocs.d",
-    ], root=True)
+    filenames = [
+      "private-keys-v1.d",
+      "pubring.kbx",
+      "pubring.kbx~",
+      "random_seed",
+      "trustdb.gpg",
+      "openpgp-revocs.d",
+    ]
+    deleted_files = [self.root / f for f in filenames]
+    exec_command(["rm", "-rf", *deleted_files])
+    # Make sure the files were deleted
+    not_deleted = [f for f in deleted_files if f.exists()]
+    if not_deleted:
+      raise RuntimeError("failed to delete some files", not_deleted)
 
 
   def _assert_gpg_key(self, key_id: GpgKeyId, owner_name: str) -> GpgKey:

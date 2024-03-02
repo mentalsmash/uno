@@ -60,7 +60,7 @@
               <td>{{peer_stats.transfer.recv | humanbytes}}</td>
               <td>{{peer_stats.transfer.send | humanbytes}}</td>
               <td>{%if peer_stats.endpoint.address != "<unknown>"%}{{peer_stats.endpoint.address}}:{{peer_stats.endpoint.port}}{%else%}N/A{%endif%}</td>
-              <td>{{peer_stats.allowed_ips}}</td>
+              <td>{{peer_stats.allowed_ips|join(", ")}}</td>
             </tr>
             {% endfor %}
           </tbody>

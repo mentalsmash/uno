@@ -122,21 +122,21 @@ class TimingProfile(Enum):
   @property
   def participant_liveliness_lease_duration(self) -> int:
     if self == TimingProfile.FAST:
-      return 10
+      return 5
     # elif self == TimingProfile.MINIMAL:
     #   return 300
     else:
-      return 300 # 5m
+      return 30
 
 
   @property
   def participant_liveliness_assert_period(self) -> int:
     if self == TimingProfile.FAST:
-      return 3
+      return 2
     # elif self == TimingProfile.MINIMAL:
     #   return 120 # 2m
     else:
-      return 120 # 2m
+      return 10
 
 
   @property
@@ -146,7 +146,7 @@ class TimingProfile(Enum):
     # elif self == TimingProfile.MINIMAL:
     #   return 200
     else:
-      return 300 # 5m
+      return 30
 
 
   @property
@@ -166,7 +166,7 @@ class TimingProfile(Enum):
     # elif self == TimingProfile.MINIMAL:
     #   return (1, 5)
     else:
-      return (5, 15)
+      return (3, 15)
 
 
   @property
@@ -176,7 +176,7 @@ class TimingProfile(Enum):
     # elif self == TimingProfile.MINIMAL:
     #   return 300
     else:
-      return 240 # 4m
+      return 40 # 4m
 
 
   @property
@@ -186,7 +186,7 @@ class TimingProfile(Enum):
     # elif self == TimingProfile.MINIMAL:
     #   return 100
     else:
-      return 60 # 1m
+      return 10 # 1m
 
 
   @property
@@ -207,7 +207,7 @@ class TimingProfile(Enum):
     # elif self == TimingProfile.MINIMAL:
     #   return 600
     else:
-      return 120 # 2m
+      return 3600 # 1h
 
 
   @property
@@ -225,6 +225,7 @@ class Versioned:
       generation_ts: str | None = None,
       init_ts: str | None = None,
       deserializing: bool=False) -> None:
+    created = init_ts is None
     self._generation_ts = generation_ts or Timestamp.now().format()
     self._init_ts = init_ts or Timestamp.now().format()
     self._changed = False
@@ -282,6 +283,7 @@ class Versioned:
   @loaded.setter
   def loaded(self, val: bool) -> None:
     self._loaded = val
+    log.debug(f"[{self}] loaded ({self.generation_ts})")
 
   def serialize(self) -> dict:
     return {
@@ -1392,6 +1394,7 @@ class UvnId(Versioned):
       cell.configure(**cell_args)
     self.validate_cell(cell)
     self.cells[cell.id] = cell
+    log.warning(f"[UVN] new cell defined: {cell}")
     self.updated()
     return cell
 
@@ -1401,6 +1404,7 @@ class UvnId(Versioned):
     cell.configure(**cell_args)
     if cell.peek_changed:
       self.validate_cell(cell)
+      log.warning(f"[UVN] cell updated: {cell}")
       # self.updated()
     return cell
 
@@ -1418,6 +1422,7 @@ class UvnId(Versioned):
     if particle_args:
       particle.configure(**particle_args)
     self.particles[particle.id] = particle
+    log.warning(f"[UVN] new particle defined: {particle}")
     self.updated()
     return particle
 
@@ -1425,14 +1430,32 @@ class UvnId(Versioned):
   def update_particle(self, name: str, **particle_args) -> ParticleId:
     particle = next(p for p in self.particles.values() if p.name == name)
     particle.configure(**particle_args)
-    # if particle.peek_changed:
-    #   self.updated()
+    if particle.peek_changed:
+      log.warning(f"[UVN] particle updated: {particle}")
+      # self.updated()
     return particle
 
 
   def log_deployment(self,
       deployment: P2PLinksMap,
-      logger: Callable[[CellId, int, str, CellId, int, str, str], None]) -> None:
+      logger: Callable[[CellId, int, str, CellId, int, str, str], None]|None=None) -> None:
+    logged = []
+    def _log_deployment(
+        peer_a: CellId,
+        peer_a_port_i: int,
+        peer_a_endpoint: str,
+        peer_b: CellId,
+        peer_b_port_i: int,
+        peer_b_endpoint: str,
+        arrow: str) -> None:
+      if not logged or logged[-1] != peer_a:
+        log.warning(f"[BACKBONE] {peer_a} ->")
+        logged.append(peer_a)
+      log.warning(f"[BACKBONE]   [{peer_a_port_i}] {peer_a_endpoint} {arrow} {peer_b}[{peer_b_port_i}] {peer_b_endpoint}")
+
+    if logger is None:
+      logger = _log_deployment
+
     for peer_a_id, peer_a_cfg in sorted(deployment.peers.items(), key=lambda t: t[0]):
       peer_a = self.cells[peer_a_id]
       for peer_b_id, (peer_a_port_i, peer_a_addr, peer_b_addr, link_subnet) in sorted(

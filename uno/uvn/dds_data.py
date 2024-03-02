@@ -14,13 +14,15 @@ from .peer_test import UvnPeerLanStatus
 def uvn_info(
     participant: DdsParticipant,
     uvn_id: UvnId,
-    deployment: P2PLinksMap) -> dds.DynamicData:
+    deployment: P2PLinksMap,
+    registry_id: str) -> dds.DynamicData:
   sample = dds.DynamicData(participant.types[participant.TOPIC_TYPES[UvnTopic.UVN_ID]])
   sample["id.name"] = uvn_id.name
   sample["id.address"] = uvn_id.address
   sample["cells"] = [] # summarize_peers()
   sample["cell_sites"] = [] # summarize_peer_sites()
   sample["deployment_id"] = deployment.generation_ts
+  sample["registry_id"] = registry_id
   return sample
 
 def cell_agent_config(
@@ -90,6 +92,7 @@ def cell_agent_status(
     uvn_id: UvnId,
     cell_id: int,
     deployment: P2PLinksMap,
+    registry_id: str,
     root_vpn_config: Optional[WireGuardConfig]=None,
     particles_vpn_config: Optional[CentralizedVpnConfig]=None,
     backbone_vpn_configs: Optional[Iterable[WireGuardConfig]]=None,
@@ -107,6 +110,7 @@ def cell_agent_status(
   sample["pid"] = os.getpid()
   sample["status"] = 2 # CELL_STATUS_STARTED
   sample["deployment_id"] = deployment.generation_ts
+  sample["registry_id"] = registry_id
 
   sample["routed_sites"] = [
     lan_descriptor(participant, lan, cell_id)

@@ -14,22 +14,22 @@
 # You should have received a copy of the GNU Affero General Public License
 # along with this program. If not, see <https://www.gnu.org/licenses/>.
 ###############################################################################
-from typing import  Optional, Callable
+from pathlib import Path
 
+from .uvn_id import UvnId
 from .wg import WireGuardInterface
-from .ip import LanDescriptor
-from .dds import DdsParticipant, DdsParticipantConfig, UvnTopic
+from .dds import DdsParticipantConfig, UvnTopic
 from .registry import Registry
-from .peer import UvnPeersList, UvnPeerStatus, UvnPeer
+from .peer import UvnPeersList
 from .render import Templates
 from .dds_data import uvn_info, cell_agent_config
 from .agent_net import AgentNetworking
-from . import agent_run as Runner
-
+from .agent import Agent
+from .vpn_config import P2PLinksMap
 from .log import Logger as log
 
 
-class RegistryAgent:
+class RegistryAgent(Agent):
   DDS_CONFIG_TEMPLATE = "uno.xml"
 
   def __init__(self, registry: Registry) -> None:
@@ -40,134 +40,54 @@ class RegistryAgent:
     self.root_vpn_config = self.registry.root_vpn_config.root_config
     self.root_vpn = WireGuardInterface(self.root_vpn_config)
 
-    self.peers = UvnPeersList(
+    self._peers = UvnPeersList(
       uvn_id=self.registry.uvn_id,
       local_peer_id=0)
 
-    self.net = AgentNetworking()
-    self.dp = DdsParticipant()
+    self._net = AgentNetworking(
+      root=True,
+      config_dir=self.config_dir,
+      vpn_interfaces=self.vpn_interfaces)
+  
+    super().__init__()
 
 
   @property
-  def uvn_consistent_config(self) -> bool:
-    return len(self.consistent_config_peers) == len(self.registry.uvn_id.cells)
+  def registry_id(self) -> str:
+    return self.registry.id
 
 
   @property
-  def consistent_config_peers(self) -> set[UvnPeer]:
-    return set(
-      p for p in self.peers
-        # Mark peers as consistent if they are at the expected configuration IDs
-        if p.cell
-          and p.deployment_id == self.registry.backbone_vpn_config.deployment.generation_ts
-          and p.root_vpn_id == self.registry.root_vpn_config.peer_configs[p.id].generation_ts
-          and p.particles_vpn_id == self.registry.particles_vpn_configs[p.id].generation_ts
-          and next((cfg_id for i, cfg_id in enumerate(p.backbone_vpn_ids)
-              if cfg_id != self.registry.backbone_vpn_config.peer_configs[p.id][i].generation_ts), None) is None
-    )
+  def deployment(self) -> P2PLinksMap:
+    return self.registry.backbone_vpn_config.deployment
 
 
   @property
-  def inconsistent_config_peers(self) -> set[UvnPeer]:
-    return set(self.peers) - self.consistent_config_peers
+  def uvn_id(self) -> UvnId:
+    return self.registry.uvn_id
 
 
   @property
-  def uvn_routed_sites(self) -> set[LanDescriptor]:
-    return {
-      s
-      for peer in self.peers if peer.cell
-        for s in peer.routed_sites
-    }
+  def root(self) -> Path:
+    return self.registry.root
 
 
   @property
-  def connected_peers(self) -> set[UvnPeer]:
-    routed_sites = self.uvn_routed_sites
-    if len(routed_sites) == 0:
-      return set()
-    return {
-      p for p in self.peers if p.reachable_sites == routed_sites
-    }
+  def peers(self) -> UvnPeersList:
+    return self._peers
 
 
   @property
-  def disconnected_peers(self) -> set[UvnPeer]:
-    return set(self.peers) - self.connected_peers
+  def vpn_interfaces(self) -> set[WireGuardInterface]:
+    return {self.root_vpn}
 
 
   @property
-  def uvn_consistent(self) -> bool:
-    if not self.uvn_consistent_config:
-      return False
-    return len(self.connected_peers) != len(self.registry.uvn_id.cells)
+  def net(self) -> AgentNetworking:
+    return self._net
 
-
-  def _write_uvn_info(self) -> None:
-    sample = uvn_info(
-      participant=self.dp,
-      uvn_id=self.registry.uvn_id,
-      deployment=self.registry.backbone_vpn_config.deployment)
-    self.dp.writers[UvnTopic.UVN_ID].write(sample)
-    log.activity(f"[AGENT] published uvn info: {self}")
-
-
-  def _write_backbone(self):
-    cells_dir = self.registry.root / "cells"
-    for cell_id in self.registry.backbone_vpn_config.deployment.peers:
-      cell = self.registry.uvn_id.cells[cell_id]
-      config_file = cells_dir / f"{cell.name}.yaml"
-      config_str = config_file.read_text()
-      sample = cell_agent_config(
-        participant=self.dp,
-        uvn_id=self.registry.uvn_id,
-        cell_id=cell.id,
-        deployment=self.registry.backbone_vpn_config.deployment,
-        config_string=config_str)
-      self.dp.writers[UvnTopic.BACKBONE].write(sample)
-      log.activity(f"[AGENT] published agent configuration: {cell}")
-
-
-  def spin_until_consistent(self,
-      max_spin_time: Optional[int]=None,
-      config_only: bool=False) -> None:
-    spin_state = {
-      "consistent_config": False
-    }
-    deployment = self.registry.backbone_vpn_config.deployment
-    def _until_consistent() -> bool:
-      if not spin_state["consistent_config"] and self.uvn_consistent_config:
-        spin_state["consistent_config"] = True
-        log.warning(f"[AGENT] all {len(self.consistent_config_peers)} UVN agents have consistent configuration:")
-        for peer_a_id, peer_a in sorted(deployment.peers.items(), key=lambda t: t[1]["n"]):
-          peer_a_cell = self.registry.uvn_id.cells[peer_a_id]
-          for peer_b_id, (peer_b_port_i, peer_a_addr, peer_b_addr, link_network) in sorted(peer_a["peers"].items(), key=lambda t: t[1][0]):
-            peer_b_cell = self.registry.uvn_id.cells[peer_b_id]
-            log.warning(f"[AGENT] backbone[{peer_a['n']}][{peer_b_port_i}]: {peer_a_cell} ({peer_a_addr}) => {peer_b_cell} ({peer_b_addr})")
-        if config_only:
-          return True
-      if self.uvn_consistent:
-        routed_sites = self.uvn_routed_sites
-        peers = self.consistent_config_peers
-        log.warning(f"[AGENT] UVN is consistent with {len(routed_sites)} LANs routed by {len(peers)} agents:")
-        for s in routed_sites:
-          log.warning(f"[AGENT] - {s}")
-        return True
-      if not spin_state["consistent_config"]:
-        log.debug(f"[AGENT] still waiting for all UVN agents to reach expected configuration")
-      else:
-        log.debug(f"[AGENT] still waiting for UVN to become consistent")
-    
-    timedout = self.spin(until=_until_consistent, max_spin_time=max_spin_time)
-    if timedout:
-      raise RuntimeError("UVN failed to reach expected state before timeout")
-
-
-
-  def spin(self,
-      until: Optional[Callable[[], bool]]=None,
-      max_spin_time: Optional[int]=None) -> None:
-
+  @property
+  def dds_config(self) -> DdsParticipantConfig:
     if not self.registry.rti_license.is_file():
       log.error(f"RTI license file not found: {self.registry.rti_license}")
       raise RuntimeError("RTI license file not found")
@@ -191,26 +111,42 @@ class RegistryAgent:
       "enable_dds_security": False,
     })
 
-    dds_config = DdsParticipantConfig(
+    return DdsParticipantConfig(
       participant_xml_config=xml_config,
       participant_profile=DdsParticipantConfig.PARTICIPANT_PROFILE_ROOT,
+      user_conditions=[
+        self.peers.updated_condition,
+      ],
       **Registry.AGENT_REGISTRY_TOPICS)
 
 
-    try:
-      self.net.start(vpn_interfaces=[self.root_vpn])
-      self.dp.start(dds_config)
-      self.peers.update_peer(self.peers.local_peer,
-        status=UvnPeerStatus.ONLINE)
-      self._write_uvn_info()
-      self._write_backbone()
-      Runner.spin(
-        dp=self.dp,
-        peers=self.peers,
-        until=until,
-        max_spin_time=max_spin_time)
-    finally:
-      self.peers.update_peer(self.peers.local_peer,
-        status=UvnPeerStatus.OFFLINE)
-      self.dp.stop()
-      self.net.stop()
+  def _start_services(self, boot: bool=False) -> None:
+    self._write_uvn_info()
+    self._write_backbone()
+
+
+  def _write_uvn_info(self) -> None:
+    sample = uvn_info(
+      participant=self.dp,
+      uvn_id=self.registry.uvn_id,
+      deployment=self.registry.backbone_vpn_config.deployment,
+      registry_id=self.registry_id)
+    self.dp.writers[UvnTopic.UVN_ID].write(sample)
+    log.activity(f"[AGENT] published uvn info: {self}")
+
+
+  def _write_backbone(self):
+    cells_dir = self.registry.root / "cells"
+    for cell_id in self.registry.backbone_vpn_config.deployment.peers:
+      cell = self.registry.uvn_id.cells[cell_id]
+      config_file = cells_dir / f"{cell.name}.yaml"
+      config_str = config_file.read_text()
+      sample = cell_agent_config(
+        participant=self.dp,
+        uvn_id=self.registry.uvn_id,
+        cell_id=cell.id,
+        deployment=self.registry.backbone_vpn_config.deployment,
+        config_string=config_str)
+      self.dp.writers[UvnTopic.BACKBONE].write(sample)
+      log.activity(f"[AGENT] published agent configuration: {cell}")
+

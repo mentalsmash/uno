@@ -25,6 +25,7 @@ import matplotlib.pyplot as plt
 
 from .uvn_id import (
   UvnId,
+  UvnSettings,
   CellId,
   ParticleId,
   BackboneVpnSettings,
@@ -140,6 +141,18 @@ class Registry(Versioned):
       and self.backbone_vpn_config.deployment.generation_ts is not None
     )
 
+  @property
+  def id(self) -> int:
+    import hashlib
+    h = hashlib.sha256()
+    h.update("".join([
+      str(self.backbone_vpn_config.deployment.generation_ts)
+        if self.backbone_vpn_config.deployment else "",
+      self.root_vpn_config.generation_ts,
+      *(c.generation_ts for c in sorted(self.particles_vpn_configs.values(), key=lambda v: v.generation_ts))
+    ]).encode())
+    return h.hexdigest()
+
 
   @property
   def rti_license(self) -> Path:
@@ -182,10 +195,9 @@ class Registry(Versioned):
       self.rti_license = rti_license
 
     changed = self.collect_changes()
-    changed_uvn = next((c for c in changed if isinstance(c, UvnId)), None) is not None
+    changed_uvn = next((c for c in changed if isinstance(c, (UvnId, UvnSettings))), None) is not None
     changed_cell = next((c for c in changed if isinstance(c, CellId)), None) is not None
     changed_particle = next((c for c in changed if isinstance(c, ParticleId)), None) is not None
-    changed_dds_keymat = changed_uvn or drop_keys_dds
     changed_root_vpn = (
       changed_uvn
       or changed_cell
@@ -209,9 +221,6 @@ class Registry(Versioned):
     # if changed_gpg:
     #   self._configure_gpg_keys(drop_keys=drop_keys_gpg)
 
-    if changed_dds_keymat:
-      self._configure_dds_keymat(drop_keys=drop_keys_dds)
-
     if changed_root_vpn:
       self._configure_root_vpn(drop_keys=drop_keys_root_vpn)
 
@@ -221,20 +230,11 @@ class Registry(Versioned):
     if changed_backbone_vpn:
       self._configure_backbone_vpn()
 
-    modified = (
-      changed_dds_keymat
-      or changed_root_vpn
-      or changed_particles_vpn
-      or changed_backbone_vpn
-    )
-
-    if modified:
+    if redeploy or changed:
       log.warning("[REGISTRY] configuration updated")
-      self._generate_agents()
-      self._save_to_disk()
+      self._save_to_disk(drop_keys=drop_keys_dds)
 
-    return modified
-
+    return bool(changed)
 
 
   def _configure_gpg_keys(self) -> None:
@@ -310,25 +310,12 @@ class Registry(Versioned):
       peer_endpoints=peer_endpoints)
     self.backbone_vpn_config.generate(self.deployment_strategy)
 
-    logged = []
-    def _log_deployment(
-        peer_a: CellId,
-        peer_a_port_i: int,
-        peer_a_endpoint: str,
-        peer_b: CellId,
-        peer_b_port_i: int,
-        peer_b_endpoint: str,
-        arrow: str) -> None:
-      if not logged or logged[-1] != peer_a:
-        log.warning(f"[REGISTRY] {peer_a} ->")
-        logged.append(peer_a)
-      log.warning(f"[REGISTRY]   [{peer_a_port_i}] {peer_a_endpoint} {arrow} {peer_b}[{peer_b_port_i}] {peer_b_endpoint}")
+    
 
     if self.backbone_vpn_config.deployment.peers:
       log.warning(f"[REGISTRY] UVN backbone links updated [{self.backbone_vpn_config.deployment.generation_ts}]")
       self.uvn_id.log_deployment(
-        deployment=self.backbone_vpn_config.deployment,
-        logger=_log_deployment)
+        deployment=self.backbone_vpn_config.deployment)
     elif self.uvn_id.cells:
       log.error(f"[REGISTRY] UVN has {len(self.uvn_id.cells)} cells but no backbone links!")
 
@@ -399,7 +386,7 @@ class Registry(Versioned):
 
 
   def _generate_agents(self) -> None:
-    from .agent import CellAgent
+    from .cell_agent import CellAgent
 
     log.activity("[REGISTRY] regenerating cell and particle artifacts")
 
@@ -488,13 +475,22 @@ class Registry(Versioned):
     return registry
 
 
-  def _save_to_disk(self) -> None:
-    config_file = self.root / self.CONFIG_FILENAME
-    uvn_file = self.root / self.UVN_FILENAME
+  def _save_to_disk(self, drop_keys: bool=False) -> None:
+    from .ask import ask_yes_no
+    ask_yes_no("Save updated registry to disk?")
     serialized = self.serialize()
+
+    uvn_file = self.root / self.UVN_FILENAME
+    uvn_file.parent.mkdir(parents=True, exist_ok=True)
     uvn_file.write_text(yaml.safe_dump(serialized["uvn"]))
+    uvn_file.chmod(0o600)
     log.warning(f"[REGISTRY] updated UVN configuration: {uvn_file}")
+
+    config_file = self.root / self.CONFIG_FILENAME
+    config_file.parent.mkdir(parents=True, exist_ok=True)
     config_file.write_text(yaml.safe_dump(serialized.get("config", {})))
     config_file.chmod(0o600)
-    uvn_file.chmod(0o600)
     log.warning(f"[REGISTRY] updated registry state: {config_file}")
+
+    self._configure_dds_keymat(drop_keys=drop_keys)
+    self._generate_agents()

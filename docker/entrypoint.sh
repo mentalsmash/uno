@@ -48,13 +48,14 @@ fi
 
 # Check if we have a package, and if so, bootstrap it
 if [ -f /package.uvn-agent ]; then
+  chmod 600 /package.uvn-agent
   uno cell install ${VERBOSE} /package.uvn-agent -r ${UVN_DIR}
 fi
 
 if [ -n "${STATIC}" ]; then
   # Use static configuration to start the agent
-  ${UVN_DIR}/static/uno.sh start
   cd ${UVN_DIR}
+  uvn-net start
   exec bash
   exit
 fi
