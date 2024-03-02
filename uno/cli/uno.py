@@ -265,7 +265,7 @@ def _load_agent(args):
     
     root = svc.global_uvn_dir
     if root is None:
-      raise RuntimeError("no global agent directory configured", svc, svc.global_uvn_id)
+      raise RuntimeError("no global agent directory configured", str(svc), svc.global_uvn_id)
     log.warning(f"global directory for {svc}: {root}")
 
     if args.registry:
