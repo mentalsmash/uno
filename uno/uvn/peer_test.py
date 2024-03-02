@@ -140,6 +140,7 @@ class UvnPeersTester:
     return self._reachable
 
 
+
   def peek_state(self) -> Tuple[set[UvnPeerLanStatus], set[UvnPeerLanStatus], bool]:
     with self._state_lock:
       fully_routed = len(self._reachable) == len(self)
@@ -287,4 +288,8 @@ class UvnPeersTester:
     self.trigger()
     self._test_thread.join()
     self._test_thread = None
+    self._reachable = set()
+    self._unreachable = set()
+    for status in self:
+      status.reachable = False
 

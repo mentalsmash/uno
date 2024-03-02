@@ -118,13 +118,15 @@ class Registry(Versioned):
       uvn_id: UvnId,
       root_vpn_config: Optional[CentralizedVpnConfig]=None,
       particles_vpn_configs: Optional[Mapping[int, CentralizedVpnConfig]]=None,
+      excluded_particles_vpn_configs: Optional[Mapping[int, CentralizedVpnConfig]]=None,
       backbone_vpn_config: Optional[P2PVpnConfig]=None,
       **super_args) -> None:
     super().__init__(**super_args)
     self.root = root.resolve()
     self.uvn_id = uvn_id
     self.root_vpn_config = root_vpn_config
-    self.particles_vpn_configs = particles_vpn_configs
+    self.particles_vpn_configs = particles_vpn_configs or {}
+    self.excluded_particles_vpn_configs = excluded_particles_vpn_configs or {}
     self.backbone_vpn_config = backbone_vpn_config
     self.dds_keymat = DdsKeyMaterial(
       root=self.root,
@@ -212,10 +214,25 @@ class Registry(Versioned):
       or next((c for c in changed if isinstance(c, ParticlesVpnSettings)), None) is not None
     )
     changed_backbone_vpn = (
-      changed_cell
+      changed_uvn
+      or changed_cell
       or redeploy
       or next((c for c in changed if isinstance(c, BackboneVpnSettings)), None) is not None
     )
+
+    for cell in self.uvn_id.excluded_cells.values():
+      cell_particles_vpn_config = self.particles_vpn_configs.get(cell.id)
+      if not cell_particles_vpn_config:
+        continue
+      self.excluded_particles_vpn_configs[cell.id] = cell_particles_vpn_config
+      del self.particles_vpn_configs[cell.id]
+
+    for cell in self.uvn_id.cells.values():
+      was_excluded = cell.id in self.excluded_particles_vpn_configs
+      if not was_excluded:
+        continue
+      self.particles_vpn_configs[cell.id] = self.excluded_particles_vpn_configs[cell.id]
+      del self.excluded_particles_vpn_configs[cell.id]
 
     # changed_gpg = changed_uvn or drop_keys_gpg
     # if changed_gpg:
@@ -246,6 +263,7 @@ class Registry(Versioned):
     if self.root_vpn_config and not drop_keys:
       log.debug(f"[REGISTRY] preserving existing keys for Root VPN")
       keymat = self.root_vpn_config.keymat
+      keymat.purge_gone_peers([c.id for c in self.uvn_id.all_cells])
     elif self.root_vpn_config and drop_keys:
       log.warning(f"[REGISTRY] dropping existing keys for Root VPN")
       keymat = None
@@ -258,26 +276,29 @@ class Registry(Versioned):
     if not self.uvn_id.supports_reconfiguration:
       log.error(f"[REGISTRY] the UVN requires a registry address to support reconfiguration of private cells: {private_cells}")
 
+    cells = sorted(self.uvn_id.all_cells, key=lambda v: v.id)
+
     self.root_vpn_config = CentralizedVpnConfig(
       root_endpoint=self.uvn_id.address if private_cells else None,
       peer_endpoints={
         c.id: c.address
-        for c in self.uvn_id.cells.values()
+        for c in cells
       },
-      peer_ids=self.uvn_id.cells.keys(),
+      peer_ids=[c.id for c in cells],
       settings=self.uvn_id.settings.root_vpn,
       keymat=keymat)
     self.root_vpn_config.generate()
 
 
   def _configure_particles_vpns(self, drop_keys: bool=False) -> None:
-    particle_ids = list(self.uvn_id.particles.keys())
+    particle_ids = sorted(self.uvn_id.particles.keys())
     new_particles_vpn_configs = {}
     for cell in self.uvn_id.cells.values():
       existing_config = self.particles_vpn_configs.get(cell.id)
       if existing_config and not drop_keys:
         log.debug(f"[REGISTRY] preserving existing keys for Particle VPN: {cell}")
         keymat = existing_config.keymat
+        keymat.purge_gone_peers([c.id for c in (*self.uvn_id.particles.values(), *self.uvn_id.excluded_particles.values())])
       elif existing_config and drop_keys:
         log.warning(f"[REGISTRY] dropping existing keys for Particle VPN: {cell}")
         keymat = None
@@ -338,7 +359,7 @@ class Registry(Versioned):
         dr.value
         for dr in Registry.AGENT_CELL_TOPICS["readers"].keys()
       ])
-      for c in self.uvn_id.cells.values()
+      for c in self.uvn_id.all_cells
     })
     self.dds_keymat.init(peers, reset=drop_keys)
 
@@ -421,12 +442,16 @@ class Registry(Versioned):
     sup_serialized = super().serialize()
     sup_serialized.update({
       "root_vpn": self.root_vpn_config.serialize() if self.root_vpn_config else None,
-        "particles_vpn": {
-          p: cfg.serialize()
-          for p, cfg in self.particles_vpn_configs.items()
-        },
-        "backbone_vpn": self.backbone_vpn_config.serialize()
-          if self.backbone_vpn_config else None,
+      "particles_vpn": {
+        p: cfg.serialize()
+        for p, cfg in self.particles_vpn_configs.items()
+      },
+      "excluded_particles_vpn": {
+        p: cfg.serialize()
+        for p, cfg in self.excluded_particles_vpn_configs.items()
+      },
+      "backbone_vpn": self.backbone_vpn_config.serialize()
+        if self.backbone_vpn_config else None,
     })
     if not sup_serialized["root_vpn"]:
       del sup_serialized["root_vpn"]
@@ -434,6 +459,8 @@ class Registry(Versioned):
       del sup_serialized["backbone_vpn"]
     if not sup_serialized["particles_vpn"]:
       del sup_serialized["particles_vpn"]
+    if not sup_serialized["excluded_particles_vpn"]:
+      del sup_serialized["excluded_particles_vpn"]
 
     serialized = {
       "uvn": self.uvn_id.serialize(),
@@ -457,6 +484,10 @@ class Registry(Versioned):
       particles_vpn_configs={
         p: CentralizedVpnConfig.deserialize(cfg, settings_cls=ParticlesVpnSettings)
         for p, cfg in serialized.get("config", {}).get("particles_vpn", {}).items()
+      },
+      excluded_particles_vpn_configs={
+        p: CentralizedVpnConfig.deserialize(cfg, settings_cls=ParticlesVpnSettings)
+        for p, cfg in serialized.get("config", {}).get("excluded_particles_vpn", {}).items()
       },
       backbone_vpn_config=P2PVpnConfig.deserialize(
         backbone_vpn_config,

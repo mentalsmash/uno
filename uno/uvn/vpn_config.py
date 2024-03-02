@@ -54,6 +54,7 @@ class CentralizedVpnConfig:
     self.generation_ts = generation_ts or Timestamp.now().format()
 
 
+
   def generate(self, tunnel: bool=False) -> None:
     self.keymat.assert_keys(self.peer_ids)
 

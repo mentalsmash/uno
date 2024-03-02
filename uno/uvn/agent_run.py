@@ -93,7 +93,7 @@ def _on_cell_info_data(
   if peer_cell is None:
     # Ignore sample from unknown cell
     log.warning(f"[AGENT] IGNORING update from unknown agent:"
-                f" uvn={sample['id.uvn.name']}", f"cell={sample['id.name']}")
+                f" uvn={sample['id.uvn.name']}, cell={sample['id.name']}")
     return None
 
   def _site_to_descriptor(site):
@@ -161,7 +161,7 @@ def _on_reader_data_available(
     on_reader_offline: Optional[Callable[[UvnTopic, dds.DataReader, dds.SampleInfo], Sequence[UvnPeer]]]=None,
     on_peer_updated: Callable[[UvnPeer], None]|None=None) -> None:
   
-  for s in reader.select().condition(condition).read():
+  for s in reader.select().condition(condition).take():
     if s.info.valid:
       if topic == UvnTopic.CELL_ID:
         updated_peer = _on_cell_info_data(peers, s.info, s.data)

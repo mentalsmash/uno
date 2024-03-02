@@ -44,6 +44,13 @@ class PairedValuesMap(dict):
     return stored
 
 
+  def purge_peer(self, peer: int) -> None:
+    for peer_a, peer_b in list(self):
+      if peer != peer_a and peer != peer_b:
+        continue
+      del self[(peer_a, peer_b)]
+
+
   def get_pair(self, peer_a: int, peer_b: int) -> str:
     return self[self.pair_key(peer_a, peer_b)]
 

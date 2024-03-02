@@ -86,6 +86,27 @@ class RegistryAgent(Agent):
   def net(self) -> AgentNetworking:
     return self._net
 
+
+  @property
+  def root_vpn_id(self) -> str:
+    return self.registry.root_vpn_config.generation_ts
+
+
+  @property
+  def backbone_vpn_ids(self) -> list[str]:
+    return []
+
+
+  @property
+  def particles_vpn_id(self) -> str|None:
+    return None
+
+
+  @property
+  def backbone_peers(self) -> list[int]:
+    return []
+
+
   @property
   def dds_config(self) -> DdsParticipantConfig:
     if not self.registry.rti_license.is_file():
@@ -99,7 +120,9 @@ class RegistryAgent(Agent):
       "deployment_id": self.registry.backbone_vpn_config.deployment.generation_ts,
       "uvn": self.registry.uvn_id,
       "cell": None,
-      "initial_peers": [p.address for p in self.root_vpn_config.peers],
+      "initial_peers": [
+        p.address for p in self.root_vpn_config.peers
+      ],
       "timing": self.registry.uvn_id.settings.timing_profile,
       "license_file": self.registry.rti_license.read_text(),
       "ca_cert": self.registry.dds_keymat.ca.cert,
@@ -141,12 +164,14 @@ class RegistryAgent(Agent):
       cell = self.registry.uvn_id.cells[cell_id]
       config_file = cells_dir / f"{cell.name}.yaml"
       config_str = config_file.read_text()
+      cell_package = cells_dir / f"{cell.name}.uvn-agent"
       sample = cell_agent_config(
         participant=self.dp,
         uvn_id=self.registry.uvn_id,
         cell_id=cell.id,
         deployment=self.registry.backbone_vpn_config.deployment,
-        config_string=config_str)
+        # config_string=config_str,
+        package=cell_package)
       self.dp.writers[UvnTopic.BACKBONE].write(sample)
       log.activity(f"[AGENT] published agent configuration: {cell}")
 

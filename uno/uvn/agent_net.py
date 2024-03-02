@@ -523,9 +523,9 @@ class AgentNetworking:
 
     new_id = self.uvn_agent.uvn_net.compute_id(self.config_dir)
     if prev_id != new_id:
-      log.warning(f"[NET] uvn-net configuration changed:")
-      log.warning(f"[NET] prev id: {prev_id}")
-      log.warning(f"[NET] current id: {new_id}")
+      log.activity(f"[NET] uvn-net configuration changed:")
+      log.activity(f"[NET] prev id: {prev_id}")
+      log.activity(f"[NET] current id: {new_id}")
       # shutil.copytree(tmp_dir, f"{self.config_dir}.2")
       # raise RuntimeError("wtf")
     

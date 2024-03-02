@@ -346,6 +346,34 @@ class UvnPeersList:
       p.updated_fields.clear()
 
 
+  def online(self, **local_peer_fields) -> None:
+    return self.update_peer(self.local_peer,
+      status=UvnPeerStatus.ONLINE,
+      **local_peer_fields)
+
+
+  def offline(self) -> bool:
+    already_offline = self.update_peer(self.local_peer,
+      status=UvnPeerStatus.OFFLINE)
+    if already_offline:
+      return False
+    
+    self.update_all(
+      deployment_id=None,
+      registry_id=None,
+      root_vpn_id=None,
+      particles_vpn_id=None,
+      backbone_vpn_ids=None,
+      status=UvnPeerStatus.OFFLINE,
+      routed_sites=None,
+      reachable_sites=None,
+      backbone_peers=None,
+      ih=None,
+      ih_dns=None)
+  
+    return True
+
+
   def update_peer(self,
       peer: UvnPeer,
       **updated_fields) -> bool:

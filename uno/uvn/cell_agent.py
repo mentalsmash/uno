@@ -113,6 +113,7 @@ class CellAgent(Agent):
     # Store configuration upon receiving it, so we can reload it
     # once we're done processing received data
     self._reload_config = None
+    self._reload_package_h = None
 
     # Track state of plots so we can regenerate them on the fly
     self._regenerate_plots()
@@ -164,13 +165,23 @@ class CellAgent(Agent):
 
 
   @property
-  def peer_online_attributes(self) -> Mapping[str, object]:
-    return {
-      "root_vpn_id": self.root_vpn.config.generation_ts if self.root_vpn else None,
-      "particles_vpn_id": self.particles_vpn_config.generation_ts,
-      "backbone_vpn_ids": [nic.config.generation_ts for nic in self.backbone_vpns],
-      "backbone_peers": [p.id for nic in self.backbone_vpns for p in nic.config.peers]
-    }
+  def root_vpn_id(self) -> str:
+    return self.root_vpn.config.generation_ts if self.root_vpn else None
+
+
+  @property
+  def backbone_vpn_ids(self) -> list[str]:
+    return [nic.config.generation_ts for nic in self.backbone_vpns]
+
+
+  @property
+  def particles_vpn_id(self) -> Optional[str]:
+    return self.particles_vpn_config.generation_ts
+
+
+  @property
+  def backbone_peers(self) -> list[int]:
+    return [p.id for nic in self.backbone_vpns for p in nic.config.peers]
 
 
   @property
@@ -213,7 +224,7 @@ class CellAgent(Agent):
   @property
   def enable_particles_vpn(self) -> bool:
     return (
-      self.uvn_id.particles
+      bool(self.uvn_id.particles)
       and self.uvn_id.settings.enable_particles_vpn
       and self.cell.enable_particles_vpn)
 
@@ -436,25 +447,26 @@ class CellAgent(Agent):
       self.www.stop()
     except Exception as e:
       log.error(f"[AGENT] failed to stop web server")
-      # log.exception(e)
       errors.append(e)
     try:
       self.peers_tester.stop()
     except Exception as e:
       log.error(f"[AGENT] failed to stop peers tester")
-      # log.exception(e)
+      errors.append(e)
+    try:
+      self.fully_routed = False
+    except Exception as e:
+      log.error(f"[AGENT] failed to reset fully-routed state")
       errors.append(e)
     try:
       self.unreachable_sites = []
     except Exception as e:
       log.error(f"[AGENT] failed to reset unreachable sites")
-      # log.exception(e)
       errors.append(e)
     try:
       self.reachable_sites = []
     except Exception as e:
       log.error(f"[AGENT] failed to reset reachable sites")
-      # log.exception(e)
       errors.append(e)
   
 
@@ -481,11 +493,13 @@ class CellAgent(Agent):
       ts_start: Timestamp,
       ts_now: Timestamp,
       spin_len: float) -> None:
-    if self._reload_config:
+    if self._reload_config or self._reload_package_h:
       new_config = self._reload_config
+      new_package_h = self._reload_package_h
       self._reload_config = None
+      self._reload_package_h = None
       # Parse/save/load new configuration
-      self.reload(new_config, save_to_disk=True)
+      self.reload(package=new_package_h, config=new_config, save_to_disk=True)
 
     new_routes, gone_routes = self.router.update_routes()
     if new_routes or gone_routes:
@@ -517,6 +531,17 @@ class CellAgent(Agent):
       super()._on_user_condition(condition)
 
 
+  def _schedule_reload(self, package: object|None=None, config: str|None=None) -> None:
+    if self._reload_package_h or self._reload_config:
+      log.warning(f"[AGENT] discarding previously scheduled reload")
+    if package:
+      self._reload_package_h = package
+      self._reload_config = None
+    else:
+      self._reload_package_h = None
+      self._reload_config = config
+    log.warning(f"[AGENT] reload scheduled")
+
 
   def _on_reader_data(self,
       topic: UvnTopic,
@@ -526,10 +551,18 @@ class CellAgent(Agent):
     if topic == UvnTopic.DNS:
       self._on_dns_data(info.instance_handle, sample)
     elif topic == UvnTopic.BACKBONE:
-      new_config = sample["config"]
+
       try:
-        new_config = yaml.safe_load(new_config)
-        self._reload_config = new_config
+        if len(sample["package"]) > 0:
+          tmp_h = tempfile.NamedTemporaryFile()
+          tmp = Path(tmp_h.name)
+          with tmp.open("wb") as output:
+            output.write(sample["package"])
+          self._schedule_reload(package=tmp_h)
+        elif len(sample["config"]) > 0:
+          new_config = sample["config"]
+          new_config = yaml.safe_load(new_config)
+          self._schedule_reload(config=new_config)
       except Exception as e:
         log.error("failed to parse received configuration")
         log.exception(e)
@@ -700,10 +733,26 @@ class CellAgent(Agent):
       write_particle_configuration(particle, particle_client_cfg, self.particles_dir)
 
 
-  def reload(self, new_config: dict, save_to_disk: bool=False) -> bool:
-    log.activity("[AGENT] parsing received configuration")
-    updated_agent = CellAgent.deserialize(new_config, self.root)
+  def reload(self, package: object|None=None, config: dict|None=None, save_to_disk: bool=False) -> bool:
+    if package:
+      log.activity("[AGENT] extracting received package")
+      package_h = package
+      package = Path(package_h.name)
+      tmp_dir_h = tempfile.TemporaryDirectory()
+      tmp_dir = Path(tmp_dir_h.name)
+      updated_agent = CellAgent.extract(package, tmp_dir)
+    elif config is not None:
+      log.activity("[AGENT] parsing received configuration")
+      updated_agent = CellAgent.deserialize(config, self.root)
+    else:
+      raise ValueError("invalid arguments")
+
     updaters = []
+
+    if updated_agent.registry_id != self.registry_id:
+      def _update_registry_id():
+        self._registry_id = updated_agent.registry_id
+      updaters.append(_update_registry_id)
 
     if updated_agent.uvn_id.generation_ts != self.uvn_id.generation_ts:
       if updated_agent.cell.id != self.cell.id:
@@ -748,18 +797,21 @@ class CellAgent(Agent):
     if updaters:
       log.warning(f"[AGENT] stopping services to load new configuration...")
       self._stop()
-      log.activity(f"[AGENT] peforming updates...")
+      log.warning(f"[AGENT] peforming updates...")
       for updater in updaters:
         updater()
       # Save configuration to disk if requested
       if save_to_disk:
         self.save_to_disk()
+        if package:
+          extracted_files = list(tmp_dir.glob("*"))
+          exec_command(["cp", "-rv", *extracted_files, self.root])
       log.activity(f"[AGENT] restarting services with new configuration...")
       self._start()
       log.warning(f"[AGENT] new configuration loaded: uvn_id={self.uvn_id.generation_ts}, root_vpn={self.root_vpn_config.generation_ts}, particles_vpn={self.particles_vpn_config.generation_ts}, backbone={self.deployment.generation_ts}")
       return True
     else:
-      log.activity(f"[AGENT] no changes in configuration detected")
+      log.warning(f"[AGENT] no changes in configuration detected")
 
     return False
 

@@ -86,7 +86,8 @@ class Agent:
       if self.uvn_consistent:
         return True
       if not spin_state["consistent_config"]:
-        log.debug(f"[AGENT] still waiting for all UVN agents to reach expected configuration")
+        log.debug(f"[AGENT] at configuration [{len(self.consistent_config_peers)}/{len(self.uvn_id.cells)}]: {list(map(str, self.inconsistent_config_peers))}")
+        log.debug(f"[AGENT] not configured yet [{len(self.inconsistent_config_peers)}/{len(self.uvn_id.cells)}]: {list(map(str, self.inconsistent_config_peers))}")
       else:
         log.debug(f"[AGENT] still waiting for UVN to become consistent")
     
@@ -337,13 +338,23 @@ class Agent:
 
 
   @property
-  def peer_online_attributes(self) -> Mapping[str, object]:
-    return {}
+  def root_vpn_id(self) -> str:
+    raise NotImplementedError()
 
 
   @property
-  def peer_offline_attributes(self) -> Mapping[str, object]:
-    return {}
+  def backbone_vpn_ids(self) -> set[str]:
+    raise NotImplementedError()
+
+
+  @property
+  def particles_vpn_id(self) -> str:
+    raise NotImplementedError()
+
+
+  @property
+  def backbone_peers(self) -> str:
+    raise NotImplementedError()
 
 
   def _validate_boot_config(self):
@@ -442,12 +453,14 @@ class Agent:
 
     self._start_services()
 
-    self.peers.update_peer(self.peers.local_peer,
-      status=UvnPeerStatus.ONLINE,
+    self.peers.online(
       registry_id=self.registry_id,
       deployment_id=self.deployment.generation_ts,
       routed_sites=self.lans,
-      **self.peer_online_attributes)
+      root_vpn_id=self.root_vpn_id,
+      particles_vpn_id=self.particles_vpn_id,
+      backbone_vpn_ids=self.backbone_vpn_ids,
+      backbone_peers=self.backbone_peers)
 
     if boot:
       self.net.uvn_agent.write_pid()
@@ -472,9 +485,7 @@ class Agent:
     self.started = False
     errors = []
     try:
-      self.peers.update_peer(self.peers.local_peer,
-        status=UvnPeerStatus.OFFLINE,
-        **self.peer_offline_attributes)
+      self.peers.offline()
     except Exception as e:
       log.error(f"[AGENT] failed to transition agent to OFFLINE")
       # log.exception(e)

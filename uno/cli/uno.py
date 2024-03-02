@@ -78,6 +78,7 @@ def registry_load(args) -> Registry:
   registry = Registry.load(args.root or Path.cwd())
   return registry
 
+
 def registry_configure(args):
   configure_args = registry_configure_args(args)
   if not args.update:
@@ -97,61 +98,88 @@ def registry_configure(args):
       log.warning("[REGISTRY] loaded successfuly")
 
 
-def registry_cell(args):
+def registry_action(args):
   registry = registry_load(args)
-  config_args = {
-    "owner_id": args.owner_id,
-    "address": args.address,
-    "allowed_lans": args.network if args.network else None,
-    "enable_particles_vpn": False if args.disable_particles_vpn else None,
-  }
-  if args.update:
-    method = registry.uvn_id.update_cell
-  else:
-    method = registry.uvn_id.add_cell
-  cell = method(name=args.name, **config_args)
-  if args.print:
-    print_serialized(cell, verbose=args.verbose > 0)
-  modified = registry.configure()
-  if modified:
-    _update_registry_agent(registry)
-
-
-def registry_particle(args):
-  registry = registry_load(args)
-  config_args = {
-    "owner_id": args.owner_id,
-  }
-  if args.update:
-    method = registry.uvn_id.update_particle
-  else:
-    method = registry.uvn_id.add_particle
-  particle = method(name=args.name, **config_args)
-  if args.print:
-    print_serialized(particle, verbose=args.verbose > 0)
-  modified = registry.configure()
-  if modified:
-    _update_registry_agent(registry)
-
-
-def registry_redeploy(args):
-  registry = registry_load(args)
-
-  modified = registry.configure(
-    deployment_strategy=args.deployment_strategy,
-    deployment_strategy_args=args.deployment_strategy_args,
-    redeploy=True)
-
-  if modified:
-    _update_registry_agent(registry)
-
-
-def registry_sync(args, registry: Optional[Registry]=None):
-  registry = registry or registry_load(args)
-  agent = RegistryAgent(registry)
-  agent.spin_until_consistent(
-    config_only=args.consistent_config,
-    max_spin_time=args.max_wait_time)
+  action_args = {}
+  action = None
+  config_args = {}
+  if args.action == "cell-ban":
+    action = registry.uvn_id.ban_cell
+    action_args = {
+      "name": args.name,
+    }
+  elif args.action == "cell-unban":
+    action = registry.uvn_id.unban_cell
+    action_args = {
+      "name": args.name,
+    }
+  elif args.action == "cell-delete":
+    action = registry.uvn_id.delete_cell
+    action_args = {
+      "name": args.name,
+    }
+  elif args.action in ("cell-define", "cell-update"):
+    action_args = {
+      "name": args.name,
+      "owner_id": args.owner_id,
+      "address": args.address,
+      "allowed_lans": args.network if args.network else None,
+      "enable_particles_vpn": False if args.disable_particles_vpn else None,
+    }
+    if args.action == "cell-update":
+      action = registry.uvn_id.update_cell
+    else:
+      action = registry.uvn_id.add_cell
+  elif args.action == "particle-ban":
+    action = registry.uvn_id.ban_particle
+    action_args = {
+      "name": args.name,
+    }
+  elif args.action == "particle-unban":
+    action = registry.uvn_id.unban_particle
+    action_args = {
+      "name": args.name,
+    }
+  elif args.action == "particle-delete":
+    action = registry.uvn_id.delete_particle
+    action_args = {
+      "name": args.name,
+    }
+  elif args.action in ("particle-define", "particle-update"):
+    action_args = {
+      "name": args.name,
+      "owner_id": args.owner_id,
+    }
+    if args.action == "particle-update":
+      action = registry.uvn_id.update_particle
+    else:
+      action = registry.uvn_id.add_particle
+  elif args.action == "redeploy":
+    config_args = {
+      "deployment_strategy": args.deployment_strategy,
+      "deployment_strategy_args": args.deployment_strategy_args,
+      "redeploy": True,
+    }
+  elif args.action == "plot":
+    if not args.output:
+      output_file = registry.root / f"{registry.uvn_id.name}-backbone.png"
+    else:
+      output_file = args.output
+    backbone_deployment_graph(
+      uvn_id=registry.uvn_id,
+      deployment=registry.backbone_vpn_config.deployment,
+      output_file=output_file)
+    log.warning(f"backbone plot generated: {output_file}")
+  
+  if action:
+    result = action(**action_args)
+    if getattr(args, "print", False):
+      print_serialized(result, verbose=args.verbose > 0)
+  
+  if action or config_args:
+    modified = registry.configure(**config_args)
+    if modified:
+      _update_registry_agent(registry)
 
 
 def registry_common_args(parser: argparse.ArgumentParser):
@@ -182,17 +210,12 @@ def registry_agent(args):
   agent.spin()
 
 
-def registry_plot(args):
-  registry = registry_load(args)
-  if not args.output:
-    output_file = registry.root / f"{registry.uvn_id.name}-backbone.png"
-  else:
-    output_file = args.output
-  backbone_deployment_graph(
-    uvn_id=registry.uvn_id,
-    deployment=registry.backbone_vpn_config.deployment,
-    output_file=output_file)
-  log.warning(f"backbone plot generated: {output_file}")
+def registry_sync(args, registry: Optional[Registry]=None):
+  registry = registry or registry_load(args)
+  agent = RegistryAgent(registry)
+  agent.spin_until_consistent(
+    config_only=args.consistent_config,
+    max_spin_time=args.max_wait_time)
 
 
 ###############################################################################
@@ -318,6 +341,7 @@ def uno_agent(args):
   agent.enable_www = True
   agent.enable_systemd = args.systemd
   agent.spin(max_spin_time=args.max_run_time)
+
 
 ###############################################################################
 ###############################################################################
@@ -529,8 +553,8 @@ def main():
   cmd_define_cell = subparsers_define.add_parser("cell",
     help="Add a new cell to the UVN.")
   cmd_define_cell.set_defaults(
-    cmd=registry_cell,
-    update=False)
+    cmd=registry_action,
+    action="cell-define")
 
   cmd_define_cell.add_argument("name",
     help="A unique name for the cell.")
@@ -544,8 +568,8 @@ def main():
   cmd_define_particle = subparsers_define.add_parser("particle",
     help="Add a new particle to the UVN.")
   cmd_define_particle.set_defaults(
-    cmd=registry_particle,
-    update=False)
+    cmd=registry_action,
+    action="particle-define")
 
   cmd_define_particle.add_argument("name",
     help="A unique name for the particle.")
@@ -580,8 +604,8 @@ def main():
   cmd_config_cell = subparsers_config.add_parser("cell",
     help="Update a cell's configuration.")
   cmd_config_cell.set_defaults(
-    cmd=registry_cell,
-    update=True)
+    cmd=registry_action,
+    action="cell-config")
 
   cmd_config_cell.add_argument("name",
     help="The cell's unique name.")
@@ -595,8 +619,8 @@ def main():
   cmd_config_particle = subparsers_config.add_parser("particle",
     help="Add a new particle to the UVN.")
   cmd_config_particle.set_defaults(
-    cmd=registry_particle,
-    update=True)
+    cmd=registry_action,
+    action="particle-config")
 
   cmd_config_particle.add_argument("name",
     help="The particle's unique name.")
@@ -609,7 +633,9 @@ def main():
   #############################################################################
   cmd_redeploy = subparsers.add_parser("redeploy",
     help="Update the UVN configuration with a new backbone deployment.")
-  cmd_redeploy.set_defaults(cmd=registry_redeploy)
+  cmd_redeploy.set_defaults(
+    cmd=registry_action,
+    action="redeploy")
   _define_deployment_args(cmd_redeploy)
   registry_common_args(cmd_redeploy)
   
@@ -630,7 +656,9 @@ def main():
   #############################################################################
   cmd_plot = subparsers.add_parser("plot",
     help="Generate an image of the current backbone deployment.")
-  cmd_plot.set_defaults(cmd=registry_plot)
+  cmd_plot.set_defaults(
+    cmd=registry_action,
+    action="plot")
 
   cmd_plot.add_argument("-o", "--output",
     help="Save the generated image to a custom path.",
@@ -795,6 +823,119 @@ def main():
     action="store_true")
 
   registry_common_args(cmd_agent)
+
+  #############################################################################
+  # uno ban ...
+  #############################################################################
+  cmd_ban = subparsers.add_parser("ban",
+    help="Exclude a particle or a cell from the UVN.")
+  subparsers_ban = cmd_ban.add_subparsers(help="Banishing commands")
+
+
+  #############################################################################
+  # uno ban cell
+  #############################################################################
+  cmd_ban_cell = subparsers_ban.add_parser("cell",
+    help="Exclude a cell from the UVN.")
+  cmd_ban_cell.set_defaults(
+    cmd=registry_action,
+    action="cell-ban")
+
+  cmd_ban_cell.add_argument("name",
+    help="The cell's unique name.")
+
+  registry_common_args(cmd_ban_cell)
+
+
+  #############################################################################
+  # uno ban particle
+  #############################################################################
+  cmd_ban_particle = subparsers_ban.add_parser("particle",
+    help="Exclude a particle from the UVN.")
+  cmd_ban_particle.set_defaults(
+    cmd=registry_action,
+    action="particle-ban")
+
+  cmd_ban_particle.add_argument("name",
+    help="The particle's unique name.")
+
+  registry_common_args(cmd_ban_particle)
+
+
+  #############################################################################
+  # uno unban ...
+  #############################################################################
+  cmd_unban = subparsers.add_parser("unban",
+    help="Allow a particle or a cell back into the UVN.")
+  subparsers_unban = cmd_unban.add_subparsers(help="Unbanishing commands")
+
+
+  #############################################################################
+  # uno unban cell
+  #############################################################################
+  cmd_unban_cell = subparsers_unban.add_parser("cell",
+    help="Allow a cell back into the UVN.")
+  cmd_unban_cell.set_defaults(
+    cmd=registry_action,
+    action="cell-unban")
+
+  cmd_unban_cell.add_argument("name",
+    help="The cell's unique name.")
+
+  registry_common_args(cmd_unban_cell)
+
+
+  #############################################################################
+  # uno ban particle
+  #############################################################################
+  cmd_unban_particle = subparsers_unban.add_parser("particle",
+    help="Allow a particle back into the UVN.")
+  cmd_unban_particle.set_defaults(
+    cmd=registry_action,
+    action="particle-unban")
+
+  cmd_unban_particle.add_argument("name",
+    help="The particle's unique name.")
+
+  registry_common_args(cmd_unban_particle)
+
+
+  #############################################################################
+  # uno delete ...
+  #############################################################################
+  cmd_del = subparsers.add_parser("delete",
+    help="Permanently delete a particle or a cell.")
+  subparsers_del = cmd_del.add_subparsers(help="Unbanishing commands")
+
+
+  #############################################################################
+  # uno delete cell
+  #############################################################################
+  cmd_del_cell = subparsers_del.add_parser("cell",
+    help="Delete a cell from the UVN.")
+  cmd_del_cell.set_defaults(
+    cmd=registry_action,
+    action="cell-delete")
+
+  cmd_del_cell.add_argument("name",
+    help="The cell's unique name.")
+
+  registry_common_args(cmd_del_cell)
+
+
+  #############################################################################
+  # uno delete particle
+  #############################################################################
+  cmd_del_particle = subparsers_del.add_parser("particle",
+    help="Delete a particle from the UVN.")
+  cmd_del_particle.set_defaults(
+    cmd=registry_action,
+    action="particle-delete")
+
+  cmd_del_particle.add_argument("name",
+    help="The particle's unique name.")
+
+  registry_common_args(cmd_del_particle)
 
 
   #############################################################################

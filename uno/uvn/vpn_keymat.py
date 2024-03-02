@@ -85,11 +85,19 @@ class CentralizedVpnKeyMaterial:
   def assert_keys(self, peer_ids: Optional[Iterable[int]]=None) -> None:
     if self.root_key is None:
       self.root_key = WireGuardKeyPair.generate()
-    for cell_id in peer_ids:
+    for cell_id in (peer_ids or []):
       cell_key = self.peer_keys.get(cell_id)
       if cell_key is None:
         self.peer_keys[cell_id] = WireGuardKeyPair.generate()
       self.preshared_keys.assert_pair(0, cell_id)
+
+
+  def purge_gone_peers(self, peer_ids: Iterable[int]) -> None:
+    peer_ids = set(peer_ids)
+    for peer_id in list(self.peer_keys):
+      if peer_id not in peer_ids:
+        del self.peer_keys[peer_id]
+        self.preshared_keys.purge_peer(peer_id)
 
 
   def drop_keys(self) -> None:

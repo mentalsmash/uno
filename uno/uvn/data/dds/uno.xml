@@ -93,7 +93,7 @@
         <struct name="UvnDeployment">
           <member name="cell" type="nonBasic" nonBasicTypeName="uno::CellId" key="true"/>
           <member name="id" type="nonBasic" nonBasicTypeName="uno::DeploymentId"/>
-          <!-- <member name="package" type="byte" sequenceMaxLength="uno::PACKAGE_SIZE_MAX"/> -->
+          <member name="package" type="byte" sequenceMaxLength="-1"/>
           <member name="config" type="string" stringMaxLength="-1"/>
         </struct>
       </module>

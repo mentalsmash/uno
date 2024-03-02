@@ -918,6 +918,7 @@ class CellId(Versioned):
   def serialize(self) -> dict:
     serialized = super().serialize()
     serialized.update({
+      "id": self.id,
       "name": self.name,
       "owner": self.owner,
       "owner_name": self.owner_name,
@@ -940,10 +941,10 @@ class CellId(Versioned):
     
 
   @staticmethod
-  def deserialize(serialized: dict, id: int) -> "CellId":
+  def deserialize(serialized: dict) -> "CellId":
     allowed_lans = serialized.get("allowed_lans")
     self = CellId(
-      id=id,
+      id=serialized["id"],
       name=serialized["name"],
       owner=serialized["owner"],
       owner_name=serialized.get("owner_name"),
@@ -1059,9 +1060,9 @@ class ParticleId(Versioned):
     
 
   @staticmethod
-  def deserialize(serialized: dict, id: int) -> "ParticleId":
+  def deserialize(serialized: dict) -> "ParticleId":
     self = ParticleId(
-      id=id,
+      id=serialized["id"],
       name=serialized.get("name"),
       owner=serialized.get("owner"),
       owner_name=serialized.get("owner_name"),
@@ -1122,7 +1123,9 @@ class UvnId(Versioned):
       owner_name: Optional[str] = None,
       address: Optional[str] = None,
       cells: Optional[Mapping[int, CellId]] = None,
+      excluded_cells: Optional[Mapping[int, CellId]]=None,
       particles: Optional[Mapping[int, ParticleId]] = None,
+      excluded_particles: Optional[Mapping[int, ParticleId]] = None,
       hosts: Optional[Iterable[NameserverRecord]] = None,
       settings: Optional[UvnSettings]=None,
       **super_args) -> None:
@@ -1134,7 +1137,9 @@ class UvnId(Versioned):
     self.owner_name = owner_name
     self.address = address
     self.cells = dict(cells or {})
+    self.excluded_cells = dict(excluded_cells or {})
     self.particles = dict(particles or {})
+    self.excluded_particles = dict(excluded_particles or {})
     self.hosts = {
       r.hostname: r
         for r in hosts or []
@@ -1258,6 +1263,10 @@ class UvnId(Versioned):
     self.update("_address", val)
 
 
+  @property
+  def all_cells(self) -> set[CellId]:
+    return {*self.cells.values(), *self.excluded_cells.values()}
+
 
   @property
   def public_cells(self) -> Iterable[CellId]:
@@ -1274,14 +1283,22 @@ class UvnId(Versioned):
     return next(self.private_cells, None) is None or bool(self.address)
 
 
+  @property
+  def all_particles(self) -> set[CellId]:
+    return {*self.particles.values(), *self.excluded_particles.values()}
+
+
   def collect_changes(self) -> list[Versioned]:
-    changed = super().collect_changes()
-    changed.extend(self.settings.collect_changes())
-    for cell in self.cells.values():
-      changed.extend(cell.collect_changes())
-    for particle in self.particles.values():
-      changed.extend(particle.collect_changes())
-    return changed
+    return [ch
+      for o in (
+        super(),
+        self.settings,
+        *self.cells.values(),
+        *self.excluded_cells.values(),
+        *self.particles.values(),
+        *self.excluded_particles.values())
+        for ch in o.collect_changes()
+    ]
 
 
   def serialize(self) -> dict:
@@ -1292,7 +1309,9 @@ class UvnId(Versioned):
       "owner_name": self.owner_name,
       "address": self.address,
       "cells": [c.serialize() for c in sorted(self.cells.values(), key=lambda v: v.id)],
+      "excluded_cells": [c.serialize() for c in sorted(self.excluded_cells.values(), key=lambda v: v.id)],
       "particles": [p.serialize() for p in sorted(self.particles.values(), key=lambda v: v.id)],
+      "excluded_particles": [p.serialize() for p in sorted(self.excluded_particles.values(), key=lambda v: v.id)],
       "hosts": {r.hostname: r.address for r in self.hosts},
       "generation_ts": self.generation_ts,
       "init_ts": self.init_ts,
@@ -1304,8 +1323,12 @@ class UvnId(Versioned):
       del serialized["owner_name"]
     if len(serialized["cells"]) == 0:
       del serialized["cells"]
+    if len(serialized["excluded_cells"]) == 0:
+      del serialized["excluded_cells"]
     if len(serialized["particles"]) == 0:
       del serialized["particles"]
+    if len(serialized["excluded_particles"]) == 0:
+      del serialized["excluded_particles"]
     if len(serialized["hosts"]) == 0:
       del serialized["hosts"]
     if not serialized["settings"]:
@@ -1316,13 +1339,24 @@ class UvnId(Versioned):
   @staticmethod
   def deserialize(serialized: dict) -> "UvnId":
     cells = {
-      i + 1: CellId.deserialize(c_cfg, i + 1)
-        for i, c_cfg in enumerate(serialized.get("cells", []))
+      cell.id: cell
+        for c_cfg in serialized.get("cells", [])
+          for cell in [CellId.deserialize(c_cfg)]
+    }
+    excluded_cells = {
+      cell.id: cell
+        for c_cfg in serialized.get("excluded_cells", [])
+          for cell in [CellId.deserialize(c_cfg)]
     }
     particles = {
-      i + 1: ParticleId.deserialize(p_cfg, i + 1)
-        for i, p_cfg in enumerate(serialized.get("particles", []))
-
+      particle.id: particle
+        for p_cfg in serialized.get("particles", [])
+          for particle in [ParticleId.deserialize(p_cfg)]
+    }
+    excluded_particles = {
+      particle.id: particle
+        for p_cfg in serialized.get("excluded_particles", [])
+          for particle in [ParticleId.deserialize(p_cfg)]
     }
     hosts = [
       NameserverRecord(hostname=k, address=v)
@@ -1334,7 +1368,9 @@ class UvnId(Versioned):
       owner_name=serialized.get("owner_name"),
       address=serialized.get("address"),
       cells=cells,
+      excluded_cells=excluded_cells,
       particles=particles,
+      excluded_particles=excluded_particles,
       hosts=hosts,
       settings=UvnSettings.deserialize(serialized.get("settings", {})),
       **Versioned.deserialize_args(serialized))
@@ -1382,8 +1418,17 @@ class UvnId(Versioned):
       name: str,
       owner_id: str | None = None,
       **cell_args) -> CellId:
-    if next((c for c in self.cells.values() if c.name == name), None) is not None:
-      raise KeyError("duplicate cell", name)
+    dup = next((c
+      for c in (
+          self,
+          *self.cells.values(),
+          *self.excluded_cells.values(),
+          *self.particles.values(),
+          *self.excluded_particles.values(),
+        )
+        if c.name == name), None)
+    if dup is not None:
+      raise KeyError("name already in use", name, dup)
     cell_id = self._next_cell_id()
     if owner_id is None:
       owner_id = self.owner_id
@@ -1409,12 +1454,52 @@ class UvnId(Versioned):
     return cell
 
 
+  def ban_cell(self, name: str) -> CellId:
+    cell = next(c for c in self.cells.values() if c.name == name)
+    del self.cells[cell.id]
+    self.excluded_cells[cell.id] = cell
+    cell.updated()
+    self.updated()
+    log.warning(f"[UVN] cell banned from {self}: {cell}")
+    return cell
+
+
+  def unban_cell(self, name: str) -> CellId:
+    cell = next(c for c in self.excluded_cells.values() if c.name == name)
+    del self.excluded_cells[cell.id]
+    self.cells[cell.id] = cell
+    cell.updated()
+    self.updated()
+    log.warning(f"[UVN] cell readded to {self}: {cell}")
+    return cell
+
+
+  def delete_cell(self, name: str) -> CellId:
+    cell = next(c for c in self.all_cells if c.name == name)
+    if cell.id in self.excluded_cells:
+      del self.excluded_cells[cell.id]
+    else:
+      del self.cells[cell.id]
+    self.updated()
+    log.warning(f"[UVN] cell deleted from {self}: {cell}")
+    return cell
+
+
   def add_particle(self,
       name: str,
       owner_id: str | None = None,
       **particle_args) -> CellId:
-    if next((c for c in self.particles.values() if c.name == name), None) is not None:
-      raise KeyError("duplicate particle", name)
+    dup = next((c
+      for c in (
+          self,
+          *self.cells.values(),
+          *self.excluded_cells.values(),
+          *self.particles.values(),
+          *self.excluded_particles.values(),
+        )
+        if c.name == name), None)
+    if dup is not None:
+      raise KeyError("name already in use", name, dup)
     particle_id = self._next_particle_id()
     if owner_id is None:
       owner_id = self.owner_id
@@ -1422,8 +1507,8 @@ class UvnId(Versioned):
     if particle_args:
       particle.configure(**particle_args)
     self.particles[particle.id] = particle
-    log.warning(f"[UVN] new particle defined: {particle}")
     self.updated()
+    log.warning(f"[UVN] particle added to {self}: {particle}")
     return particle
 
 
@@ -1433,6 +1518,37 @@ class UvnId(Versioned):
     if particle.peek_changed:
       log.warning(f"[UVN] particle updated: {particle}")
       # self.updated()
+    return particle
+
+
+  def ban_particle(self, name: str) -> ParticleId:
+    particle = next(c for c in self.particles.values() if c.name == name)
+    del self.particles[particle.id]
+    self.excluded_particles[particle.id] = particle
+    particle.updated()
+    self.updated()
+    log.warning(f"[UVN] particle banned from {self}: {particle}")
+    return particle
+
+
+  def unban_particle(self, name: str) -> ParticleId:
+    particle = next(c for c in self.excluded_particles.values() if c.name == name)
+    del self.excluded_particles[particle.id]
+    self.particles[particle.id] = particle
+    particle.updated()
+    self.updated()
+    log.warning(f"[UVN] particle readded to {self}: {particle}")
+    return particle
+
+
+  def delete_particle(self, name: str) -> ParticleId:
+    particle = next(c for c in self.all_particles if c.name == name)
+    if particle.id in self.excluded_particles:
+      del self.excluded_particles[particle.id]
+    else:
+      del self.particles[particle.id]
+    self.updated()
+    log.warning(f"[UVN] particle deleted from {self}: {particle}")
     return particle
 
 

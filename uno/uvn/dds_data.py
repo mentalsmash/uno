@@ -1,4 +1,5 @@
 from typing import Sequence, Iterable, Optional
+from pathlib import Path
 
 import rti.connextdds as dds
 
@@ -30,14 +31,19 @@ def cell_agent_config(
     uvn_id: UvnId,
     cell_id: int,
     deployment: P2PLinksMap,
-    config_string: str) -> dds.DynamicData:
+    config_string: str|None=None,
+    package: Path|None=None) -> dds.DynamicData:
   cell = uvn_id.cells[cell_id]
   sample = dds.DynamicData(participant.types[participant.TOPIC_TYPES[UvnTopic.BACKBONE]])
   sample["cell.name"] = cell.name
   sample["cell.uvn.name"] = uvn_id.name
   sample["cell.uvn.address"] = uvn_id.address
   sample["id"] = deployment.generation_ts
-  sample["config"] = config_string
+  if config_string is not None:
+    sample["config"] = config_string
+  elif package:
+    with package.open("rb") as input:
+      sample["package"] = input.read()
   return sample
 
 def dns_database(
