@@ -380,7 +380,8 @@ class UvnAgentService(UvnService):
     import signal
     log.debug(f"[SERVICE] signaling and waiting for agent process to exit: {agent_pid}")
     os.kill(agent_pid, signal.SIGINT)
-    os.waitpid(agent_pid, 0)
+    # os.waitpid(agent_pid, 0)
+    exec_command(["sh", "-c", f"wait {agent_pid}"])
     log.warning(f"[SERVICE] agent process stopped: {agent_pid}")
 
 
