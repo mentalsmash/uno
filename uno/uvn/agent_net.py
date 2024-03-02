@@ -372,17 +372,17 @@ class UvnAgentService(UvnService):
     return self.external_pid is not None
 
 
-  def stop(self) -> None:
-    agent_pid = self.external_pid
-    if agent_pid is None:
-      return
-    import os
-    import signal
-    log.debug(f"[SERVICE] signaling and waiting for agent process to exit: {agent_pid}")
-    os.kill(agent_pid, signal.SIGINT)
-    # os.waitpid(agent_pid, 0)
-    exec_command(["sh", "-c", f"wait {agent_pid}"])
-    log.warning(f"[SERVICE] agent process stopped: {agent_pid}")
+  # def stop(self) -> None:
+  #   agent_pid = self.external_pid
+  #   if agent_pid is None:
+  #     return
+  #   import os
+  #   import signal
+  #   log.debug(f"[SERVICE] signaling and waiting for agent process to exit: {agent_pid}")
+  #   os.kill(agent_pid, signal.SIGINT)
+  #   # os.waitpid(agent_pid, 0)
+  #   exec_command(["sh", "-c", f"wait {agent_pid}"])
+  #   log.warning(f"[SERVICE] agent process stopped: {agent_pid}")
 
 
   @property
