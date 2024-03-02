@@ -1,14 +1,14 @@
 [Unit]
-Description=uno UVN agent
+Description=uno UVN cell agent
+After=uvn-net-cell.service
+# Wants=uvn-net-cell.service
+BindsTo=uvn-net-cell.service
 
 [Service]
 Type=notify
 ExecStart=/usr/local/bin/uno agent --systemd -vv
 KillSignal=SIGINT
 PIDFile=/run/uno/uvn-agent.pid
-After=uvn-net.service
-# Wants=uvn-net.service
-BindsTo=uvn-net.service
 
 [Install]
 WantedBy=multi-user.target
