@@ -109,7 +109,9 @@ class CentralizedVpnConfig:
             pubkey=self.keymat.root_key.pubkey,
             psk=peer_psk,
             address=root_ip,
-            allowed=[str(allowed_vpn_net)],
+            allowed=[str(root_ip)],
+            # allowed=[str(allowed_vpn_net)],
+
             # Prefer a "push" architecture, where the root will connect to each
             # peer, unless the peer has not public endpoint, in which case the
             # peer will need to connect to the root
