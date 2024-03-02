@@ -271,22 +271,26 @@ def _load_agent(args):
 
     if args.registry:
       registry = Registry.load(root)
-      return RegistryAgent(registry)
+      agent = RegistryAgent(registry)
     else:
-      return CellAgent.load(root)
-
-  # Try to load the current directory, first as a cell,
-  # and if that fails, as the registry
-  root = args.root or Path.cwd()
-  try:
-    return CellAgent.load(root)
-  except:
+      agent = CellAgent.load(root)
+  else:
+    # Try to load the current directory, first as a cell,
+    # and if that fails, as the registry
+    root = args.root or Path.cwd()
     try:
-      registry = Registry.load(root)
-      return RegistryAgent(registry)
+      agent = CellAgent.load(root)
     except:
-      raise RuntimeError(f"failed to load an agent from directory: {root}") from None
+      try:
+        registry = Registry.load(root)
+        agent = RegistryAgent(registry)
+      except:
+        raise RuntimeError(f"failed to load an agent from directory: {root}") from None
 
+  # HACK set NDDSHOME so that the Connext Python API finds the license file
+  import os
+  os.environ["NDDSHOME"] = str(agent.root)
+  return agent
 ###############################################################################
 ###############################################################################
 # Net commands
