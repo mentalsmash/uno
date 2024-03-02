@@ -92,6 +92,9 @@ def set_verbosity(lvl):
         global _LOGGER_LEVEL
         _LOGGER_LEVEL = lvl
 
+def verbosity():
+    return _LOGGER_LEVEL
+
 def set_context(context):
     global _LOGGER_LOCK
     with _LOGGER_LOCK:

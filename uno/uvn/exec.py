@@ -19,7 +19,7 @@ import subprocess
 from pathlib import Path
 from typing import Optional, Sequence, Union
 
-from .log import Logger as log
+from .log import Logger as log, level as log_level, verbosity
 
 
 def exec_command(
@@ -49,8 +49,8 @@ def exec_command(
         **run_args)
   else:
     result = subprocess.run(cmd_args,
-      stdout=subprocess.PIPE if capture_output else subprocess.DEVNULL,
-      stderr=subprocess.PIPE if capture_output else subprocess.DEVNULL,
+      stdout=subprocess.PIPE if capture_output else subprocess.DEVNULL if verbosity() != log_level.debug else None,
+      stderr=subprocess.PIPE if capture_output else subprocess.DEVNULL if verbosity() != log_level.debug else None,
       **run_args)
 
   if not noexcept and result.returncode != 0:
