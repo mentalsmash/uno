@@ -33,7 +33,7 @@ class _LogLevel:
     def __eq__(self, other):
         if isinstance(other, str):
             return self.name == other
-        elif issubclass(other, numbers.Number):
+        elif issubclass(other.__class__, numbers.Number):
             return self.lvl == other
         elif isinstance(other, _LogLevel):
             return self.lvl == other.lvl
