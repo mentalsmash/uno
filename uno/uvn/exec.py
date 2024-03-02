@@ -48,9 +48,10 @@ def exec_command(
         stderr=outfile,
         **run_args)
   else:
+    import sys
     result = subprocess.run(cmd_args,
-      stdout=subprocess.PIPE if capture_output else subprocess.DEVNULL if verbosity() != log_level.debug else None,
-      stderr=subprocess.PIPE if capture_output else subprocess.DEVNULL if verbosity() != log_level.debug else None,
+      stdout=subprocess.PIPE if capture_output else subprocess.DEVNULL if verbosity() != log_level.debug else sys.stdout,
+      stderr=subprocess.PIPE if capture_output else subprocess.DEVNULL if verbosity() != log_level.debug else sys.stderr,
       **run_args)
 
   if not noexcept and result.returncode != 0:
