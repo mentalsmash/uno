@@ -28,6 +28,7 @@ from uno.uvn.log import set_verbosity, level as log_level, Logger as log
 from uno.uvn.deployment import DeploymentStrategyKind
 from uno.uvn.graph import backbone_deployment_graph
 from uno.uvn.ask import ask_assume_no, ask_assume_yes
+from uno.uvn.agent_net import UvnNetService, UvnAgentService
 
 
 ###############################################################################
@@ -208,12 +209,7 @@ def cell_bootstrap(args):
 
 
 def cell_agent(args):
-  # if running as a systemd service, read the root location
-  # from the global UVN marker
-  if args.systemd:
-    root = Path(CellAgent.GLOBAL_UVN_ID.read_text().strip())
-  else:
-    root = args.root or Path.cwd()
+  root = args.root or Path.cwd()
   agent = CellAgent.load(root)
   agent.enable_www = args.www
   agent.enable_systemd = args.systemd
@@ -252,8 +248,34 @@ def cell_service_disable(args):
   agent = CellAgent.load(root)
   agent.net.uvn_agent.remove()
 
+###############################################################################
+###############################################################################
+# Load agent
+###############################################################################
+###############################################################################
 
 def _load_agent(args):
+  # if running as a systemd service, read the root location
+  # from the global marker for the uvn-net service
+  if args.systemd:
+    if args.registry:
+      svc = UvnNetService.Root
+    else:
+      svc = UvnNetService.Cell
+    
+    root = svc.global_uvn_dir
+    if root is None:
+      raise RuntimeError("no global agent directory configured", svc, svc.global_uvn_id)
+    log.warning(f"global directory for {svc}: {root}")
+
+    if args.registry:
+      registry = Registry.load(root)
+      return RegistryAgent(registry)
+    else:
+      return CellAgent.load(root)
+
+  # Try to load the current directory, first as a cell,
+  # and if that fails, as the registry
   root = args.root or Path.cwd()
   try:
     return CellAgent.load(root)
@@ -264,7 +286,11 @@ def _load_agent(args):
     except:
       raise RuntimeError(f"failed to load an agent from directory: {root}") from None
 
+###############################################################################
+###############################################################################
 # Net commands
+###############################################################################
+###############################################################################
   
 def uvn_net_up(args):
   agent = _load_agent(args)
@@ -276,7 +302,11 @@ def uvn_net_down(args):
   agent.net.stop(assert_stopped=True)
 
 
+###############################################################################
+###############################################################################
 # Agent commands
+###############################################################################
+###############################################################################
   
 def uno_agent(args):
   agent = _load_agent(args)
@@ -284,6 +314,11 @@ def uno_agent(args):
   agent.enable_systemd = args.systemd
   agent.spin(max_spin_time=args.max_run_time)
 
+###############################################################################
+###############################################################################
+# Command parser helpers
+###############################################################################
+###############################################################################
 
 def _define_registry_config_args(parser, owner_id_required: bool=False):
   parser.add_argument("-o", "--owner-id",
@@ -445,7 +480,11 @@ def _define_sync_args(parser):
     default=3600,
     type=int)
 
-
+###############################################################################
+###############################################################################
+#  Main Script
+###############################################################################
+###############################################################################
 
 def main():
   #############################################################################
@@ -637,27 +676,21 @@ def main():
   #############################################################################
   # uno cell agent ...
   #############################################################################
-  cmd_cell_agent = subparsers_cell.add_parser("agent",
-    help="Start a UVN cell agent.")
-  cmd_cell_agent.set_defaults(cmd=cell_agent)
-  registry_common_args(cmd_cell_agent)
+  # cmd_cell_agent = subparsers_cell.add_parser("agent",
+  #   help="Start a UVN cell agent.")
+  # cmd_cell_agent.set_defaults(cmd=cell_agent)
+  # registry_common_args(cmd_cell_agent)
 
-  cmd_cell_agent.add_argument("-t", "--max-run-time",
-    metavar="SECONDS",
-    help="Maximum time to run.",
-    default=-1,
-    type=int)
+  # cmd_cell_agent.add_argument("-t", "--max-run-time",
+  #   metavar="SECONDS",
+  #   help="Maximum time to run.",
+  #   default=-1,
+  #   type=int)
   
-  cmd_cell_agent.add_argument("-W", "--www",
-    default=False,
-    action="store_true",
-    help="Start a webserver to serve the agent's status.")
-
-  cmd_cell_agent.add_argument("--systemd",
-    # help="Start the agent with support for Systemd. Used when the agent is installed as a service.",
-    help=argparse.SUPPRESS,
-    default=False,
-    action="store_true")
+  # cmd_cell_agent.add_argument("-W", "--www",
+  #   default=False,
+  #   action="store_true",
+  #   help="Start a webserver to serve the agent's status.")
 
   #############################################################################
   # uno net ...

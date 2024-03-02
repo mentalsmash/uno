@@ -145,12 +145,19 @@ docker_container()
         extra_args="
             $([ -z "${CELL_ID}" ] || printf -- "-e CELL=${CELL_ID}") \
             $([ -z "${CELL_ID}" ] || printf -- "-v ${UVN_DIR}/cells/${CELL_ID}.uvn-agent:/package.uvn-agent" ) \
-            $([ -z "${CELL_ID}" ] || printf -- "-e STATIC=y" ) \
             $([ -z "${UNO_DIR}" ] || printf -- "-v ${UNO_DIR}:/uno") \
             $([ -z "${host_uvn}" ] || printf -- "-v ${host_uvn}:/uvn") \
             $([ -z "${host_uvn}" ] || printf -- "-w /uvn") \
         "
-        cmd="$([ -n "${host_uvn}" ] || printf -- "sh")"
+        cmd="$(
+            if [ -z "${host_uvn}" ]; then
+                printf -- "sh"
+            else
+                printf -- "${ACTION}"
+            fi
+        )"
+        # cmd="$([ -n "${host_uvn}" -a -z "${TEST_NO_AGENTS}" ] || printf -- "sh")"
+
         set -x
         ${DOCKER} create \
             -ti \

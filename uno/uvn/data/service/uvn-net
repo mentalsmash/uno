@@ -244,7 +244,10 @@ uvn_net_start()
   done
 
   # Make sure IPv4 forwarding is enabled in the kernel
-  echo 1 > /proc/sys/net/ipv4/ip_forward
+  (
+    set -x
+    echo 1 > /proc/sys/net/ipv4/ip_forward
+  )
 
   uvn_log_info "network interfaces started"
 }
@@ -342,7 +345,19 @@ uvn_detect_agent()
 # Check if the system has already been configured
 uvn_net_is_enabled()
 {
-  [ -e "${UVN_NET_CONF_MARKER}.id" ]
+  if [ ! -e "${UVN_NET_CONF_MARKER}.id" ]; then
+    return 1
+  fi
+}
+
+uvn_net_is_active()
+{
+  for nic in ${UVN_NET_VPN_INTERFACES} ${UVN_NET_LAN_INTERFACES}; do
+    if ! uvn_nic_status ${nic}; then
+      uvn_log_warn "nic appears to be offline: ${nic}"
+      return 1
+    fi
+  done
 }
 
 
@@ -370,9 +385,9 @@ uvn_net_delete_marker()
 # The script requires a configuration file, which by default should be located in /etc/uno/uvn.conf.
 # For now, the path can be customized by setting variable UVN_CONF.
 # The configuration files must define the following variables:
-# - UVN_VPN_INTERFACES: list of WireGuard interfaces to create.
-# - UVN_LAN_INTERFACES: list of network interfaces to configure.
-# - UVN_CONF_ROOT: directory containing additional configuration files
+# - UVN_NET_VPN_INTERFACES: list of WireGuard interfaces to create.
+# - UVN_NET_LAN_INTERFACES: list of network interfaces to configure.
+# - UVN_NET_CONF_ROOT: directory containing additional configuration files
 uvn_load_conf()
 {
   if [ -z "${UVN_NET_CONF}" ]; then
@@ -470,12 +485,14 @@ start)
 
     if uvn_net_is_enabled; then
       uvn_load_installed
-      if [ "${UVN_NET_CONF_ID}" = "${UVN_NET_CONF_MARKER_ID}" ]; then
-        uvn_log_info "services already running with expected configuration [${UVN_NET_CONF_MARKER_ID}]"
-        exit 0
-      else
-        uvn_log_info "services already running with different configuration [${UVN_NET_CONF_MARKER_ID}]"
-        exit 0
+      if uvn_net_is_active; then
+        if [ "${UVN_NET_CONF_ID}" = "${UVN_NET_CONF_MARKER_ID}" ]; then
+          uvn_log_info "services already running with expected configuration [${UVN_NET_CONF_MARKER_ID}]"
+          exit 0
+        else
+          uvn_log_info "services already running with different configuration [${UVN_NET_CONF_MARKER_ID}]"
+          exit 0
+        fi
       fi
     fi
 
@@ -488,13 +505,20 @@ start)
   if uvn_net_is_enabled; then
     uvn_load_installed
 
-    if [ "${UVN_NET_CONF_ID}" = "${UVN_NET_CONF_MARKER_ID}" ]; then
-      uvn_log_info "system already initialized"
-      exit
+    if uvn_net_is_active; then
+      if [ "${UVN_NET_CONF_ID}" = "${UVN_NET_CONF_MARKER_ID}" ]; then
+        uvn_log_info "system already initialized"
+        exit
+      else
+        uvn_log_failed "system is already initialized with a different configuration"
+        uvn_log_failed "${UVN_NET_CONF_ID} != ${UVN_NET_CONF_MARKER_ID}"
+        exit 1
+      fi
     else
-      uvn_log_failed "system is already initialized with a different configuration"
-      uvn_log_failed "${UVN_NET_CONF_ID} != ${UVN_NET_CONF_MARKER_ID}"
-      exit 1
+      uvn_log_warn "performing emergency cleanup before starting services again"
+      uvn_net_stop || true
+      uvn_router_stop || true
+      uvn_net_delete_marker || true
     fi
   fi
 

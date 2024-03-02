@@ -385,14 +385,22 @@ class UvnPeersList:
 
   def __getitem__(self, i: Union[int, Optional[CellId], dds.InstanceHandle]) -> UvnPeer:
     if isinstance(i, int):
-      return self._peers[i]
+      if i == 0:
+        return self._peers[0]
+      try:
+        return next(p for p in self._peers[1:] if p.id == i)
+      except StopIteration:
+        raise KeyError(i) from None
     elif isinstance(i, dds.InstanceHandle):
       try:
         return next(p for p in self._peers if p.ih == i)
       except StopIteration:
         raise KeyError(i) from None
     elif isinstance(i, CellId):
-      return self._peers[i.id]
+      try:
+        return next(p for p in self._peers[1:] if p.id == i.id)
+      except StopIteration:
+        raise KeyError(i) from None
     elif i is None:
       return self._peers[0]
     else:

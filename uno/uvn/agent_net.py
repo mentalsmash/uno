@@ -137,9 +137,9 @@ class UvnNetService(UvnService):
 
   def __str__(self) -> str:
     if self._root:
-      return "uvn-net-root.service"
+      return "uvn-net-registry.service"
     else:
-      return "uvn-net.service"
+      return "uvn-net-cell.service"
 
 
   def extra_files(self) -> Iterable[Path]:
@@ -170,6 +170,13 @@ class UvnNetService(UvnService):
     else:
       return Path("/etc/uno/cell")
   
+
+  @property
+  def global_uvn_dir(self) -> Path|None:
+    if not self.global_uvn_id.exists():
+      return None
+    return Path(self.global_uvn_id.read_text().strip())
+
 
   @staticmethod
   def uvn_net(args, root: bool=False, forced: bool=False, config_dir: Path | None=None) -> None:
@@ -340,9 +347,9 @@ class UvnAgentService(UvnService):
 
   def __str__(self) -> str:
     if self._root:
-      return "uvn-agent-root.service"
+      return "uvn-registry.service"
     else:
-      return "uvn-agent.service"
+      return "uvn-cell.service"
 
 
   def install(self, reload: bool=False) -> None:

@@ -710,7 +710,7 @@ class CellAgent(Agent):
         raise RuntimeError("cell id cannot be changed", self.cell.id, updated_agent.cell.id)
 
       def _update_uvn_id():
-        self.uvn_id = updated_agent.uvn_id
+        self._uvn_id = updated_agent.uvn_id
         self.cell = self.uvn_id.cells[self.cell.id]
         self.peers.uvn_id = self.uvn_id
         # self.ns = Nameserver(self.root, db=self.uvn_id.hosts)
@@ -728,7 +728,7 @@ class CellAgent(Agent):
     if updated_agent.deployment.generation_ts != self.deployment.generation_ts:
       def _update_deployment():
         # self.ns.clear()
-        self.deployment = updated_agent.deployment
+        self._deployment = updated_agent.deployment
         self.backbone_vpn_configs = list(updated_agent.backbone_vpn_configs)
         self.backbone_vpns = [WireGuardInterface(v) for v in self.backbone_vpn_configs]
         self._regenerate_plots()
