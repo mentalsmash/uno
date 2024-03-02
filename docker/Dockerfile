@@ -50,8 +50,18 @@ RUN export DEBIAN_FRONTEND="noninteractive" \
 # Enable zebra and ospfd in /etc/quagga/daemons
 RUN sed -i -r 's/^(zebra|ospfd)=no$/\1=yes/g' /etc/frr/daemons
 
-# Install uno
+# Copy uno
 COPY . /uno
+
+# Check if a local wheel for rti.connext is available
+# and install it
+RUN set -e; \
+  wheel=$(find /uno -mindepth 1 -maxdepth 1 -name "rti.connext*.whl"); \
+  if [ -e "${wheel}" ]; then \
+    pip install ${wheel}; \
+  fi
+
+# Install uno
 RUN pip3 install -e /uno
 
 # Custom entrypoint
