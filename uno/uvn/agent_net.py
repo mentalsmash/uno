@@ -73,7 +73,7 @@ class UvnService:
     raise NotImplementedError()
 
 
-  def install(self) -> None:
+  def install(self, reload: bool=False) -> None:
     existed = self.service_description.exists()
     if existed:
       self.remove()
@@ -83,7 +83,7 @@ class UvnService:
     with as_file(files(service_data).joinpath(self.service_description.name)) as input:
       exec_command(["cp", "-v", input, self.service_description])
       self.service_description.chmod(0o644)
-    if existed:
+    if reload and existed:
       exec_command(["systemctl", "daemon-reload"])
     log.warning(f"[SERVICE] service definition installed: {self.service_description}")
     
