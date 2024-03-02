@@ -383,6 +383,11 @@
               <max_samples_per_instance>1</max_samples_per_instance>
               <initial_instances>{{uvn.cells|length}}</initial_instances>
           </resource_limits>
+          <protocol>
+            <rtps_reliable_writer>
+              <heartbeats_per_max_samples>{{(uvn.cells|length) * 2}}</heartbeats_per_max_samples>
+            </rtps_reliable_writer>
+          </protocol>
         </datawriter_qos>
       </qos_profile>
     </qos_library>
