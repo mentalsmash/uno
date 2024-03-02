@@ -3,7 +3,7 @@ Description=uno UVN agent
 
 [Service]
 Type=notify
-ExecStart=/usr/local/bin/uno agent --systemd -vv
+ExecStart=/usr/local/bin/uno agent --registry --systemd -vv
 KillSignal=SIGINT
 PIDFile=/run/uno/uvn-agent.pid
 After=uvn-net.service

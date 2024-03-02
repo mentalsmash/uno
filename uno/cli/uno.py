@@ -779,7 +779,12 @@ def main():
     type=int)
 
   cmd_agent.add_argument("--systemd",
-    # help="Start the agent with support for Systemd. Used when the agent is installed as a service.",
+    help=argparse.SUPPRESS,
+    default=False,
+    action="store_true")
+
+
+  cmd_agent.add_argument("--registry",
     help=argparse.SUPPRESS,
     default=False,
     action="store_true")
