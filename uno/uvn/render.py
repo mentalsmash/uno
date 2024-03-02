@@ -56,7 +56,7 @@ def _filter_time_since(ts: str | Timestamp) -> str:
   hh, mm = divmod(mm, 60)
   result = []
   if diff.days:
-    result.append(f"{result.days}d")
+    result.append(f"{diff.days}d")
   if hh:
     result.append(f"{hh}h")
   if mm:
