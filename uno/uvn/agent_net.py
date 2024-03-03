@@ -261,7 +261,7 @@ class UvnNetService(UvnService):
       vpn_interfaces: Iterable[WireGuardInterface],
       router: Router | None=None) -> None:
     log.activity(f"[SERVICE] generating static configuration: {output_dir}")
-    output_dir.mkdir(parents=True, exist_ok=True)
+    output_dir.mkdir(parents=True, exist_ok=True, mode=0o755)
 
     generated = []
 
@@ -298,10 +298,12 @@ class UvnNetService(UvnService):
     exec_command([
       "sha256sum", *sorted((g.relative_to(output_dir) for g in generated), key=lambda v: str(v))
     ], cwd=output_dir, output_file=conf_digest)
+    conf_digest.chmod(0o644)
     
     output = output_dir / self.marker.name
     conf_id = _sha256sum(conf_digest)
     output.write_text(conf_id)
+    output.chmod(0o644)
 
     log.activity(f"[SERVICE] {self} configuration generated: {output_dir} [{conf_id}]")
 

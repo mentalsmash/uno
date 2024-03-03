@@ -94,6 +94,9 @@ class CertificateAuthority:
     if not reset and self.cert.is_file():
       log.debug(f"[DDS] assuming CA is initialized by cert file: {self.cert}")
       return
+  
+    if not self.root.is_dir():
+      self.root.mkdir(parents=False, exist_ok=False, mode=0o700)
 
     if self.db_dir.is_dir():
       self.db_dir.unlink()
@@ -262,6 +265,7 @@ class DdsKeyMaterial:
     log.debug(f"[DDS] initializing security material: {self.root}")
 
     self.ca.init(reset=reset)
+
     self.perm_ca.init(reset=reset)
 
     if self.keys_dir.is_dir() and reset:

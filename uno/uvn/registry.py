@@ -167,6 +167,7 @@ class Registry(Versioned):
     if val != self.rti_license:
       log.warning(f"[REGISTRY] caching RTI license: {val} → {self.rti_license}")
       exec_command(["cp", val, self.rti_license])
+      self.rti_license.chmod(0o644)
       self.updated()
 
 
