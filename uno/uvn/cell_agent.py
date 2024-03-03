@@ -617,7 +617,7 @@ class CellAgent(Agent):
       reachable_sites=self.reachable_sites,
       unreachable_sites=self.unreachable_sites)
     self.dp.writers[UvnTopic.CELL_ID].write(sample)
-    log.activity(f"[AGENT] published cell info: {self}")
+    log.activity(f"[AGENT] published cell info: {self.cell}")
 
 
   def _write_dns(self) -> None:
@@ -627,7 +627,7 @@ class CellAgent(Agent):
       ns=self.ns,
       server_name=self.cell.name)
     self.dp.writers[UvnTopic.DNS].write(sample)
-    log.activity(f"[AGENT] published DNS info: {self}")
+    log.activity(f"[AGENT] published DNS info: {self.cell}")
 
 
   def _on_peers_tester_result(self) -> None:

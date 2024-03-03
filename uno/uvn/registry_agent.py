@@ -150,7 +150,7 @@ class RegistryAgent(Agent):
       deployment=self.registry.backbone_vpn_config.deployment,
       registry_id=self.registry_id)
     self.dp.writers[UvnTopic.UVN_ID].write(sample)
-    log.activity(f"[AGENT] published uvn info: {self}")
+    log.activity(f"[AGENT] published uvn info: {self.uvn_id.name}")
 
 
   def _write_backbone(self):
