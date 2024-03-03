@@ -41,24 +41,6 @@ from .log import Logger as log
 from http.server import SimpleHTTPRequestHandler, HTTPServer
 
 class UvnHttpd:
-  LIGHTTPD_CONF_TEMPLATE = """\
-server.modules = ("mod_openssl", "mod_auth", "mod_authn_file")
-server.port = 443
-server.pid-file = "{{pid_file}}"
-server.document-root = "{{root}}"
-server.errorlog = "{{log_dir}}/lighttpd.error.log"
-accesslog.filename = "{{log_dir}}/lighttpd.access.log"
-ssl.engine = "enable"
-ssl.pemfile = "{{pem_file}}"
-index-file.names = ( "index.html" )
-mimetype.assign = (
-  ".html" => "text/html", 
-  ".txt" => "text/plain",
-  ".jpg" => "image/jpeg",
-  ".png" => "image/png" 
-)
-"""
-
   def __init__(self, agent: "CellAgent"):
     self.agent = agent
     self.min_update_delay = self.agent.uvn_id.settings.timing_profile.status_min_delay
@@ -127,8 +109,7 @@ mimetype.assign = (
     log.debug("[WWW] regenerating agent status...")
 
     index_html = self.root / "index.html"
-
-    index_html.write_text(Templates.render("www/index.html", {
+    Templates.generate(index_html, "www/index.html", {
       "agent": self.agent,
       "cell": self.agent.cell,
       "uvn_id": self.agent.uvn_id,
@@ -146,8 +127,8 @@ mimetype.assign = (
       "clashing_sites": self.agent.peers.clashing_routed_sites,
       "peers_offline": self.agent.peers.offline_peers_count,
       "peers_online": self.agent.peers.online_peers_count,
-    }))
-    
+    })
+
     # Copy particle configurations if they exist
     if self.agent.particles_dir.is_dir():
       particles_dir_www = self.root / "particles"
@@ -171,8 +152,8 @@ mimetype.assign = (
       # self._fakeroot = TemporaryDirectory()
       self._assert_ssl_cert()
 
-      conf_tmplt = Templates.compile(self.LIGHTTPD_CONF_TEMPLATE)
-      conf = Templates.render(conf_tmplt, {
+      self._lighttpd_conf.parent.mkdir(parents=True, exist_ok=True, mode=0o755)
+      Templates.generate(self._lighttpd_conf, "httpd/lighttpd.conf", {
         "root": self.root,
         "port": self.port,
         "addresses": addresses,
@@ -181,8 +162,6 @@ mimetype.assign = (
         "log_dir": self.agent.log_dir,
         # "fakeroot": Path(self._fakeroot.name),
       })
-      self._lighttpd_conf.parent.mkdir(parents=True, exist_ok=True)
-      self._lighttpd_conf.write_text(conf)
 
       # Delete pid file if it exists
       if self._lighttpd_pid.is_file():

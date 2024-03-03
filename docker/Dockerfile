@@ -56,9 +56,9 @@ COPY . /uno
 # Check if a local wheel for rti.connext is available
 # and install it
 RUN set -e; \
-  wheel=$(find /uno -mindepth 1 -maxdepth 1 -name "rti.connext*.whl"); \
+  wheel=$(find /uno/ -mindepth 1 -maxdepth 1 -name "rti.connext*.whl" | head -1); \
   if [ -e "${wheel}" ]; then \
-    pip install ${wheel}; \
+    pip3 install ${wheel}; \
   fi
 
 # Install uno

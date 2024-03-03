@@ -88,7 +88,7 @@ class Router:
 
 
   @property
-  def frr_config(self) -> str:
+  def frr_config(self) -> Tuple[str, dict]:
     def _frr_serialize_vpn(vpn: WireGuardInterface) -> dict:
       return {
         "name": vpn.config.intf.name,
@@ -125,7 +125,7 @@ class Router:
       "router_id": str(self.agent.root_vpn.config.intf.address),
       "log_dir": self.log_dir,
     }
-    return Templates.render("router/frr.conf", ctx)
+    return ("router/frr.conf", ctx)
 
 
   def start(self) -> None:
@@ -137,10 +137,7 @@ class Router:
     # self.log_dir.chmod(0o777)
 
     # Generate and install frr.conf
-    tmp_file_h = tempfile.NamedTemporaryFile()
-    tmp_file = Path(tmp_file_h.name)
-    tmp_file.write_text(self.frr_config)
-    exec_command(["cp", tmp_file, self.FRR_CONF])
+    Templates.generate(self.FRR_CONF, *self.frr_config)
     
     # Make sure the required frr daemons are enabled
     exec_command(["sed", "-i", "-r", r"s/^(zebra|ospfd)=no$/\1=yes/g", "/etc/frr/daemons"])

@@ -16,6 +16,7 @@
 ###############################################################################
 from typing import Generator, Union, TYPE_CHECKING, Optional
 from datetime import timedelta
+from pathlib import Path
 # from .peer_test import 
 
 import jinja2
@@ -129,7 +130,7 @@ class _Templates:
     return jinja2.Template(template)
 
 
-  def generate(self, template: Union[str, jinja2.Template], ctx: dict) -> Generator[str, None, None]:
+  def render_lines(self, template: Union[str, jinja2.Template], ctx: dict) -> Generator[str, None, None]:
     if not isinstance(template, jinja2.Template):
       template = self.template(template)
     return template.generate(ctx)
@@ -139,5 +140,18 @@ class _Templates:
     if not isinstance(template, jinja2.Template):
       template = self.template(template)
     return template.render(ctx)
+
+
+  def generate(self, output: Path, template: str|jinja2.Template, ctx: dict, mode: int=0o644) -> None:
+    import tempfile
+    from .exec import exec_command
+    tmp_f_h = tempfile.NamedTemporaryFile()
+    tmp_f = Path(tmp_f_h.name)
+    tmp_f.chmod(mode=mode)
+    with tmp_f.open("wt") as output_stream:
+      for line in self.render_lines(template, ctx):
+        output_stream.write(line)
+    exec_command(["cp", "-a", tmp_f, output])
+
 
 Templates = _Templates()

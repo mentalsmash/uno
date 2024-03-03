@@ -97,15 +97,16 @@ class CertificateAuthority:
 
     if self.db_dir.is_dir():
       self.db_dir.unlink()
-    self.db_dir.mkdir(parents=True, exist_ok=False)
+    self.db_dir.mkdir(mode=0o700, parents=True, exist_ok=False)
+
     for f, contents in {
         self.index: "",
         self.serial: "01",
       }.items():
       if f.is_file():
         f.unlink()
-      f.parent.mkdir(parents=True, exist_ok=True)
       f.write_text(contents)
+      f.chmod(0o600)
 
     if self.key.is_file():
       self.key.unlink()
@@ -126,12 +127,13 @@ class CertificateAuthority:
         "-subj", str(self.id),
     ])
     self.key.chmod(0o600)
+    self.cert.chmod(0o644)
 
     log.debug(f"[DDS] CA created: {self.id}")
 
 
   def sign_cert(self, csr: Path, cert: Path) -> None:
-    cert.parent.mkdir(parents=True, exist_ok=True)
+    # cert.parent.mkdir(parents=True, exist_ok=True)
     exec_command([
       "openssl", "x509",
         "-req",
@@ -144,10 +146,13 @@ class CertificateAuthority:
         "-in", csr,
         "-out", cert,
     ])
+    cert.chmod(0o644)
 
 
-  def sign_file(self, input: Path, output: Path) -> None:
-    output.parent.mkdir(parents=True, exist_ok=True)
+  def sign_file(self, input: Path, output: Path, mode: int=0o644) -> None:
+    # output.parent.mkdir(parents=True, exist_ok=True)
+    if output.is_file():
+      output.unlink()
     exec_command([
       "openssl",
         "smime",
@@ -158,7 +163,8 @@ class CertificateAuthority:
         "-signer", self.cert,
         "-inkey", self.key,
     ])
-  
+    output.chmod(mode)
+
 
   def create_cert(self, subject: CertificateSubject, key: Path, cert: Path) -> None:
     csr_h = tempfile.NamedTemporaryFile()
@@ -177,6 +183,7 @@ class CertificateAuthority:
         "-out", csr,
       ])
     key.chmod(0o600)
+    csr.chmod(0o644)
     self.sign_cert(csr, cert)
 
 
@@ -259,22 +266,22 @@ class DdsKeyMaterial:
 
     if self.keys_dir.is_dir() and reset:
       shutil.rmtree(self.keys_dir)
-    self.keys_dir.mkdir(parents=True, exist_ok=True)
-    self.keys_dir.chmod(0o700)
+    self.keys_dir.mkdir(mode=0o700, parents=True, exist_ok=True)
 
     if self.certs_dir.is_dir() and reset:
       shutil.rmtree(self.certs_dir)
-    self.certs_dir.mkdir(parents=True, exist_ok=True)
+    self.certs_dir.mkdir(mode=0o755, parents=True, exist_ok=True)
 
     if not self.governance.is_file() or reset:
       tmp_file_h = tempfile.NamedTemporaryFile()
       tmp_file = Path(tmp_file_h.name)
-      tmp_file.write_text(Templates.render("dds/governance.xml", {}))
-      if self.governance.is_file():
-        self.governance.unlink()
+      Templates.generate(tmp_file, "dds/governance.xml", {})
       self.perm_ca.sign_file(tmp_file, self.governance)
 
     log.debug(f"[DDS] assert key material for {len(peers)} peers: {list(peers.keys())}")
+
+    if not self.permissions_dir.is_dir():
+      self.permissions_dir.mkdir(mode=0o700, parents=True, exist_ok=False)
 
     for peer, (published, subscribed) in peers.items():
       peer_key = self.key(peer)
@@ -312,16 +319,14 @@ class DdsKeyMaterial:
     log.debug(f"[DDS] creating permission file: {peer_perms}")
     tmp_file_h = tempfile.NamedTemporaryFile()
     tmp_file = Path(tmp_file_h.name)
-    tmp_file.write_text(Templates.render("dds/permissions.xml", {
+    Templates.generate(tmp_file, "dds/permissions.xml", {
       "peer": peer,
       "subject": subject,
       "published": published,
       "subscribed": subscribed,
       "not_before": self.not_before,
       "not_after": self.not_after,
-    }))
-    if peer_perms.is_file():
-      peer_perms.unlink()
-    self.perm_ca.sign_file(tmp_file, peer_perms)
+    }, mode=0o644)
+    self.perm_ca.sign_file(tmp_file, peer_perms, mode=0o644)
 
 

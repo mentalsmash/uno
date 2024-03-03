@@ -16,7 +16,6 @@
 ###############################################################################
 import os
 import rti.connextdds as dds
-from . data import dds as dds_data
 from pathlib import Path
 from tempfile import NamedTemporaryFile
 
@@ -39,12 +38,11 @@ class UvnTopic(Enum):
 
 
 class DdsParticipantConfig:
-  CONFIG_TEMPLATE_FILENAME = "uno.xml"
   PARTICIPANT_PROFILE_ROOT = "UnoParticipants::RootAgent"
   PARTICIPANT_PROFILE_CELL = "UnoParticipants::CellAgent"
 
   def __init__(self,
-      participant_xml_config: str,
+      participant_xml_config: Path,
       participant_profile: str,
       writers: Iterable[UvnTopic] | None = None,
       readers: Mapping[UvnTopic, dict] | None = None,
@@ -54,13 +52,6 @@ class DdsParticipantConfig:
     self.writers = list(writers or [])
     self.readers = dict(readers or {})
     self.user_conditions = list(user_conditions or [])
-
-
-  @staticmethod
-  def load_config_template(filename: str) -> str:
-    from importlib.resources import as_file, files
-    with as_file(files(dds_data).joinpath(filename)) as config_file:
-      return config_file.read_text()
 
 
 def locate_rti_license(search_path: Iterable[Path] | None = None) -> Optional[Path]:
@@ -153,21 +144,19 @@ class DdsParticipant:
     self._user_conditions = []
 
 
-  def start(self,
-      config: DdsParticipantConfig,
-      config_file_out: Optional[str]=None) -> None:
+  def start(self,config: DdsParticipantConfig) -> None:
     log.debug("[DDS] STARTING...")
 
-    if config_file_out is not None:
-      config_file = config_file_out
-    else:
-      tmp_config_h = NamedTemporaryFile()
-      tmp_config = Path(tmp_config_h.name)
-      config_file = tmp_config
+    # if config_file_out is not None:
+    #   config_file = config_file_out
+    # else:
+    #   tmp_config_h = NamedTemporaryFile()
+    #   tmp_config = Path(tmp_config_h.name)
+    #   config_file = tmp_config
 
-    config_file.write_text(config.participant_xml_config)
+    # config_file.write_text(config.participant_xml_config)
 
-    qos_provider = dds.QosProvider(str(config_file))
+    qos_provider = dds.QosProvider(str(config.participant_xml_config))
     self.types = self._register_types(qos_provider)
 
     self._dp = qos_provider.create_participant_from_config(config.participant_profile)

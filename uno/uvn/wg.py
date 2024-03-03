@@ -225,35 +225,6 @@ class WireGuardInterfacePeerConfig:
 
 
 class WireGuardConfig:
-  CONFIG_TEMPLATE = Templates.compile("""\
-[Interface]
-{% if tunnel and not tunnel_root %}
-Address = {{intf.address}}/32
-{% endif %}
-{% if intf.port %}
-ListenPort = {{intf.port}}
-{% endif %}
-PrivateKey = {{intf.privkey}}
-{%- if mtu %}
-MTU = {{mtu}}
-{% endif %}
-{% for peer in peers %}
-[Peer]
-{% if peer.endpoint %}
-Endpoint = {{peer.endpoint}}
-{% endif %}
-PublicKey = {{peer.pubkey}}
-PresharedKey = {{peer.psk}}
-{% if tunnel and not tunnel_root %}
-AllowedIPs = 0.0.0.0/0
-{% elif peer.allowed %}
-AllowedIPs = {{peer.allowed | join(",") }}
-{% endif %}
-{% if peer.keepalive -%}
-PersistentKeepalive = {{peer.keepalive}}
-{% endif %}
-{% endfor %}
-""")
   def __init__(self,
       intf: WireGuardInterfaceConfig,
       peers: Sequence[WireGuardInterfacePeerConfig],
@@ -272,11 +243,10 @@ PersistentKeepalive = {{peer.keepalive}}
       return False
     return self.generation_ts == other.generation_ts
 
+
   @property
-  def contents(self) -> str:
-    return Templates.render(
-      self.CONFIG_TEMPLATE,
-      self.serialize())
+  def template_args(self) -> Tuple[str, dict]:
+    return ("wg/wg.conf", self.serialize())
 
 
   def serialize(self) -> dict:
@@ -385,7 +355,7 @@ class WireGuardInterface:
         prefix=f"{self.config.intf.name}-",
         suffix="-wgconf")
       wg_config = Path(tmp_file_h.name)
-      wg_config.write_text(self.config.contents)
+      Templates.generate(wg_config, *self.config.template_args, mode=0o600)
     except:
       raise WireGuardError(f"failed to generate configuration for wireguard interface: {self.config.intf.name}")
     # Disable and reset interface

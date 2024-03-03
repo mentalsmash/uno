@@ -55,7 +55,6 @@ from .log import Logger as log
 
 
 class CellAgent(Agent):
-  DDS_CONFIG_TEMPLATE = "uno.xml"
   KNOWN_NETWORKS_TABLE_FILENAME = "networks.known"
   LOCAL_NETWORKS_TABLE_FILENAME = "networks.local"
   REACHABLE_NETWORKS_TABLE_FILENAME = "networks.reachable"
@@ -356,10 +355,7 @@ class CellAgent(Agent):
       log.error(f"RTI license file not found: {self.rti_license}")
       raise RuntimeError("RTI license file not found")
 
-    xml_config_tmplt = Templates.compile(
-      DdsParticipantConfig.load_config_template(self.DDS_CONFIG_TEMPLATE))
-    
-    xml_config = Templates.render(xml_config_tmplt, {
+    Templates.generate(self.participant_xml_config, "dds/uno.xml", {
       "deployment_id": self.deployment.generation_ts,
       "uvn": self.uvn_id,
       "cell": self.cell,
@@ -376,7 +372,7 @@ class CellAgent(Agent):
     })
 
     return DdsParticipantConfig(
-      participant_xml_config=xml_config,
+      participant_xml_config=self.participant_xml_config,
       participant_profile=DdsParticipantConfig.PARTICIPANT_PROFILE_CELL,
       user_conditions=[
         self.peers_tester.result_available_condition,
@@ -531,16 +527,17 @@ class CellAgent(Agent):
       super()._on_user_condition(condition)
 
 
-  def _schedule_reload(self, package: object|None=None, config: str|None=None) -> None:
+  def _on_agent_config_received(self, package: object|None=None, config: str|None=None) -> None:
     if self._reload_package_h or self._reload_config:
       log.warning(f"[AGENT] discarding previously scheduled reload")
     if package:
       self._reload_package_h = package
       self._reload_config = None
+      log.warning(f"[AGENT] package received from registry")
     else:
       self._reload_package_h = None
       self._reload_config = config
-    log.warning(f"[AGENT] reload scheduled")
+      log.warning(f"[AGENT] configuration received from registry")
 
 
   def _on_reader_data(self,
@@ -558,11 +555,11 @@ class CellAgent(Agent):
           tmp = Path(tmp_h.name)
           with tmp.open("wb") as output:
             output.write(sample["package"])
-          self._schedule_reload(package=tmp_h)
+          self._on_agent_config_received(package=tmp_h)
         elif len(sample["config"]) > 0:
           new_config = sample["config"]
           new_config = yaml.safe_load(new_config)
-          self._schedule_reload(config=new_config)
+          self._on_agent_config_received(config=new_config)
       except Exception as e:
         log.error("failed to parse received configuration")
         log.exception(e)
@@ -974,7 +971,7 @@ class CellAgent(Agent):
 
     # Store all files in a single archive
     agent_package = output_dir / f"{cell.name}.uvn-agent"
-    agent_package.parent.mkdir(parents=True, exist_ok=True)
+    agent_package.parent.mkdir(parents=True, exist_ok=True, mode=0o700)
     exec_command(
       ["tar", "cJf", agent_package,
         # agent_config_sig_enc.relative_to(tmp_dir),
@@ -982,9 +979,10 @@ class CellAgent(Agent):
         agent_config.relative_to(tmp_dir),
         *(f.relative_to(tmp_dir) for f in package_extra_files)],
       cwd=tmp_dir)
+    agent_package.chmod(0o600)
   
-    out_config = output_dir / f"{cell.name}.yaml"
-    shutil.copy2(agent_config, out_config)
+    # out_config = output_dir / f"{cell.name}.yaml"
+    # shutil.copy2(agent_config, out_config)
 
     log.warning(f"[AGENT] package generated: {agent_package}")
 

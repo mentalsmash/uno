@@ -81,7 +81,7 @@ class UvnService:
     from importlib.resources import as_file, files
     # for output, svc_file in CellAgent.SYSTEMD_SERVICES.items():
     with as_file(files(service_data).joinpath(self.service_description.name)) as input:
-      exec_command(["cp", "-v", input, self.service_description])
+      exec_command(["cp", "--no-preserve=mode,ownership", "-v", input, self.service_description])
       self.service_description.chmod(0o644)
     if reload and existed:
       exec_command(["systemctl", "daemon-reload"])
@@ -246,8 +246,8 @@ class UvnNetService(UvnService):
     if was_started:
       self.uvn_net_stop()
     if not self.global_uvn_id.parent.is_dir():
-      self.global_uvn_id.parent.mkdir(parents=True)
-      self.global_uvn_id.parent.chmod(0o700)
+      self.global_uvn_id.parent.mkdir(mode=0o755, parents=True)
+      # self.global_uvn_id.parent.chmod(0o700)
     self.global_uvn_id.write_text(str(config_dir))
     log.warning(f"[SERVICE] {self} configured: {self.global_uvn_id} → {config_dir}")
     if was_started:
@@ -266,13 +266,12 @@ class UvnNetService(UvnService):
     generated = []
 
     output = output_dir / self.config_file.name
-    output.write_text(Templates.render("static_config/uvn-net.conf", {
+    Templates.generate(output, "static_config/uvn-net.conf", {
       "vpn_interfaces": vpn_interfaces,
       "lans": lans,
       "router_enabled": "enabled" if router else "",
       # "generation_ts": Timestamp.now().format(),
-    }))
-    output.chmod(0o600)
+    }, mode=0o600)
     generated.append(output)
 
     wg_dir = output_dir / "wg"
@@ -282,20 +281,17 @@ class UvnNetService(UvnService):
     wg_dir.chmod(0o700)
     for vpn in vpn_interfaces:
       wg_config = wg_dir / f"{vpn.config.intf.name}.conf"
-      wg_config.write_text(vpn.config.contents)
-      wg_config.chmod(0o600)
+      Templates.generate(wg_config, *vpn.config.template_args, mode=0o600)
       generated.append(wg_config)
 
     output = output_dir / "wg-ip.config"
-    output.write_text(Templates.render("static_config/wg-ip.config", {
+    Templates.generate(output, "static_config/wg-ip.config", {
       "vpn_interfaces": vpn_interfaces,
-    }))
-    generated.append(output)
+    })
 
     if router:
       output = output_dir / "frr.conf"
-      output.write_text(router.frr_config)
-      output.chmod(0o600)
+      Templates.generate(output, *router.frr_config)
       generated.append(output)
     
     conf_digest = output_dir / f"{self.config_file.name}.digest"

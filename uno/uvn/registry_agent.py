@@ -30,8 +30,6 @@ from .log import Logger as log
 
 
 class RegistryAgent(Agent):
-  DDS_CONFIG_TEMPLATE = "uno.xml"
-
   def __init__(self, registry: Registry) -> None:
     if not registry.deployed:
       raise ValueError("uvn not deployed", registry)
@@ -113,10 +111,7 @@ class RegistryAgent(Agent):
       log.error(f"RTI license file not found: {self.registry.rti_license}")
       raise RuntimeError("RTI license file not found")
 
-    xml_config_tmplt = Templates.compile(
-      DdsParticipantConfig.load_config_template(self.DDS_CONFIG_TEMPLATE))
-
-    xml_config = Templates.render(xml_config_tmplt, {
+    Templates.generate(self.participant_xml_config, "dds/uno.xml", {
       "deployment_id": self.registry.backbone_vpn_config.deployment.generation_ts,
       "uvn": self.registry.uvn_id,
       "cell": None,
@@ -135,7 +130,7 @@ class RegistryAgent(Agent):
     })
 
     return DdsParticipantConfig(
-      participant_xml_config=xml_config,
+      participant_xml_config=self.participant_xml_config,
       participant_profile=DdsParticipantConfig.PARTICIPANT_PROFILE_ROOT,
       user_conditions=[
         self.peers.updated_condition,
@@ -162,8 +157,8 @@ class RegistryAgent(Agent):
     cells_dir = self.registry.root / "cells"
     for cell_id in self.registry.backbone_vpn_config.deployment.peers:
       cell = self.registry.uvn_id.cells[cell_id]
-      config_file = cells_dir / f"{cell.name}.yaml"
-      config_str = config_file.read_text()
+      # config_file = cells_dir / f"{cell.name}.yaml"
+      # config_str = config_file.read_text()
       cell_package = cells_dir / f"{cell.name}.uvn-agent"
       sample = cell_agent_config(
         participant=self.dp,

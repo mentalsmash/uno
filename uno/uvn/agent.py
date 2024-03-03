@@ -288,6 +288,11 @@ class Agent:
 
 
   @property
+  def participant_xml_config(self) -> Path:
+    return self.root / "uno_qos_profiles.xml"
+
+
+  @property
   def registry_id(self) -> str:
     raise NotImplementedError()
 
