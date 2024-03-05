@@ -4,6 +4,7 @@ from pathlib import Path
 import shutil
 import datetime
 import yaml
+import json
 
 from .exec import exec_command
 from .log import Logger as log
@@ -56,7 +57,7 @@ def ecc_encrypt(cert: Path, input: Path, output: Path) -> None:
   ], capture_output=True).stdout.decode("utf-8").strip()
 
 
-  output.write_text(yaml.safe_dump({
+  output.write_text(json.dumps({
     "data": tmp_enc.read_text(),
     "pubkey": tmp_out_pub.read_text(),
     "hmac": hmac,
