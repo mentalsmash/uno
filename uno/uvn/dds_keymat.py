@@ -3,11 +3,98 @@ from typing import Optional, Mapping, Tuple, Iterable
 from pathlib import Path
 import shutil
 import datetime
+import yaml
 
 from .exec import exec_command
 from .log import Logger as log
 from .render import Templates
 from .time import Timestamp
+
+
+def ecc_encrypt(cert: Path, input: Path, output: Path) -> None:
+  # Extract public key from certificate
+  tmp_pub_key_h = tempfile.NamedTemporaryFile()
+  tmp_pub_key = Path(tmp_pub_key_h.name)
+  exec_command([
+    "openssl", "x509", "-pubkey", "-nocert", "-in", cert, "-out", tmp_pub_key
+  ])
+
+  # Generate a temporary, ephemeral, private key
+  ephem_priv_key = exec_command([
+    "openssl", "ecparam", "-genkey", "-param_enc", "explicit", "-name", "secp384r1"
+  ], capture_output=True).stdout.decode("utf-8").strip()
+  tmp_priv_key_h = tempfile.NamedTemporaryFile()
+  tmp_priv_key = Path(tmp_priv_key_h.name)
+  tmp_priv_key.write_text(ephem_priv_key)
+
+  # Derive a symmetric key using sha-256, using the temporary key and the public key
+  shared_sec = exec_command([
+    "sh", "-c", f"openssl pkeyutl -derive -inkey {tmp_priv_key} -peerkey {tmp_pub_key} | openssl dgst -sha256"
+  ], capture_output=True).stdout.decode("utf-8").split("(stdin)= ")[1].strip()
+
+
+  tmp_enc_h = tempfile.NamedTemporaryFile()
+  tmp_enc = Path(tmp_enc_h.name)
+  # Encrypt file using 0 IV and sha-256 as key
+  exec_command([
+    "openssl", "enc", "-aes-256-ofb", "-iv", "0"*32, "-K", shared_sec, "-base64", "-in", input, "-out", tmp_enc,
+  ])
+  
+  # generate HMAC for encrypted file
+  hmac = exec_command([
+    "openssl", "dgst", "-sha256", "-hmac", shared_sec, tmp_enc
+  ], capture_output=True).stdout.decode("utf-8").split("= ")[1].strip()
+
+  # output_hmac = Path(f"{output}.hmac")
+  # output_hmac.write_text(hmac)
+  
+  tmp_out_pub_key_h = tempfile.NamedTemporaryFile()
+  tmp_out_pub = Path(tmp_out_pub_key_h.name)
+  # output_pubkey = Path(f"{output}.pubkey")
+  exec_command([
+    "openssl", "ec", "-param_enc", "explicit", "-pubout", "-out", tmp_out_pub, "-in", tmp_priv_key
+  ], capture_output=True).stdout.decode("utf-8").strip()
+
+
+  output.write_text(yaml.safe_dump({
+    "data": tmp_enc.read_text(),
+    "pubkey": tmp_out_pub.read_text(),
+    "hmac": hmac,
+  }),)
+
+
+
+def ecc_decrypt(key: Path, input: Path, output: Path) -> None:
+  # Read input data from YAML
+  data = yaml.safe_load(input.read_text())
+  
+  tmp_enc_h = tempfile.NamedTemporaryFile()
+  tmp_enc = Path(tmp_enc_h.name)
+  tmp_enc.write_text(data["data"])
+
+  enc_hmac = data["hmac"]
+
+  tmp_pub_key_h = tempfile.NamedTemporaryFile()
+  tmp_pub_key = Path(tmp_pub_key_h.name)
+  tmp_pub_key.write_text(data["pubkey"])
+
+  shared_sec = exec_command([
+    "sh", "-c", f"openssl pkeyutl -derive -inkey {key} -peerkey {tmp_pub_key} | openssl dgst -sha256"
+  ], capture_output=True).stdout.decode("utf-8").split("(stdin)= ")[1].strip()
+
+
+  # generate HMAC for encrypted file
+  expected_hmac = exec_command([
+    "openssl", "dgst", "-sha256", "-hmac", shared_sec, tmp_enc
+  ], capture_output=True).stdout.decode("utf-8").split("= ")[1].strip()
+
+  if expected_hmac != data["hmac"]:
+    raise RuntimeError("shared secret HMACs don't match")
+
+  exec_command([
+    "openssl", "enc", "-d", "-aes-256-ofb", "-iv", "0"*32, "-K", shared_sec, "-base64", "-in", tmp_enc, "-out", output,
+  ])
+
 
 class CertificateSubject:
   def __init__(self,
@@ -60,13 +147,24 @@ class CertificateSubject:
       cn=subject_m.group(5))
 
 
+  @staticmethod
+  def extract(cert: Path) -> "CertificateSubject":
+    subject = exec_command(
+      ["openssl", "x509", "-noout", "-subject", "-in", cert],
+      capture_output=True).stdout.decode("utf-8").split("subject=")[1].strip().replace(" = ", "=").replace(", ", "/")
+    subject = "/" + subject
+    return CertificateSubject.parse(subject)
+
+
 class CertificateAuthority:
   def __init__(self,
       root: Path,
-      id: CertificateSubject) -> None:
+      id: CertificateSubject,
+      read_only: bool=False) -> None:
     self.root = root
     self.id = id
     self.db_dir = self.root / "db"
+    self.read_only = read_only
 
   @property
   def index(self) -> Path:
@@ -89,6 +187,8 @@ class CertificateAuthority:
 
 
   def init(self, reset: bool=False) -> None:
+    assert(not self.read_only)
+
     log.debug(f"[DDS] initializing CA: {self.root}")
 
     if not reset and self.cert.is_file():
@@ -162,11 +262,49 @@ class CertificateAuthority:
         "-sign",
         "-in", input,
         "-text",
+        "-nocerts",
         "-out", output,
         "-signer", self.cert,
         "-inkey", self.key,
     ])
     output.chmod(mode)
+
+
+  def verify_signature(self, input: Path, output: Path, mode: int=0o644) -> None:
+    if output.is_file():
+      output.unlink()
+    exec_command([
+      "openssl",
+        "smime",
+        "-verify",
+        "-noverify",
+        "-in", input,
+        "-text",
+        "-out", output,
+        "-nointern",
+        "-certfile", self.cert,
+        # "-signer", self.cert,
+        # "-nochain",
+    ])
+    output.chmod(mode)
+
+
+
+  def encrypt_file(self, cert: Path, input: Path, output: Path, mode: int=0o644) -> None:
+    signed_input_h = tempfile.NamedTemporaryFile()
+    signed_input = Path(signed_input_h.name)
+    self.sign_file(input, signed_input)
+    if output.is_file():
+      output.unlink()
+    ecc_encrypt(cert, signed_input, output)
+    output.chmod(mode)
+
+
+  def decrypt_file(self, key: Path, input: Path, output: Path, mode: int=0o644) -> None:
+    signed_input_h = tempfile.NamedTemporaryFile()
+    signed_input = Path(signed_input_h.name)
+    ecc_decrypt(key, input, signed_input)
+    self.verify_signature(signed_input, output, mode=mode)
 
 
   def create_cert(self, subject: CertificateSubject, key: Path, cert: Path) -> None:

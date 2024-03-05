@@ -19,6 +19,7 @@ from pathlib import Path
 from .uvn_id import UvnId
 from .wg import WireGuardInterface
 from .dds import DdsParticipantConfig, UvnTopic
+from .dds_keymat import CertificateAuthority, ecc_encrypt, ecc_decrypt
 from .registry import Registry
 from .peer import UvnPeersList
 from .render import Templates
@@ -106,6 +107,21 @@ class RegistryAgent(Agent):
 
 
   @property
+  def ca(self) -> CertificateAuthority:
+    return self.registry.dds_keymat.ca
+
+
+  @property
+  def cert(self) -> Path:
+    return self.registry.dds_keymat.cert("root")
+
+
+  @property
+  def key(self) -> Path:
+    return self.registry.dds_keymat.key("root")
+
+
+  @property
   def dds_config(self) -> DdsParticipantConfig:
     if not self.registry.rti_license.is_file():
       log.error(f"RTI license file not found: {self.registry.rti_license}")
@@ -160,12 +176,25 @@ class RegistryAgent(Agent):
       # config_file = cells_dir / f"{cell.name}.yaml"
       # config_str = config_file.read_text()
       cell_package = cells_dir / f"{cell.name}.uvn-agent"
+      import tempfile
+      tmp_dir_h = tempfile.TemporaryDirectory()
+      tmp_dir = Path(tmp_dir_h.name)
+      from .exec import exec_command
+      exec_command(["tar", "xJf", cell_package, Registry.AGENT_CONFIG_FILENAME], cwd=tmp_dir)
+      config = tmp_dir / Registry.AGENT_CONFIG_FILENAME
+      enc_config = Path(f"{config}.enc")
+
+      cert = self.registry.dds_keymat.cert(cell.name)
+      # ecc_encrypt(cert, config, enc_config)
+      self.ca.encrypt_file(cert, config, enc_config)
+
+      
       sample = cell_agent_config(
         participant=self.dp,
         uvn_id=self.registry.uvn_id,
         cell_id=cell.id,
         deployment=self.registry.backbone_vpn_config.deployment,
-        # config_string=config_str,
+        config_string=enc_config.read_text(),
         package=cell_package)
       self.dp.writers[UvnTopic.BACKBONE].write(sample)
       log.activity(f"[AGENT] published agent configuration: {cell}")

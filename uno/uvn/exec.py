@@ -38,7 +38,7 @@ def exec_command(
   if cwd is not None:
     run_args["cwd"] = cwd
 
-  # log.debug(f"[exec] {' '.join(map(str, cmd_args))}")
+  log.debug(f"[exec] {' '.join(map(str, cmd_args))}")
 
   if output_file is not None:
     output_file.parent.mkdir(exist_ok=True, parents=True)

@@ -280,7 +280,7 @@ def cell_service_disable(args):
 def _load_agent(args):
   # if running as a systemd service, read the root location
   # from the global marker for the uvn-net service
-  if args.systemd:
+  if getattr(args, "systemd", False):
     if args.registry:
       svc = UvnNetService.Root
     else:
@@ -303,10 +303,15 @@ def _load_agent(args):
     root = args.root or Path.cwd()
     try:
       agent = CellAgent.load(root)
-    except:
+      log.debug(f"loaded cell agent: {root}")
+    except Exception as e:
+      log.debug(f"failed to load as a cell agent: {root}")
+      # log.exception(e)
       try:
+        log.debug(f"trying to load as registry: {root}")
         registry = Registry.load(root)
         agent = RegistryAgent(registry)
+        log.debug(f"loaded registry agent: {root}")
       except:
         raise RuntimeError(f"failed to load an agent from directory: {root}") from None
 
@@ -341,6 +346,52 @@ def uno_agent(args):
   agent.enable_www = True
   agent.enable_systemd = args.systemd
   agent.spin(max_spin_time=args.max_run_time)
+
+
+###############################################################################
+###############################################################################
+# Encrypt commands
+###############################################################################
+###############################################################################
+  
+def uno_encrypt(args):
+  # agent = _load_agent(args)
+  # agent.enable_www = True
+  # agent.enable_systemd = args.systemd
+  # agent.spin(max_spin_time=args.max_run_time)
+  from uno.uvn.dds_keymat import ecc_encrypt, ecc_decrypt
+
+  # registry = registry_load(args)
+  # if args.action == "encrypt":
+  #   ecc_encrypt(registry.dds_keymat.cert(args.cell), args.input, args.output)
+  # else:
+  #   ecc_decrypt(registry.dds_keymat.key(args.cell), args.input, args.output)
+  agent = _load_agent(args)
+
+  try:
+    cell = next(c for c in agent.uvn_id.all_cells if c.name == args.cell) if args.cell else None
+  except StopIteration:
+    raise RuntimeError("unknown cell", args.cell) from None
+
+  if isinstance(agent, RegistryAgent):
+    if cell:
+      raise RuntimeError("no cell specified")
+    if args.action == "encrypt":
+      cert = agent.registry.dds_keymat.cert(args.cell)
+      agent.ca.encrypt_file(cert, args.input, args.output)
+    else:
+      key = agent.registry.dds_keymat.key(args.cell)
+      agent.ca.decrypt_file(key, args.input, args.output)
+  else:
+    if cell and cell != agent.cell.name:
+      raise RuntimeError("unsupported cell", args.cell)
+    if args.action == "encrypt":
+      # cert = agent.cert
+      agent.ca.encrypt_file(agent.cert, args.input, args.output)
+    else:
+      # key = agent.key
+      agent.ca.decrypt_file(agent.key, args.input, args.output)
+
 
 
 ###############################################################################
@@ -543,6 +594,9 @@ def main():
 
   cmd_define_uvn.add_argument("name",
     help="A unique name for the UVN.")
+
+  # cmd_define_uvn.add_argument("-p", "--passphrase",
+  #   help="A password that will be used to protect access to the UVN.")
 
   _define_registry_config_args(cmd_define_uvn, owner_id_required=True)
   registry_common_args(cmd_define_uvn)
@@ -936,6 +990,59 @@ def main():
     help="The particle's unique name.")
 
   registry_common_args(cmd_del_particle)
+
+
+  #############################################################################
+  # uno encrypt ...
+  #############################################################################
+  cmd_encrypt = subparsers.add_parser("encrypt",
+    help="Encrypt a file for a UVN cell.")
+  cmd_encrypt.set_defaults(
+    cmd=uno_encrypt,
+    action="encrypt")
+
+  cmd_encrypt.add_argument("-c", "--cell",
+    default=None,
+    help="Name of the cell receiving the file.")
+
+  cmd_encrypt.add_argument("-in", "--input",
+    type=Path,
+    required=True,
+    help="File to encrypt.")
+  
+  cmd_encrypt.add_argument("-out", "--output",
+    type=Path,
+    required=True,
+    help="File to generate.")
+
+  registry_common_args(cmd_encrypt)
+
+
+  #############################################################################
+  # uno decrypt ...
+  #############################################################################
+  cmd_decrypt = subparsers.add_parser("decrypt",
+    help="Decrypt a file received by a UVN cell.")
+  cmd_decrypt.set_defaults(
+    cmd=uno_encrypt,
+    action="decrypt")
+
+
+  cmd_decrypt.add_argument("-c", "--cell",
+    default=None,
+    help="Name of the cell receiving the file.")
+
+  cmd_decrypt.add_argument("-in", "--input",
+    type=Path,
+    required=True,
+    help="File to encrypt.")
+  
+  cmd_decrypt.add_argument("-out", "--output",
+    type=Path,
+    required=True,
+    help="File to generate.")
+
+  registry_common_args(cmd_decrypt)
 
 
   #############################################################################

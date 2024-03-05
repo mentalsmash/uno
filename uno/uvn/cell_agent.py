@@ -51,6 +51,7 @@ from .dds_data import dns_database, cell_agent_status
 from .agent_net import AgentNetworking
 from .router import Router
 from .agent import Agent
+from .dds_keymat import CertificateAuthority, ecc_decrypt, CertificateSubject
 from .log import Logger as log
 
 
@@ -109,6 +110,11 @@ class CellAgent(Agent):
 
     self.www = UvnHttpd(self)
 
+    self._ca = CertificateAuthority(
+      root=self.root,
+      id=CertificateSubject.extract(self.root / "ca-cert.pem"),
+      read_only=True)
+
     # Store configuration upon receiving it, so we can reload it
     # once we're done processing received data
     self._reload_config = None
@@ -161,6 +167,21 @@ class CellAgent(Agent):
   @property
   def net(self) -> AgentNetworking:
     return self._net
+
+
+  @property
+  def ca(self) -> CertificateAuthority:
+    return self._ca
+
+
+  @property
+  def cert(self) -> Path:
+    return self.root / "cert.pem"
+
+
+  @property
+  def key(self) -> Path:
+    return self.root / "key.pem"
 
 
   @property
@@ -550,16 +571,15 @@ class CellAgent(Agent):
     elif topic == UvnTopic.BACKBONE:
 
       try:
+        tmp_h = tempfile.NamedTemporaryFile()
+        tmp = Path(tmp_h.name)
         if len(sample["package"]) > 0:
-          tmp_h = tempfile.NamedTemporaryFile()
-          tmp = Path(tmp_h.name)
           with tmp.open("wb") as output:
             output.write(sample["package"])
           self._on_agent_config_received(package=tmp_h)
         elif len(sample["config"]) > 0:
-          new_config = sample["config"]
-          new_config = yaml.safe_load(new_config)
-          self._on_agent_config_received(config=new_config)
+          tmp.write_text(sample["config"])
+          self._on_agent_config_received(config=tmp_h)
       except Exception as e:
         log.error("failed to parse received configuration")
         log.exception(e)
@@ -730,19 +750,31 @@ class CellAgent(Agent):
       write_particle_configuration(particle, particle_client_cfg, self.particles_dir)
 
 
-  def reload(self, package: object|None=None, config: dict|None=None, save_to_disk: bool=False) -> bool:
-    if package:
-      log.activity("[AGENT] extracting received package")
-      package_h = package
-      package = Path(package_h.name)
+  def reload(self, package: object|None=None, config: object|None=None, save_to_disk: bool=False) -> bool:
+    try:
       tmp_dir_h = tempfile.TemporaryDirectory()
       tmp_dir = Path(tmp_dir_h.name)
-      updated_agent = CellAgent.extract(package, tmp_dir)
-    elif config is not None:
-      log.activity("[AGENT] parsing received configuration")
-      updated_agent = CellAgent.deserialize(config, self.root)
-    else:
-      raise ValueError("invalid arguments")
+
+      if package:
+        log.activity("[AGENT] extracting received package")
+        package_h = package
+        package = Path(package_h.name)
+        updated_agent = CellAgent.extract(package, tmp_dir)
+      elif config is not None:
+        log.activity("[AGENT] parsing received configuration")
+        key = self.root / "key.pem"
+        config_h = config
+        config = Path(config_h.name)
+        config_file = tmp_dir / Registry.AGENT_CONFIG_FILENAME
+        self.ca.decrypt_file(self.key, config, config_file)
+        shutil.copy2(self.ca.cert, tmp_dir / self.ca.cert.name)
+        updated_agent = CellAgent.load(tmp_dir)
+      else:
+        raise ValueError("invalid arguments")
+    except Exception as e:
+      log.error(f"[AGENT] failed to parse received configuration")
+      log.exception(e)
+      return False
 
     updaters = []
 
@@ -920,6 +952,23 @@ class CellAgent(Agent):
     # uvn_id_file.write_text(yaml.safe_dump(registry.uvn_id.serialize()))
     # package_extra_files.append(uvn_id_file)
 
+    # Include the RTI license file
+    # Include DDS Security artifacts
+    for src, dst, optional in [
+        (registry.rti_license, None, True),
+        (registry.dds_keymat.cert(cell.name), "cert.pem", False),
+        (registry.dds_keymat.key(cell.name), "key.pem", False),
+        (registry.dds_keymat.governance, "governance.p7s", False),
+        (registry.dds_keymat.permissions(cell.name), "permissions.p7s", False),
+        (registry.dds_keymat.ca.cert, "ca-cert.pem", False),
+        (registry.dds_keymat.perm_ca.cert, "perm-ca-cert.pem", False),
+      ]:
+      dst = dst or src.name
+      tgt = tmp_dir / dst
+      if optional and not src.exists():
+        continue
+      shutil.copy2(src, tgt)
+      package_extra_files.append(tgt)
 
     # Write agent config
     cell_agent = CellAgent(
@@ -950,24 +999,6 @@ class CellAgent(Agent):
 
     # agent_license = tmp_dir / Registry.AGENT_LICENSE
     # shutil.copy2(registry.rti_license, agent_license)
-
-    # Include the RTI license file
-    # Include DDS Security artifacts
-    for src, dst, optional in [
-        (registry.rti_license, None, True),
-        (registry.dds_keymat.cert(cell.name), "cert.pem", False),
-        (registry.dds_keymat.key(cell.name), "key.pem", False),
-        (registry.dds_keymat.governance, "governance.p7s", False),
-        (registry.dds_keymat.permissions(cell.name), "permissions.p7s", False),
-        (registry.dds_keymat.ca.cert, "ca-cert.pem", False),
-        (registry.dds_keymat.perm_ca.cert, "perm-ca-cert.pem", False),
-      ]:
-      dst = dst or src.name
-      tgt = tmp_dir / dst
-      if optional and not src.exists():
-        continue
-      shutil.copy2(src, tgt)
-      package_extra_files.append(tgt)
 
     # Store all files in a single archive
     agent_package = output_dir / f"{cell.name}.uvn-agent"

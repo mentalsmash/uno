@@ -34,6 +34,7 @@ from .graph import backbone_deployment_graph
 from .agent_net import AgentNetworking
 from .router import Router
 from . import agent_run as Runner
+from .dds_keymat import CertificateAuthority
 
 from .log import Logger as log
 
@@ -359,6 +360,21 @@ class Agent:
 
   @property
   def backbone_peers(self) -> str:
+    raise NotImplementedError()
+
+
+  @property
+  def ca(self) -> CertificateAuthority:
+    raise NotImplementedError()
+
+
+  @property
+  def cert(self) -> Path:
+    raise NotImplementedError()
+
+
+  @property
+  def key(self) -> Path:
     raise NotImplementedError()
 
 
