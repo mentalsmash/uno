@@ -374,7 +374,7 @@ def uno_encrypt(args):
     raise RuntimeError("unknown cell", args.cell) from None
 
   if isinstance(agent, RegistryAgent):
-    if cell:
+    if not cell:
       raise RuntimeError("no cell specified")
     if args.action == "encrypt":
       cert = agent.registry.dds_keymat.cert(args.cell)

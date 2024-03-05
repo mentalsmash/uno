@@ -33,7 +33,6 @@ def ecc_encrypt(cert: Path, input: Path, output: Path) -> None:
     "sh", "-c", f"openssl pkeyutl -derive -inkey {tmp_priv_key} -peerkey {tmp_pub_key} | openssl dgst -sha256"
   ], capture_output=True).stdout.decode("utf-8").split("(stdin)= ")[1].strip()
 
-
   tmp_enc_h = tempfile.NamedTemporaryFile()
   tmp_enc = Path(tmp_enc_h.name)
   # Encrypt file using 0 IV and sha-256 as key
@@ -46,16 +45,12 @@ def ecc_encrypt(cert: Path, input: Path, output: Path) -> None:
     "openssl", "dgst", "-sha256", "-hmac", shared_sec, tmp_enc
   ], capture_output=True).stdout.decode("utf-8").split("= ")[1].strip()
 
-  # output_hmac = Path(f"{output}.hmac")
-  # output_hmac.write_text(hmac)
-  
   tmp_out_pub_key_h = tempfile.NamedTemporaryFile()
   tmp_out_pub = Path(tmp_out_pub_key_h.name)
-  # output_pubkey = Path(f"{output}.pubkey")
+  
   exec_command([
     "openssl", "ec", "-param_enc", "explicit", "-pubout", "-out", tmp_out_pub, "-in", tmp_priv_key
   ], capture_output=True).stdout.decode("utf-8").strip()
-
 
   output.write_text(json.dumps({
     "data": tmp_enc.read_text(),
@@ -73,8 +68,6 @@ def ecc_decrypt(key: Path, input: Path, output: Path) -> None:
   tmp_enc = Path(tmp_enc_h.name)
   tmp_enc.write_text(data["data"])
 
-  enc_hmac = data["hmac"]
-
   tmp_pub_key_h = tempfile.NamedTemporaryFile()
   tmp_pub_key = Path(tmp_pub_key_h.name)
   tmp_pub_key.write_text(data["pubkey"])
@@ -82,7 +75,6 @@ def ecc_decrypt(key: Path, input: Path, output: Path) -> None:
   shared_sec = exec_command([
     "sh", "-c", f"openssl pkeyutl -derive -inkey {key} -peerkey {tmp_pub_key} | openssl dgst -sha256"
   ], capture_output=True).stdout.decode("utf-8").split("(stdin)= ")[1].strip()
-
 
   # generate HMAC for encrypted file
   expected_hmac = exec_command([
