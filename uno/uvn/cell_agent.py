@@ -792,7 +792,8 @@ class CellAgent(Agent):
 
       def _update_uvn_id():
         self._uvn_id = updated_agent.uvn_id
-        self.cell = self.uvn_id.cells[self.cell.id]
+        self._cell = self.uvn_id.cells[self.cell.id]
+        self.id_db.uvn_id = self.uvn_id
         self.peers.uvn_id = self.uvn_id
         # self.ns = Nameserver(self.root, db=self.uvn_id.hosts)
         # self.ns.assert_records(self.ns_records())
