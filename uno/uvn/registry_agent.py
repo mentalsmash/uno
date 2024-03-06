@@ -19,7 +19,6 @@ from pathlib import Path
 from .uvn_id import UvnId
 from .wg import WireGuardInterface
 from .dds import DdsParticipantConfig, UvnTopic
-from .dds_keymat import CertificateAuthority, ecc_encrypt, ecc_decrypt
 from .registry import Registry
 from .peer import UvnPeersList
 from .render import Templates
@@ -27,6 +26,8 @@ from .dds_data import uvn_info, cell_agent_config
 from .agent_net import AgentNetworking
 from .agent import Agent
 from .vpn_config import P2PLinksMap
+from .keys import KeyId
+from .id_db import IdentityDatabase
 from .log import Logger as log
 
 
@@ -49,6 +50,11 @@ class RegistryAgent(Agent):
       vpn_interfaces=self.vpn_interfaces)
   
     super().__init__()
+
+
+  @property
+  def id_db(self) -> IdentityDatabase:
+    return self.registry.id_db
 
 
   @property
@@ -107,26 +113,12 @@ class RegistryAgent(Agent):
 
 
   @property
-  def ca(self) -> CertificateAuthority:
-    return self.registry.dds_keymat.ca
-
-
-  @property
-  def cert(self) -> Path:
-    return self.registry.dds_keymat.cert("root")
-
-
-  @property
-  def key(self) -> Path:
-    return self.registry.dds_keymat.key("root")
-
-
-  @property
   def dds_config(self) -> DdsParticipantConfig:
     if not self.registry.rti_license.is_file():
       log.error(f"RTI license file not found: {self.registry.rti_license}")
       raise RuntimeError("RTI license file not found")
 
+    key_id = KeyId.from_uvn_id(self.registry.uvn_id)
     Templates.generate(self.participant_xml_config, "dds/uno.xml", {
       "deployment_id": self.registry.backbone_vpn_config.deployment.generation_ts,
       "uvn": self.registry.uvn_id,
@@ -136,12 +128,12 @@ class RegistryAgent(Agent):
       ],
       "timing": self.registry.uvn_id.settings.timing_profile,
       "license_file": self.registry.rti_license.read_text(),
-      "ca_cert": self.registry.dds_keymat.ca.cert,
-      "perm_ca_cert": self.registry.dds_keymat.perm_ca.cert,
-      "cert": self.registry.dds_keymat.cert("root"),
-      "key": self.registry.dds_keymat.cert("key"),
-      "governance": self.registry.dds_keymat.governance,
-      "permissions": self.registry.dds_keymat.permissions("root"),
+      "ca_cert": self.registry.id_db.backend.ca.cert,
+      "perm_ca_cert": self.registry.id_db.backend.perm_ca.cert,
+      "cert": self.registry.id_db.backend.cert(key_id),
+      "key": self.registry.id_db.backend.key(key_id),
+      "governance": self.registry.id_db.backend.governance,
+      "permissions": self.registry.id_db.backend.permissions(key_id),
       "enable_dds_security": False,
     })
 
@@ -184,10 +176,8 @@ class RegistryAgent(Agent):
       config = tmp_dir / Registry.AGENT_CONFIG_FILENAME
       enc_config = Path(f"{config}.enc")
 
-      cert = self.registry.dds_keymat.cert(cell.name)
-      # ecc_encrypt(cert, config, enc_config)
-      self.ca.encrypt_file(cert, config, enc_config)
-
+      key = self.id_db.backend[cell]
+      self.id_db.backend.encrypt_file(key, config, enc_config)
       
       sample = cell_agent_config(
         participant=self.dp,

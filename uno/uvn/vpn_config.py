@@ -180,6 +180,8 @@ class CentralizedVpnConfig:
 
 
 class P2PVpnConfig:
+  DEFAULT_KEEPALIVE = 25
+
   def __init__(self,
       peer_endpoints: Mapping[int, str],
       settings: VpnSettings,
@@ -215,7 +217,8 @@ class P2PVpnConfig:
               address=peer_b_address,
               allowed=[str(self.settings.subnet), *map(str, self.settings.allowed_ips)],
               endpoint=f"{peer_b_endpoint}:{self.settings.port + peer_b_port_local}"
-                if peer_b_endpoint else None)
+                if peer_b_endpoint else None,
+              keepalive=None if peer_a_endpoint is not None else self.DEFAULT_KEEPALIVE)
           ])
         for peer_b_id, (peer_a_port_local, peer_a_address, peer_b_address, link_network) in peer_a_deploy_cfg["peers"].items()
             for peer_b_deploy_cfg in [self.deployment.peers[peer_b_id]]

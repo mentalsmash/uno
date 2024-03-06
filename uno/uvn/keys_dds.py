@@ -1,15 +1,16 @@
-import tempfile
-from typing import Optional, Mapping, Tuple, Iterable
+from typing import Generator, Iterable, Optional
 from pathlib import Path
-import shutil
-import datetime
-import yaml
+from datetime import datetime
+import tempfile
 import json
+import yaml
 
+from .keys import KeysBackend, Key, KeyId
 from .exec import exec_command
-from .log import Logger as log
-from .render import Templates
 from .time import Timestamp
+from .dds import UvnTopic
+from .render import Templates
+from .log import Logger as log
 
 
 def ecc_encrypt(cert: Path, input: Path, output: Path) -> None:
@@ -152,12 +153,11 @@ class CertificateSubject:
 class CertificateAuthority:
   def __init__(self,
       root: Path,
-      id: CertificateSubject,
-      read_only: bool=False) -> None:
+      id: CertificateSubject) -> None:
     self.root = root
     self.id = id
     self.db_dir = self.root / "db"
-    self.read_only = read_only
+
 
   @property
   def index(self) -> Path:
@@ -179,35 +179,17 @@ class CertificateAuthority:
     return self.root / "ca-cert.pem"
 
 
-  def init(self, reset: bool=False) -> None:
-    assert(not self.read_only)
-
+  def init(self) -> None:
     log.debug(f"[DDS] initializing CA: {self.root}")
-
-    if not reset and self.cert.is_file():
-      log.debug(f"[DDS] assuming CA is initialized by cert file: {self.cert}")
-      return
-  
-    if not self.root.is_dir():
-      self.root.mkdir(parents=False, exist_ok=False, mode=0o700)
-
-    if self.db_dir.is_dir():
-      self.db_dir.unlink()
+    self.root.mkdir(parents=False, exist_ok=False, mode=0o700)
     self.db_dir.mkdir(mode=0o700, parents=True, exist_ok=False)
-
+  
     for f, contents in {
         self.index: "",
         self.serial: "01",
       }.items():
-      if f.is_file():
-        f.unlink()
       f.write_text(contents)
       f.chmod(0o600)
-
-    if self.key.is_file():
-      self.key.unlink()
-    if self.cert.is_file():
-      self.cert.unlink()
 
     exec_command([
       "openssl", "req",
@@ -321,21 +303,44 @@ class CertificateAuthority:
     self.sign_cert(csr, cert)
 
 
-class DdsKeyMaterial:
+class DdsKeysBackend(KeysBackend):
   GRANT_TIME_FORMAT = "%Y-%m-%dT%H:%M:%S"
+  REGISTRY_TOPICS = {
+    "published": [
+      UvnTopic.UVN_ID,
+      UvnTopic.BACKBONE,
+    ],
 
-  def __init__(self,
-      root: Path,
-      org: str,
-      generation_ts: TimeoutError) -> None:
-    self.root = root
-    self.generation_ts = generation_ts
+    "subscribed": {
+      UvnTopic.CELL_ID: {},
+      # UvnTopic.DNS: {},
+    },
+  }
+
+  CELL_TOPICS = {
+    "published": [
+      UvnTopic.CELL_ID,
+      # UvnTopic.DNS,
+    ],
+
+    "subscribed": {
+      UvnTopic.CELL_ID: {},
+      # UvnTopic.DNS: {},
+      UvnTopic.UVN_ID: {},
+      UvnTopic.BACKBONE: {},
+    }
+  }
+
+  def __init__(self, root: Path, org: str, **load_args) -> None:
+    super().__init__(root, **load_args)
     self.ca = CertificateAuthority(
       root=self.root / "ca",
       id=CertificateSubject(org=org, cn="Identity Certificate Authority"))
     self.perm_ca = CertificateAuthority(
       root=self.root / "ca-perm",
       id=CertificateSubject(org=org, cn="Permissions Certificate Authority"))
+    self.loaded = True
+  
 
   @property
   def keys_dir(self) -> Path:
@@ -359,13 +364,13 @@ class DdsKeyMaterial:
 
   @property
   def not_before(self) -> str:
-    return Timestamp.parse(self.generation_ts).format(self.GRANT_TIME_FORMAT)
-
+    return Timestamp.parse(self.init_ts).format(self.GRANT_TIME_FORMAT)
+  
 
   @property
   def not_after(self) -> str:
-    not_before = datetime.datetime.strptime(self.not_before, self.GRANT_TIME_FORMAT)
-    not_after = datetime.datetime(
+    not_before = datetime.strptime(self.not_before, self.GRANT_TIME_FORMAT)
+    not_after = datetime(
       # Use 12 so we can accomodate leap years
       year=not_before.year + 12,
       month=not_before.month,
@@ -375,87 +380,95 @@ class DdsKeyMaterial:
       second=not_before.second)
     return not_after.strftime(self.GRANT_TIME_FORMAT)
 
-
+  
   def permissions(self, id: str) -> Path:
     return self.permissions_dir / f"{id}-permissions.xml.p7s"
 
 
-  def key(self, id: str) -> Path:
-    return self.keys_dir / f"{id}-key.pem"
+  def key(self, id: KeyId) -> Path:
+    return self.keys_dir / id.key_type.name.lower() / f"{id.owner}/{id.target}-key.pem"
 
 
-  def cert(self, id: str) -> Path:
-    return self.certs_dir / f"{id}-cert.pem"
+  def cert(self, id: KeyId) -> Path:
+    return self.certs_dir / id.key_type.name.lower() / f"{id.owner}/{id.target}-cert.pem"
 
 
-  def csr(self, id: str) -> Path:
-    return self.certs_dir / f"{id}-cert.csr"
+  def csr(self, id: KeyId) -> Path:
+    return self.certs_dir / id.key_type.name.lower() / f"{id.owner}/{id.target}-cert.csr"
+  
+
+  def search_keys(self,
+      owner: str|None = None,
+      target: str|None = None,
+      key_type: str|KeyId.Type|None = None) -> Generator[Key, None, int]:
+    lookup_count = 0
+    if key_type is not None and not isinstance(key_type, KeyId.Type):
+      key_type = KeyId.Type[key_type.upper()]
+    for key_t in KeyId.Type:
+      if key_type is not None and key_t != key_type:
+        continue
+      for cert in self.certs_dir.glob(f"{key_t.name.lower()}/*/*-cert.pem"):
+        key_o = cert.parent.name
+        if owner is not None and key_o != owner:
+          continue
+        key_tgt = cert.name.replace("-cert.pem", "")
+        if target is not None and key_tgt != target:
+          continue
+        key_id = KeyId(key_t, key_o, key_tgt)
+        key = Key(backend=self, id=key_id)
+        lookup_count += 1
+        yield key
+    return lookup_count
+    
+
+  def load_key(self,
+      key: Key,
+      with_privkey: bool = False,
+      passphrase: str|None = None) -> Key:
+    if with_privkey:
+      key.privkey = self.key(key.id).read_text()
+    key.pubkey = self.cert(key.id).read_text()
+    return key
 
 
-  def init(self, peers: Mapping[str,Tuple[Iterable[str], Iterable[str]]], reset: bool=False) -> None:
-    log.debug(f"[DDS] initializing security material: {self.root}")
+  def generate_key(self, id: KeyId) -> Key:
+    if id.key_type == KeyId.Type.ROOT:
+      self.ca.init()
+      self.perm_ca.init()
+      self.keys_dir.mkdir(mode=0o700, parents=False, exist_ok=False)
+      self.certs_dir.mkdir(mode=0o755, parents=False, exist_ok=False)
+      self.permissions_dir.mkdir(mode=0o700, parents=False, exist_ok=False)
 
-    self.ca.init(reset=reset)
-
-    self.perm_ca.init(reset=reset)
-
-    if self.keys_dir.is_dir() and reset:
-      shutil.rmtree(self.keys_dir)
-    self.keys_dir.mkdir(mode=0o700, parents=True, exist_ok=True)
-
-    if self.certs_dir.is_dir() and reset:
-      shutil.rmtree(self.certs_dir)
-    self.certs_dir.mkdir(mode=0o755, parents=True, exist_ok=True)
-
-    if not self.governance.is_file() or reset:
       tmp_file_h = tempfile.NamedTemporaryFile()
       tmp_file = Path(tmp_file_h.name)
       Templates.generate(tmp_file, "dds/governance.xml", {})
       self.perm_ca.sign_file(tmp_file, self.governance)
 
-    log.debug(f"[DDS] assert key material for {len(peers)} peers: {list(peers.keys())}")
-
-    if not self.permissions_dir.is_dir():
-      self.permissions_dir.mkdir(mode=0o700, parents=True, exist_ok=False)
-
-    for peer, (published, subscribed) in peers.items():
-      peer_key = self.key(peer)
-      peer_cert = self.cert(peer)
-
-      if not reset and (peer_key.is_file() or peer_cert.is_file()):
-        if not (peer_key.is_file() and peer_cert.is_file()):
-          raise RuntimeError("incomplete DDS material for peer", peer_key, peer_cert)
-        log.debug(f"[DDS] peer key material already updated: {peer}")
-        continue
-
-      try:
-        self._assert_peer(peer, published, subscribed)
-      except Exception as e:
-        for f in [peer_key, peer_cert]:
-          if f.is_file():
-            f.unlink()
-        raise e
-
-    log.debug(f"[DDS] security material initialized: {self.root}")
+      return self._assert_peer(id, **DdsKeysBackend.REGISTRY_TOPICS)
+    elif id.key_type == KeyId.Type.CELL:
+      return self._assert_peer(id, **DdsKeysBackend.CELL_TOPICS)
+    else:
+      raise NotImplementedError()
 
 
-  def _assert_peer(self, peer: str, published: Iterable[str], subscribed: Iterable[str]) -> None:
-    log.debug(f"[DDS] creating peer certificate: {peer}")
+  def _assert_peer(self, key_id: KeyId, published: Iterable[str], subscribed: Iterable[str]) -> Key:
     subject = CertificateSubject(
-      cn=peer,
+      cn=key_id.target,
       org=self.ca.id.org,
       country=self.ca.id.country,
       state=self.ca.id.state,
       location=self.ca.id.location)
-    peer_key = self.key(peer)
-    peer_cert = self.cert(peer)
+    peer_key = self.key(key_id)
+    peer_cert = self.cert(key_id)
+    peer_cert.parent.mkdir(parents=True, exist_ok=True, mode=0o700)
+    peer_key.parent.mkdir(parents=True, exist_ok=True, mode=0o700)
     self.ca.create_cert(subject, peer_key, peer_cert)
-    peer_perms = self.permissions(peer)
-    log.debug(f"[DDS] creating permission file: {peer_perms}")
+    peer_perms = self.permissions(key_id)
+    peer_perms.parent.mkdir(parents=True, exist_ok=True, mode=0o700)
     tmp_file_h = tempfile.NamedTemporaryFile()
     tmp_file = Path(tmp_file_h.name)
     Templates.generate(tmp_file, "dds/permissions.xml", {
-      "peer": peer,
+      "peer": key_id.target,
       "subject": subject,
       "published": published,
       "subscribed": subscribed,
@@ -463,5 +476,143 @@ class DdsKeyMaterial:
       "not_after": self.not_after,
     }, mode=0o644)
     self.perm_ca.sign_file(tmp_file, peer_perms, mode=0o644)
+    key = Key(backend=self, id=key_id)
+    return self.load_key(key, with_privkey=True)
 
+
+
+  def import_key(self,
+      key_id: KeyId,
+      base_dir: Path,
+      key_files: Iterable[Path]) -> Key:
+    key_files = set(key_files)
+    def _find_file(filename: str) -> str|None:
+      rel_path = f"{key_id.key_type.name.lower()}/{key_id.owner}/{key_id.target}-{filename}"
+      return next(
+        (f for f in key_files
+          if str(f) == rel_path), None)
+
+    cert = _find_file("cert.pem")
+    key = _find_file("key.pem")
+    permissions = _find_file("permissions.p7s")
+
+    if not cert:
+      raise RuntimeError("cannot import key without certificate", key_id, base_dir, key_files)
+
+    cert_out = self.cert(key_id)
+    cert_out.parent.mkdir(parents=True, exist_ok=True, mode=0o755)
+    exec_command(["cp", "-av", base_dir / cert, cert_out])
+
+    if key:
+      key_out = self.key(key_id)
+      key_out.parent.mkdir(parents=True, exist_ok=True, mode=0o755)
+      exec_command(["cp", "-av", base_dir / key, key_out])
+
+    if permissions:
+      permissions_out = self.permissions(key_id)
+      permissions_out.parent.mkdir(parents=True, exist_ok=True, mode=0o755)
+      exec_command(["cp", "-av", base_dir / permissions, permissions_out])
+
+    if key_id.key_type == KeyId.Type.ROOT:
+      governance = _find_file("governance.p7s")
+      ca_pem = _find_file("ca.pem")
+      perm_ca_pem = _find_file("perm-ca.pem")
+      if governance is None or ca_pem is None or perm_ca_pem is None:
+        raise RuntimeError("missing required key material", governance, ca_pem, perm_ca_pem)
+      self.governance.parent.mkdir(parents=True, exist_ok=True, mode=0o755)
+      exec_command(["cp", "-av", base_dir / governance, self.governance])
+      self.ca.cert.parent.mkdir(parents=True, exist_ok=True, mode=0o755)
+      exec_command(["cp", "-av", base_dir / ca_pem, self.ca.cert])
+      self.perm_ca.cert.parent.mkdir(parents=True, exist_ok=True, mode=0o755)
+      exec_command(["cp", "-av", base_dir / perm_ca_pem, self.perm_ca.cert])
+
+    return Key(backend=self, id=key_id)
+
+
+  def export_key(self,
+      key: Key,
+      output_dir: Path,
+      with_privkey: bool = False) -> set[Path]:
+    exported = set()
+    key_dir = output_dir / f"{key.id.key_type.name.lower()}/{key.id.owner}/{key.id.target}"
+
+    cert = self.cert(key.id)
+    cert_out = Path(f"{key_dir}-cert.pem")
+    cert_out.parent.mkdir(parents=True, exist_ok=True, mode=0o755)
+    exec_command(["cp", "-av", cert, cert_out])
+    exported.add(cert_out.relative_to(output_dir))
+
+    if with_privkey:
+      key_file = self.key(key.id)
+      key_out = Path(f"{key_dir}-key.pem")
+      key_out.parent.mkdir(parents=True, exist_ok=True, mode=0o700)
+      exec_command(["cp", "-av", key_file, key_out])
+      exported.add(key_out.relative_to(output_dir))
+
+      permissions = self.permissions(key.id)
+      permissions_out = Path(f"{key_dir}-permissions.p7s")
+      permissions_out.parent.mkdir(parents=True, exist_ok=True, mode=0o700)
+      exec_command(["cp", "-av", permissions, permissions_out])
+      exported.add(permissions_out.relative_to(output_dir))
+
+    if key.id.key_type == KeyId.Type.ROOT:
+      governance_out = Path(f"{key_dir}-governance.p7s")
+      governance_out.parent.mkdir(parents=True, exist_ok=True, mode=0o700)
+      exec_command(["cp", "-av", self.governance, governance_out])
+      exported.add(governance_out.relative_to(output_dir))
+
+      ca_pem = Path(f"{key_dir}-ca.pem")
+      ca_pem.parent.mkdir(parents=True, exist_ok=True, mode=0o700)
+      exec_command(["cp", "-av", self.ca.cert, ca_pem])
+      exported.add(ca_pem.relative_to(output_dir))
+
+      ca_pem = Path(f"{key_dir}-perm-ca.pem")
+      ca_pem.parent.mkdir(parents=True, exist_ok=True, mode=0o700)
+      exec_command(["cp", "-av", self.perm_ca.cert, ca_pem])
+      exported.add(ca_pem.relative_to(output_dir))
+
+
+    return exported
+
+
+  def sign_file(self,
+      key: Key,
+      input: Path,
+      output: Path) -> None:
+    if key.id.key_type != KeyId.Type.ROOT:
+      raise ValueError("unsupported key type", key)
+    self.ca.sign_file(input, output)
+
+
+  def verify_signature(self,
+      key: Key,
+      input: Path,
+      output: Path) -> None:
+    if key.id.key_type != KeyId.Type.ROOT:
+      raise ValueError("unsupported key type", key)
+    self.ca.verify_signature(input, output)
+
+
+  def encrypt_file(self,
+      key: Key,
+      input: Path,
+      output: Path) -> None:
+    cert = self.cert(key.id)
+    self.ca.encrypt_file(cert, input, output)
+
+
+  def decrypt_file(self,
+      key: Key,
+      input: Path,
+      output: Path) -> None:
+    key = self.key(key.id)
+    self.ca.decrypt_file(key, input, output)
+
+
+  def drop_key(self, key: Key) -> None:
+    raise NotImplementedError()
+
+
+  def drop_keys(self) -> None:
+    raise NotImplementedError()()
 

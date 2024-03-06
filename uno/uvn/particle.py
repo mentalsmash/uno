@@ -49,11 +49,11 @@ def generate_particle_packages(
 
   if output_dir.is_dir():
     output_dir.unlink()
-  output_dir.mkdir(parents=True, exist_ok=False, mode=0o700)
+  # output_dir.mkdir(parents=True, exist_ok=False, mode=0o700)
 
   for particle in uvn_id.particles.values():
     particle_dir = output_dir / particle.name
-    particle_dir.mkdir(mode=0o700)
+    particle_dir.mkdir(parents=True, mode=0o700)
 
     for cell_id, cell_particles_vpn_config in particle_vpn_configs.items():
       cell = uvn_id.cells[cell_id]

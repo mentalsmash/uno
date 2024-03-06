@@ -21,7 +21,7 @@ import time
 import ipaddress
 import sdnotify
 
-from .uvn_id import UvnId
+from .uvn_id import UvnId, CellId
 from .wg import WireGuardInterface
 from .ip import (
   LanDescriptor,
@@ -34,7 +34,7 @@ from .graph import backbone_deployment_graph
 from .agent_net import AgentNetworking
 from .router import Router
 from . import agent_run as Runner
-from .dds_keymat import CertificateAuthority
+from .id_db import IdentityDatabase
 
 from .log import Logger as log
 
@@ -294,6 +294,11 @@ class Agent:
 
 
   @property
+  def cell(self) -> CellId|None:
+    return None
+
+
+  @property
   def registry_id(self) -> str:
     raise NotImplementedError()
 
@@ -364,17 +369,7 @@ class Agent:
 
 
   @property
-  def ca(self) -> CertificateAuthority:
-    raise NotImplementedError()
-
-
-  @property
-  def cert(self) -> Path:
-    raise NotImplementedError()
-
-
-  @property
-  def key(self) -> Path:
+  def id_db(self) -> IdentityDatabase:
     raise NotImplementedError()
 
 

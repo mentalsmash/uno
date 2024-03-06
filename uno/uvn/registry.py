@@ -43,12 +43,12 @@ from .deployment import (
   FullMeshDeploymentStrategy,
 )
 from .vpn_config import CentralizedVpnConfig, P2PVpnConfig
-from .gpg import IdentityDatabase
 from .log import Logger as log
-from .dds_keymat import DdsKeyMaterial
 from .dds import locate_rti_license, UvnTopic
 from .exec import exec_command
 from .particle import generate_particle_packages
+from .id_db import IdentityDatabase
+from .keys_dds import DdsKeysBackend
 
 
 class Registry(Versioned):
@@ -128,10 +128,14 @@ class Registry(Versioned):
     self.particles_vpn_configs = particles_vpn_configs or {}
     self.excluded_particles_vpn_configs = excluded_particles_vpn_configs or {}
     self.backbone_vpn_config = backbone_vpn_config
-    self.dds_keymat = DdsKeyMaterial(
-      root=self.root,
-      org=self.uvn_id.name,
-      generation_ts=self.uvn_id.init_ts)
+    self.id_db = IdentityDatabase(
+      backend=DdsKeysBackend(
+        root=self.root / "id",
+        org=self.uvn_id.name,
+        generation_ts=self.uvn_id.generation_ts,
+        init_ts=self.uvn_id.init_ts),
+      local_id=self.uvn_id,
+      uvn_id=self.uvn_id)
     self.loaded = True
 
 
@@ -142,6 +146,7 @@ class Registry(Versioned):
       and self.backbone_vpn_config.deployment is not None
       and self.backbone_vpn_config.deployment.generation_ts is not None
     )
+
 
   @property
   def id(self) -> int:
@@ -190,6 +195,8 @@ class Registry(Versioned):
       # drop_keys_gpg: bool=False,
       redeploy: bool=False,
       **uvn_args) -> bool:
+    if not self.root.is_dir():
+      self.root.mkdir(parents=True, mode=0o700)
 
     if uvn_args:
       self.uvn_id.configure(**uvn_args)
@@ -235,9 +242,8 @@ class Registry(Versioned):
       self.particles_vpn_configs[cell.id] = self.excluded_particles_vpn_configs[cell.id]
       del self.excluded_particles_vpn_configs[cell.id]
 
-    # changed_gpg = changed_uvn or drop_keys_gpg
-    # if changed_gpg:
-    #   self._configure_gpg_keys(drop_keys=drop_keys_gpg)
+    if changed_uvn or changed_cell or changed_particle:
+      self.id_db.uvn_id = self.uvn_id
 
     if changed_root_vpn:
       self._configure_root_vpn(drop_keys=drop_keys_root_vpn)
@@ -253,11 +259,6 @@ class Registry(Versioned):
       self._save_to_disk(drop_keys=drop_keys_dds)
 
     return bool(changed)
-
-
-  def _configure_gpg_keys(self) -> None:
-    id_db = IdentityDatabase(self.root)
-    id_db.assert_gpg_keys(self.uvn_id)
 
 
   def _configure_root_vpn(self, drop_keys: bool=False) -> None:
@@ -340,29 +341,6 @@ class Registry(Versioned):
         deployment=self.backbone_vpn_config.deployment)
     elif self.uvn_id.cells:
       log.error(f"[REGISTRY] UVN has {len(self.uvn_id.cells)} cells but no backbone links!")
-
-
-  def _configure_dds_keymat(self, drop_keys: bool=False) -> None:
-    peers = {
-      "root": ([
-        dw.value
-        for dw in Registry.AGENT_REGISTRY_TOPICS["writers"]
-      ], [
-        dr.value
-        for dr in Registry.AGENT_REGISTRY_TOPICS["readers"].keys()
-      ])
-    }
-    peers.update({
-      c.name: ([
-        dw.value
-        for dw in Registry.AGENT_CELL_TOPICS["writers"]
-      ], [
-        dr.value
-        for dr in Registry.AGENT_CELL_TOPICS["readers"].keys()
-      ])
-      for c in self.uvn_id.all_cells
-    })
-    self.dds_keymat.init(peers, reset=drop_keys)
 
 
   @property
@@ -524,5 +502,6 @@ class Registry(Versioned):
     config_file.chmod(0o600)
     log.warning(f"[REGISTRY] updated registry state: {config_file}")
 
-    self._configure_dds_keymat(drop_keys=drop_keys)
+
+    self.id_db.assert_keys()
     self._generate_agents()

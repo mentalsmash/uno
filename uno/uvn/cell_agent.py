@@ -51,7 +51,9 @@ from .dds_data import dns_database, cell_agent_status
 from .agent_net import AgentNetworking
 from .router import Router
 from .agent import Agent
-from .dds_keymat import CertificateAuthority, ecc_decrypt, CertificateSubject
+from .id_db import IdentityDatabase
+from .keys_dds import DdsKeysBackend
+from .keys import KeyId
 from .log import Logger as log
 
 
@@ -77,7 +79,7 @@ class CellAgent(Agent):
     self._deployment = deployment
     self._registry_id = registry_id
 
-    self.cell = self.uvn_id.cells[cell_id]
+    self._cell = self.uvn_id.cells[cell_id]
 
     self.root_vpn_config = root_vpn_config
     self.root_vpn = WireGuardInterface(self.root_vpn_config)
@@ -110,10 +112,16 @@ class CellAgent(Agent):
 
     self.www = UvnHttpd(self)
 
-    self._ca = CertificateAuthority(
-      root=self.root,
-      id=CertificateSubject.extract(self.root / "ca-cert.pem"),
-      read_only=True)
+    id_db_backend = DdsKeysBackend(
+      root=self.root / "id",
+      org=self.uvn_id.name,
+      generation_ts=self.uvn_id.generation_ts,
+      init_ts=self.uvn_id.init_ts)
+
+    self._id_db = IdentityDatabase(
+      backend=id_db_backend,
+      local_id=self.cell,
+      uvn_id=self.uvn_id)
 
     # Store configuration upon receiving it, so we can reload it
     # once we're done processing received data
@@ -132,6 +140,11 @@ class CellAgent(Agent):
     self.enable_www = False
 
     super().__init__()
+
+
+  @property
+  def cell(self) -> CellId:
+    return self._cell
 
 
   @property
@@ -170,18 +183,8 @@ class CellAgent(Agent):
 
 
   @property
-  def ca(self) -> CertificateAuthority:
-    return self._ca
-
-
-  @property
-  def cert(self) -> Path:
-    return self.root / "cert.pem"
-
-
-  @property
-  def key(self) -> Path:
-    return self.root / "key.pem"
+  def id_db(self) -> IdentityDatabase:
+    return self._id_db
 
 
   @property
@@ -376,6 +379,7 @@ class CellAgent(Agent):
       log.error(f"RTI license file not found: {self.rti_license}")
       raise RuntimeError("RTI license file not found")
 
+    key_id = KeyId.from_uvn_id(self.cell)
     Templates.generate(self.participant_xml_config, "dds/uno.xml", {
       "deployment_id": self.deployment.generation_ts,
       "uvn": self.uvn_id,
@@ -383,12 +387,12 @@ class CellAgent(Agent):
       "initial_peers": initial_peers,
       "timing": self.uvn_id.settings.timing_profile,
       "license_file": self.rti_license.read_text(),
-      "ca_cert": self.root / "ca-cert.pem",
-      "perm_ca_cert": self.root / "perm-ca-cert.pem",
-      "cert": self.root / "cert.pem",
-      "key": self.root / "key.pem",
-      "governance": self.root / "governance.p7s",
-      "permissions": self.root / "permissions.p7s",
+      "ca_cert": self.id_db.backend.ca.cert,
+      "perm_ca_cert": self.id_db.backend.perm_ca.cert,
+      "cert": self.id_db.backend.cert(key_id),
+      "key": self.id_db.backend.key(key_id),
+      "governance": self.id_db.backend.governance,
+      "permissions": self.id_db.backend.permissions(key_id),
       "enable_dds_security": False,
     })
 
@@ -766,8 +770,11 @@ class CellAgent(Agent):
         config_h = config
         config = Path(config_h.name)
         config_file = tmp_dir / Registry.AGENT_CONFIG_FILENAME
-        self.ca.decrypt_file(self.key, config, config_file)
-        shutil.copy2(self.ca.cert, tmp_dir / self.ca.cert.name)
+
+        key = self.id_db.backend[self.cell]
+        self.id_db.backend.decrypt_file(key, config, config_file)
+        # shutil.copy2(self.ca.cert, tmp_dir / self.ca.cert.name)
+        shutil.copytree(self.id_db.backend.root, tmp_dir / self.id_db.backend.root.relative_to(self.root))
         updated_agent = CellAgent.load(tmp_dir)
       else:
         raise ValueError("invalid arguments")
@@ -915,53 +922,15 @@ class CellAgent(Agent):
 
     package_extra_files: Sequence[Path] = []
 
-    # # Export all keys to a common directory
-    # keys_dir = tmp_dir / "gpg"
+    id_dir = tmp_dir / "id"
+    exported_keymat = registry.id_db.export_keys(
+      output_dir=id_dir,
+      target=cell)
+    for f in exported_keymat:
+      package_extra_files.append(id_dir / f)
 
-    # id_db = IdentityDatabase(registry.root)
-
-    # # Export the cell's private key
-    # agent_pubkey, agent_privkey, agent_pass = id_db.export_key(
-    #   cell,
-    #   with_privkey=True,
-    #   with_passphrase=True,
-    #   output_dir=keys_dir)
-    
-    # # Export the UVN's public key
-    # uvn_pubkey, _, _ = id_db.export_key(
-    #   registry.uvn_id,
-    #   output_dir=keys_dir)
-
-    # # Export the public key for all other cells
-    # other_keys = []
-    # for other in (c for c in registry.uvn_id.cells.values() if c != cell):
-    #   other_pubkey, _, _ = id_db.export_key(
-    #     other,
-    #     output_dir=keys_dir)
-    #   other_keys.append(other_pubkey)
-    
-    # package_extra_files.append(keys_dir)
-
-    # # Store the cell id in a separate file
-    # cell_id_file = tmp_dir / "cell.id"
-    # cell_id_file.write_text(str(cell.id))
-    # package_extra_files.append(cell_id_file)
-
-    # # Store the uvn id in a separate file
-    # uvn_id_file = tmp_dir / "uvn.id"
-    # uvn_id_file.write_text(yaml.safe_dump(registry.uvn_id.serialize()))
-    # package_extra_files.append(uvn_id_file)
-
-    # Include the RTI license file
-    # Include DDS Security artifacts
     for src, dst, optional in [
-        (registry.rti_license, None, True),
-        (registry.dds_keymat.cert(cell.name), "cert.pem", False),
-        (registry.dds_keymat.key(cell.name), "key.pem", False),
-        (registry.dds_keymat.governance, "governance.p7s", False),
-        (registry.dds_keymat.permissions(cell.name), "permissions.p7s", False),
-        (registry.dds_keymat.ca.cert, "ca-cert.pem", False),
-        (registry.dds_keymat.perm_ca.cert, "perm-ca-cert.pem", False),
+        (registry.rti_license, None, False),
       ]:
       dst = dst or src.name
       tgt = tmp_dir / dst
@@ -983,23 +952,6 @@ class CellAgent(Agent):
         if registry.backbone_vpn_config.peer_configs else [])
     agent_config = cell_agent.save_to_disk()
 
-    # # Always sign with the UVN's root key
-    # agent_config_sig = id_db.sign_file(
-    #   owner_id=registry.uvn_id,
-    #   input_file=agent_config,
-    #   output_dir=tmp_dir)
-
-    # # Encrypt signature with agent owner's key
-    # agent_config_sig_enc = id_db.encrypt_file(
-    #   cell, agent_config_sig, tmp_dir)
-
-    # # Encrypt package with the agent owner's key
-    # agent_config_enc = id_db.encrypt_file(
-    #   cell, agent_config, tmp_dir)
-
-    # agent_license = tmp_dir / Registry.AGENT_LICENSE
-    # shutil.copy2(registry.rti_license, agent_license)
-
     # Store all files in a single archive
     agent_package = output_dir / f"{cell.name}.uvn-agent"
     agent_package.parent.mkdir(parents=True, exist_ok=True, mode=0o700)
@@ -1011,9 +963,6 @@ class CellAgent(Agent):
         *(f.relative_to(tmp_dir) for f in package_extra_files)],
       cwd=tmp_dir)
     agent_package.chmod(0o600)
-  
-    # out_config = output_dir / f"{cell.name}.yaml"
-    # shutil.copy2(agent_config, out_config)
 
     log.warning(f"[AGENT] package generated: {agent_package}")
 
@@ -1101,12 +1050,12 @@ class CellAgent(Agent):
     for f, permissions in {
         Registry.AGENT_CONFIG_FILENAME: 0o600,
         "rti_license.dat": 0o600,
-        "governance.p7s": 0o600,
-        "permissions.p7s": 0o600,
-        "key.pem": 0o600,
-        "cert.pem": 0o644,
-        "ca-cert.pem": 0o644,
-        "perm-ca-cert.pem": 0o644,
+        # "governance.p7s": 0o600,
+        # "permissions.p7s": 0o600,
+        # "key.pem": 0o600,
+        # "cert.pem": 0o644,
+        # "ca-cert.pem": 0o644,
+        # "perm-ca-cert.pem": 0o644,
       }.items():
       src = tmp_dir / f
       dst = root / f
@@ -1116,6 +1065,12 @@ class CellAgent(Agent):
     # Load the imported agent
     log.activity(f"[AGENT] loading imported agent: {root}")
     agent = CellAgent.load(root)
+    id_db_dir = tmp_dir / "id"
+    package_files = [
+      f.relative_to(id_db_dir)
+        for f in id_db_dir.glob("**/*")
+    ]
+    agent.id_db.import_keys(id_db_dir, package_files)
     log.warning(f"[AGENT] bootstrap completed: {agent.cell}@{agent.uvn_id} [{agent.root}]")
 
     agent.net.generate_configuration()

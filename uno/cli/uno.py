@@ -29,7 +29,7 @@ from uno.uvn.deployment import DeploymentStrategyKind
 from uno.uvn.graph import backbone_deployment_graph
 from uno.uvn.ask import ask_assume_no, ask_assume_yes
 from uno.uvn.agent_net import UvnNetService, UvnAgentService
-
+from uno.uvn.keys import KeyId
 
 ###############################################################################
 ###############################################################################
@@ -355,42 +355,23 @@ def uno_agent(args):
 ###############################################################################
   
 def uno_encrypt(args):
-  # agent = _load_agent(args)
-  # agent.enable_www = True
-  # agent.enable_systemd = args.systemd
-  # agent.spin(max_spin_time=args.max_run_time)
-  from uno.uvn.dds_keymat import ecc_encrypt, ecc_decrypt
-
-  # registry = registry_load(args)
-  # if args.action == "encrypt":
-  #   ecc_encrypt(registry.dds_keymat.cert(args.cell), args.input, args.output)
-  # else:
-  #   ecc_decrypt(registry.dds_keymat.key(args.cell), args.input, args.output)
   agent = _load_agent(args)
 
   try:
-    cell = next(c for c in agent.uvn_id.all_cells if c.name == args.cell) if args.cell else None
+    cell = next(c for c in agent.uvn_id.all_cells if c.name == args.cell) if args.cell else agent.cell
   except StopIteration:
     raise RuntimeError("unknown cell", args.cell) from None
 
-  if isinstance(agent, RegistryAgent):
-    if not cell:
-      raise RuntimeError("no cell specified")
-    if args.action == "encrypt":
-      cert = agent.registry.dds_keymat.cert(args.cell)
-      agent.ca.encrypt_file(cert, args.input, args.output)
-    else:
-      key = agent.registry.dds_keymat.key(args.cell)
-      agent.ca.decrypt_file(key, args.input, args.output)
+  if not cell:
+    raise RuntimeError("no cell specified")
+
+  key_id = KeyId.from_uvn_id(cell)
+  key = agent.id_db.backend[key_id]
+
+  if args.action == "encrypt":
+    agent.id_db.backend.encrypt_file(key, args.input, args.output)
   else:
-    if cell and cell != agent.cell.name:
-      raise RuntimeError("unsupported cell", args.cell)
-    if args.action == "encrypt":
-      # cert = agent.cert
-      agent.ca.encrypt_file(agent.cert, args.input, args.output)
-    else:
-      # key = agent.key
-      agent.ca.decrypt_file(agent.key, args.input, args.output)
+    agent.id_db.backend.decrypt_file(key, args.input, args.output)
 
 
 
