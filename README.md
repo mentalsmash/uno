@@ -134,7 +134,8 @@ the `Dockerfile` included in this repository:
      -r my-uvn \
      my-uvn \
      -o "John Doe <john@example.com>" \
-     -L /path/to/rti_license.dat
+     -L /path/to/rti_license.dat \
+     -m mastersecret
   
    # check the generated directory
    ls -l my-uvn/
