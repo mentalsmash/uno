@@ -15,14 +15,8 @@
 # along with this program. If not, see <https://www.gnu.org/licenses/>.
 ###############################################################################
 import time
-from functools import partial
-import os
-from pathlib import Path
-from tempfile import TemporaryDirectory, NamedTemporaryFile
 import shutil
-import json
 from typing import TYPE_CHECKING, Iterable
-import threading
 import subprocess
 
 from .data import www as www_data
@@ -38,7 +32,6 @@ if TYPE_CHECKING:
   from .cell_agent import CellAgent
 from .log import Logger as log
 
-from http.server import SimpleHTTPRequestHandler, HTTPServer
 
 class UvnHttpd:
   def __init__(self, agent: "CellAgent"):
@@ -230,45 +223,3 @@ class UvnHttpd:
       self._lighttpd = None
       self._fakeroot = None
 
-
-
-  # def start(self, addresses: Iterable[str]) -> None:
-  #   assert(not self._http_servers)
-
-  #   port = 8080
-
-  #   def _http_thread(server, address):
-  #     try:
-  #       log.warning(f"[HTTPD] now serving {address}:{port}")
-  #       with server:
-  #         server.serve_forever()
-  #     except Exception as e:
-  #       log.error(f"[HTTPD] error in thread serving {address}:{port}")
-  #       log.exception(e)
-  #       raise e
-
-  #   self._http_servers = {
-  #     a: HTTPServer((str(a), port),
-  #       partial(SimpleHTTPRequestHandler,
-  #         directory=self.root))
-  #       for a in addresses
-  #   }
-
-  #   self._http_threads = {
-  #     a: threading.Thread(
-  #       target=_http_thread,
-  #       args=[self._http_servers[a], a])
-  #     for a in addresses
-  #   }
-  #   for t in self._http_threads:
-  #     t.start()
-
-
-  # def stop(self) -> None:
-  #   if self._http_servers:
-  #     for s in self._http_servers.values():
-  #       s.shutdown()
-  #     for t in self._http_threads.values():
-  #       t.join()
-  #     self._http_servers = {}
-  #     self._http_threads = {}

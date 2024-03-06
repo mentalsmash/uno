@@ -15,8 +15,7 @@
 # along with this program. If not, see <https://www.gnu.org/licenses/>.
 ###############################################################################
 import threading
-from typing import Optional, Tuple, Iterable, Iterator, Sequence, TYPE_CHECKING
-import ipaddress
+from typing import Optional, Tuple, Iterable, Iterator, TYPE_CHECKING
 
 import rti.connextdds as dds
 

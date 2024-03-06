@@ -17,18 +17,13 @@
 import os
 import rti.connextdds as dds
 from pathlib import Path
-from tempfile import NamedTemporaryFile
 
 from typing import Sequence, Mapping, Tuple, Union, Optional, Iterable, TYPE_CHECKING
 
 from enum import Enum
 
-from .uvn_id import UvnId
 from .render import Templates
 from .log import Logger as log
-
-if TYPE_CHECKING:
-  from .agent import Agent
 
 class UvnTopic(Enum):
   UVN_ID = "uno/uvn/info"

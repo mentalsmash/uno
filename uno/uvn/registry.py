@@ -15,13 +15,9 @@
 # along with this program. If not, see <https://www.gnu.org/licenses/>.
 ###############################################################################
 from pathlib import Path
-from typing import Optional, Mapping, Tuple, Iterable
-import shutil
+from typing import Optional, Mapping
 
-import ipaddress
 import yaml
-import networkx
-import matplotlib.pyplot as plt
 
 from .uvn_id import (
   UvnId,

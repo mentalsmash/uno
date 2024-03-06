@@ -19,7 +19,6 @@ import yaml
 import json
 
 from .wg import WireGuardKeyPair, genkeypreshared
-from .uvn_id import UvnId
 from .paired_map import PairedValuesMap
 
 

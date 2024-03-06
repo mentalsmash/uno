@@ -14,7 +14,7 @@
 # You should have received a copy of the GNU Affero General Public License
 # along with this program. If not, see <https://www.gnu.org/licenses/>.
 ###############################################################################
-from typing import Optional, Mapping, Iterable, Sequence, Tuple, Union, Callable, TYPE_CHECKING
+from typing import Optional, Mapping, Iterable, Tuple, Union, Callable, TYPE_CHECKING
 
 import rti.connextdds as dds
 
@@ -23,8 +23,7 @@ from enum import Enum
 import ipaddress
 
 from .uvn_id import UvnId, CellId
-from .dds import UvnTopic
-from .ip import LanDescriptor, NicDescriptor, ipv4_from_bytes
+from .ip import LanDescriptor
 from .time import Timestamp
 from .log import Logger as log
 

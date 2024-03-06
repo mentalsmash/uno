@@ -1,4 +1,4 @@
-from typing import Sequence, Iterable, Optional
+from typing import Iterable, Optional
 from pathlib import Path
 
 import rti.connextdds as dds

@@ -14,9 +14,9 @@
 # You should have received a copy of the GNU Affero General Public License
 # along with this program. If not, see <https://www.gnu.org/licenses/>.
 ###############################################################################
-from functools import cached_property, partial
+from functools import partial
 import random
-from typing import Tuple, Callable, Sequence, Optional, Iterable, Iterator
+from typing import Tuple, Callable, Sequence, Optional, Iterable
 from enum import Enum
 from .log import Logger as log
 

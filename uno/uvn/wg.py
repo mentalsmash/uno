@@ -20,12 +20,10 @@ from tempfile import NamedTemporaryFile
 from pathlib import Path
 from typing import Tuple, Iterable, Optional, Mapping, Union, Sequence
 
-import jinja2
-
 
 from .exec import exec_command
 from .time import Timestamp
-from .render import Templates, humanbytes
+from .render import Templates
 from .log import Logger as log
 from .ip import ip_nic_is_up, ip_nic_exists
 

@@ -16,7 +16,7 @@
 ###############################################################################
 import rti.connextdds as dds
 from pathlib import Path
-from typing import Mapping, Sequence, Iterable, Optional, Tuple, Callable
+from typing import Iterable, Optional, Callable
 import time
 import ipaddress
 import sdnotify

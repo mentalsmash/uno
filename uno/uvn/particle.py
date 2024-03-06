@@ -20,7 +20,7 @@ from pathlib import Path
 from .uvn_id import ParticleId, UvnId
 from .render import Templates
 from .qr import encode_qr_from_file
-from .wg import WireGuardInterface, WireGuardConfig
+from .wg import WireGuardConfig
 from .vpn_config import CentralizedVpnConfig
 from .time import Timestamp
 

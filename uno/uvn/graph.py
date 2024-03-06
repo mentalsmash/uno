@@ -1,4 +1,4 @@
-from typing import Tuple, Optional, TYPE_CHECKING
+from typing import Optional, TYPE_CHECKING
 from pathlib import Path
 import matplotlib.pyplot as plt
 import networkx

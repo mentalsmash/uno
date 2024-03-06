@@ -16,11 +16,7 @@
 ###############################################################################
 from typing import Iterable, Optional
 from pathlib import Path
-import time
 import shutil
-import ipaddress
-
-from .time import Timestamp
 
 from .wg import WireGuardInterface
 from .ip import (
@@ -29,8 +25,6 @@ from .ip import (
   ipv4_disable_forward,
   ipv4_disable_output_nat,
   ipv4_enable_kernel_forwarding,
-  list_local_networks,
-  ipv4_get_route,
   NicDescriptor,
   LanDescriptor,
 )
@@ -232,13 +226,6 @@ class UvnNetService(UvnService):
   def uvn_net_stop(self, forced: bool=False) -> None:
     self.uvn_net(["stop"], root=self._root, forced=forced)
     log.warning(f"[SERVICE] {self} stopped")
-
-
-  # def install_config(self, new_config: Path) -> None:
-  #   self.marker.parent.mkdir(parents=True, exist_ok=True)
-  #   exec_command(["cp", "-v", new_config, self.marker])
-  #   self.dir_marker.write_text(str(self.config_file.parent))
-  #   log.warning(f"[SERVICE] installed {self} configuration: {new_config} → {self.marker}")
 
 
   def configure(self, config_dir: Path) -> None:

@@ -18,9 +18,6 @@ from typing import Sequence, Tuple, Mapping, Optional, Union
 import netifaces
 import ipaddress
 import socket
-from itertools import chain
-from functools import partial
-
 from .exec import exec_command
 
 

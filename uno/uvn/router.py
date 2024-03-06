@@ -16,7 +16,6 @@
 ###############################################################################
 from pathlib import Path
 from typing import TYPE_CHECKING, Iterable, Tuple
-import tempfile
 
 from .wg import WireGuardInterface
 from .render import Templates
@@ -24,7 +23,6 @@ from .exec import exec_command
 from .ip import ipv4_list_routes
 
 from .log import Logger as log
-
 
 if TYPE_CHECKING:
   from .cell_agent import CellAgent
