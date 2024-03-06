@@ -957,8 +957,6 @@ class CellAgent(Agent):
     agent_package.parent.mkdir(parents=True, exist_ok=True, mode=0o700)
     exec_command(
       ["tar", "cJf", agent_package,
-        # agent_config_sig_enc.relative_to(tmp_dir),
-        # agent_config_enc.relative_to(tmp_dir),
         agent_config.relative_to(tmp_dir),
         *(f.relative_to(tmp_dir) for f in package_extra_files)],
       cwd=tmp_dir)
@@ -977,7 +975,6 @@ class CellAgent(Agent):
     tmp_dir_h = tempfile.TemporaryDirectory()
     tmp_dir = Path(tmp_dir_h.name)
 
-    # log.debug(f"[AGENT] extracting package contents: {package}")
     log.warning(f"[AGENT] installing agent from package {package} to {root}")
 
     package = package.resolve()
@@ -985,77 +982,13 @@ class CellAgent(Agent):
     log.activity(f"[AGENT] extracting package contents: {tmp_dir}")
     exec_command(["tar", "xvJf", package], cwd=tmp_dir)
 
-    # # Read the cell id
-    # uvn_id_file = tmp_dir / "uvn.id"
-    # uvn_id = UvnId.deserialize(yaml.safe_load(uvn_id_file.read_text()))
-    # cell_id_file = tmp_dir / "cell.id"
-    # cell_id = int(cell_id_file.read_text())
-    # cell = uvn_id.cells[cell_id]
-
-    # Create output directory
-    # log.debug(f"[AGENT] bootstrapping cell {cell} of UVN {uvn_id} to {root}")
     root.mkdir(parents=True, exist_ok=True)
     root = root.resolve()
     root.chmod(0o755)
-    
-    # Make agent directory readable only by agent's user (i.e. root)
-
-    # # Generate a GPG database by importing the keys
-    # gpg = IdentityDatabase(root)
-    # keys_dir = tmp_dir / "gpg"
-    
-    # # Import the cell's private key
-    # cell_pubkey_file = keys_dir / f"{cell.name}.pub"
-    # cell_privkey_file = keys_dir / f"{cell.name}.key"
-    # cell_pass_file = keys_dir / f"{cell.name}.pass"
-    # gpg.import_key(
-    #   owner_id=cell,
-    #   pubkey=cell_pubkey_file.read_text(),
-    #   privkey=cell_privkey_file.read_text(),
-    #   passphrase=cell_pass_file.read_text(),
-    #   save_passphrase=True)
-
-    # # Import the UVN's public key
-    # uvn_key_file = keys_dir / f"{uvn_id.name}.pub"
-    # gpg.import_key(uvn_id, pubkey=uvn_key_file.read_text())
-
-    # # Import other cell's public keys
-    # for other in (c for c in uvn_id.cells.values() if c != cell):
-    #   other_key_file = keys_dir / f"{other.name}.pub"
-    #   gpg.import_key(other, pubkey=other_key_file.read_text())
-
-    # # Decrypt and verify agent configuration
-    # agent_config_sig_enc = tmp_dir / f"{Registry.AGENT_CONFIG_FILENAME}{GpgDatabase.EXT_SIGNED}{GpgDatabase.EXT_ENCRYPTED}"
-    # agent_config_sig = gpg.decrypt_file(
-    #   owner_id=cell,
-    #   input_file=agent_config_sig_enc,
-    #   output_dir=root)
-    # agent_config_enc = tmp_dir / f"{Registry.AGENT_CONFIG_FILENAME}{GpgDatabase.EXT_ENCRYPTED}"
-    # gpg.decrypt_file(
-    #   owner_id=cell,
-    #   input_file=agent_config_enc,
-    #   signature_file=agent_config_sig,
-    #   output_dir=root)
-
-    # # Copy agent configuration to root
-    # agent_config_tmp = tmp_dir / Registry.AGENT_CONFIG_FILENAME
-    # agent_config = root / Registry.AGENT_CONFIG_FILENAME
-    # exec_command(["cp", agent_config_tmp, agent_config])
-
-    # # Copy RTI license
-    # agent_license_tmp = tmp_dir / Registry.AGENT_LICENSE
-    # agent_license = root / Registry.AGENT_LICENSE
-    # exec_command(["cp", agent_license_tmp, agent_license])
 
     for f, permissions in {
         Registry.AGENT_CONFIG_FILENAME: 0o600,
         "rti_license.dat": 0o600,
-        # "governance.p7s": 0o600,
-        # "permissions.p7s": 0o600,
-        # "key.pem": 0o600,
-        # "cert.pem": 0o644,
-        # "ca-cert.pem": 0o644,
-        # "perm-ca-cert.pem": 0o644,
       }.items():
       src = tmp_dir / f
       dst = root / f
