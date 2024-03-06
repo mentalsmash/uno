@@ -146,8 +146,11 @@ class UvnHttpd:
       self._assert_ssl_cert()
 
       htdigest = self._lighttpd_conf.parent / "lighttpd.auth"
-      with htdigest.open("wt") as output:
-        output.write(self.agent.uvn_id.master_secret + "\n")
+      if self.agent.uvn_id.master_secret is None:
+        htdigest.write_text("")
+      else:
+        with htdigest.open("wt") as output:
+          output.write(self.agent.uvn_id.master_secret + "\n")
       htdigest.chmod(0o600)
 
       self._lighttpd_conf.parent.mkdir(parents=True, exist_ok=True, mode=0o755)
