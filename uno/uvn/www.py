@@ -145,6 +145,11 @@ class UvnHttpd:
       # self._fakeroot = TemporaryDirectory()
       self._assert_ssl_cert()
 
+      htdigest = self._lighttpd_conf.parent / "lighttpd.auth"
+      with htdigest.open("wt") as output:
+        output.write(self.agent.uvn_id.master_secret + "\n")
+      htdigest.chmod(0o600)
+
       self._lighttpd_conf.parent.mkdir(parents=True, exist_ok=True, mode=0o755)
       Templates.generate(self._lighttpd_conf, "httpd/lighttpd.conf", {
         "root": self.root,
@@ -153,6 +158,8 @@ class UvnHttpd:
         "pid_file": self._lighttpd_pid,
         "pem_file": self._lighttpd_pem,
         "log_dir": self.agent.log_dir,
+        "htdigest": htdigest,
+        "auth_realm": self.agent.uvn_id.name,
         # "fakeroot": Path(self._fakeroot.name),
       })
 

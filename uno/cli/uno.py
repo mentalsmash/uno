@@ -64,6 +64,7 @@ def registry_configure_args(args):
         "backbone_vpn_mtu",
         "deployment_strategy",
         "deployment_strategy_args",
+        "master_secret",
       ]
     }
   }
@@ -469,8 +470,14 @@ def _define_registry_config_args(parser, owner_id_required: bool=False):
   parser.add_argument("-L", "--rti-license",
     metavar="FILE",
     help="Path to a valid RTI license file to be used by the UVN agents.",
-    # required=True,
+    default=None,
     type=Path)
+
+
+  parser.add_argument("-m", "--master-secret",
+    metavar="PASSWORD",
+    help="A password that will be used to protect access to the UVN agents.",
+    default=False)
 
   _define_deployment_args(parser)
   _define_print_args(parser)

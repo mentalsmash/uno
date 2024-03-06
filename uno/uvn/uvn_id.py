@@ -1117,6 +1117,7 @@ class UvnId(Versioned):
 
   def __init__(self,
       name: str,
+      master_secret: Optional[str]=None,
       owner_id: Optional[str]=None,
       owner: Optional[str]=None,
       owner_name: Optional[str] = None,
@@ -1132,6 +1133,7 @@ class UvnId(Versioned):
     if owner_id:
       owner, owner_name = parse_owner_id(owner_id)
     self._name = name
+    self._master_secret = master_secret
     self.owner = owner
     self.owner_name = owner_name
     self.address = address
@@ -1178,7 +1180,8 @@ class UvnId(Versioned):
       backbone_vpn_subnet: ipaddress.IPv4Network | None = None,
       backbone_vpn_mtu: int | None = None,
       deployment_strategy: str | None = None,
-      deployment_strategy_args: str | None = None):
+      deployment_strategy_args: str | None = None,
+      master_secret: str | None = None):
     owner, owner_name = parse_owner_id(owner_id)
     if owner is not None:
       self.owner = owner
@@ -1215,6 +1218,8 @@ class UvnId(Versioned):
       self.settings.backbone_vpn.deployment_strategy = DeploymentStrategyKind.parse(deployment_strategy)
     if deployment_strategy_args is not None:
       self.settings.backbone_vpn.deployment_strategy_args = load_inline_yaml(deployment_strategy_args)
+    if master_secret is not None:
+      self.master_secret = master_secret
 
 
   @property
@@ -1260,6 +1265,20 @@ class UvnId(Versioned):
   @address.setter
   def address(self, val: str | None) -> None:
     self.update("_address", val)
+
+
+  @property
+  def master_secret(self) -> str:
+    return self._master_secret
+
+
+  @master_secret.setter
+  def master_secret(self, val: str) -> None:
+    # prev = self._master_secret
+    from .htdigest import htdigest_generate
+    master_secret = htdigest_generate(user=self.owner, realm=self.name, password=val)
+    print(f"MASTER SECRET: '{val}' -> '{master_secret}'")
+    self.update("_master_secret", master_secret)
 
 
   @property
@@ -1315,7 +1334,10 @@ class UvnId(Versioned):
       "generation_ts": self.generation_ts,
       "init_ts": self.init_ts,
       "settings": self.settings.serialize(),
+      "master_secret": self.master_secret,
     })
+    if self._master_secret is None:
+      del serialized["master_secret"]
     if self._address is None:
       del serialized["address"]
     if self._owner_name is None:
@@ -1364,6 +1386,7 @@ class UvnId(Versioned):
     self = UvnId(
       name=serialized["name"],
       owner=serialized["owner"],
+      master_secret=serialized["master_secret"],
       owner_name=serialized.get("owner_name"),
       address=serialized.get("address"),
       cells=cells,

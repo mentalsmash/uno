@@ -25,6 +25,7 @@ termcolor = "^2.4.0"
 networkx = "^3.2.1"
 matplotlib = "^3.8.3"
 sdnotify = "^0.3.2"
+# bcrypt = "^4.1.2"
 
 # Doc dependencies
 docutils = "^0.18.1"

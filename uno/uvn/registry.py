@@ -45,7 +45,7 @@ from .exec import exec_command
 from .particle import generate_particle_packages
 from .id_db import IdentityDatabase
 from .keys_dds import DdsKeysBackend
-
+from .htdigest import htdigest_generate
 
 class Registry(Versioned):
   UVN_FILENAME = "uvn.yaml"
@@ -85,6 +85,7 @@ class Registry(Versioned):
   def create(
       name: str,
       owner_id: str,
+      master_secret: str,
       root: Path | None = None,
       **configure_args):
     root = root or Path.cwd() / name
@@ -93,7 +94,13 @@ class Registry(Versioned):
     if root.is_dir() and not root_empty:
       raise RuntimeError("target directory not empty", root)
 
-    uvn_id = UvnId(name=name, owner_id=owner_id)
+    # import bcrypt
+    # salt = bcrypt.gensalt()
+    # master_secret = bcrypt.hashpw(master_secret.encode("utf-8"), salt).decode("utf-8")
+
+    uvn_id = UvnId(name=name, owner_id=owner_id, master_secret=master_secret)
+    uvn_id.master_secret = master_secret
+
     registry = Registry(root=root, uvn_id=uvn_id)
     registry.configure(**configure_args)
     # Make sure we have an RTI license, since we're gonna need it later.

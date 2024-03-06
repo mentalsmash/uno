@@ -30,6 +30,8 @@ RUN export DEBIAN_FRONTEND="noninteractive" \
       iputils-ping \
       lighttpd \
       openssl \
+      cargo \
+      build-essential \
       $([ -z "${INSTALL_EXTRA_PACKAGES}" ] || \
         echo \
           rng-tools \
