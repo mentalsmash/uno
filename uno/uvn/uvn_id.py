@@ -1386,7 +1386,7 @@ class UvnId(Versioned):
     self = UvnId(
       name=serialized["name"],
       owner=serialized["owner"],
-      master_secret=serialized["master_secret"],
+      master_secret=serialized.get("master_secret"),
       owner_name=serialized.get("owner_name"),
       address=serialized.get("address"),
       cells=cells,
