@@ -329,19 +329,16 @@ class DdsKeysBackend(KeysBackend):
 
     "subscribed": {
       UvnTopic.CELL_ID: {},
-      # UvnTopic.DNS: {},
     },
   }
 
   CELL_TOPICS = {
     "published": [
       UvnTopic.CELL_ID,
-      # UvnTopic.DNS,
     ],
 
     "subscribed": {
       UvnTopic.CELL_ID: {},
-      # UvnTopic.DNS: {},
       UvnTopic.UVN_ID: {},
       UvnTopic.BACKBONE: {},
     }

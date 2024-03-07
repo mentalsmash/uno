@@ -15,7 +15,7 @@
 # along with this program. If not, see <https://www.gnu.org/licenses/>.
 ###############################################################################
 from pathlib import Path
-from typing import Optional, Mapping
+from typing import Optional, Mapping, Tuple
 
 import yaml
 
@@ -53,33 +53,6 @@ class Registry(Versioned):
   AGENT_PACKAGE_FILENAME = "{}.uvn-agent"
   AGENT_CONFIG_FILENAME = "agent.yaml"
   UVN_SECRET = "uvn.secret"
-
-  AGENT_REGISTRY_TOPICS = {
-    "writers": [
-      UvnTopic.UVN_ID,
-      UvnTopic.BACKBONE,
-    ],
-
-    "readers": {
-      UvnTopic.CELL_ID: {},
-      # UvnTopic.DNS: {},
-    },
-  }
-
-  AGENT_CELL_TOPICS = {
-    "writers": [
-      UvnTopic.CELL_ID,
-      # UvnTopic.DNS,
-    ],
-
-    "readers": {
-      UvnTopic.CELL_ID: {},
-      # UvnTopic.DNS: {},
-      UvnTopic.UVN_ID: {},
-      UvnTopic.BACKBONE: {},
-    }
-  }
-
 
   @staticmethod
   def create(
@@ -208,27 +181,27 @@ class Registry(Versioned):
       self.rti_license = rti_license
 
     changed = self.collect_changes()
-    changed_uvn = next((c for c in changed if isinstance(c, (UvnId, UvnSettings))), None) is not None
-    changed_cell = next((c for c in changed if isinstance(c, CellId)), None) is not None
-    changed_particle = next((c for c in changed if isinstance(c, ParticleId)), None) is not None
+    changed_uvn = next((c for c, _ in changed if isinstance(c, (UvnId, UvnSettings))), None) is not None
+    changed_cell = next((c for c, _ in changed if isinstance(c, CellId)), None) is not None
+    changed_particle = next((c for c, _ in changed if isinstance(c, ParticleId)), None) is not None
     changed_root_vpn = (
       changed_uvn
       or changed_cell
       or drop_keys_root_vpn
-      or next((c for c in changed if isinstance(c, RootVpnSettings)), None) is not None
+      or next((c for c, _ in changed if isinstance(c, RootVpnSettings)), None) is not None
     )
     changed_particles_vpn = (
       changed_uvn
       or changed_cell
       or changed_particle
       or drop_keys_particles_vpn
-      or next((c for c in changed if isinstance(c, ParticlesVpnSettings)), None) is not None
+      or next((c for c, _ in changed if isinstance(c, ParticlesVpnSettings)), None) is not None
     )
     changed_backbone_vpn = (
       changed_uvn
       or changed_cell
       or redeploy
-      or next((c for c in changed if isinstance(c, BackboneVpnSettings)), None) is not None
+      or next((c for c, _ in changed if isinstance(c, BackboneVpnSettings)), None) is not None
     )
 
     for cell in self.uvn_id.excluded_cells.values():
@@ -414,7 +387,7 @@ class Registry(Versioned):
   
 
 
-  def collect_changes(self) -> list[Versioned]:
+  def collect_changes(self) -> list[Tuple[Versioned, dict]]:
     changed = super().collect_changes()
     changed.extend(self.uvn_id.collect_changes())
     return changed

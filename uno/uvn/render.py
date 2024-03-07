@@ -14,17 +14,21 @@
 # You should have received a copy of the GNU Affero General Public License
 # along with this program. If not, see <https://www.gnu.org/licenses/>.
 ###############################################################################
-from typing import Generator, Union, TYPE_CHECKING, Optional
+from typing import Generator, Union, TYPE_CHECKING, Optional, Tuple
 from datetime import timedelta
 from pathlib import Path
 
 import jinja2
 
 from .time import Timestamp
+from .ip import LanDescriptor
+import ipaddress
 
 if TYPE_CHECKING:
   from .cell_agent import CellAgent
-  from .peer import UvnPeer
+  from .peer import UvnPeer, UvnPeersList
+  from .peer_test import UvnPeersTester
+  from .wg import WireGuardInterface
 
 
 def humanbytes(B):
@@ -75,14 +79,12 @@ def _filter_format_ts(ts: str | Timestamp) -> str:
   return ts.format("%b %m %Y, %I:%M%p")
 
 
-def _filter_find_lan_status_by_peer(peer_id: int, agent: "CellAgent"):
-  statuses = agent.peers_tester.find_status_by_peer(peer_id)
-  return statuses
+def _filter_find_lan_status_by_peer(peer_id: int, peers_tester: "UvnPeersTester") -> list[Tuple[LanDescriptor, bool]]:
+  return peers_tester.find_status_by_peer(peer_id)
 
 
 def _filter_ip_default_route(addr: str):
   from .ip import ipv4_get_route
-  import ipaddress
   try:
     route = ipv4_get_route(ipaddress.ip_address(addr))
     return str(route)
@@ -93,10 +95,16 @@ def _filter_ip_default_route(addr: str):
     return None
 
 
-def _filter_find_backbone_peer_by_address(addr: str, agent: "CellAgent") -> Optional["UvnPeer"]:
+def _filter_find_backbone_peer_by_address(addr: str, peers: "UvnPeersList", backbone_vpns: "list[WireGuardInterface]") -> Optional["UvnPeer"]:
   if not addr:
     return None
-  return agent.find_backbone_peer_by_address(addr)
+  addr = ipaddress.ip_address(addr)
+  for bbone in backbone_vpns:
+    if bbone.config.peers[0].address == addr:
+      return peers[bbone.config.peers[0].id]
+    elif bbone.config.intf.address == addr:
+      return peers.local
+  return None
 
 
 def _filter_yaml(val: object) -> str:
@@ -105,6 +113,13 @@ def _filter_yaml(val: object) -> str:
   if serializer:
     val = serializer()
   return yaml.safe_dump(val)
+
+
+def _filter_format_hash(val: str) -> str:
+  if len(val) <= 11:
+    return val
+  return val[:4] + "..." + val[-4:]
+
 
 class _Templates:
   def __init__(self):
@@ -119,6 +134,7 @@ class _Templates:
     self._env.filters["find_backbone_peer_by_address"] = _filter_find_backbone_peer_by_address
     self._env.filters["humanbytes"] = humanbytes
     self._env.filters["yaml"] = _filter_yaml
+    self._env.filters["format_hash"] = _filter_format_hash
 
 
   def template(self, name: str) -> jinja2.Template:

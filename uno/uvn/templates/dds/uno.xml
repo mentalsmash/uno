@@ -2,97 +2,39 @@
 <dds xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance" xsi:noNamespaceSchemaLocation="http://community.rti.com/schema/6.0.1/rti_dds_profiles.xsd" version="6.0.1">
     <types>
       <module name="uno">
-        <const name="UVN_CELLS_MAX" type="uint32" value="1024"/>
-        <const name="CELL_PEERS_MAX" type="uint32" value="512"/>
-        <const name="PACKAGE_SIZE_MAX" type="uint32" value="64000"/>
-        <const name="DEPLOYMENT_ID_MAX_LENGTH" type="uint32" value="32"/>
-        <const name="NIC_NAME_MAX_LENGTH" type="uint32" value="32"/>
-        <const name="CELL_NAME_MAX_LENGTH" type="uint32" value="64"/>
-        <const name="DNS_HOSTNAME_MAX_LENGTH" type="uint32" value="255"/>
-        <const name="TAG_MAX_LENGTH" type="uint32" value="32"/>
-        <const name="NAMESERVER_ENTRIES_MAX" type="uint32" value="1024"/>
-        <const name="DNS_RECORD_TAGS_MAX" type="uint32" value="100"/>
-        <typedef name="DeploymentId" type="string" stringMaxLength="uno::DEPLOYMENT_ID_MAX_LENGTH"/>
-        <typedef name="NicName" type="string" stringMaxLength="uno::NIC_NAME_MAX_LENGTH"/>
-        <typedef name="CellName" type="string" stringMaxLength="uno::CELL_NAME_MAX_LENGTH"/>
-        <typedef name="DnsHostname" type="string" stringMaxLength="uno::DNS_HOSTNAME_MAX_LENGTH"/>
-        <typedef name="Tag" type="string" stringMaxLength="uno::TAG_MAX_LENGTH"/>
-        <struct name="KeyFingerprint" nested="false">
-          <member name="value" type="string"/>
-        </struct>
-        <typedef name="TimestampMs" type="uint64"/>
-        <struct name="IpAddress" nested="false">
+        <struct name="IpAddress" nested="true">
           <member name="value" type="byte" arrayDimensions="4"/>
         </struct>
         <typedef name="NetworkMask" type="uint8"/>
-        <struct name="IpNetworkInfo" nested="false">
+        <struct name="IpNetworkInfo" nested="true">
           <member name="address" type="nonBasic" nonBasicTypeName="uno::IpAddress"/>
           <member name="mask" type="nonBasic" nonBasicTypeName="uno::NetworkMask"/>
         </struct>
-        <enum name="CellStatusKind">
-          <enumerator name="CELL_STATUS_ERROR" value="0" defaultLiteral="true"/>
-          <enumerator name="CELL_STATUS_CREATED" value="1"/>
-          <enumerator name="CELL_STATUS_STARTED" value="2"/>
-          <enumerator name="CELL_STATUS_STOPPED" value="3"/>
-        </enum>
-        <struct name="UvnId" nested="false">
-          <member name="name" type="nonBasic" nonBasicTypeName="uno::DnsHostname" key="true"/>
-          <member name="address" type="nonBasic" nonBasicTypeName="uno::DnsHostname"/>
+        <struct name="CellId" nested="true">
+          <member name="uvn" type="string" stringMaxLength="-1"/>
+          <member name="n" type="uint32"/>
         </struct>
-        <struct name="CellId" nested="false">
-          <member name="uvn" type="nonBasic" nonBasicTypeName="uno::UvnId"/>
-          <member name="name" type="nonBasic" nonBasicTypeName="uno::CellName"/>
-        </struct>
-        <struct name="CellSiteSummary">
-          <member name="cell" type="uint32"/>
-          <member name="nic" type="nonBasic" nonBasicTypeName="uno::NicName"/>
+        <struct name="NetworkInfo" nested="true">
+          <member name="nic" type="string" stringMaxLength="-1"/>
           <member name="subnet" type="nonBasic" nonBasicTypeName="uno::IpNetworkInfo"/>
           <member name="endpoint" type="nonBasic" nonBasicTypeName="uno::IpAddress"/>
           <member name="gw" type="nonBasic" nonBasicTypeName="uno::IpAddress"/>
         </struct>
-        <struct name="CellPeerSummary">
-          <member name="name" type="nonBasic" nonBasicTypeName="uno::CellName"/>
-          <member name="n" type="uint32"/>
-          <member name="backbone_ports" type="nonBasic" nonBasicTypeName="uno::IpAddress" sequenceMaxLength="uno::CELL_PEERS_MAX"/>
-        </struct>
         <struct name="UvnInfo">
-          <member name="id" type="nonBasic" nonBasicTypeName="uno::UvnId" key="true"/>
+          <member name="name" type="string" stringMaxLength="-1" key="true"/>
           <member name="registry_id" type="string" stringMaxLength="-1"/>
-          <member name="deployment_id" type="nonBasic" nonBasicTypeName="uno::DeploymentId"/>
-          <member name="cells" type="nonBasic" nonBasicTypeName="uno::CellPeerSummary" sequenceMaxLength="uno::UVN_CELLS_MAX"/>
-          <member name="cell_sites" type="nonBasic" nonBasicTypeName="uno::CellSiteSummary" sequenceMaxLength="-1"/>
-          <member name="router_subnet" type="nonBasic" nonBasicTypeName="uno::IpNetworkInfo"/>
-          <member name="backbone_subnet" type="nonBasic" nonBasicTypeName="uno::IpNetworkInfo"/>
         </struct>
         <struct name="CellInfo">
           <member name="id" type="nonBasic" nonBasicTypeName="uno::CellId" key="true"/>
-          <member name="pid" type="uint32"/>
           <member name="registry_id" type="string" stringMaxLength="-1"/>
-          <member name="deployment_id" type="nonBasic" nonBasicTypeName="uno::DeploymentId"/>
-          <member name="status" type="nonBasic" nonBasicTypeName="uno::CellStatusKind"/>
-          <member name="peers" type="nonBasic" nonBasicTypeName="uno::CellPeerSummary" sequenceMaxLength="uno::CELL_PEERS_MAX"/>
-          <member name="routed_sites" type="nonBasic" nonBasicTypeName="uno::CellSiteSummary" sequenceMaxLength="-1"/>
-          <member name="reachable_sites" type="nonBasic" nonBasicTypeName="uno::CellSiteSummary" sequenceMaxLength="-1"/>
-          <member name="unreachable_sites" type="nonBasic" nonBasicTypeName="uno::CellSiteSummary" sequenceMaxLength="-1"/>
-          <member name="root_vpn_id" type="nonBasic" nonBasicTypeName="uno::DeploymentId"/>
-          <member name="particles_vpn_id" type="nonBasic" nonBasicTypeName="uno::DeploymentId"/>
-          <member name="backbone_vpn_ids" type="nonBasic" nonBasicTypeName="uno::DeploymentId" sequenceMaxLength="uno::CELL_PEERS_MAX"/>
-          <member name="ts_created" type="nonBasic" nonBasicTypeName="uno::TimestampMs"/>
-          <member name="ts_loaded" type="nonBasic" nonBasicTypeName="uno::TimestampMs"/>
-          <member name="ts_started" type="nonBasic" nonBasicTypeName="uno::TimestampMs"/>
+          <member name="routed_networks" type="nonBasic" nonBasicTypeName="uno::NetworkInfo" sequenceMaxLength="-1"/>
+          <member name="reachable_networks" type="nonBasic" nonBasicTypeName="uno::NetworkInfo" sequenceMaxLength="-1"/>
+          <member name="unreachable_networks" type="nonBasic" nonBasicTypeName="uno::NetworkInfo" sequenceMaxLength="-1"/>
+          <member name="local_routes" type="string" stringMaxLength="-1" sequenceMaxLength="-1"/>
         </struct>
-        <struct name="DnsRecord">
-          <member name="hostname" type="string"/>
-          <member name="address" type="nonBasic" nonBasicTypeName="uno::IpAddress"/>
-          <member name="tags" type="string" sequenceMaxLength="uno::DNS_RECORD_TAGS_MAX"/>
-        </struct>
-        <struct name="NameserverDatabase">
+        <struct name="AgentConfig">
           <member name="cell" type="nonBasic" nonBasicTypeName="uno::CellId" key="true"/>
-          <member name="entries" type="nonBasic" nonBasicTypeName="uno::DnsRecord" sequenceMaxLength="uno::NAMESERVER_ENTRIES_MAX"/>
-        </struct>
-        <struct name="UvnDeployment">
-          <member name="cell" type="nonBasic" nonBasicTypeName="uno::CellId" key="true"/>
-          <member name="id" type="nonBasic" nonBasicTypeName="uno::DeploymentId"/>
+          <member name="registry_id" type="string" stringMaxLength="-1"/>
           <member name="package" type="byte" sequenceMaxLength="-1"/>
           <member name="config" type="string" stringMaxLength="-1"/>
         </struct>
@@ -100,14 +42,6 @@
     </types>
 
     <qos_library name="UnoQosProfiles">
-      <qos_profile name="BaseParticipantFactory">
-        <?rti-qos_snippet?>
-        <participant_factory_qos>
-          <entity_factory>
-            <autoenable_created_entities>false</autoenable_created_entities>
-          </entity_factory>
-        </participant_factory_qos>
-      </qos_profile>
       <qos_profile name="BaseParticipant">
         <?rti-qos_snippet?>
         <participant_qos>
@@ -164,12 +98,10 @@
             </shutdown_cleanup_period>
           </database>
           <transport_builtin>
-            <!-- <mask>UDPv4 | SHMEM</mask> -->
             <mask>UDPv4</mask>
           </transport_builtin>
           <discovery>
             <initial_peers>
-              <!-- <element>shmem://</element> -->
               {%- for peer in initial_peers %}
               <element>{{peer}}</element>
               {%- endfor %}
@@ -204,37 +136,9 @@
           </discovery_config>
         </participant_qos>
       </qos_profile>
-      <qos_profile name="BaseSubscriber">
-        <?rti-qos_snippet?>
-        <subscriber_qos>
-          <!--<partition>
-            <name>
-              <element>{{deployment_id}}</element>
-            </name>
-          </partition>-->
-        </subscriber_qos>
-      </qos_profile>
-      <qos_profile name="BasePublisher">
-        <?rti-qos_snippet?>
-        <publisher_qos>
-          <!--<partition>
-            <name>
-              <element>{{deployment_id}}</element>
-            </name>
-          </partition>-->
-        </publisher_qos>
-      </qos_profile>
       <qos_profile name="BaseDataReader">
         <?rti-qos_snippet?>
         <datareader_qos>
-          <protocol>
-            <rtps_reliable_reader>
-              <!-- <max_heartbeat_response_delay>
-                <sec>0</sec>
-                <nanosec>0</nanosec>
-              </max_heartbeat_response_delay> -->
-            </rtps_reliable_reader>
-          </protocol>
           <property>
             <value>
               <element>
@@ -276,33 +180,12 @@
           </property>
         </datawriter_qos>
       </qos_profile>
-      <qos_profile name="UvnRootAgent" base_name="BuiltinQosLib::Baseline.6.0.0">
+      <qos_profile name="UvnAgent" base_name="BuiltinQosLib::Baseline.6.0.0">
         <base_name>
           <element>UnoQosProfiles::BaseParticipant</element>
-          <element>UnoQosProfiles::BaseParticipantFactory</element>
           <element>UnoQosProfiles::BaseDataReader</element>
           <element>UnoQosProfiles::BaseDataWriter</element>
         </base_name>
-        <participant_qos>
-          <participant_name>
-            <name>RootAgent</name>
-            <role_name>Registry</role_name>
-          </participant_name>
-        </participant_qos>
-      </qos_profile>
-      <qos_profile name="UvnCellAgent" base_name="BuiltinQosLib::Baseline.6.0.0">
-        <base_name>
-          <element>UnoQosProfiles::BaseParticipant</element>
-          <element>UnoQosProfiles::BaseParticipantFactory</element>
-          <element>UnoQosProfiles::BaseDataReader</element>
-          <element>UnoQosProfiles::BaseDataWriter</element>
-        </base_name>
-        <participant_qos>
-          <participant_name>
-            <name>CellAgent</name>
-            <role_name>Cell</role_name>
-          </participant_name>
-        </participant_qos>
       </qos_profile>
       <qos_profile name="BaseTopic">
         <base_name>
@@ -312,16 +195,7 @@
           <element>UnoQosProfiles::BaseDataReader</element>
           <element>UnoQosProfiles::BaseDataWriter</element>
         </base_name>
-      </qos_profile>
-      <qos_profile name="StatusTopic" base_name="UnoQosProfiles::BaseTopic">
         <datareader_qos>
-          <!-- <ownership>
-            <kind>EXCLUSIVE_OWNERSHIP_QOS</kind>
-          </ownership> -->
-          <history>
-              <kind>KEEP_LAST_HISTORY_QOS</kind>
-              <depth>1</depth>
-          </history>
           <resource_limits>
               <max_samples>1</max_samples>
               <max_instances>1</max_instances>
@@ -331,16 +205,6 @@
           </resource_limits>
         </datareader_qos>
         <datawriter_qos>
-          <!-- <ownership>
-            <kind>EXCLUSIVE_OWNERSHIP_QOS</kind>
-          </ownership>
-          <ownership_strength>
-            <value>10000</value>
-          </ownership_strength> -->
-          <history>
-              <kind>KEEP_LAST_HISTORY_QOS</kind>
-              <depth>1</depth>
-          </history>
           <resource_limits>
               <max_samples>1</max_samples>
               <max_instances>1</max_instances>
@@ -355,9 +219,8 @@
           </protocol>
         </datawriter_qos>
       </qos_profile>
-      <qos_profile name="PeerStatusTopic" base_name="UnoQosProfiles::StatusTopic">
+      <qos_profile name="PeerStatusTopic" base_name="UnoQosProfiles::BaseTopic">
         <datareader_qos>
-          <!-- adjust resource limits to account for multiple peers -->
           <resource_limits>
               <max_samples>{{((uvn.cells|length) + 1) * 2}}</max_samples>
               <max_instances>{{(uvn.cells|length) + 1}}</max_instances>
@@ -367,13 +230,7 @@
           </resource_limits>
         </datareader_qos>
       </qos_profile>
-      <qos_profile name="UvnInfo" base_name="UnoQosProfiles::StatusTopic">
-      </qos_profile>
-      <qos_profile name="CellInfo" base_name="UnoQosProfiles::PeerStatusTopic">
-      </qos_profile>
-      <qos_profile name="Nameserver" base_name="UnoQosProfiles::PeerStatusTopic">
-      </qos_profile>
-      <qos_profile name="UvnDeployment" base_name="UnoQosProfiles::BaseTopic">
+      <qos_profile name="AgentConfig" base_name="UnoQosProfiles::BaseTopic">
         <datawriter_qos>
           <!-- adjust resource limits to account for multiple peers -->
           <resource_limits>
@@ -396,116 +253,68 @@
       <domain name="Registry" domain_id="46">
         <register_type name="UvnInfo" type_ref="uno::UvnInfo"/>
         <register_type name="CellInfo" type_ref="uno::CellInfo"/>
-        <register_type name="UvnDeployment" type_ref="uno::UvnDeployment"/>
-        <!-- <register_type name="NameserverDatabase" type_ref="uno::NameserverDatabase"/> -->
-        <topic name="uno/uvn/info" register_type_ref="UvnInfo"/>
-        <!-- <topic name="uno/uvn/ns" register_type_ref="NameserverDatabase"/> -->
-        <topic name="uno/uvn/deployment" register_type_ref="UvnDeployment"/>
-        <topic name="uno/cell/info" register_type_ref="CellInfo"/>
+        <register_type name="AgentConfig" type_ref="uno::AgentConfig"/>
+        <topic name="uno/uvn" register_type_ref="UvnInfo"/>
+        <topic name="uno/config" register_type_ref="AgentConfig"/>
+        <topic name="uno/cell" register_type_ref="CellInfo"/>
       </domain>
     </domain_library>
 
     <domain_participant_library name="UnoParticipants">
       <domain_participant name="RootAgent" domain_ref="UnoDomains::Registry">
         <subscriber name="Subscriber">
-          <data_reader name="CellInfoReader" topic_ref="uno/cell/info">
+          <data_reader name="CellInfoReader" topic_ref="uno/cell">
             <content_filter name="RootCellInfoFilter" kind="builtin.sql">
-              <expression>id.uvn.name MATCH &apos;{{uvn.name}}&apos;</expression>
+              <expression>id.uvn MATCH &apos;{{uvn.name}}&apos;</expression>
             </content_filter>
-            <datareader_qos base_name="UnoQosProfiles::CellInfo">
+            <datareader_qos base_name="UnoQosProfiles::PeerStatusTopic">
             </datareader_qos>
           </data_reader>
-          <!-- <data_reader name="NameserverReader" topic_ref="uno/uvn/ns">
-            <content_filter name="RootNameserverFilter" kind="builtin.sql">
-              <expression>cell.uvn.name MATCH &apos;{{uvn.name}}&apos;</expression>
-            </content_filter>
-            <datareader_qos base_name="UnoQosProfiles::Nameserver">
-            </datareader_qos>
-          </data_reader> -->
-          <subscriber_qos>
-            <base_name>
-              <element>UnoQosProfiles::BaseSubscriber</element>
-            </base_name>
-          </subscriber_qos>
         </subscriber>
         <publisher name="Publisher">
-          <data_writer name="UvnInfoWriter" topic_ref="uno/uvn/info">
-            <datawriter_qos base_name="UnoQosProfiles::UvnInfo">
+          <data_writer name="UvnInfoWriter" topic_ref="uno/uvn">
+            <datawriter_qos base_name="UnoQosProfiles::BaseTopic">
             </datawriter_qos>
           </data_writer>
-          <!-- <data_writer name="NameserverWriter" topic_ref="uno/uvn/ns">
-            <datawriter_qos base_name="UnoQosProfiles::Nameserver">
-            </datawriter_qos>
-          </data_writer> -->
-          <publisher_qos>
-            <base_name>
-              <element>UnoQosProfiles::BasePublisher</element>
-            </base_name>
-          </publisher_qos>
-        </publisher>
-        <publisher name="MetadataPublisher">
-          <data_writer name="UvnDeploymentWriter" topic_ref="uno/uvn/deployment">
-            <datawriter_qos base_name="UnoQosProfiles::UvnDeployment">
+          <data_writer name="AgentConfigWriter" topic_ref="uno/config">
+            <datawriter_qos base_name="UnoQosProfiles::AgentConfig">
             </datawriter_qos>
           </data_writer>
         </publisher>
-        <participant_qos base_name="UnoQosProfiles::UvnRootAgent">
+        <participant_qos base_name="UnoQosProfiles::UvnAgent">
         </participant_qos>
       </domain_participant>
       <domain_participant name="CellAgent" domain_ref="UnoDomains::Registry">
         <subscriber name="Subscriber">
-          <data_reader name="CellInfoReader" topic_ref="uno/cell/info">
+          <data_reader name="CellInfoReader" topic_ref="uno/cell">
             <content_filter name="CellInfoFilter" kind="builtin.sql">
-              <expression>id.uvn.name MATCH &apos;{{uvn.name}}&apos; AND NOT id.name MATCH &apos;{{cell.name}}&apos;</expression>
+              <expression>id.uvn MATCH &apos;{{uvn.name}}&apos; AND NOT id.n = {{cell.id}}</expression>
             </content_filter>
-            <datareader_qos base_name="UnoQosProfiles::CellInfo">
+            <datareader_qos base_name="UnoQosProfiles::PeerStatusTopic">
             </datareader_qos>
           </data_reader>
-          <!-- <data_reader name="NameserverReader" topic_ref="uno/uvn/ns">
-            <content_filter name="NameserverFilter" kind="builtin.sql">
-              <expression>cell.uvn.name MATCH &apos;{{uvn.name}}&apos; AND NOT cell.name MATCH &apos;{{cell.name}}&apos;</expression>
-            </content_filter>
-            <datareader_qos base_name="UnoQosProfiles::Nameserver">
-            </datareader_qos>
-          </data_reader> -->
-          <data_reader name="UvnInfoReader" topic_ref="uno/uvn/info">
+          <data_reader name="UvnInfoReader" topic_ref="uno/uvn">
             <content_filter name="UvnInfoFilter" kind="builtin.sql">
-              <expression>id.name MATCH &apos;{{uvn.name}}&apos;</expression>
+              <expression>name MATCH &apos;{{uvn.name}}&apos;</expression>
             </content_filter>
-            <datareader_qos base_name="UnoQosProfiles::UvnInfo">
+            <datareader_qos base_name="UnoQosProfiles::BaseTopic">
             </datareader_qos>
           </data_reader>
-          <subscriber_qos>
-            <base_name>
-              <element>UnoQosProfiles::BaseSubscriber</element>
-            </base_name>
-          </subscriber_qos>
+          <data_reader name="AgentConfigReader" topic_ref="uno/config">
+            <content_filter name="AgentConfigFilter" kind="builtin.sql">
+              <expression>cell.uvn MATCH &apos;{{uvn.name}}&apos; AND cell.n = {{cell.id}}</expression>
+            </content_filter>
+            <datareader_qos base_name="UnoQosProfiles::AgentConfig">
+            </datareader_qos>
+          </data_reader>
         </subscriber>
         <publisher name="Publisher">
-          <data_writer name="CellInfoWriter" topic_ref="uno/cell/info">
-            <datawriter_qos base_name="UnoQosProfiles::CellInfo">
+          <data_writer name="CellInfoWriter" topic_ref="uno/cell">
+            <datawriter_qos base_name="UnoQosProfiles::BaseTopic">
             </datawriter_qos>
           </data_writer>
-          <!-- <data_writer name="NameserverWriter" topic_ref="uno/uvn/ns">
-            <datawriter_qos base_name="UnoQosProfiles::Nameserver">
-            </datawriter_qos>
-          </data_writer> -->
-          <publisher_qos>
-            <base_name>
-              <element>UnoQosProfiles::BasePublisher</element>
-            </base_name>
-          </publisher_qos>
         </publisher>
-        <subscriber name="MetadataSubscriber">
-          <data_reader name="UvnDeploymentReader" topic_ref="uno/uvn/deployment">
-            <content_filter name="UvnDeploymentFilter" kind="builtin.sql">
-              <expression>cell.uvn.name MATCH &apos;{{uvn.name}}&apos; AND cell.name MATCH &apos;{{cell.name}}&apos;</expression>
-            </content_filter>
-            <datareader_qos base_name="UnoQosProfiles::UvnDeployment">
-            </datareader_qos>
-          </data_reader>
-        </subscriber>
-        <participant_qos base_name="UnoQosProfiles::UvnCellAgent">
+        <participant_qos base_name="UnoQosProfiles::UvnAgent">
         </participant_qos>
       </domain_participant>
     </domain_participant_library>

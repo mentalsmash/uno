@@ -56,6 +56,17 @@ class P2PLinksMap:
     self.generation_ts = generation_ts or Timestamp.now().format()
 
 
+  def get_peers(self, peer_id: int) -> list[int]:
+    peer = self.peers.get(peer_id)
+    if not peer:
+      return []
+    return [
+      peer_b
+      for peer_b, _ in
+        sorted(((peer_b, i) for peer_b, (i, _, _, _) in peer["peers"].items()), key=lambda t: t[1])
+    ]
+
+
   def serialize(self) -> dict:
     serialized = {
       "generation_ts": self.generation_ts,

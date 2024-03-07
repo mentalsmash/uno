@@ -21,7 +21,6 @@ from enum import Enum
 import pprint
 import yaml
 
-from .ns import NameserverRecord
 from .ip import ipv4_netmask_to_cidr
 from .time import Timestamp
 from .deployment import DeploymentStrategyKind, P2PLinksMap
@@ -241,11 +240,15 @@ class Versioned:
 
 
   @property
-  def changed(self) -> bool:
+  def changed(self) -> Tuple[bool, dict]:
     """Return and reset the object's 'changed' flag."""
     changed = self._changed
     self._changed = False
-    return changed
+    prev_values = {}
+    for attr in {a[8:] for a in dir(self) if a.startswith("__prev__")}:
+      prev_values[attr] = getattr(self, f"__prev__{attr}")
+      delattr(self, f"__prev__{attr}")
+    return changed, prev_values
 
 
   @property
@@ -259,26 +262,30 @@ class Versioned:
 
 
   def update(self, attr: str, val: object) -> None:
-    if not hasattr(self, attr):
-      setattr(self, attr, None)
-    current = getattr(self, attr)
+    _attr = f"_{attr}"
+    if not hasattr(self, _attr):
+      setattr(self, _attr, None)
+    current = getattr(self, _attr)
     if current != val:
-      setattr(self, attr, val)
-      log.debug(f"[{self}] {attr[1:]} = {val}")
+      setattr(self, _attr, val)
+      setattr(self, f"__prev__{attr}", current)
+      log.debug(f"[{self}] {attr} = {val}")
       self.updated()
 
 
   def updated(self) -> None:
-    if not self._loaded:
+    if not self.loaded:
       return
     self._generation_ts = Timestamp.now().format()
     self._changed = True
     log.debug(f"[{self}] updated")
 
+
   @property
   def loaded(self) -> bool:
     return self._loaded
   
+
   @loaded.setter
   def loaded(self, val: bool) -> None:
     self._loaded = val
@@ -299,10 +306,10 @@ class Versioned:
     }
 
 
-  def collect_changes(self) -> list["Versioned"]:
-    changed = self.changed
+  def collect_changes(self) -> list[Tuple["Versioned", dict]]:
+    changed, prev_values = self.changed
     if changed:
-      return [self]
+      return [(self, prev_values)]
     else:
       return []
 
@@ -359,7 +366,7 @@ class VpnSettings(Versioned):
   @allowed_ips.setter
   def allowed_ips(self, val: Iterable[str] | None) -> None:
     val = set(val) if val is not None else None
-    self.update("_allowed_ips", val)
+    self.update("allowed_ips", val)
 
 
   @property
@@ -371,7 +378,7 @@ class VpnSettings(Versioned):
 
   @interface.setter
   def interface(self, val: str | None) -> None:
-    self.update("_interface", val)
+    self.update("interface", val)
 
 
   @property
@@ -383,7 +390,7 @@ class VpnSettings(Versioned):
 
   @port.setter
   def port(self, val: int) -> None:
-    self.update("_port", val)
+    self.update("port", val)
 
 
   @property
@@ -397,7 +404,7 @@ class VpnSettings(Versioned):
 
   @peer_port.setter
   def peer_port(self, val: int | None) -> None:
-    self.update("_peer_port", val)
+    self.update("peer_port", val)
 
 
   @property
@@ -409,7 +416,7 @@ class VpnSettings(Versioned):
 
   @peer_mtu.setter
   def peer_mtu(self, val: int | None) -> None:
-    self.update("_peer_mtu", val)
+    self.update("peer_mtu", val)
 
 
   @property
@@ -421,7 +428,7 @@ class VpnSettings(Versioned):
 
   @subnet.setter
   def subnet(self, val: ipaddress.IPv4Network | None) -> None:
-    self.update("_subnet", val)
+    self.update("subnet", val)
 
 
   @property
@@ -551,7 +558,7 @@ class BackboneVpnSettings(VpnSettings):
 
   @deployment_strategy.setter
   def deployment_strategy(self, val: DeploymentStrategyKind | None) -> None:
-    self.update("_deployment_strategy", val)
+    self.update("deployment_strategy", val)
 
 
   @property
@@ -562,7 +569,7 @@ class BackboneVpnSettings(VpnSettings):
   @deployment_strategy_args.setter
   def deployment_strategy_args(self, val: dict | None) -> None:
     val = dict(val or {})
-    self.update("_deployment_strategy_args", val)
+    self.update("deployment_strategy_args", val)
 
 
   def serialize(self) -> dict:
@@ -644,7 +651,7 @@ class UvnSettings(Versioned):
 
   @root_vpn.setter
   def root_vpn(self, val: RootVpnSettings) -> None:
-    self.update("_root_vpn", val)
+    self.update("root_vpn", val)
 
 
   @property
@@ -654,7 +661,7 @@ class UvnSettings(Versioned):
 
   @particles_vpn.setter
   def particles_vpn(self, val: ParticlesVpnSettings) -> None:
-    self.update("_particles_vpn", val)
+    self.update("particles_vpn", val)
 
 
   @property
@@ -664,7 +671,7 @@ class UvnSettings(Versioned):
 
   @backbone_vpn.setter
   def backbone_vpn(self, val: BackboneVpnSettings) -> None:
-    self.update("_backbone_vpn", val)
+    self.update("backbone_vpn", val)
 
 
   @property
@@ -676,7 +683,7 @@ class UvnSettings(Versioned):
 
   @timing_profile.setter
   def timing_profile(self, val: TimingProfile | None) -> None:
-    self.update("_timing_profile", val)
+    self.update("timing_profile", val)
 
 
   @property
@@ -688,7 +695,7 @@ class UvnSettings(Versioned):
 
   @enable_particles_vpn.setter
   def enable_particles_vpn(self, val: bool | None) -> None:
-    self.update("_enable_particles_vpn", val)
+    self.update("enable_particles_vpn", val)
 
 
   @property
@@ -700,10 +707,10 @@ class UvnSettings(Versioned):
 
   @enable_root_vpn.setter
   def enable_root_vpn(self, val: bool | None) -> None:
-    self.update("_enable_root_vpn", val)
+    self.update("enable_root_vpn", val)
 
 
-  def collect_changes(self) -> list[Versioned]:
+  def collect_changes(self) -> list[Tuple[Versioned, dict]]:
     changed = super().collect_changes()
     changed.extend(self.root_vpn.collect_changes())
     changed.extend(self.particles_vpn.collect_changes())
@@ -831,7 +838,7 @@ class CellId(Versioned):
   @name.setter
   def name(self, val: str) -> None:
     UvnId.validate_name(val, "cell")
-    self.update("_name", val)
+    self.update("name", val)
 
 
   @property
@@ -842,7 +849,7 @@ class CellId(Versioned):
   @owner.setter
   def owner(self, val: str) -> None:
     UvnId.validate_name(val, "cell owner")
-    self.update("_owner", val)
+    self.update("owner", val)
 
 
   @property
@@ -852,7 +859,7 @@ class CellId(Versioned):
 
   @address.setter
   def address(self, val: str | None) -> None:
-    self.update("_address", val)
+    self.update("address", val)
 
 
   @property
@@ -865,7 +872,7 @@ class CellId(Versioned):
   @owner_name.setter
   def owner_name(self, val: str | None) -> str:
     UvnId.validate_name(val, "cell owner name")
-    self.update("_owner_name", val)
+    self.update("owner_name", val)
 
 
   @property
@@ -884,7 +891,7 @@ class CellId(Versioned):
 
   @location.setter
   def location(self, val: str | None) -> None:
-    self.update("_location", val)
+    self.update("location", val)
 
 
   @property
@@ -897,7 +904,7 @@ class CellId(Versioned):
   @allowed_lans.setter
   def allowed_lans(self, val: Iterable[ipaddress.IPv4Network] | None) -> None:
     val = set(val) if val is not None else None
-    self.update("_allowed_lans", val)
+    self.update("allowed_lans", val)
 
 
   @property
@@ -911,7 +918,7 @@ class CellId(Versioned):
 
   @enable_particles_vpn.setter
   def enable_particles_vpn(self, val: bool | None) -> None:
-    self.update("_enable_particles_vpn", val)
+    self.update("enable_particles_vpn", val)
 
 
   def serialize(self) -> dict:
@@ -1011,7 +1018,7 @@ class ParticleId(Versioned):
   @name.setter
   def name(self, val: str) -> None:
     UvnId.validate_name(val, "particle")
-    self.update("_name", val)
+    self.update("name", val)
 
 
   @property
@@ -1022,7 +1029,7 @@ class ParticleId(Versioned):
   @owner.setter
   def owner(self, val: str) -> None:
     UvnId.validate_name(val, "particle owner")
-    self.update("_owner", val)
+    self.update("owner", val)
 
 
   @property
@@ -1035,7 +1042,7 @@ class ParticleId(Versioned):
   @owner_name.setter
   def owner_name(self, val: str | None) -> str:
     UvnId.validate_name(val, "particle owner name")
-    self.update("_owner_name", val)
+    self.update("owner_name", val)
 
 
   @property
@@ -1126,7 +1133,6 @@ class UvnId(Versioned):
       excluded_cells: Optional[Mapping[int, CellId]]=None,
       particles: Optional[Mapping[int, ParticleId]] = None,
       excluded_particles: Optional[Mapping[int, ParticleId]] = None,
-      hosts: Optional[Iterable[NameserverRecord]] = None,
       settings: Optional[UvnSettings]=None,
       **super_args) -> None:
     super().__init__(**super_args)
@@ -1141,10 +1147,6 @@ class UvnId(Versioned):
     self.excluded_cells = dict(excluded_cells or {})
     self.particles = dict(particles or {})
     self.excluded_particles = dict(excluded_particles or {})
-    self.hosts = {
-      r.hostname: r
-        for r in hosts or []
-    }
     self.settings = settings or UvnSettings()
 
 
@@ -1235,7 +1237,7 @@ class UvnId(Versioned):
   @owner.setter
   def owner(self, val: str) -> None:
     UvnId.validate_name(val, "uvn owner")
-    self.update("_owner", val)
+    self.update("owner", val)
 
   @property
   def owner_name(self) -> str:
@@ -1247,7 +1249,7 @@ class UvnId(Versioned):
   @owner_name.setter
   def owner_name(self, val: str | None) -> str:
     UvnId.validate_name(val, "uvn owner name")
-    self.update("_owner_name", val)
+    self.update("owner_name", val)
 
 
   @property
@@ -1264,7 +1266,7 @@ class UvnId(Versioned):
 
   @address.setter
   def address(self, val: str | None) -> None:
-    self.update("_address", val)
+    self.update("address", val)
 
 
   @property
@@ -1278,7 +1280,7 @@ class UvnId(Versioned):
     from .htdigest import htdigest_generate
     master_secret = htdigest_generate(user=self.owner, realm=self.name, password=val)
     print(f"MASTER SECRET: '{val}' -> '{master_secret}'")
-    self.update("_master_secret", master_secret)
+    self.update("master_secret", master_secret)
 
 
   @property
@@ -1306,7 +1308,7 @@ class UvnId(Versioned):
     return {*self.particles.values(), *self.excluded_particles.values()}
 
 
-  def collect_changes(self) -> list[Versioned]:
+  def collect_changes(self) -> list[Tuple[Versioned, dict]]:
     return [ch
       for o in (
         super(),
@@ -1330,7 +1332,6 @@ class UvnId(Versioned):
       "excluded_cells": [c.serialize() for c in sorted(self.excluded_cells.values(), key=lambda v: v.id)],
       "particles": [p.serialize() for p in sorted(self.particles.values(), key=lambda v: v.id)],
       "excluded_particles": [p.serialize() for p in sorted(self.excluded_particles.values(), key=lambda v: v.id)],
-      "hosts": {r.hostname: r.address for r in self.hosts},
       "generation_ts": self.generation_ts,
       "init_ts": self.init_ts,
       "settings": self.settings.serialize(),
@@ -1350,8 +1351,6 @@ class UvnId(Versioned):
       del serialized["particles"]
     if len(serialized["excluded_particles"]) == 0:
       del serialized["excluded_particles"]
-    if len(serialized["hosts"]) == 0:
-      del serialized["hosts"]
     if not serialized["settings"]:
       del serialized["settings"]
     return serialized
@@ -1379,10 +1378,6 @@ class UvnId(Versioned):
         for p_cfg in serialized.get("excluded_particles", [])
           for particle in [ParticleId.deserialize(p_cfg)]
     }
-    hosts = [
-      NameserverRecord(hostname=k, address=v)
-        for k, v in serialized.get("hosts", {}).items()
-    ]
     self = UvnId(
       name=serialized["name"],
       owner=serialized["owner"],
@@ -1393,7 +1388,6 @@ class UvnId(Versioned):
       excluded_cells=excluded_cells,
       particles=particles,
       excluded_particles=excluded_particles,
-      hosts=hosts,
       settings=UvnSettings.deserialize(serialized.get("settings", {})),
       **Versioned.deserialize_args(serialized))
     self.loaded = True

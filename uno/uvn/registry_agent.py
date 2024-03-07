@@ -15,6 +15,7 @@
 # along with this program. If not, see <https://www.gnu.org/licenses/>.
 ###############################################################################
 from pathlib import Path
+from typing import Tuple
 
 from .uvn_id import UvnId
 from .wg import WireGuardInterface
@@ -32,6 +33,18 @@ from .log import Logger as log
 
 
 class RegistryAgent(Agent):
+  PARTICIPANT_PROFILE = "UnoParticipants::RootAgent"
+  TOPICS = {
+    "writers": [
+      UvnTopic.UVN_ID,
+      UvnTopic.BACKBONE,
+    ],
+
+    "readers": {
+      UvnTopic.CELL_ID: {},
+    },
+  }
+
   def __init__(self, registry: Registry) -> None:
     if not registry.deployed:
       raise ValueError("uvn not deployed", registry)
@@ -42,7 +55,9 @@ class RegistryAgent(Agent):
 
     self._peers = UvnPeersList(
       uvn_id=self.registry.uvn_id,
+      registry_id=self.registry.id,
       local_peer_id=0)
+    self._peers.listeners.append(self)
 
     self._net = AgentNetworking(
       root=True,
@@ -93,27 +108,7 @@ class RegistryAgent(Agent):
 
 
   @property
-  def root_vpn_id(self) -> str:
-    return self.registry.root_vpn_config.generation_ts
-
-
-  @property
-  def backbone_vpn_ids(self) -> list[str]:
-    return []
-
-
-  @property
-  def particles_vpn_id(self) -> str|None:
-    return None
-
-
-  @property
-  def backbone_peers(self) -> list[int]:
-    return []
-
-
-  @property
-  def dds_config(self) -> DdsParticipantConfig:
+  def dds_xml_config(self) -> Tuple[str, str, dict]:
     if not self.registry.rti_license.is_file():
       log.error(f"RTI license file not found: {self.registry.rti_license}")
       raise RuntimeError("RTI license file not found")
@@ -137,16 +132,10 @@ class RegistryAgent(Agent):
       "enable_dds_security": False,
     })
 
-    return DdsParticipantConfig(
-      participant_xml_config=self.participant_xml_config,
-      participant_profile=DdsParticipantConfig.PARTICIPANT_PROFILE_ROOT,
-      user_conditions=[
-        self.peers.updated_condition,
-      ],
-      **Registry.AGENT_REGISTRY_TOPICS)
+    return (self.participant_xml_config, RegistryAgent.PARTICIPANT_PROFILE, RegistryAgent.TOPICS)
 
 
-  def _start_services(self, boot: bool=False) -> None:
+  def _on_started(self, boot: bool=False) -> None:
     self._write_uvn_info()
     self._write_backbone()
 
@@ -155,7 +144,6 @@ class RegistryAgent(Agent):
     sample = uvn_info(
       participant=self.dp,
       uvn_id=self.registry.uvn_id,
-      deployment=self.registry.backbone_vpn_config.deployment,
       registry_id=self.registry_id)
     self.dp.writers[UvnTopic.UVN_ID].write(sample)
     log.activity(f"[AGENT] published uvn info: {self.uvn_id.name}")
@@ -183,7 +171,7 @@ class RegistryAgent(Agent):
         participant=self.dp,
         uvn_id=self.registry.uvn_id,
         cell_id=cell.id,
-        deployment=self.registry.backbone_vpn_config.deployment,
+        registry_id=self.registry.id,
         config_string=enc_config.read_text(),
         package=cell_package)
       self.dp.writers[UvnTopic.BACKBONE].write(sample)

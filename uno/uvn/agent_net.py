@@ -475,17 +475,6 @@ class AgentNetworking:
 
 
   @property
-  def started(self) -> bool:
-    return (
-      self._router_started
-      or self._lans_nat
-      or self._vpn_nat
-      or self._vpn_started
-      or self._uvn_net_enabled
-    )
-
-
-  @property
   def uvn_agent(self) -> UvnAgentService:
     if self._root:
       return UvnAgentService.Root
@@ -516,8 +505,6 @@ class AgentNetworking:
     
     # shutil.copytree(tmp_dir, self.config_dir)
 
-  
-
 
   def configure(self,
       allowed_lans: Iterable[LanDescriptor]|None=None,
@@ -529,8 +516,6 @@ class AgentNetworking:
   
 
   def start(self) -> None:
-    assert(not self.started)
-
     boot = self._boot
     self._boot = False
 
@@ -611,7 +596,7 @@ class AgentNetworking:
         self._disable_vpn_nat(vpn)
       except Exception as e:
         log.error(f"[NET] failed to disable NAT on VPN interface: {vpn}")
-        # log.exception(e)
+        log.exception(e)
         errors.append((vpn, e))
       if vpn in self._vpn_nat:
         self._vpn_nat.remove(vpn)
@@ -621,7 +606,7 @@ class AgentNetworking:
         vpn.stop()
       except Exception as e:
         log.error(f"[NET] failed to delete VPN interface: {vpn}")
-        # log.exception(e)
+        log.exception(e)
         errors.append((vpn, e))
       if vpn in self._vpn_started:
         self._vpn_started.remove(vpn)
@@ -631,7 +616,7 @@ class AgentNetworking:
         self._disable_lan_nat(lan)
       except Exception as e:
         log.error(f"[NET] failed to disable NAT on LAN interface: {lan}")
-        # log.exception(e)
+        log.exception(e)
         errors.append((lan, e))
       if lan in self._lans_nat:
         self._lans_nat.remove(lan)
@@ -641,7 +626,7 @@ class AgentNetworking:
         router.stop()
       except Exception as e:
         log.error(f"[NET] failed to stop router: {router}")
-        # log.exception(e)
+        log.exception(e)
         errors.append((router, e))
       if router == self._router_started:
         self._router_started = None
@@ -660,7 +645,7 @@ class AgentNetworking:
       self.uvn_agent.delete_pid()
     except Exception as e:
       log.error(f"[NET] failed to reset service state")
-      # log.exception(e)
+      log.exception(e)
       errors.append(e)
 
     if errors:
@@ -707,4 +692,3 @@ class AgentNetworking:
     if vpn in self._vpn_nat:
       self._vpn_nat.remove(vpn)
     log.debug(f"NAT DISABLED for VPN: {vpn}")
-

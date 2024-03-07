@@ -187,41 +187,38 @@ def cell_agent_status_plot(
   warning_edges = []
 
   # TODO(asorbini) replace this with the agent's global status
-  if agent.peers.local_peer.status == UvnPeerStatus.ONLINE:
+  if agent.peers.local.status == UvnPeerStatus.ONLINE:
     online_nodes.append(agent.uvn_id.name)
   else:
     warning_nodes.append(agent.uvn_id.name)
 
-  for peer in (p for p in agent.peers if p.cell):
-    edge = (peer.cell.name, peer.uvn_id.name)
+  for peer in (p for p in agent.peers if p.id):
+    cell = agent.uvn_id.cells[peer.id]
+    edge = (cell.name, agent.uvn_id.name)
     graph.add_edge(*edge)
     if peer.local:
-      local_nodes.append(peer.cell.name)
+      local_nodes.append(cell.name)
     if peer.status == UvnPeerStatus.OFFLINE:
       if not peer.local:
-        offline_nodes.append(peer.cell.name)
+        offline_nodes.append(cell.name)
       offline_edges.append(edge)
     elif peer.status == UvnPeerStatus.ONLINE:
       if not peer.local:
-        online_nodes.append(peer.cell.name)
+        online_nodes.append(cell.name)
       online_edges.append(edge)
     else:
       if not peer.local:
-        warning_nodes.append(peer.cell.name)
+        warning_nodes.append(cell.name)
       warning_edges.append(edge)
 
-    for routed_lan in peer.routed_sites:
-      # edge_nic = (peer.cell.name, str(routed_lan.nic.address))
-      # edge_lan = str(routed_lan.nic.address), str(routed_lan.nic.subnet)
-      # graph.add_edge(*edge_nic)
-      # graph.add_edge(*edge_lan)
-      edge_nic = (peer.cell.name, str(routed_lan.nic.subnet))
+    for routed_lan in peer.routed_networks:
+      edge_nic = (cell.name, str(routed_lan.nic.subnet))
       graph.add_edge(*edge_nic)
 
-      peer_status = agent.peers_tester[(peer, routed_lan)]
-      if peer_status.reachable:
-        # online_edges.append(edge_lan)
-        # online_nodes.extend(edge_lan)
+      lan_status = agent.peers_tester.find_status_by_lan(routed_lan)
+
+      # peer_status = agent.peers_tester[(peer, routed_lan)]
+      if lan_status:
         online_edges.append(edge_nic)
         online_nodes.append(edge_nic[1])
       else:

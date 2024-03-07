@@ -1,6 +1,6 @@
 {%- if peer %}
 {%- if peer.status.name == "ONLINE" -%}
-{%-  if peer == agent.peers.local_peer -%}
+{%-  if peer.local -%}
 {%-    set pill_status = "primary" -%}
 {%-  else -%}
 {%-    set pill_status = "success" -%}

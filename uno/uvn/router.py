@@ -20,36 +20,11 @@ from typing import TYPE_CHECKING, Iterable, Tuple
 from .wg import WireGuardInterface
 from .render import Templates
 from .exec import exec_command
-from .ip import ipv4_list_routes
 
 from .log import Logger as log
 
 if TYPE_CHECKING:
   from .cell_agent import CellAgent
-
-class Vtysh:
-    commands = {
-        "ospf": {
-            "info": {
-                "neighbors": ["show ip ospf neighbor"],
-                "routes": ["show ip ospf route"],
-                "interfaces": ["show ip ospf interface"],
-                "borders": ["show ip ospf border-routers"],
-                "lsa": [
-                    "show ip ospf database self-originate",
-                    "show ip ospf database summary",
-                    "show ip ospf database asbr-summary",
-                    "show ip ospf database router"
-                ],
-                "summary": [
-                    "show ip ospf database self-originate",
-                    "show ip ospf border-routers",
-                    "show ip ospf neighbor"
-                ]
-            }
-        }
-    }
-
 
 
 class Router:
@@ -59,8 +34,6 @@ class Router:
 
   def __init__(self, agent: "CellAgent") -> None:
     self.agent = agent
-    self.routes = frozenset()
-    self.update_routes()
 
 
   @property
@@ -72,17 +45,6 @@ class Router:
         "chown", f"{Router.ROUTER_USER}:{Router.ROUTER_GROUP}", log_dir
       ])
     return log_dir
-
-
-
-  def update_routes(self) -> Tuple[set[str], set[str]]:
-    current_routes = ipv4_list_routes()
-    new_routes = current_routes - self.routes
-    gone_routes = self.routes - current_routes
-    if not (new_routes or gone_routes):
-      return (set(), set())
-    self.routes = current_routes
-    return (new_routes, gone_routes)
 
 
   @property
@@ -170,6 +132,7 @@ class Router:
   @property
   def ospf_borders(self) -> str:
     return self.vtysh(["show ip ospf border-routers"])
+
 
   @property
   def ospf_lsa(self) -> str:

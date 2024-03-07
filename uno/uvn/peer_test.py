@@ -15,7 +15,7 @@
 # along with this program. If not, see <https://www.gnu.org/licenses/>.
 ###############################################################################
 import threading
-from typing import Optional, Tuple, Iterable, Iterator, TYPE_CHECKING
+from typing import Optional, Tuple, Iterable, TYPE_CHECKING
 
 import rti.connextdds as dds
 
@@ -29,60 +29,11 @@ from .log import Logger as log
 if TYPE_CHECKING:
   from .agent import Agent
 
-class UvnPeerLanStatus:
-  def __init__(self,
-      peer: UvnPeer,
-      lan: LanDescriptor,
-      reachable: bool=False,
-      ts_last_check: Optional[Timestamp]=None) -> None:
-    self.peer = peer
-    self.lan = lan
-    self._reachable = reachable
-    self.ts_last_check = ts_last_check
-
-
-  def __str__(self) -> str:
-    return f"{self.peer} → {self.lan} gw {self.lan.gw}"
-
-
-  @property
-  def reachable(self) -> bool:
-    return self._reachable
-
-
-  @reachable.setter
-  def reachable(self, val: bool) -> None:
-    checked_before = self.ts_last_check is not None
-    prev_val = self._reachable
-    self._reachable = val
-    self.ts_last_check = Timestamp.now()
-    if prev_val != self._reachable or not checked_before:
-      if not self._reachable:
-        log.error(f"[LAN] UNREACHABLE: {self}")
-      else:
-        log.warning(f"[LAN] REACHABLE: {self}")
-    else:
-      if not self._reachable:
-        log.debug(f"[LAN] still UNREACHABLE: {self}")
-      else:
-        log.debug(f"[LAN] still REACHABLE: {self}")
-
-
-  def __eq__(self, other: object) -> bool:
-    if not isinstance(other, UvnPeerLanStatus):
-      return False
-    return self.peer == other.peer and self.lan == other.lan
-
-
-  def __hash__(self) -> int:
-    return hash((self.peer, self.lan))
-
 
 class UvnPeersTester:
   DEFAULT_PING_LEN = 3
   DEFAULT_PING_COUNT = 3
   DEFAULT_MAX_TEST_DELAY = 60
-  # DEFAULT_MAX_TEST_DELAY = 30
 
   def __init__(self,
       agent: "Agent",
@@ -98,19 +49,11 @@ class UvnPeersTester:
     self._max_test_delay = max_test_delay
     self._last_trigger_ts = None
     self.result_available_condition = dds.GuardCondition()
-    self._reachable = set()
-    self._unreachable = set()
-    for peer in self.tested_peers:
-      for lan in peer.routed_sites:
-        _ = self[(peer, lan)]
 
 
   @property
   def tested_peers(self) -> Iterable[UvnPeer]:
-    # Don't test on root agent
-    if not self.agent.cell:
-      return []
-    return (p for p in self.agent.peers if p.cell)
+    return self.agent.peers.cells
 
 
   @property
@@ -127,54 +70,18 @@ class UvnPeersTester:
     return Timestamp.now().subtract(self._last_trigger_ts)
 
 
-  @property
-  def unreachable(self) -> Iterable[UvnPeerLanStatus]:
-    # return set(s for s in self if not s.reachable)
-    return self._unreachable
+  def find_status_by_lan(self, lan: LanDescriptor) -> bool:
+    reachable_subnets = [l.nic.subnet for l in self.agent.peers.local.reachable_networks]
+    return lan.nic.subnet in reachable_subnets
 
 
-  @property
-  def reachable(self) -> Iterable[UvnPeerLanStatus]:
-    # return set(s for s in self if s.reachable)
-    return self._reachable
-
-
-
-  def peek_state(self) -> Tuple[set[UvnPeerLanStatus], set[UvnPeerLanStatus], bool]:
-    with self._state_lock:
-      fully_routed = len(self._reachable) == len(self)
-      reachable = set(self._reachable)
-      unreachable = set(self._unreachable)
-      return (reachable, unreachable, fully_routed)
-
-
-
-  def __getitem__(self, k: Tuple[UvnPeer, LanDescriptor]) -> UvnPeerLanStatus:
-    status = self._peers_status.get(k)
-    if status is None:
-      status = self._peers_status[k] = UvnPeerLanStatus(k[0], k[1])
-    return status
-
-
-  def __iter__(self) -> Iterator[UvnPeerLanStatus]:
-    return iter(sorted(self._peers_status.values(), key=lambda v: str(v.lan.nic.address)))
-
-
-  def __len__(self):
-    return len(self._peers_status)
-
-
-  def find_status_by_lan(self, lan: LanDescriptor, peer_id: int | None=None) -> Optional[UvnPeerLanStatus]:
-    for status in self:
-      if peer_id is not None and status.peer.id != peer_id:
-        continue
-      if status.lan == lan:
-        return status
-    return None
-
-
-  def find_status_by_peer(self, peer_id: int) -> Iterable[UvnPeerLanStatus]:
-    return [s for s in self if s.peer.id == peer_id]
+  def find_status_by_peer(self, peer_id: int) -> Iterable[Tuple[LanDescriptor, bool]]:
+    reachable_subnets = [l.nic.subnet for l in self.agent.peers.local.reachable_networks]
+    return [
+      (l, reachable)
+        for l in self.agent.peers[peer_id].routed_networks
+          for reachable in [True if l.nic.subnet in reachable_subnets else False]
+    ]
 
 
   def trigger(self) -> None:
@@ -187,7 +94,7 @@ class UvnPeersTester:
     log.debug("[LAN] queued new test.")
     self._trigger_sem.release()
 
-  # @staticmethod
+
   def run(self) -> None:
     try:
       log.debug("[LAN] tester started")
@@ -212,16 +119,16 @@ class UvnPeersTester:
         for peer in tested_peers:
           if not self._active:
             break
-          log.debug(f"[LAN] testing {len(peer.routed_sites)} LANs for peer {peer}")
-          for lan in peer.routed_sites:
-            status = self[(peer, lan)]
-            pinged = self._ping_test(status)
+          log.debug(f"[LAN] testing {len(peer.routed_networks)} LANs for peer {peer}")
+          for lan in peer.routed_networks:
+            # status = self[(peer, lan)]
+            pinged = self._ping_test(peer, lan)
             # Cache current route to the lan's gateway
-            next_hop = ipv4_get_route(lan.gw)
+            lan.next_hop = ipv4_get_route(lan.gw)
             if pinged:
-              reachable.append((status, next_hop))
+              reachable.append((peer, lan))
             else:
-              unreachable.append((status, next_hop))
+              unreachable.append((peer, lan))
 
         if not self._active:
           continue
@@ -230,25 +137,10 @@ class UvnPeersTester:
         test_length = test_end.subtract(self._last_trigger_ts)
         
         log.activity(f"[LAN] test completed in {test_length} seconds")
-        
-        with self._state_lock:
-          for status, next_hop in reachable:
-            try:
-              self._unreachable.remove(status)
-            except KeyError:
-              pass
-            status.lan.next_hop = next_hop
-            status.reachable = True
-            self._reachable.add(status)
 
-          for status, next_hop in unreachable:
-            try:
-              self._reachable.remove(status)
-            except KeyError:
-              pass
-            status.lan.next_hop = next_hop
-            status.reachable = False
-            self._unreachable.add(status)
+        self.agent.peers.update_peer(self.agent.peers.local,
+          reachable_networks=(l for p, l in reachable),
+          unreachable_networks=(l for p, l in unreachable))
 
         self.result_available_condition.trigger_value = True
 
@@ -262,13 +154,13 @@ class UvnPeersTester:
     log.debug("[LAN] tester stopped")
 
 
-  def _ping_test(self, peer_status: UvnPeerLanStatus) -> bool:
-    log.debug(f"[LAN] PING start {peer_status.lan.gw}: {peer_status}")
+  def _ping_test(self, peer: UvnPeer, lan: LanDescriptor) -> bool:
+    log.activity(f"[LAN] PING start: {peer}/{lan}")
     result = exec_command(
-        ["ping", "-w", str(self.DEFAULT_PING_LEN),"-c", str(self.DEFAULT_PING_COUNT), str(peer_status.lan.gw)],
+        ["ping", "-w", str(self.DEFAULT_PING_LEN),"-c", str(self.DEFAULT_PING_COUNT), str(lan.gw)],
         noexcept=True)
     result = result.returncode == 0
-    log.debug(f"[LAN] PING {'OK' if result else 'FAILED'}: {peer_status}")
+    log.activity(f"[LAN] PING {'OK' if result else 'FAILED'}: {peer}/{lan}")
     return result
   
 
@@ -287,8 +179,3 @@ class UvnPeersTester:
     self.trigger()
     self._test_thread.join()
     self._test_thread = None
-    self._reachable = set()
-    self._unreachable = set()
-    for status in self:
-      status.reachable = False
-

@@ -1,6 +1,6 @@
-{%- if name == agent.cell.name -%}
+{%- if cell and name == cell.name -%}
 {%-  set pill_status = "primary" -%}
-{%- elif name == agent.uvn_id.name -%}
+{%- elif name == uvn_id.name -%}
 {%-  set pill_status = "secondary" -%}
 {%- elif endpoint -%}
 {%-  set pill_status = "success" -%}

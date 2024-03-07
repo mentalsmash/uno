@@ -17,7 +17,7 @@
 import rti.connextdds as dds
 import shutil
 from pathlib import Path
-from typing import Mapping, Sequence, Iterable, Optional
+from typing import Mapping, Sequence, Tuple, Optional
 import ipaddress
 import yaml
 import tempfile
@@ -31,19 +31,18 @@ from .ip import (
   LanDescriptor,
   NicDescriptor,
 )
-from .ns import NameserverRecord
 from .dds import DdsParticipantConfig, UvnTopic
 from .registry import Registry
 from .peer import UvnPeersList, UvnPeer
 from .exec import exec_command
 from .vpn_config import P2PLinksMap, CentralizedVpnConfig
-from .peer_test import UvnPeersTester, UvnPeerLanStatus
+from .peer_test import UvnPeersTester
 from .time import Timestamp
 from .www import UvnHttpd
 from .particle import write_particle_configuration
 from .graph import cell_agent_status_plot
 from .render import Templates
-from .dds_data import dns_database, cell_agent_status
+from .dds_data import cell_agent_status
 from .agent_net import AgentNetworking
 from .router import Router
 from .agent import Agent
@@ -54,12 +53,18 @@ from .log import Logger as log
 
 
 class CellAgent(Agent):
-  KNOWN_NETWORKS_TABLE_FILENAME = "networks.known"
-  LOCAL_NETWORKS_TABLE_FILENAME = "networks.local"
-  REACHABLE_NETWORKS_TABLE_FILENAME = "networks.reachable"
-  UNREACHABLE_NETWORKS_TABLE_FILENAME = "networks.unreachable"
-  
-  GLOBAL_UVN_ID = Path("/etc/uno/root")
+  PARTICIPANT_PROFILE = "UnoParticipants::CellAgent"
+  TOPICS = {
+    "writers": [
+      UvnTopic.CELL_ID,
+    ],
+
+    "readers": {
+      UvnTopic.CELL_ID: {},
+      UvnTopic.UVN_ID: {},
+      UvnTopic.BACKBONE: {},
+    }
+  }
 
   def __init__(self,
       root: Path,
@@ -92,9 +97,10 @@ class CellAgent(Agent):
 
     self._peers = UvnPeersList(
       uvn_id=self.uvn_id,
+      registry_id=self.registry_id,
       local_peer_id=cell_id)
+    self._peers.listeners.append(self)
 
-    # self.ns = Nameserver(self.root, db=self.uvn_id.hosts)
     self.peers_tester = UvnPeersTester(self,
       max_test_delay=self.uvn_id.settings.timing_profile.tester_max_delay)
 
@@ -125,12 +131,7 @@ class CellAgent(Agent):
     self._reload_package_h = None
 
     # Track state of plots so we can regenerate them on the fly
-    self._regenerate_plots()
-
-    # 
-    self._reachable_sites = set()
-    self._unreachable_sites = set()
-    self._fully_routed = False
+    self._uvn_status_plot_dirty = True
 
     # Only enable HTTP server if requested
     self.enable_www = False
@@ -184,23 +185,18 @@ class CellAgent(Agent):
 
 
   @property
-  def root_vpn_id(self) -> str:
-    return self.root_vpn.config.generation_ts if self.root_vpn else None
-
-
-  @property
-  def backbone_vpn_ids(self) -> list[str]:
-    return [nic.config.generation_ts for nic in self.backbone_vpns]
-
-
-  @property
-  def particles_vpn_id(self) -> Optional[str]:
-    return self.particles_vpn_config.generation_ts
-
-
-  @property
-  def backbone_peers(self) -> list[int]:
-    return [p.id for nic in self.backbone_vpns for p in nic.config.peers]
+  def services(self) -> list[Tuple["Agent.Service", dict]]:
+    return [
+      *super().services,
+      (self.peers_tester, {}),
+      *([(self.www, {
+        "addresses": [
+          "localhost",
+          *(vpn.config.intf.address for vpn in self.vpn_interfaces),
+          *(l.nic.address for l in self.lans),
+        ],
+      })] if self.enable_www else []),
+    ]
 
 
   @property
@@ -253,11 +249,6 @@ class CellAgent(Agent):
     return self.uvn_id.settings.enable_root_vpn
 
 
-  def _regenerate_plots(self) -> None:
-    self._uvn_status_plot_dirty = True
-    super()._regenerate_plots()
-
-
   @property
   def uvn_status_plot(self) -> Path:
     status_plot = self.www.root / "uvn-status.png"
@@ -268,93 +259,8 @@ class CellAgent(Agent):
     return status_plot
 
 
-  def _on_discovery_completed_status(self, completed: bool) -> None:
-    # Some peers went offline/online, trigger the tester to check their LANs
-    self.peers_tester.trigger()
-
-
-  def _on_routed_sites_status(self, new: set[LanDescriptor], gone: set[LanDescriptor]) -> None:
-    # if new_sites:
-    #   subnets = {l.nic.subnet for l in new_sites}
-    #   log.debug(f"[AGENT] enabling {len(new_sites)} new routed sites: {list(map(str, new_sites))}")
-    #   for backbone_vpn in self.backbone_vpns:
-    #     backbone_vpn.allow_ips_for_peer(0, subnets)
-    # if gone_sites:
-    #   subnets = {l.nic.subnet for l in gone_sites}
-    #   log.activity(f"[AGENT] disabling {len(gone_sites)} inactive routed sites: {list(map(str, gone_sites))}")
-    #   for backbone_vpn in self.backbone_vpns:
-    #     backbone_vpn.disallow_ips_for_peer(0, subnets)
-    
-    # Trigger tester to check the state of known and new sites
-    self.peers_tester.trigger()
-
-    # Check if all sites are reachable
-    self._assert_fully_routed()
-
-    self._write_known_networks_file()
-
-
   @property
-  def reachable_sites(self) -> Iterable[UvnPeerLanStatus]:
-    return self._reachable_sites
-
-
-  @reachable_sites.setter
-  def reachable_sites(self, val: Iterable[UvnPeerLanStatus]) -> None:
-    prev = self._reachable_sites
-    self._reachable_sites = set(val)
-
-    if prev != self._reachable_sites:
-      # log.error(f"CHANGED REACHABLE: {self._reachable_sites}")
-      self.dirty= True
-      # Check if all sites are reachable
-      self._assert_fully_routed()
-      self._write_reachable_networks_files(
-        reachable=self._reachable_sites,
-        unreachable=self._unreachable_sites)
-    # else:
-    #   log.error(f"NOT CHANGED REACHABLE: {self._reachable_sites}")
-
-
-  @property
-  def unreachable_sites(self) -> Iterable[UvnPeerLanStatus]:
-    return self._unreachable_sites
-
-
-  @unreachable_sites.setter
-  def unreachable_sites(self, val: Iterable[UvnPeerLanStatus]) -> None:
-    prev = self._unreachable_sites
-    self._unreachable_sites = set(val)
-
-    if prev != self._unreachable_sites:
-      # if self._unreachable_sites:
-      #   self.fully_routed = False
-      self.dirty= True
-
-
-  @property
-  def fully_routed(self) -> bool:
-    return self._fully_routed
-
-
-  @fully_routed.setter
-  def fully_routed(self, val: bool) -> None:
-    prev = self._fully_routed
-    self._fully_routed = val
-    if prev != val:
-      if prev:
-        if self.reachable_sites or self.unreachable_sites:
-          log.error(f"[AGENT] lost connection with some networks: reachable={[str(s.lan.nic.subnet) for s in self.reachable_sites]}, unreachable={[str(s.lan.nic.subnet) for s in self.unreachable_sites]}")
-        # Don't print messages if offline
-        elif self.started:
-          log.error(f"[AGENT] disconnected from all networks!")
-      else:
-        log.warning(f"[AGENT] routing ALL {len(self.reachable_sites)} networks: {[str(s.lan.nic.subnet) for s in self.reachable_sites]}")
-      self.dirty = True
-
-
-  @property
-  def dds_config(self) -> DdsParticipantConfig:
+  def dds_xml_config(self) -> Tuple[str, str, dict]:
     # Pick the address of the first backbone port for every peer
     # and all addresses for peers connected directly to this one
     backbone_peers = {
@@ -391,39 +297,15 @@ class CellAgent(Agent):
       "permissions": self.id_db.backend.permissions(key_id),
       "enable_dds_security": False,
     })
-
-    return DdsParticipantConfig(
-      participant_xml_config=self.participant_xml_config,
-      participant_profile=DdsParticipantConfig.PARTICIPANT_PROFILE_CELL,
-      user_conditions=[
-        self.peers_tester.result_available_condition,
-        self.peers.updated_condition,
-      ],
-      **Registry.AGENT_CELL_TOPICS)
+    return (self.participant_xml_config, CellAgent.PARTICIPANT_PROFILE, CellAgent.TOPICS)
 
 
   @property
-  def ns_records(self) -> Sequence[NameserverRecord]:
+  def user_conditions(self) -> list[dds.GuardCondition]:
     return [
-      NameserverRecord(
-        hostname=f"registry.{self.uvn_id.address}",
-        address=str(self.root_vpn_config.peers[0].address),
-        server=self.uvn_id.name,
-        tags=["registry", "vpn", "uvn"]),
-      NameserverRecord(
-        hostname=f"{self.cell.name}.vpn.{self.uvn_id.address}",
-        address=str(self.root_vpn_config.intf.address),
-        server=self.cell.name,
-        tags=["cell", "vpn", "uvn"]),
-      *(
-        NameserverRecord(
-          hostname=f"{peer.name}.{self.cell.name}.backbone.{self.uvn_id.address}",
-          address=str(backbone_vpn.config.intf.address),
-          server=self.cell.name,
-          tags=["cell", "uvn", "backbone"])
-        for backbone_vpn in self.backbone_vpns
-          for peer in [self.uvn_id.cells[backbone_vpn.config.peers[0].id]]
-      ),
+      *super().user_conditions,
+      self.routes_monitor.updated_condition,
+      self.peers_tester.result_available_condition,
     ]
 
 
@@ -440,70 +322,10 @@ class CellAgent(Agent):
       raise RuntimeError("invalid network interfaces")
 
 
-  def _start_services(self, boot: bool=False) -> None:
-    # TODO(asorbini) re-enable ns server once thought through
-    # self.ns.assert_records(self.ns_records)
-    # self.ns.start(self.uvn_id.address)
-    self.peers_tester.start()
-
+  def _on_started(self, boot: bool=False) -> None:
     # Write particle configuration to disk
     self._write_particle_configurations()
-
-    # Start the internal web server on localhost
-    # and on the VPN interfaces
-    if self.enable_www:
-      self.www.start([
-        "localhost",
-        *(vpn.config.intf.address for vpn in self.vpn_interfaces),
-        *(l.nic.address for l in self.lans),
-      ])
-
-
-  def _stop_services(self, errors: list[Exception], exiting: bool=False) -> None:
-    try:
-      self.www.stop()
-    except Exception as e:
-      log.error(f"[AGENT] failed to stop web server")
-      errors.append(e)
-    try:
-      self.peers_tester.stop()
-    except Exception as e:
-      log.error(f"[AGENT] failed to stop peers tester")
-      errors.append(e)
-    try:
-      self.fully_routed = False
-    except Exception as e:
-      log.error(f"[AGENT] failed to reset fully-routed state")
-      errors.append(e)
-    try:
-      self.unreachable_sites = []
-    except Exception as e:
-      log.error(f"[AGENT] failed to reset unreachable sites")
-      errors.append(e)
-    try:
-      self.reachable_sites = []
-    except Exception as e:
-      log.error(f"[AGENT] failed to reset reachable sites")
-      errors.append(e)
-  
-
-  def _assert_fully_routed(self) -> None:
-    reachable = set()
-    for site in self.routed_sites:
-      reach = next((s for s in self._reachable_sites if s.lan == site), None)
-      if not reach:
-        continue
-      reachable.add(site)
-
-    missing = self.routed_sites - reachable
-    all_reachable = False
-    if missing:
-      log.activity(f"[AGENT] unreachable or not yet tested: {[str(l.nic.subnet) for l in missing]}")
-    else:
-      reachable_subnets = {l.nic.subnet for l in reachable}
-      all_reachable = self.expected_subnets == reachable_subnets
-
-    self.fully_routed = not bool(missing) and all_reachable
+    self._write_cell_info()
 
 
   def _on_spin(self,
@@ -518,34 +340,13 @@ class CellAgent(Agent):
       # Parse/save/load new configuration
       self.reload(package=new_package_h, config=new_config, save_to_disk=True)
 
-    new_routes, gone_routes = self.router.update_routes()
-    if new_routes or gone_routes:
-      for r in new_routes:
-        log.activity(f"[AGENT] route ADD: {r}")
-      for r in gone_routes:
-        log.activity(f"[AGENT] route DEL: {r}")
-      self.peers_tester.trigger()
-
-    if self.dirty:
-      self._write_cell_info()
-      self._regenerate_plots()
-      self.www.request_update()
-
-    # Periodically update the status page for various statistics
     self.www.update()
 
     super()._on_spin(
       ts_start=ts_start,
       ts_now=ts_now,
       spin_len=spin_len)
-
-
-  def _on_user_condition(self, condition: dds.GuardCondition):
-    if condition == self.peers_tester.result_available_condition:#
-      # New peers tester result 
-      self._on_peers_tester_result()
-    else:
-      super()._on_user_condition(condition)
+  
 
 
   def _on_agent_config_received(self, package: object|None=None, config: str|None=None) -> None:
@@ -566,11 +367,12 @@ class CellAgent(Agent):
       reader: dds.DataReader,
       info: dds.SampleInfo,
       sample: dds.DynamicData) -> None:
-    if topic == UvnTopic.DNS:
-      self._on_dns_data(info.instance_handle, sample)
-    elif topic == UvnTopic.BACKBONE:
-
+    if topic == UvnTopic.BACKBONE:
+      if sample["registry_id"] == self.registry_id:
+        log.debug(f"[AGENT] ignoring current configuration: {self.registry_id}")
+        return
       try:
+        # Cache received data to file and trigger handling
         tmp_h = tempfile.NamedTemporaryFile()
         tmp = Path(tmp_h.name)
         if len(sample["package"]) > 0:
@@ -583,44 +385,19 @@ class CellAgent(Agent):
       except Exception as e:
         log.error("failed to parse received configuration")
         log.exception(e)
+    else:
+      super()._on_reader_data(
+        topic=topic,
+        reader=reader,
+        info=info,
+        sample=sample)
 
 
-  def _on_dns_data(self, instance: dds.InstanceHandle, sample: dds.DynamicData) -> None:
-    ns_server_name = sample["cell.name"]
-    ns_cell = next((c for c in self.uvn_id.cells.values() if c.name == ns_server_name), None)
-    if ns_cell is None:
-      log.debug(f"[AGENT] IGNORING DNS update from unknown cell: {ns_server_name}")
-      return
-    ns_peer = self.peers[ns_cell]
-    ns_peer.ih_dns = instance
-    ns_records = [
-      NameserverRecord(
-        hostname=entry["hostname"],
-        address=ipv4_from_bytes(entry["address.value"]),
-        tags=entry["tags"],
-        server=ns_server_name)
-      for entry in sample["entries"]  
-    ]
-    # self.ns.assert_records(ns_records)
-    return
-
-
-  def _on_reader_offline(self,
-      topic: UvnTopic,
-      reader: dds.DataReader,
-      info: dds.SampleInfo) -> None:
-    if topic == UvnTopic.DNS:
-      ns_peer, purged_records = self._on_dns_offline(info.instance_handle)    
-    return
-
-
-  def _on_dns_offline(self, instance: dds.InstanceHandle) -> None:
-    ns_peer = next((p for p in self.peers if p.ih_dns == instance), None)
-    if not ns_peer:
-      log.debug(f"[AGENT] DNS dispose for unknown instance: {instance}")
-      return
-    # self.ns.purge_server(ns_peer.cell.name)
-    return
+  def _on_user_condition(self, condition: dds.GuardCondition):
+    if condition == self.peers_tester.result_available_condition:#
+      pass
+    else:
+      super()._on_user_condition(condition)
 
 
   def _write_cell_info(self) -> None:
@@ -628,40 +405,68 @@ class CellAgent(Agent):
       participant=self.dp,
       uvn_id=self.uvn_id,
       cell_id=self.cell.id,
-      deployment=self.deployment,
       registry_id=self.registry_id,
-      root_vpn_config=self.root_vpn_config,
-      particles_vpn_config=self.particles_vpn_config,
-      backbone_vpn_configs=self.backbone_vpn_configs,
       lans=self.lans,
-      reachable_sites=self.reachable_sites,
-      unreachable_sites=self.unreachable_sites)
+      reachable_networks=self.peers.local.reachable_networks,
+      unreachable_networks=self.peers.local.reachable_networks)
     self.dp.writers[UvnTopic.CELL_ID].write(sample)
     log.activity(f"[AGENT] published cell info: {self.cell}")
 
 
-  def _write_dns(self) -> None:
-    sample = dns_database(
-      participant=self.dp,
-      uvn_id=self.uvn_id,
-      ns=self.ns,
-      server_name=self.cell.name)
-    self.dp.writers[UvnTopic.DNS].write(sample)
-    log.activity(f"[AGENT] published DNS info: {self.cell}")
+  def on_event_online_cells(self,
+      new_cells: set[UvnPeer],
+      gone_cells: set[UvnPeer]) -> None:
+    super().on_event_online_cells(new_cells, gone_cells)
+    self._uvn_status_plot_dirty = True
+    self.www.request_update()
 
 
-  def _on_peers_tester_result(self) -> None:
-    reachable_sites, unreachable_sites, _ = self.peers_tester.peek_state()
-    log.activity(
-      f"[AGENT] tester results:"
-      f" REACHABLE={[str(s.lan.nic.subnet) for s in reachable_sites]},"
-      f" UNREACHABLE={[str(s.lan.nic.subnet) for s in unreachable_sites]}")
-    self.unreachable_sites = unreachable_sites
-    self.reachable_sites = reachable_sites
-    self.peers.update_peer(self.peers.local_peer,
-      reachable_sites={s.lan for s in self.reachable_sites},
-      unreachable_sites={s.lan for s in self.unreachable_sites})
-    self._on_peers_updated()
+  def on_event_all_cells_connected(self) -> None:
+    super().on_event_all_cells_connected()
+
+
+  def on_event_registry_connected(self) -> None:
+    super().on_event_registry_connected()
+    self._uvn_status_plot_dirty = True
+    self.www.request_update()
+
+
+  def on_event_routed_networks(self, new_routed, gone_routed) -> None:
+    super().on_event_routed_networks(new_routed, gone_routed)
+    self.peers_tester.trigger()
+    self._uvn_status_plot_dirty = True
+    self.www.request_update()
+
+
+  def on_event_consistent_config_cells(self, new_consistent, gone_consistent) -> None:
+    super().on_event_consistent_config_cells(new_consistent, gone_consistent)
+
+
+  def on_event_consistent_config_uvn(self) -> None:
+    super().on_event_consistent_config_uvn()
+
+
+  def on_event_local_reachable_networks(self, new_reachable: set[LanDescriptor], gone_reachable: set[LanDescriptor]) -> None:
+    super().on_event_local_reachable_networks(new_reachable, gone_reachable)
+    self._write_cell_info()
+    self._uvn_status_plot_dirty = True
+    self.www.request_update()
+
+
+  def on_event_reachable_networks(self, new_reachable, gone_reachable) -> None:
+    super().on_event_reachable_networks(new_reachable, gone_reachable)
+    self._uvn_status_plot_dirty = True
+    self.www.request_update()
+
+
+  def on_event_fully_routed_uvn(self) -> None:
+    super().on_event_fully_routed_uvn()
+
+
+  def on_event_local_routes(self, new_routes: set[str], gone_routes: set[str]) -> None:
+    super().on_event_local_routes(new_routes, gone_routes)
+    self.peers_tester.trigger()
+    self.www.request_update()
 
 
   def find_backbone_peer_by_address(self, addr: str | ipaddress.IPv4Address) -> Optional[UvnPeer]:
@@ -670,7 +475,7 @@ class CellAgent(Agent):
       if bbone.peers[0].address == addr:
         return self.peers[bbone.peers[0].id]
       elif bbone.intf.address == addr:
-        return self.peers.local_peer
+        return self.peers.local
     return None
 
 
@@ -695,49 +500,6 @@ class CellAgent(Agent):
         "tx": traffic_tx,
       },
     }
-
-
-  def _write_known_networks_file(self) -> None:
-    # Write peer status to file
-    lans = sorted(self.lans, key=lambda v: v.nic.name)
-    def _write_output(output_file: Path, sites: Iterable[LanDescriptor]) -> None:
-      with output_file.open("w") as output:
-        for site in sites:
-          output.writelines(" ".join([
-              f"{site.nic.subnet.network_address}/{site.nic.netmask}",
-              str(lan.nic.address),
-              "\n"
-            ]) for lan in lans)
-    output_file= self.log_dir / self.KNOWN_NETWORKS_TABLE_FILENAME
-    _write_output(output_file,
-      (site for peer in self.peers for site in peer.routed_sites if site not in lans))
-    output_file= self.log_dir / self.LOCAL_NETWORKS_TABLE_FILENAME
-    _write_output(output_file, lans)
-          
-
-  def _write_reachable_networks_files(self,
-      reachable: Iterable[UvnPeerLanStatus],
-      unreachable: Iterable[UvnPeerLanStatus]) -> None:
-    def _write_output(output_file: Path, statuses: Iterable[UvnPeerLanStatus]) -> None:
-      if not statuses:
-        output_file.write_text("")
-        return
-      with output_file.open("w") as output:
-        for peer_status in statuses:
-          if peer_status.lan in lans:
-            continue
-          output.writelines(" ".join([
-              f"{peer_status.lan.nic.subnet.network_address}/{peer_status.lan.nic.netmask}",
-              str(lan.nic.address),
-              # str(peer_status.lan.gw),
-              "\n"
-            ]) for lan in lans)
-
-    lans = sorted(self.lans, key=lambda v: v.nic.name)
-    output_file: Path = self.log_dir / self.REACHABLE_NETWORKS_TABLE_FILENAME
-    _write_output(output_file, reachable)
-    # output_file: Path = self.root / self.UNREACHABLE_NETWORKS_TABLE_FILENAME
-    # _write_output(output_file, unreachable)
 
 
   def _write_particle_configurations(self) -> None:
@@ -784,6 +546,7 @@ class CellAgent(Agent):
     if updated_agent.registry_id != self.registry_id:
       def _update_registry_id():
         self._registry_id = updated_agent.registry_id
+        self.peers.registry_id = updated_agent.registry_id
       updaters.append(_update_registry_id)
 
     if updated_agent.uvn_id.generation_ts != self.uvn_id.generation_ts:
@@ -795,8 +558,6 @@ class CellAgent(Agent):
         self._cell = self.uvn_id.cells[self.cell.id]
         self.id_db.uvn_id = self.uvn_id
         self.peers.uvn_id = self.uvn_id
-        # self.ns = Nameserver(self.root, db=self.uvn_id.hosts)
-        # self.ns.assert_records(self.ns_records())
       log.warning(f"[AGENT] UVN configuration changed: {self.uvn_id.generation_ts} → {updated_agent.uvn_id.generation_ts}")
       updaters.append(_update_uvn_id)
     
@@ -809,11 +570,11 @@ class CellAgent(Agent):
 
     if updated_agent.deployment.generation_ts != self.deployment.generation_ts:
       def _update_deployment():
-        # self.ns.clear()
         self._deployment = updated_agent.deployment
         self.backbone_vpn_configs = list(updated_agent.backbone_vpn_configs)
         self.backbone_vpns = [WireGuardInterface(v) for v in self.backbone_vpn_configs]
-        self._regenerate_plots()
+        self._uvn_backbone_plot_dirty = True
+        self._uvn_status_plot_dirty = True
       log.warning(f"[AGENT] Backbone Deployment changed: {self.deployment.generation_ts} → {updated_agent.deployment.generation_ts}")
       updaters.append(_update_deployment)
 
@@ -866,8 +627,6 @@ class CellAgent(Agent):
       "cell_id": self.cell.id,
       "registry_id": self.registry_id,
       "deployment": self.deployment.serialize(),
-      # "ns": self.ns.serialize(orig=persist),
-      "peers": self.peers.serialize(),
       "root_vpn_config": self.root_vpn_config.serialize(),
       "particles_vpn_config": self.particles_vpn_config.serialize(),
       "backbone_vpn_configs": [

@@ -170,6 +170,7 @@ docker_container()
             --cap-add sys_module \
             -e INIT=/experiment/init.sh \
             -v ${EXPERIMENT_DIR}/${container_name}:/experiment \
+            -e VERBOSE=-v \
             ${extra_args} \
             uno:latest \
             ${cmd} \

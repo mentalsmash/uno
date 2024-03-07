@@ -26,16 +26,12 @@ from .render import Templates
 from .log import Logger as log
 
 class UvnTopic(Enum):
-  UVN_ID = "uno/uvn/info"
-  CELL_ID = "uno/cell/info"
-  BACKBONE = "uno/uvn/deployment"
-  DNS = "uno/uvn/ns"
+  UVN_ID = "uno/uvn"
+  CELL_ID = "uno/cell"
+  BACKBONE = "uno/config"
 
 
 class DdsParticipantConfig:
-  PARTICIPANT_PROFILE_ROOT = "UnoParticipants::RootAgent"
-  PARTICIPANT_PROFILE_CELL = "UnoParticipants::CellAgent"
-
   def __init__(self,
       participant_xml_config: Path,
       participant_profile: str,
@@ -92,36 +88,30 @@ class DdsParticipant:
   WRITER_NAMES = {
     UvnTopic.UVN_ID: "Publisher::UvnInfoWriter",
     UvnTopic.CELL_ID: "Publisher::CellInfoWriter",
-    UvnTopic.BACKBONE: "MetadataPublisher::UvnDeploymentWriter",
-    UvnTopic.DNS: "Publisher::NameserverWriter",
+    UvnTopic.BACKBONE: "Publisher::AgentConfigWriter",
   }
 
   READER_NAMES = {
     UvnTopic.UVN_ID: "Subscriber::UvnInfoReader",
     UvnTopic.CELL_ID: "Subscriber::CellInfoReader",
-    UvnTopic.BACKBONE: "MetadataSubscriber::UvnDeploymentReader",
-    UvnTopic.DNS: "Subscriber::NameserverReader",
+    UvnTopic.BACKBONE: "Subscriber::AgentConfigReader",
   }
 
   READERS_PROCESSING_ORDER = {
     UvnTopic.UVN_ID: 0,
     UvnTopic.CELL_ID: 1,
-    UvnTopic.DNS: 2,
-    UvnTopic.BACKBONE: 3,
+    UvnTopic.BACKBONE: 2,
   }
 
   TOPIC_TYPES = {
     UvnTopic.UVN_ID: "uno::UvnInfo",
     UvnTopic.CELL_ID: "uno::CellInfo",
-    UvnTopic.DNS: "uno::NameserverDatabase",
-    UvnTopic.BACKBONE: "uno::UvnDeployment",
+    UvnTopic.BACKBONE: "uno::AgentConfig",
   }
 
   REGISTERED_TYPES = {
     *TOPIC_TYPES.values(),
-    "uno::DnsRecord",
-    "uno::CellSiteSummary",
-    "uno::CellPeerSummary",
+    "uno::NetworkInfo",
     "uno::IpAddress",
   }
 
