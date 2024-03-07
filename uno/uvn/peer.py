@@ -386,16 +386,15 @@ class UvnPeersList(Versioned):
 
 
   def online(self, **local_peer_fields) -> None:
-    return self.update_peer(self.local,
+    self.update_peer(self.local,
       status=UvnPeerStatus.ONLINE,
       **local_peer_fields)
+    self.process_updates()
 
 
-  def offline(self) -> bool:
-    already_offline = self.update_peer(self.local,
-      status=UvnPeerStatus.OFFLINE)
-    if already_offline:
-      return False
+  def offline(self) -> None:
+    if self.local.status == UvnPeerStatus.OFFLINE:
+      return
 
     self.update_all(
       status=UvnPeerStatus.OFFLINE,
@@ -406,8 +405,8 @@ class UvnPeersList(Versioned):
       ih=None,
       ih_dw=None)
   
-    return True
-
+    self.process_updates()
+  
 
   def update_peer(self,
       peer: UvnPeer,
