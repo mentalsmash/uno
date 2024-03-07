@@ -414,7 +414,9 @@ tbody .badge {
                           </h4>
                           <div class="accordion-collapse collapse"
                                 id="ospf-summary">
-                             <pre class="border rounded bg-body-secondary mt-3 p-3">{{router.ospf_summary}}</pre>
+                             {# <pre class="border rounded bg-body-secondary mt-3 p-3">{{router.ospf_summary}}</pre> #}
+                              <iframe src="{{ospf_summary}}" title="OSPF Summary">
+                              </iframe>
                           </div>
                         </div>
 
@@ -432,7 +434,9 @@ tbody .badge {
                           </h4>
                           <div class="accordion-collapse collapse"
                                 id="ospf-routes">
-                             <pre class="border rounded bg-body-secondary mt-3 p-3">{{router.ospf_routes}}</pre>
+                             {# <pre class="border rounded bg-body-secondary mt-3 p-3">{{router.ospf_routes}}</pre> #}
+                             <iframe src="{{ospf_routes}}" title="OSPF Routes">
+                            </iframe>
                           </div>
                         </div>
 
@@ -450,7 +454,9 @@ tbody .badge {
                           </h4>
                           <div class="accordion-collapse collapse"
                                 id="ospf-lsa">
-                             <pre class="border rounded bg-body-secondary mt-3 p-3">{{router.ospf_lsa}}</pre>
+                             {# <pre class="border rounded bg-body-secondary mt-3 p-3">{{router.ospf_lsa}}</pre> #}
+                             <iframe src="{{ospf_lsa}}" title="OSPF LSA">
+                            </iframe>
                           </div>
                         </div>
 

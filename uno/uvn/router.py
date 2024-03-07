@@ -108,54 +108,95 @@ class Router:
     log.activity(f"[ROUTER] started")
 
 
+  def update_state(self) -> None:
+    self.ospf_neighbors()
+    self.ospf_routes()
+    self.ospf_interfaces()
+    self.ospf_borders()
+    self.ospf_lsa()
+    self.ospf_summary()
+
+
   def stop(self) -> None:
     log.debug(f"[ROUTER] stopping frrouting...")
     exec_command(["service", "frr", "stop"])
     log.activity(f"[ROUTER] stopped")
 
 
-  @property
-  def ospf_neighbors(self) -> str:
-    return self.vtysh(["show ip ospf neighbor"])
+
+  def ospf_neighbors(self) -> None:
+    self.vtysh(["show ip ospf neighbor"], output_file=self.ospf_neighbors_f)
 
 
-  @property
-  def ospf_routes(self) -> str:
-    return self.vtysh(["show ip ospf route"])
+  def ospf_routes(self) -> None:
+    self.vtysh(["show ip ospf route"], output_file=self.ospf_routes_f)
 
 
-  @property
   def ospf_interfaces(self) -> str:
-    return self.vtysh(["show ip ospf interface"])
+    self.vtysh(["show ip ospf interface"], output_file=self.ospf_interfaces_f)
 
 
-  @property
-  def ospf_borders(self) -> str:
-    return self.vtysh(["show ip ospf border-routers"])
+  def ospf_borders(self) -> None:
+    self.vtysh(["show ip ospf border-routers"], output_file=self.ospf_borders_f)
 
 
-  @property
-  def ospf_lsa(self) -> str:
-    return "\n".join([
-      self.vtysh(["show ip ospf database self-originate"]),
-      self.vtysh(["show ip ospf database summary"]),
-      self.vtysh(["show ip ospf database asbr-summary"]),
-      self.vtysh(["show ip ospf database router"]),
-    ])
+  def ospf_lsa(self) -> None:
+    with self.ospf_lsa_f.open("wt") as output:
+      output.write(self.vtysh(["show ip ospf database self-originate"]))
+      output.write("\n")
+      output.write(self.vtysh(["show ip ospf database summary"]))
+      output.write("\n")
+      output.write(self.vtysh(["show ip ospf database asbr-summary"]))
+      output.write("\n")
+      output.write(self.vtysh(["show ip ospf database router"]))
+      output.write("\n")
 
 
-  @property
   def ospf_summary(self) -> str:
-    return "\n".join([
-      self.vtysh(["show ip ospf database self-originate"]),
-      self.vtysh(["show ip ospf border-routers"]),
-      self.vtysh(["show ip ospf neighbor"]),
-    ])
+    with self.ospf_summary_f.open("wt") as output:
+      output.write(self.vtysh(["show ip ospf database self-originate"]))
+      output.write("\n")
+      output.write(self.vtysh(["show ip ospf border-routers"]))
+      output.write("\n")
+      output.write(self.vtysh(["show ip ospf neighbor"]))
+      output.write("\n")
 
 
-  def vtysh(self, cmd: Iterable[str|Path]):
+  @property
+  def ospf_neighbors_f(self) -> Path:
+    return self.log_dir / "ospf.neighbors"
+
+
+  @property
+  def ospf_routes_f(self) -> Path:
+    return self.log_dir / "ospf.routes"
+
+
+  @property
+  def ospf_interfaces_f(self) -> Path:
+    return self.log_dir / "ospf.interfaces"
+
+
+  @property
+  def ospf_borders_f(self) -> Path:
+    return self.log_dir / "ospf.borders"
+
+
+  @property
+  def ospf_lsa_f(self) -> Path:
+    return self.log_dir / "ospf.lsa"
+
+
+  @property
+  def ospf_summary_f(self) -> Path:
+    return self.log_dir / "ospf.summary"
+
+
+  def vtysh(self, cmd: Iterable[str|Path], output_file: Path|None=None) -> str|None:
     cmd = ["vtysh", "-E", "-c", *cmd]
     result = exec_command(cmd,
       fail_msg="failed to perform vtysh command",
-      capture_output=True)
-    return result.stdout.decode("utf-8")
+      capture_output=not output_file,
+      output_file=output_file)
+    if not output_file:
+      return result.stdout.decode("utf-8")

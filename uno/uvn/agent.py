@@ -513,6 +513,8 @@ class Agent(UvnPeerListener, RoutesMonitorListener):
       log.warning(f"[STATUS] route ADD: {r}")
     for r in gone_routes:
       log.warning(f"[STATUS] route DEL: {r}")
+    if self.router:
+      self.router.update_state()
 
 
   def _on_user_condition(self, condition: dds.GuardCondition):

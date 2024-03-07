@@ -151,10 +151,27 @@ class UvnHttpd:
         shutil.rmtree(particles_dir_www)
       shutil.copytree(particles_dir, particles_dir_www)
 
+    if router:
+      router.ospf_summary()
+      router.ospf_lsa()
+      router.ospf_routes()
+      ospf_dir = www_root / "ospf"
+      ospf_summary = ospf_dir / f"{router.ospf_summary_f.name}.txt"
+      ospf_lsa = ospf_dir / f"{router.ospf_lsa_f.name}.txt"
+      ospf_routes = ospf_dir / f"{router.ospf_routes_f.name}.txt"
+      if ospf_dir.is_dir():
+        shutil.rmtree(ospf_dir)
+      ospf_dir.mkdir(exist_ok=True)
+      shutil.copy2(router.ospf_summary_f, ospf_summary)
+      shutil.copy2(router.ospf_lsa_f, ospf_lsa)
+      shutil.copy2(router.ospf_routes_f, ospf_routes)
+
+
     index_html = www_root / "index.html"
 
     online_peers = sum(1 for c in peers.online_cells)
     offline_peers = sum(1 for c in peers.cells) - online_peers
+
 
     Templates.generate(index_html, "www/index.html", {
       "cell": cell,
@@ -176,6 +193,9 @@ class UvnHttpd:
       "registry_id": peers.registry_id or "",
       "root_vpn": root_vpn,
       "router": router,
+      "ospf_summary": ospf_summary.relative_to(www_root),
+      "ospf_lsa": ospf_lsa.relative_to(www_root),
+      "ospf_routes": ospf_routes.relative_to(www_root),
       "uvn_id": peers.uvn_id,
       "uvn_settings": yaml.safe_dump(peers.uvn_id.settings.serialize()),
       "vpn_stats": vpn_stats or {
