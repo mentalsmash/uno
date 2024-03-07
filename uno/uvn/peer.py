@@ -261,6 +261,8 @@ class UvnPeersList(Versioned):
 
 
   def _notify(self, event: UvnPeerListener.Event, *args) -> None:
+    if self.local.status != UvnPeerStatus.ONLINE:
+      return
     for l in self.listeners:
       getattr(l, f"on_event_{event.name.lower()}")(*args)
 
