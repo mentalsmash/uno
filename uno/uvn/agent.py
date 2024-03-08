@@ -37,6 +37,7 @@ from .agent_net import AgentNetworking
 from .router import Router
 from .routes_monitor import RoutesMonitor, RoutesMonitorListener
 from .id_db import IdentityDatabase
+from .exec import exec_command
 from .log import Logger as log
 
 class _AgentSpinner:
@@ -75,6 +76,10 @@ class Agent(UvnPeerListener, RoutesMonitorListener):
     # Only enable Systemd support on request
     self.enable_systemd = False
     self.ts_start = Timestamp.now()
+    # Store an updated agent instance upon receiving new configuration
+    # then reload it after finishing handling dds data (since reload
+    # will cause DDS entities to be deleted)
+    self._reload_agent = None
     super().__init__()
 
 
@@ -314,6 +319,10 @@ class Agent(UvnPeerListener, RoutesMonitorListener):
     pass
 
 
+  def _reload(self, updated_agent: "Agent") -> None:
+    raise NotImplementedError()
+
+
   def _on_reader_data(self,
       topic: UvnTopic,
       reader: dds.DataReader,
@@ -431,7 +440,37 @@ class Agent(UvnPeerListener, RoutesMonitorListener):
       ts_start: Timestamp,
       ts_now: Timestamp,
       spin_len: float) -> None:
-    pass
+    if self._reload_agent:
+      reload_agent = self._reload_agent
+      self._reload_agent = None
+      self.reload(reload_agent)
+
+
+  def reload(self, updated_agent: "Agent") -> None:
+    log.warning(f"[AGENT] stopping services to load new configuration: {updated_agent.registry_id}")
+    self._stop()
+    
+    log.activity(f"[AGENT] updating configuration to {updated_agent.registry_id}")
+    self._reload(updated_agent)
+
+    # Copy files from the updated agent's root directory,
+    # then rewrite agent configuration
+    package_files = list(updated_agent.root.glob("*"))
+    if package_files:
+      exec_command(["cp", "-rv", *package_files, self.root])
+    self.save_to_disk()
+
+    log.activity(f"[AGENT] restarting services with new configuration: {self.registry_id}")
+    self._start()
+
+    log.warning(f"[AGENT] new configuration loaded: {self.registry_id}")
+
+
+  def schedule_reload(self, updated_agent: "Agent") -> None:
+    if self._reload_agent:
+      log.warning(f"[AGENT] discarding previously scheduled reload: {self._reload_agent.registry_id}")
+    self._reload_agent = updated_agent
+    log.warning(f"[AGENT] reload scheduled: {self._reload_agent.registry_id}")
 
 
   def on_event_online_cells(self, new_cells: set[UvnPeer], gone_cells: set[UvnPeer]) -> None:

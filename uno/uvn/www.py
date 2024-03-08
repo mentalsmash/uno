@@ -20,6 +20,8 @@ from .time import Timestamp
 from .lighttpd import Lighttpd
 from .keys_dds import CertificateSubject
 from .htdigest import htdigest_generate
+# from .html import index_html
+from . import html as views
 
 if TYPE_CHECKING:
   from .cell_agent import CellAgent
@@ -36,12 +38,12 @@ class UvnHttpd:
     self._lighttpd = None
 
 
-  def update(self) -> None:
+  def spin_once(self) -> None:
     if (not self._dirty and self._last_update_ts
       and Timestamp.now().subtract(self._last_update_ts) < self.min_update_delay):
       return
+    views.index_html(self.agent, self.doc_root)
     self._last_update_ts = Timestamp.now()
-    self.agent.index_html(docroot=self.doc_root)
     self._dirty = False
 
 

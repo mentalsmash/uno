@@ -1,4 +1,4 @@
-from typing import Iterable
+from typing import Iterable, TYPE_CHECKING
 from pathlib import Path
 import shutil
 import yaml
@@ -14,8 +14,30 @@ from .router import Router
 from .render import Templates
 from .log import Logger as log
 
+if TYPE_CHECKING:
+  from .cell_agent import CellAgent
 
-def index_html(
+def index_html(agent: "CellAgent", docroot: Path) -> None:
+    _index_html(
+      www_root=docroot,
+      generation_ts=Timestamp.now().format(),
+      peers=agent.peers,
+      deployment=agent.deployment,
+      ts_start=agent.ts_start,
+      backbone_vpns=agent.backbone_vpns,
+      cell=agent.cell,
+      lans=agent.lans,
+      particles_dir=agent.particles_dir,
+      particles_vpn=agent.particles_vpn,
+      peers_tester=agent.peers_tester,
+      root_vpn=agent.root_vpn,
+      router=agent.router,
+      uvn_status_plot=agent.uvn_status_plot,
+      uvn_backbone_plot=agent.uvn_backbone_plot,
+      vpn_stats=agent.vpn_stats)
+
+
+def _index_html(
     www_root: Path,
     peers: UvnPeersList,
     deployment: P2PLinksMap,

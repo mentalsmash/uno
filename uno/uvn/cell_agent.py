@@ -49,7 +49,6 @@ from .agent import Agent
 from .id_db import IdentityDatabase
 from .keys_dds import DdsKeysBackend
 from .keys import KeyId
-from .html import index_html
 from .log import Logger as log
 
 
@@ -129,10 +128,6 @@ class CellAgent(Agent):
       local_id=self.cell,
       uvn_id=self.uvn_id)
 
-    # Store an updated agent instance upon receiving new configuration
-    # then reload it after finishing handling dds data (since reload
-    # will cause DDS entities to be deleted)
-    self._reload_agent = None
 
     # Track state of plots so we can regenerate them on the fly
     self._uvn_status_plot_dirty = True
@@ -308,26 +303,6 @@ class CellAgent(Agent):
     ]
 
 
-  def index_html(self, docroot: Path) -> None:
-    index_html(
-      www_root=docroot,
-      generation_ts=Timestamp.now().format(),
-      peers=self.peers,
-      deployment=self.deployment,
-      ts_start=self.ts_start,
-      backbone_vpns=self.backbone_vpns,
-      cell=self.cell,
-      lans=self.lans,
-      particles_dir=self.particles_dir,
-      particles_vpn=self.particles_vpn,
-      peers_tester=self.peers_tester,
-      root_vpn=self.root_vpn,
-      router=self.router,
-      uvn_status_plot=self.uvn_status_plot,
-      uvn_backbone_plot=self.uvn_backbone_plot,
-      vpn_stats=self.vpn_stats)
-
-
   def _validate_boot_config(self):
     # Check that the agent detected all of the expected networks
     allowed_lans = set(str(net) for net in self.cell.allowed_lans)
@@ -355,18 +330,13 @@ class CellAgent(Agent):
       ts_start: Timestamp,
       ts_now: Timestamp,
       spin_len: float) -> None:
-    if self._reload_agent:
-      reload_agent = self._reload_agent
-      self._reload_agent = None
-      self._reload(reload_agent)
-
-    self.www.update()
-
     super()._on_spin(
       ts_start=ts_start,
       ts_now=ts_now,
       spin_len=spin_len)
-  
+
+    self.www.spin_once()
+
 
   def _on_agent_config_received(self, package: bytes, config: str) -> None:
     try:
@@ -422,11 +392,8 @@ class CellAgent(Agent):
       log.error(f"[AGENT] failed to parse/load updated configuration")
       log.exception(e)
       return
-
-    if self._reload_agent:
-      log.warning(f"[AGENT] discarding previously scheduled reload: {self._reload_agent.registry_id}")
-    self._reload_agent = reload_agent
-    log.warning(f"[AGENT] reload scheduled: {self._reload_agent.registry_id}")
+  
+    self.schedule_reload(reload_agent)
 
 
   def _on_reader_data(self,
@@ -570,11 +537,6 @@ class CellAgent(Agent):
 
 
   def _reload(self, updated_agent: "CellAgent") -> None:
-    log.warning(f"[AGENT] stopping services to load new configuration: {updated_agent.registry_id}")
-    self._stop()
-    
-    log.activity(f"[AGENT] updating configuration to {updated_agent.registry_id}")
-    
     self._uvn_id = updated_agent.uvn_id
     self._cell = self.uvn_id.cells[self.cell.id]
     self.id_db.uvn_id = self.uvn_id
@@ -596,19 +558,6 @@ class CellAgent(Agent):
       if self.enable_particles_vpn else None
     )
     self._registry_id = updated_agent.registry_id
-    
-
-    # Copy files from the updated agent's root directory,
-    # then rewrite agent configuration
-    package_files = list(updated_agent.root.glob("*"))
-    if package_files:
-      exec_command(["cp", "-rv", *package_files, self.root])
-    self.save_to_disk()
-
-    log.activity(f"[AGENT] restarting services with new configuration: {self.registry_id}")
-    self._start()
-
-    log.warning(f"[AGENT] new configuration loaded: {self.registry_id}")
 
 
   def save_to_disk(self) -> Path:
