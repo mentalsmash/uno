@@ -22,6 +22,7 @@ import rti.connextdds as dds
 from .uvn_id import UvnId
 from .dds import DdsParticipant, UvnTopic
 from .ip import ipv4_to_bytes, LanDescriptor, ipv4_netmask_to_cidr
+from .time import Timestamp
 
 def uvn_info(
     participant: DdsParticipant,
@@ -68,6 +69,7 @@ def cell_agent_status(
     uvn_id: UvnId,
     cell_id: int,
     registry_id: str,
+    ts_start: Timestamp,
     lans: Optional[Iterable[LanDescriptor]]=None,
     reachable_networks: Optional[Iterable[LanDescriptor]]=None,
     unreachable_networks: Optional[Iterable[LanDescriptor]]=None) -> None:
@@ -95,6 +97,8 @@ def cell_agent_status(
     lan_descriptor(participant, lan)
       for lan in unreachable_networks
   ]
+
+  sample["ts_start"] = ts_start.ts
 
   return sample
 

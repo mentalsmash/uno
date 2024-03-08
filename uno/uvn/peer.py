@@ -45,6 +45,7 @@ class UvnPeer(Versioned):
       unreachable_networks: Optional[Iterable[LanDescriptor]]=None,
       ih: Optional[dds.InstanceHandle]=None,
       ih_dw: Optional[dds.InstanceHandle]=None,
+      ts_start: Optional[int|str|Timestamp]=None,
       **init_args) -> None:
     self._parent = parent
     self._id = id
@@ -52,6 +53,7 @@ class UvnPeer(Versioned):
     super().__init__(**init_args)
     self.registry_id = registry_id
     self.status = status or UvnPeerStatus.DECLARED
+    self.ts_start = ts_start
     self.routed_networks = set(routed_networks or [])
     self.reachable_networks = set(reachable_networks or [])
     self.unreachable_networks = set(unreachable_networks or [])
@@ -144,6 +146,19 @@ class UvnPeer(Versioned):
   @ih.setter
   def ih_dw(self, val: dds.InstanceHandle) -> None:
     self.update("ih_dw", val)
+
+
+  @property
+  def ts_start(self) -> Timestamp:
+    return self._ts_start
+
+
+  @ts_start.setter
+  def ts_start(self, val: int|str|Timestamp) -> None:
+    if val is None:
+      val = Timestamp.EPOCH
+    val = Timestamp.unix(val) if not isinstance(val, Timestamp) else val
+    self.update("ts_start", val)
 
 
   @property
@@ -405,7 +420,8 @@ class UvnPeersList(Versioned):
       reachable_networks=None,
       unreachable_networks=None,
       ih=None,
-      ih_dw=None)
+      ih_dw=None,
+      ts_start=None)
   
     self.process_updates()
   

@@ -62,6 +62,7 @@ class Agent(UvnPeerListener, RoutesMonitorListener):
     self.routes_monitor.listeners.append(self)
     # Only enable Systemd support on request
     self.enable_systemd = False
+    self.ts_start = Timestamp.now()
     super().__init__()
 
 
@@ -352,7 +353,8 @@ class Agent(UvnPeerListener, RoutesMonitorListener):
       reachable_networks=[_site_to_descriptor(s) for s in sample["reachable_networks"]],
       unreachable_networks=[_site_to_descriptor(s) for s in sample["unreachable_networks"]],
       ih=info.instance_handle,
-      ih_dw=info.publication_handle)
+      ih_dw=info.publication_handle,
+      ts_start=sample["ts_start"])
 
 
   def _on_reader_data_uvn_info(self,
@@ -544,7 +546,8 @@ class Agent(UvnPeerListener, RoutesMonitorListener):
 
     self.peers.online(
       registry_id=self.registry_id,
-      routed_networks=self.lans)
+      routed_networks=self.lans,
+      ts_start=self.ts_start)
 
     if boot:
       self.net.uvn_agent.write_pid()

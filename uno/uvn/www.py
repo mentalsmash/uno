@@ -68,6 +68,7 @@ class UvnHttpd:
       www_root=self.root,
       peers=self.agent.peers,
       deployment=self.agent.deployment,
+      ts_start=self.agent.ts_start,
       backbone_vpns=self.agent.backbone_vpns,
       cell=self.agent.cell,
       enable_particles_vpn=self.agent.enable_particles_vpn,
@@ -128,6 +129,7 @@ class UvnHttpd:
       www_root: Path,
       peers: UvnPeersList,
       deployment: P2PLinksMap,
+      ts_start: Timestamp,
       backbone_vpns: Iterable[WireGuardInterface]|None=None,
       cell: CellId|None=None,
       enable_particles_vpn: bool=False,
@@ -196,6 +198,7 @@ class UvnHttpd:
       "ospf_summary": ospf_summary.relative_to(www_root),
       "ospf_lsa": ospf_lsa.relative_to(www_root),
       "ospf_routes": ospf_routes.relative_to(www_root),
+      "ts_start": ts_start.format(),
       "uvn_id": peers.uvn_id,
       "uvn_settings": yaml.safe_dump(peers.uvn_id.settings.serialize()),
       "vpn_stats": vpn_stats or {
