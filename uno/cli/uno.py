@@ -126,6 +126,7 @@ def registry_action(args):
       "address": args.address,
       "allowed_lans": args.network if args.network else None,
       "enable_particles_vpn": False if args.disable_particles_vpn else None,
+      "httpd_port": args.httpd_port,
     }
     if args.action == "cell-update":
       action = registry.uvn_id.update_cell
@@ -527,6 +528,13 @@ def _define_cell_config_args(parser):
     help="Disable particles VPN for this cell.",
     default=False,
     action="store_true")
+
+  parser.add_argument("--httpd-port",
+    metavar="PORT",
+    help="Port used by the cell's agent to serve HTTPS requests.",
+    default=None,
+    type=int)
+
   _define_print_args(parser)
 
 

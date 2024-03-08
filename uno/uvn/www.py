@@ -67,6 +67,7 @@ class UvnHttpd:
     secret_line = htdigest_generate(user=self.agent.uvn_id.owner, realm=self.agent.uvn_id.name, password_hash=self.agent.uvn_id.master_secret)
     self._lighttpd = Lighttpd(
       root=self.root,
+      port=self.agent.cell.httpd_port,
       doc_root=self.doc_root,
       log_dir=self.agent.log_dir,
       cert_subject=CertificateSubject(org=self.agent.uvn_id.name, cn=self.agent.cell.name),

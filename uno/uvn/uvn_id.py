@@ -743,7 +743,7 @@ class CellId(Versioned):
   DEFAULT_LOCATION = "Earth"
   DEFAULT_ROAMING = False
   DEFAULT_ENABLE_PARTICLES_VPN = True
-  DEFAULT_ENABLE_ROOT_VPN = True
+  DEFAULT_HTTPD_PORT = 443
 
   def __init__(self,
       id: int,
@@ -755,6 +755,7 @@ class CellId(Versioned):
       location: Optional[str] = None,
       allowed_lans: Optional[Iterable[ipaddress.IPv4Network]]=None,
       enable_particles_vpn: Optional[bool]=None,
+      httpd_port: Optional[int]=None,
       **super_args) -> None:
     super().__init__(**super_args)
     if owner_id:
@@ -767,6 +768,7 @@ class CellId(Versioned):
     self.location = location
     self.allowed_lans = allowed_lans
     self.enable_particles_vpn = enable_particles_vpn
+    self.httpd_port = httpd_port
 
 
   def __str__(self) -> str:
@@ -788,7 +790,8 @@ class CellId(Versioned):
       address: Optional[str]=None,
       location: Optional[str] = None,
       allowed_lans: Optional[Iterable[ipaddress.IPv4Network]]=None,
-      enable_particles_vpn: Optional[bool]=None) -> None:
+      enable_particles_vpn: Optional[bool]=None,
+      httpd_port: Optional[int]=None) -> None:
     owner, owner_name = parse_owner_id(owner_id)
     if owner is not None:
       self.owner = owner
@@ -801,6 +804,8 @@ class CellId(Versioned):
       self.allowed_lans = allowed_lans
     if enable_particles_vpn is not None:
       self.enable_particles_vpn = enable_particles_vpn
+    if httpd_port is not None:
+      self.httpd_port = httpd_port
 
 
   @property
@@ -899,6 +904,18 @@ class CellId(Versioned):
     self.update("enable_particles_vpn", val)
 
 
+  @property
+  def httpd_port(self) -> int:
+    if self._httpd_port is None:
+      return self.DEFAULT_HTTPD_PORT
+    return self._httpd_port
+
+
+  @httpd_port.setter
+  def httpd_port(self, val: int) -> None:
+    self.update("httpd_port", val)
+
+
   def serialize(self) -> dict:
     serialized = super().serialize()
     serialized.update({
@@ -910,6 +927,7 @@ class CellId(Versioned):
       "location": self.location,
       "allowed_lans": [str(l) for l in self.allowed_lans],
       "enable_particles_vpn": self.enable_particles_vpn,
+      "httpd_port": self.httpd_port,
     })
     if self._address is None:
       del serialized["address"]
@@ -921,6 +939,8 @@ class CellId(Versioned):
       del serialized["allowed_lans"]
     if self._enable_particles_vpn is None:
       del serialized["enable_particles_vpn"]
+    if self._httpd_port is None:
+      del serialized["httpd_port"]
     return serialized
     
 
@@ -939,6 +959,7 @@ class CellId(Versioned):
         for l in allowed_lans
       ] if allowed_lans else None,
       enable_particles_vpn=serialized.get("enable_particles_vpn"),
+      httpd_port=serialized.get("httpd_port"),
       **Versioned.deserialize_args(serialized))
     self.loaded = True
     return self
