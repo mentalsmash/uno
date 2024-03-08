@@ -1199,6 +1199,8 @@ class UvnId(Versioned):
     if deployment_strategy_args is not None:
       self.settings.backbone_vpn.deployment_strategy_args = load_inline_yaml(deployment_strategy_args)
     if master_secret is not None:
+      from .htdigest import htdigest_generate
+      master_secret = htdigest_generate(user=self.owner, realm=self.name, password=master_secret).split(":")[3]
       self.master_secret = master_secret
 
 

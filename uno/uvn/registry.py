@@ -58,7 +58,6 @@ class Registry(Versioned):
   def create(
       name: str,
       owner_id: str,
-      master_secret: str,
       root: Path | None = None,
       **configure_args):
     root = root or Path.cwd() / name
@@ -67,14 +66,7 @@ class Registry(Versioned):
     if root.is_dir() and not root_empty:
       raise RuntimeError("target directory not empty", root)
 
-    # import bcrypt
-    # salt = bcrypt.gensalt()
-    # master_secret = bcrypt.hashpw(master_secret.encode("utf-8"), salt).decode("utf-8")
-
-    uvn_id = UvnId(name=name, owner_id=owner_id, master_secret=master_secret)
-    
-    master_secret = htdigest_generate(user=uvn_id.owner, realm=uvn_id.name, password=master_secret).split(":")[3]
-    uvn_id.master_secret = master_secret
+    uvn_id = UvnId(name=name, owner_id=owner_id)
 
     registry = Registry(root=root, uvn_id=uvn_id)
     registry.configure(**configure_args)
