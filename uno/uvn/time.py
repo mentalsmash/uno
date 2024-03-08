@@ -48,6 +48,10 @@ class Timestamp:
     return (ts - self.EPOCH).total_seconds() * 1000.0
   
 
+  def from_epoch(self) -> int:
+    return int(time.mktime(self._ts))
+
+
   def __str__(self):
     return self.format()
 

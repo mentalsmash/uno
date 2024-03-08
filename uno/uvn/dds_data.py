@@ -99,7 +99,7 @@ def cell_agent_status(
   ]
 
   if ts_start is not None:
-    sample["ts_start"] = ts_start._ts
+    sample["ts_start"] = ts_start.from_epoch()
 
   return sample
 

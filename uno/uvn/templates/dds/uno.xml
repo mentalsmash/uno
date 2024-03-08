@@ -31,7 +31,7 @@
           <member name="reachable_networks" type="nonBasic" nonBasicTypeName="uno::NetworkInfo" sequenceMaxLength="-1"/>
           <member name="unreachable_networks" type="nonBasic" nonBasicTypeName="uno::NetworkInfo" sequenceMaxLength="-1"/>
           <member name="local_routes" type="string" stringMaxLength="-1" sequenceMaxLength="-1"/>
-          <member name="ts_start" type="int64"/>
+          <member name="ts_start" type="uint64"/>
         </struct>
         <struct name="AgentConfig">
           <member name="cell" type="nonBasic" nonBasicTypeName="uno::CellId" key="true"/>
