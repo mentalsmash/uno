@@ -856,16 +856,13 @@ tbody .badge {
         </div><!--row-->
         <div class="row mt-3">
           <div class="col-lg-12 pt-3 border-top border-2">
-            <ul>
-              <li>
+            <ul class="list-group">
+              <li class="list-group-item">
                 <span class="key">Last updated on</span> <span class="value">{{generation_ts | format_ts}}</span>
               </li>
               {%if ts_start %}
-              <li>
-                <span class="key">Agent started on</span> <span class="value">{{ts_start | format_ts}}</span>
-              </li>
-              <li>
-                <span class="key">Agent uptime:</span> <span class="value">{{ts_start | time_since}}</span>
+              <li class="list-group-item">
+                <span class="key">Agent started on</span> <span class="value">{{ts_start | format_ts}} ({{ts_start | time_since}})</span>
               </li>
               {%endif%}{#if ts_start#}
             </ul>
