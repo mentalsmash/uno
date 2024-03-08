@@ -31,12 +31,14 @@ class Lighttpd:
       doc_root: Path,
       log_dir: Path,
       cert_subject: CertificateSubject,
+      port: int=443,
       secret: str|None=None,
       auth_realm: str|None=None,
       conf_template: str="httpd/lighttpd.conf",
       protected_paths: Iterable[str]|None=None,
       uwsgi: int=0):
     self.root = root
+    self.port = port
     self.doc_root = doc_root
     self.log_dir = log_dir
     self.secret = secret
@@ -94,6 +96,7 @@ class Lighttpd:
       self._lighttpd_conf.parent.mkdir(parents=True, exist_ok=True, mode=0o755)
       Templates.generate(self._lighttpd_conf, self.conf_template, {
         "root": self.doc_root,
+        "port": self.port,
         "pid_file": self._lighttpd_pid,
         "pem_file": self._lighttpd_pem,
         "log_dir": self.log_dir,
