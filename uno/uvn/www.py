@@ -198,7 +198,7 @@ class UvnHttpd:
       "ospf_summary": ospf_summary.relative_to(www_root),
       "ospf_lsa": ospf_lsa.relative_to(www_root),
       "ospf_routes": ospf_routes.relative_to(www_root),
-      "ts_start": ts_start.format(),
+      "ts_start": ts_start.format() if ts_start else None,
       "uvn_id": peers.uvn_id,
       "uvn_settings": yaml.safe_dump(peers.uvn_id.settings.serialize()),
       "vpn_stats": vpn_stats or {

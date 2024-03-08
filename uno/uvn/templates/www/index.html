@@ -860,12 +860,14 @@ tbody .badge {
               <li>
                 <span class="key">Last updated on</span> <span class="value">{{generation_ts | format_ts}}</span>
               </li>
+              {%if ts_start %}
               <li>
                 <span class="key">Agent started on</span> <span class="value">{{ts_start | format_ts}}</span>
               </li>
               <li>
                 <span class="key">Agent uptime:</span> <span class="value">{{ts_start | time_since}}</span>
               </li>
+              {%endif%}{#if ts_start#}
             </ul>
 
           </div>

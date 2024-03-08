@@ -307,7 +307,7 @@ def _load_agent(args):
       log.debug(f"loaded cell agent: {root}")
     except Exception as e:
       log.debug(f"failed to load as a cell agent: {root}")
-      # log.exception(e)
+      log.exception(e)
       try:
         log.debug(f"trying to load as registry: {root}")
         registry = Registry.load(root)

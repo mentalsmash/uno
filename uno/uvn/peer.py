@@ -155,9 +155,8 @@ class UvnPeer(Versioned):
 
   @ts_start.setter
   def ts_start(self, val: int|str|Timestamp) -> None:
-    if val is None:
-      val = Timestamp.EPOCH
-    val = Timestamp.unix(val) if not isinstance(val, Timestamp) else val
+    if val is not None:
+      val = Timestamp.unix(val) if not isinstance(val, Timestamp) else val
     self.update("ts_start", val)
 
 

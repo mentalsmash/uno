@@ -69,7 +69,7 @@ def cell_agent_status(
     uvn_id: UvnId,
     cell_id: int,
     registry_id: str,
-    ts_start: Timestamp,
+    ts_start: Timestamp|None=None,
     lans: Optional[Iterable[LanDescriptor]]=None,
     reachable_networks: Optional[Iterable[LanDescriptor]]=None,
     unreachable_networks: Optional[Iterable[LanDescriptor]]=None) -> None:
@@ -98,7 +98,8 @@ def cell_agent_status(
       for lan in unreachable_networks
   ]
 
-  sample["ts_start"] = ts_start.ts
+  if ts_start is not None:
+    sample["ts_start"] = ts_start.ts
 
   return sample
 
