@@ -22,6 +22,7 @@ from importlib.resources import as_file, files
 from .time import Timestamp
 from .lighttpd import Lighttpd
 from .keys_dds import CertificateSubject
+from .htdigest import htdigest_generate
 
 if TYPE_CHECKING:
   from .cell_agent import CellAgent
@@ -35,18 +36,7 @@ class UvnHttpd:
     self.doc_root = self.root / "public"
     self._last_update_ts = None
     self._dirty = True
-
-    from .htdigest import htdigest_generate
-    secret_line = htdigest_generate(user=self.agent.uvn_id.owner, realm=self.agent.uvn_id.name, password_hash=self.agent.uvn_id.master_secret)
-
-    self._lighttpd = Lighttpd(
-      root=self.root,
-      doc_root=self.doc_root,
-      log_dir=self.agent.log_dir,
-      cert_subject=CertificateSubject(org=self.agent.uvn_id.name, cn=self.agent.cell.name),
-      secret=secret_line,
-      auth_realm=self.agent.uvn_id.name,
-      protected_paths=["^/particles"])
+    self._lighttpd = None
 
 
   def update(self) -> None:
@@ -69,11 +59,24 @@ class UvnHttpd:
 
 
   def start(self) -> None:
+    assert(self._lighttpd is None)
+
     self.root.mkdir(exist_ok=True, parents=True)
     self.doc_root.mkdir(exist_ok=True, parents=True)
+    
+    secret_line = htdigest_generate(user=self.agent.uvn_id.owner, realm=self.agent.uvn_id.name, password_hash=self.agent.uvn_id.master_secret)
+    self._lighttpd = Lighttpd(
+      root=self.root,
+      doc_root=self.doc_root,
+      log_dir=self.agent.log_dir,
+      cert_subject=CertificateSubject(org=self.agent.uvn_id.name, cn=self.agent.cell.name),
+      secret=secret_line,
+      auth_realm=self.agent.uvn_id.name,
+      protected_paths=["^/particles"])
     self._lighttpd.start()
 
 
   def stop(self) -> None:
     self._lighttpd.stop()
+    self._lighttpd = None
 
