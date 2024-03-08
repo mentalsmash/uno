@@ -32,7 +32,7 @@ class UvnHttpd:
     self.agent = agent
     self.min_update_delay = self.agent.uvn_id.settings.timing_profile.status_min_delay
     self.root = self.agent.root / "www"
-    self.doc_root = self.root / "root"
+    self.doc_root = self.root / "public"
     self._last_update_ts = None
     self._dirty = True
     self._lighttpd = Lighttpd(

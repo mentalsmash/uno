@@ -37,7 +37,7 @@ class Lighttpd:
       protected_paths: Iterable[str]|None=None,
       uwsgi: int=0):
     self.root = root
-    self.doc_data = doc_root
+    self.doc_root = doc_root
     self.log_dir = log_dir
     self.secret = secret
     self.auth_realm = auth_realm
@@ -93,7 +93,7 @@ class Lighttpd:
 
       self._lighttpd_conf.parent.mkdir(parents=True, exist_ok=True, mode=0o755)
       Templates.generate(self._lighttpd_conf, self.conf_template, {
-        "root": self.root,
+        "root": self.doc_root,
         "pid_file": self._lighttpd_pid,
         "pem_file": self._lighttpd_pem,
         "log_dir": self.log_dir,
