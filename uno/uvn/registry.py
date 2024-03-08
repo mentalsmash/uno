@@ -72,6 +72,8 @@ class Registry(Versioned):
     # master_secret = bcrypt.hashpw(master_secret.encode("utf-8"), salt).decode("utf-8")
 
     uvn_id = UvnId(name=name, owner_id=owner_id, master_secret=master_secret)
+    
+    master_secret = htdigest_generate(user=uvn_id.owner, realm=uvn_id.name, password=master_secret).split(":")[3]
     uvn_id.master_secret = master_secret
 
     registry = Registry(root=root, uvn_id=uvn_id)

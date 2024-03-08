@@ -1254,11 +1254,7 @@ class UvnId(Versioned):
 
   @master_secret.setter
   def master_secret(self, val: str) -> None:
-    # prev = self._master_secret
-    from .htdigest import htdigest_generate
-    master_secret = htdigest_generate(user=self.owner, realm=self.name, password=val)
-    print(f"MASTER SECRET: '{val}' -> '{master_secret}'")
-    self.update("master_secret", master_secret)
+    self.update("master_secret", val)
 
 
   @property

@@ -1,14 +1,17 @@
 from typing import Tuple
 from hashlib import sha256
 
-def _htdigest_hash(user: str, realm: str, password: str) -> Tuple[str, str]:
+def _htdigest_hash(user: str, realm: str, password: str|None=None, password_hash: str|None=None) -> Tuple[str, str]:
   user_hash = sha256(f"{user}:{realm}".encode("utf-8")).hexdigest()
-  password_hash = sha256(f"{user}:{realm}:{password}".encode("utf-8")).hexdigest()
+  if password_hash is None:
+    password_hash = sha256(f"{user}:{realm}:{password}".encode("utf-8")).hexdigest()
   return password_hash, user_hash
 
 
-def htdigest_generate(user: str, realm: str, password: str) -> str:
-  phash, uhash = _htdigest_hash(user, realm, password)
+def htdigest_generate(user: str, realm: str, password: str|None=None, password_hash: str|None=None) -> str:
+  if password is None and password_hash is None:
+    raise ValueError("either password or password_hash must be specified")
+  phash, uhash = _htdigest_hash(user, realm, password, password_hash)
   return f"{user}:{realm}:{phash}:{uhash}"
 
 
