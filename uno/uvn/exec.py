@@ -54,7 +54,7 @@ def exec_command(
       stderr=subprocess.PIPE if capture_output else subprocess.DEVNULL if verbosity() != log_level.debug else sys.stderr,
       **run_args)
   
-  log.debug(f"[exec] result = {result.returncode}")
+  # log.debug(f"[exec] result = {result.returncode}")
 
   if not noexcept and result.returncode != 0:
     cmd = ' '.join(map(str, cmd_args))

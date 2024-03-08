@@ -1,6 +1,6 @@
 FROM ubuntu:jammy
 
-ARG INSTALL_EXTRA_PACKAGES 
+ARG INSTALL_EXTRA_PACKAGES
 
 # Update apt database and install apt-utils (for debconf)
 # Install psmisc to have killall
@@ -51,6 +51,8 @@ RUN export DEBIAN_FRONTEND="noninteractive" \
 
 # Enable zebra and ospfd in /etc/quagga/daemons
 RUN sed -i -r 's/^(zebra|ospfd)=no$/\1=yes/g' /etc/frr/daemons
+
+RUN adduser --shell /bin/bash uno
 
 # Copy uno
 COPY . /uno

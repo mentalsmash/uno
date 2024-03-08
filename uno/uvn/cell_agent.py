@@ -49,6 +49,7 @@ from .agent import Agent
 from .id_db import IdentityDatabase
 from .keys_dds import DdsKeysBackend
 from .keys import KeyId
+from .html import index_html
 from .log import Logger as log
 
 
@@ -245,7 +246,7 @@ class CellAgent(Agent):
 
   @property
   def uvn_status_plot(self) -> Path:
-    status_plot = self.www.root / "uvn-status.png"
+    status_plot = self.root / "uvn-status.png"
     if not status_plot.is_file() or self._uvn_status_plot_dirty:
       cell_agent_status_plot(self, status_plot, seed=self.create_ts)
       self._uvn_status_plot_dirty = False
@@ -301,6 +302,26 @@ class CellAgent(Agent):
       self.routes_monitor.updated_condition,
       self.peers_tester.result_available_condition,
     ]
+
+
+  def index_html(self, docroot: Path) -> None:
+    index_html(
+      www_root=docroot,
+      generation_ts=Timestamp.now().format(),
+      peers=self.peers,
+      deployment=self.deployment,
+      ts_start=self.ts_start,
+      backbone_vpns=self.backbone_vpns,
+      cell=self.cell,
+      enable_particles_vpn=self.enable_particles_vpn,
+      lans=self.lans,
+      particles_dir=self.particles_dir,
+      peers_tester=self.peers_tester,
+      root_vpn=self.root_vpn,
+      router=self.router,
+      uvn_status_plot=self.uvn_status_plot,
+      uvn_backbone_plot=self.uvn_backbone_plot,
+      vpn_stats=self.vpn_stats)
 
 
   def _validate_boot_config(self):

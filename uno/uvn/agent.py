@@ -39,6 +39,18 @@ from .routes_monitor import RoutesMonitor, RoutesMonitorListener
 from .id_db import IdentityDatabase
 from .log import Logger as log
 
+class _AgentSpinner:
+  def __init__(self, agent: "Agent") -> None:
+    self.agent = agent
+  
+  def __enter__(self) -> "Agent":
+    self.agent._start(boot=True)
+    return self.agent
+
+  def __exit__(self, exc_type, exc_val, exc_tb):
+    self.agent._stop()
+
+
 class Agent(UvnPeerListener, RoutesMonitorListener):
   class Service:
     def start(self) -> None:
@@ -69,11 +81,12 @@ class Agent(UvnPeerListener, RoutesMonitorListener):
   def spin(self,
       until: Optional[Callable[[], bool]]=None,
       max_spin_time: Optional[int]=None) -> None:
-    try:
-      self._start(boot=True)
-      self._spin(until=until, max_spin_time=max_spin_time)
-    finally:
-      self._stop(exiting=True)
+    self._spin(until=until, max_spin_time=max_spin_time)
+    # try:
+    #   self._start(boot=True)
+    #   self._spin(until=until, max_spin_time=max_spin_time)
+    # finally:
+    #   self._stop(exiting=True)
 
 
   def spin_until_consistent(self,
@@ -191,7 +204,7 @@ class Agent(UvnPeerListener, RoutesMonitorListener):
 
   @property
   def uvn_backbone_plot(self) -> Path:
-    plot = self.www.root / "uvn-backbone.png"
+    plot = self.root / "uvn-backbone.png"
     if not plot.is_file() or self._uvn_backbone_plot_dirty:
       generated = backbone_deployment_graph(
         uvn_id=self.uvn_id,
@@ -524,6 +537,10 @@ class Agent(UvnPeerListener, RoutesMonitorListener):
       self.routes_monitor.process_updates()
     elif condition == self.peers.updated_condition:
       self.peers.process_updates()
+
+
+  def start(self) -> _AgentSpinner:
+    return _AgentSpinner(self)
 
 
   def _start(self, boot: bool=False) -> None:

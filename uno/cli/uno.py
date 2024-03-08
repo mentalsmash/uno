@@ -208,15 +208,17 @@ def registry_common_args(parser: argparse.ArgumentParser):
 def registry_agent(args):
   registry = registry_load(args)
   agent = RegistryAgent(registry)
-  agent.spin()
+  with agent.start():
+    agent.spin()
 
 
 def registry_sync(args, registry: Optional[Registry]=None):
   registry = registry or registry_load(args)
   agent = RegistryAgent(registry)
-  agent.spin_until_consistent(
-    config_only=args.consistent_config,
-    max_spin_time=args.max_wait_time)
+  with agent.start():
+    agent.spin_until_consistent(
+      config_only=args.consistent_config,
+      max_spin_time=args.max_wait_time)
 
 
 ###############################################################################
@@ -240,9 +242,10 @@ def cell_agent(args):
   # HACK set NDDSHOME so that the Connext Python API finds the license file
   import os
   os.environ["NDDSHOME"] = str(agent.root)
-  agent.spin(
-    max_spin_time=args.max_run_time
-    if args.max_run_time >= 0 else None)
+  with agent.start():
+    agent.spin(
+      max_spin_time=args.max_run_time
+      if args.max_run_time >= 0 else None)
 
 
 def cell_service_enable(args):
@@ -346,7 +349,8 @@ def uno_agent(args):
   agent = _load_agent(args)
   agent.enable_www = True
   agent.enable_systemd = args.systemd
-  agent.spin(max_spin_time=args.max_run_time)
+  with agent.start():
+    agent.spin()
 
 
 ###############################################################################
