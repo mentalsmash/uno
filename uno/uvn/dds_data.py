@@ -99,7 +99,7 @@ def cell_agent_status(
   ]
 
   if ts_start is not None:
-    sample["ts_start"] = ts_start.ts
+    sample["ts_start"] = ts_start._ts
 
   return sample
 
