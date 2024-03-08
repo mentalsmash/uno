@@ -90,11 +90,11 @@ def registry_configure(args):
     _update_registry_agent(registry)
   else:
     registry = registry_load(args)
-    if args.print:
-      print_serialized(registry, verbose=args.verbose > 0)
     modified = registry.configure(**configure_args)
     if modified:
       _update_registry_agent(registry)
+    if args.print:
+      print_serialized(registry, verbose=args.verbose > 0)
     if not modified and not args.print:
       log.warning("[REGISTRY] loaded successfuly")
 

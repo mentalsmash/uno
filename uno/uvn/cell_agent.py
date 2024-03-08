@@ -129,10 +129,10 @@ class CellAgent(Agent):
       local_id=self.cell,
       uvn_id=self.uvn_id)
 
-    # Store configuration upon receiving it, so we can reload it
-    # once we're done processing received data
-    self._reload_config = None
-    self._reload_package_h = None
+    # Store an updated agent instance upon receiving new configuration
+    # then reload it after finishing handling dds data (since reload
+    # will cause DDS entities to be deleted)
+    self._reload_agent = None
 
     # Track state of plots so we can regenerate them on the fly
     self._uvn_status_plot_dirty = True
@@ -347,17 +347,18 @@ class CellAgent(Agent):
     self._write_cell_info()
 
 
+  def _parse_received_configuration(self) -> None:
+    pass
+
+
   def _on_spin(self,
       ts_start: Timestamp,
       ts_now: Timestamp,
       spin_len: float) -> None:
-    if self._reload_config or self._reload_package_h:
-      new_config = self._reload_config
-      new_package_h = self._reload_package_h
-      self._reload_config = None
-      self._reload_package_h = None
-      # Parse/save/load new configuration
-      self.reload(package=new_package_h, config=new_config, save_to_disk=True)
+    if self._reload_agent:
+      reload_agent = self._reload_agent
+      self._reload_agent = None
+      self._reload(reload_agent)
 
     self.www.update()
 
@@ -367,18 +368,65 @@ class CellAgent(Agent):
       spin_len=spin_len)
   
 
+  def _on_agent_config_received(self, package: bytes, config: str) -> None:
+    try:
+      use_package = False
 
-  def _on_agent_config_received(self, package: object|None=None, config: str|None=None) -> None:
-    if self._reload_package_h or self._reload_config:
-      log.warning(f"[AGENT] discarding previously scheduled reload")
-    if package:
-      self._reload_package_h = package
-      self._reload_config = None
-      log.warning(f"[AGENT] package received from registry")
-    else:
-      self._reload_package_h = None
-      self._reload_config = config
-      log.warning(f"[AGENT] configuration received from registry")
+      # Cache received data to file and trigger handling
+      tmp_file_h = tempfile.NamedTemporaryFile()
+      tmp_file = Path(tmp_file_h.name)
+      if len(package) > 0:
+        with tmp_file.open("wb") as output:
+          output.write(package)
+        use_package = True
+      elif len(config) > 0:
+        tmp_file.write_text(config)
+      else:
+        # nothing to reload
+        log.debug(f"[AGENT] found nothing to reload")
+        return
+
+      tmp_dir_h = tempfile.TemporaryDirectory()
+      tmp_dir = Path(tmp_dir_h.name)
+
+      if use_package:
+        log.activity(f"[AGENT] extracting received package: {tmp_file}")
+        CellAgent.extract(tmp_file, tmp_dir, config_only=True)
+        config_file = tmp_dir / Registry.AGENT_CONFIG_FILENAME
+        load_agent = lambda: CellAgent.extract(package, tmp_dir)
+      else:
+        log.activity(f"[AGENT] parsing received configuration: {tmp_file}")
+        key = self.root / "key.pem"
+        key = self.id_db.backend[self.cell]
+        config_file = tmp_dir / Registry.AGENT_CONFIG_FILENAME
+        self.id_db.backend.decrypt_file(key, tmp_file, config_file)
+        def _generate_agent_root():
+          shutil.copytree(self.id_db.backend.root, tmp_dir / self.id_db.backend.root.relative_to(self.root))
+          return CellAgent.load(tmp_dir)
+        load_agent = _generate_agent_root
+
+      # Read registry_id from received config and ignore it if invalid
+      # or equal to the  current one
+      agent_config = yaml.safe_load(config_file.read_text()) or {}
+      registry_id = agent_config.get("registry_id")
+      if (not isinstance(registry_id, str)
+          or not registry_id
+          or self.registry_id == registry_id):
+        # invalid or same config, ignore it
+        log.debug(f"[AGENT] ignoring invalid configuration: {registry_id}")
+        return
+
+      # Load an agent instance from the updated configuration
+      reload_agent = load_agent()
+    except Exception as e:
+      log.error(f"[AGENT] failed to parse/load updated configuration")
+      log.exception(e)
+      return
+
+    if self._reload_agent:
+      log.warning(f"[AGENT] discarding previously scheduled reload: {self._reload_agent.registry_id}")
+    self._reload_agent = reload_agent
+    log.warning(f"[AGENT] reload scheduled: {self._reload_agent.registry_id}")
 
 
   def _on_reader_data(self,
@@ -389,21 +437,10 @@ class CellAgent(Agent):
     if topic == UvnTopic.BACKBONE:
       if sample["registry_id"] == self.registry_id:
         log.debug(f"[AGENT] ignoring current configuration: {self.registry_id}")
-        return
-      try:
-        # Cache received data to file and trigger handling
-        tmp_h = tempfile.NamedTemporaryFile()
-        tmp = Path(tmp_h.name)
-        if len(sample["package"]) > 0:
-          with tmp.open("wb") as output:
-            output.write(sample["package"])
-          self._on_agent_config_received(package=tmp_h)
-        elif len(sample["config"]) > 0:
-          tmp.write_text(sample["config"])
-          self._on_agent_config_received(config=tmp_h)
-      except Exception as e:
-        log.error("failed to parse received configuration")
-        log.exception(e)
+      else:
+        self._on_agent_config_received(
+          package=sample["package"],
+          config=sample["config"])
     else:
       super()._on_reader_data(
         topic=topic,
@@ -532,105 +569,46 @@ class CellAgent(Agent):
       write_particle_configuration(particle, particle_client_cfg, self.particles_dir)
 
 
-  def reload(self, package: object|None=None, config: object|None=None, save_to_disk: bool=False) -> bool:
-    try:
-      tmp_dir_h = tempfile.TemporaryDirectory()
-      tmp_dir = Path(tmp_dir_h.name)
-
-      if package:
-        log.activity("[AGENT] extracting received package")
-        package_h = package
-        package = Path(package_h.name)
-        updated_agent = CellAgent.extract(package, tmp_dir)
-      elif config is not None:
-        log.activity("[AGENT] parsing received configuration")
-        key = self.root / "key.pem"
-        config_h = config
-        config = Path(config_h.name)
-        config_file = tmp_dir / Registry.AGENT_CONFIG_FILENAME
-
-        key = self.id_db.backend[self.cell]
-        self.id_db.backend.decrypt_file(key, config, config_file)
-        # shutil.copy2(self.ca.cert, tmp_dir / self.ca.cert.name)
-        shutil.copytree(self.id_db.backend.root, tmp_dir / self.id_db.backend.root.relative_to(self.root))
-        updated_agent = CellAgent.load(tmp_dir)
-      else:
-        raise ValueError("invalid arguments")
-    except Exception as e:
-      log.error(f"[AGENT] failed to parse received configuration")
-      log.exception(e)
-      return False
-
-    updaters = []
-
-    if updated_agent.registry_id != self.registry_id:
-      def _update_registry_id():
-        self._registry_id = updated_agent.registry_id
-        self.peers.registry_id = updated_agent.registry_id
-      updaters.append(_update_registry_id)
-
-    if updated_agent.uvn_id.generation_ts != self.uvn_id.generation_ts:
-      if updated_agent.cell.id != self.cell.id:
-        raise RuntimeError("cell id cannot be changed", self.cell.id, updated_agent.cell.id)
-
-      def _update_uvn_id():
-        self._uvn_id = updated_agent.uvn_id
-        self._cell = self.uvn_id.cells[self.cell.id]
-        self.id_db.uvn_id = self.uvn_id
-        self.peers.uvn_id = self.uvn_id
-      log.warning(f"[AGENT] UVN configuration changed: {self.uvn_id.generation_ts} → {updated_agent.uvn_id.generation_ts}")
-      updaters.append(_update_uvn_id)
+  def _reload(self, updated_agent: "CellAgent") -> None:
+    log.warning(f"[AGENT] stopping services to load new configuration: {updated_agent.registry_id}")
+    self._stop()
     
-    if updated_agent.root_vpn_config.generation_ts != self.root_vpn_config.generation_ts:
-      def _update_root_vpn():
-        self.root_vpn_config = updated_agent.root_vpn_config
-        self.root_vpn = (
-          WireGuardInterface(self.root_vpn_config)
-          if self.enable_root_vpn else None
-        )
-      log.warning(f"[AGENT] Root VPN configuration changed: {self.root_vpn_config.generation_ts} → {updated_agent.root_vpn_config.generation_ts}")
-      updaters.append(_update_root_vpn)
+    log.activity(f"[AGENT] updating configuration to {updated_agent.registry_id}")
+    
+    self._uvn_id = updated_agent.uvn_id
+    self._cell = self.uvn_id.cells[self.cell.id]
+    self.id_db.uvn_id = self.uvn_id
+    self.peers.uvn_id = self.uvn_id
+    self.peers.registry_id = updated_agent.registry_id
+    self.root_vpn_config = updated_agent.root_vpn_config
+    self.root_vpn = (
+      WireGuardInterface(self.root_vpn_config)
+      if self.enable_root_vpn else None
+    )
+    self._deployment = updated_agent.deployment
+    self.backbone_vpn_configs = list(updated_agent.backbone_vpn_configs)
+    self.backbone_vpns = [WireGuardInterface(v) for v in self.backbone_vpn_configs]
+    self._uvn_backbone_plot_dirty = True
+    self._uvn_status_plot_dirty = True
+    self.particles_vpn_config = updated_agent.particles_vpn_config
+    self.particles_vpn = (
+      WireGuardInterface(self.particles_vpn_config.root_config)
+      if self.enable_particles_vpn else None
+    )
+    self._registry_id = updated_agent.registry_id
+    
 
-    if updated_agent.deployment.generation_ts != self.deployment.generation_ts:
-      def _update_deployment():
-        self._deployment = updated_agent.deployment
-        self.backbone_vpn_configs = list(updated_agent.backbone_vpn_configs)
-        self.backbone_vpns = [WireGuardInterface(v) for v in self.backbone_vpn_configs]
-        self._uvn_backbone_plot_dirty = True
-        self._uvn_status_plot_dirty = True
-      log.warning(f"[AGENT] Backbone Deployment changed: {self.deployment.generation_ts} → {updated_agent.deployment.generation_ts}")
-      updaters.append(_update_deployment)
+    # Copy files from the updated agent's root directory,
+    # then rewrite agent configuration
+    package_files = list(updated_agent.root.glob("*"))
+    if package_files:
+      exec_command(["cp", "-rv", *package_files, self.root])
+    self.save_to_disk()
 
-    if updated_agent.particles_vpn_config.generation_ts != self.particles_vpn_config.generation_ts:
-      def _update_particles_vpn():
-        self.particles_vpn_config = updated_agent.particles_vpn_config
-        self.particles_vpn = (
-          WireGuardInterface(self.particles_vpn_config.root_config)
-          if self.enable_particles_vpn else None
-        )
-      log.warning(f"[AGENT] Particles VPN configuration changed: {self.particles_vpn_config.generation_ts} → {updated_agent.particles_vpn_config.generation_ts}")
-      updaters.append(_update_particles_vpn)
+    log.activity(f"[AGENT] restarting services with new configuration: {self.registry_id}")
+    self._start()
 
-    if updaters:
-      log.warning(f"[AGENT] stopping services to load new configuration...")
-      self._stop()
-      log.warning(f"[AGENT] peforming updates...")
-      for updater in updaters:
-        updater()
-      # Save configuration to disk if requested
-      if save_to_disk:
-        self.save_to_disk()
-        if package:
-          extracted_files = list(tmp_dir.glob("*"))
-          exec_command(["cp", "-rv", *extracted_files, self.root])
-      log.activity(f"[AGENT] restarting services with new configuration...")
-      self._start()
-      log.warning(f"[AGENT] new configuration loaded: {self.registry_id}")
-      return True
-    else:
-      log.warning(f"[AGENT] no changes in configuration detected")
-
-    return False
+    log.warning(f"[AGENT] new configuration loaded: {self.registry_id}")
 
 
   def save_to_disk(self) -> Path:
@@ -749,7 +727,8 @@ class CellAgent(Agent):
   @staticmethod
   def extract(
       package: Path,
-      root: Path) -> "CellAgent":
+      root: Path,
+      config_only: bool=False) -> "CellAgent|None":
     # Extract package to a temporary directory
     tmp_dir_h = tempfile.TemporaryDirectory()
     tmp_dir = Path(tmp_dir_h.name)
@@ -765,17 +744,25 @@ class CellAgent(Agent):
     root = root.resolve()
     root.chmod(0o755)
 
-    for f, permissions in {
-        Registry.AGENT_CONFIG_FILENAME: 0o600,
+    extract_files = {
+      Registry.AGENT_CONFIG_FILENAME: 0o600,
+      **({
         "rti_license.dat": 0o600,
-      }.items():
+      } if not config_only else {}),
+    }
+
+    for f, permissions in extract_files.items():
       src = tmp_dir / f
       dst = root / f
       shutil.copy2(src, dst)
       dst.chmod(permissions)
 
+    if config_only:
+      return None
+
     # Load the imported agent
     log.activity(f"[AGENT] loading imported agent: {root}")
+    
     agent = CellAgent.load(root)
     id_db_dir = tmp_dir / "id"
     package_files = [

@@ -11,7 +11,7 @@ def _htdigest_hash(user: str, realm: str, password: str|None=None, password_hash
 def htdigest_generate(user: str, realm: str, password: str|None=None, password_hash: str|None=None) -> str:
   if password is None and password_hash is None:
     raise ValueError("either password or password_hash must be specified")
-  phash, uhash = _htdigest_hash(user, realm, password, password_hash)
+  phash, uhash = _htdigest_hash(user, realm, password=password, password_hash=password_hash)
   return f"{user}:{realm}:{phash}:{uhash}"
 
 
