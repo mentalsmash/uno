@@ -406,6 +406,7 @@ class CellAgent(Agent):
       uvn_id=self.uvn_id,
       cell_id=self.cell.id,
       registry_id=self.registry_id,
+      ts_start=self.ts_start,
       lans=self.lans,
       reachable_networks=self.peers.local.reachable_networks,
       unreachable_networks=self.peers.local.reachable_networks)
