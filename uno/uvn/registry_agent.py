@@ -113,14 +113,15 @@ class RegistryAgent(Agent):
       log.error(f"RTI license file not found: {self.registry.rti_license}")
       raise RuntimeError("RTI license file not found")
 
+    initial_peers = [p.address for p in self.root_vpn_config.peers]
+    initial_peers = [f"[0]@{p}" for p in initial_peers]
+
     key_id = KeyId.from_uvn_id(self.registry.uvn_id)
     Templates.generate(self.participant_xml_config, "dds/uno.xml", {
       "deployment_id": self.registry.backbone_vpn_config.deployment.generation_ts,
       "uvn": self.registry.uvn_id,
       "cell": None,
-      "initial_peers": [
-        p.address for p in self.root_vpn_config.peers
-      ],
+      "initial_peers": initial_peers,
       "timing": self.registry.uvn_id.settings.timing_profile,
       "license_file": self.registry.rti_license.read_text(),
       "ca_cert": self.registry.id_db.backend.ca.cert,

@@ -271,6 +271,7 @@ class CellAgent(Agent):
       self.root_vpn_config.peers[0].address,
       *backbone_peers
     ]
+    initial_peers = [f"[0]@{p}" for p in initial_peers]
 
     if not self.rti_license.is_file():
       log.error(f"RTI license file not found: {self.rti_license}")

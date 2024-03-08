@@ -109,7 +109,6 @@ def print_serialized(obj: object, verbose: bool=False) -> None:
 class TimingProfile(Enum):
   DEFAULT = 0
   FAST = 1
-  # MINIMAL = 2
 
 
   @staticmethod
@@ -121,28 +120,22 @@ class TimingProfile(Enum):
   def participant_liveliness_lease_duration(self) -> int:
     if self == TimingProfile.FAST:
       return 5
-    # elif self == TimingProfile.MINIMAL:
-    #   return 300
     else:
-      return 30
+      return 60
 
 
   @property
   def participant_liveliness_assert_period(self) -> int:
     if self == TimingProfile.FAST:
       return 2
-    # elif self == TimingProfile.MINIMAL:
-    #   return 120 # 2m
     else:
-      return 10
+      return 20
 
 
   @property
   def participant_liveliness_detection_period(self) -> int:
     if self == TimingProfile.FAST:
       return 6
-    # elif self == TimingProfile.MINIMAL:
-    #   return 200
     else:
       return 30
 
@@ -151,8 +144,6 @@ class TimingProfile(Enum):
   def initial_participant_announcements(self) -> int:
     if self == TimingProfile.FAST:
       return 60
-    # elif self == TimingProfile.MINIMAL:
-    #   return 60
     else:
       return 60
 
@@ -161,8 +152,6 @@ class TimingProfile(Enum):
   def initial_participant_announcement_period(self) -> Tuple[int, int]:
     if self == TimingProfile.FAST:
       return (1, 5)
-    # elif self == TimingProfile.MINIMAL:
-    #   return (1, 5)
     else:
       return (3, 15)
 
@@ -171,39 +160,30 @@ class TimingProfile(Enum):
   def ospf_dead_interval(self) -> int:
     if self == TimingProfile.FAST:
       return 5
-    # elif self == TimingProfile.MINIMAL:
-    #   return 300
     else:
-      return 40 # 4m
+      return 60
 
 
   @property
   def ospf_hello_interval(self) -> int:
     if self == TimingProfile.FAST:
       return 1
-    # elif self == TimingProfile.MINIMAL:
-    #   return 100
     else:
-      return 10 # 1m
+      return 15
 
 
   @property
   def ospf_retransmit_interval(self) -> int:
     if self == TimingProfile.FAST:
       return 2
-    # elif self == TimingProfile.MINIMAL:
-    #   return 200
     else:
-      # return 90 # 1m 30s
-      return 2
+      return 5
 
 
   @property
   def tester_max_delay(self) -> int:
     if self == TimingProfile.FAST:
       return 30
-    # elif self == TimingProfile.MINIMAL:
-    #   return 600
     else:
       return 3600 # 1h
 
@@ -212,8 +192,6 @@ class TimingProfile(Enum):
   def status_min_delay(self) -> int:
     if self == TimingProfile.FAST:
       return 10
-    # elif self == TimingProfile.MINIMAL:
-    #   return 60
     else:
       return 30
 
@@ -223,7 +201,6 @@ class Versioned:
       generation_ts: str | None = None,
       init_ts: str | None = None,
       deserializing: bool=False) -> None:
-    created = init_ts is None
     self._generation_ts = generation_ts or Timestamp.now().format()
     self._init_ts = init_ts or Timestamp.now().format()
     self._changed = False
