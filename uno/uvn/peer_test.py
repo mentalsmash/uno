@@ -168,7 +168,7 @@ class UvnPeersTester:
     if self._test_thread is not None:
       return
     self._active = True
-    self._test_thread = threading.Thread(target=self.run)
+    self._test_thread = threading.Thread(target=self.run, daemon=True)
     self._test_thread.start()
 
 

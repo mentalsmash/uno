@@ -94,7 +94,7 @@ class RoutesMonitor:
       stderr=subprocess.DEVNULL,
       preexec_fn=os.setpgrp,
       text=True)
-    self._monitor_thread = threading.Thread(target=RoutesMonitor._run, args=[self])
+    self._monitor_thread = threading.Thread(target=RoutesMonitor._run, args=[self], daemon=True)
     self._active = True
     self._monitor_thread.start()
 

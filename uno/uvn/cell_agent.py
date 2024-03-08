@@ -189,13 +189,7 @@ class CellAgent(Agent):
     return [
       *super().services,
       (self.peers_tester, {}),
-      *([(self.www, {
-        "addresses": [
-          "localhost",
-          *(vpn.config.intf.address for vpn in self.vpn_interfaces),
-          *(l.nic.address for l in self.lans),
-        ],
-      })] if self.enable_www else []),
+      *([(self.www, {})] if self.enable_www else []),
     ]
 
 

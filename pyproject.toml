@@ -26,6 +26,8 @@ networkx = "^3.2.1"
 matplotlib = "^3.8.3"
 sdnotify = "^0.3.2"
 # bcrypt = "^4.1.2"
+pyuwsgi = "^2.0.23"
+flask = "^3.0.2"
 
 # Doc dependencies
 docutils = "^0.18.1"
@@ -43,6 +45,7 @@ pytest = "^5.2"
 [tool.poetry.scripts]
 uno = 'uno.cli.uno:main'
 uvn-net = 'uno.cli.uvn_net:main'
+uvn-server = 'uno.server.server:main'
 
 [build-system]
 requires = ["poetry-core>=1.0.0"]

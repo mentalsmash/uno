@@ -125,7 +125,7 @@ class DdsParticipant:
     self.types = {}
     self._reader_conditions = {}
     self._data_conditions = {}
-    self._exit_condition = None
+    self.exit_condition = None
     self._user_conditions = []
 
 
@@ -150,14 +150,14 @@ class DdsParticipant:
 
     self._readers, self._reader_conditions, self._data_conditions = self._create_readers(self._dp, config.readers)
 
-    self._exit_condition = dds.GuardCondition()
+    self.exit_condition = dds.GuardCondition()
 
     self._user_conditions = config.user_conditions
 
     self._waitset = dds.WaitSet()
 
     for condition in (
-        self._exit_condition,
+        self.exit_condition,
         *self._writer_conditions.values(),
         *self._reader_conditions.values(),
         *self._data_conditions.values(),
@@ -170,7 +170,7 @@ class DdsParticipant:
   def stop(self) -> None:
     log.debug("[DDS] STOP in process...")
     for condition in (
-        self._exit_condition,
+        self.exit_condition,
         *self._writer_conditions.values(),
         *self._reader_conditions.values(),
         *self._data_conditions.values(),
@@ -189,7 +189,7 @@ class DdsParticipant:
     self._reader_conditions = {}
     self._data_conditions = {}
     self._user_conditions = []
-    self._exit_condition = None
+    self.exit_condition = None
     self._dp = None
     log.activity("[DDS] stopped")
 
@@ -201,7 +201,7 @@ class DdsParticipant:
     if len(active_conditions) == 0:
       return (False, [], [], [], [])
     assert(len(active_conditions) > 0)
-    if self._exit_condition in active_conditions:
+    if self.exit_condition in active_conditions:
       return (True, [], [], [], [])
 
     active_writers = [

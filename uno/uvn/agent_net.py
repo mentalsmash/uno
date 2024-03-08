@@ -380,10 +380,15 @@ class UvnAgentService(UvnService):
 
   @property
   def pid_file(self) -> Path:
+    import os
+    # home = Path(os.environ.get("HOME", "/run/uno/"))
+    home = Path("/run/uno")
     if self._root:
-      return Path("/run/uno/uvn-agent-root.pid")
+      # return Path("/run/uno/uvn-agent-root.pid")
+      return home / "uvn-agent-root.pid"
     else:
-      return Path("/run/uno/uvn-agent.pid")
+      # return Path("/run/uno/uvn-agent.pid")
+      return home / "uvn-agent.pid"
     
 
   @property

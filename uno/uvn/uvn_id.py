@@ -278,7 +278,7 @@ class Versioned:
       return
     self._generation_ts = Timestamp.now().format()
     self._changed = True
-    log.debug(f"[{self}] updated")
+    # log.debug(f"[{self}] updated")
 
 
   @property

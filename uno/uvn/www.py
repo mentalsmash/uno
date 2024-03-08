@@ -35,6 +35,8 @@ from .wg import WireGuardInterface
 from .ip import LanDescriptor
 from .peer_test import UvnPeersTester
 from .router import Router
+from .lighttpd import Lighttpd
+from .keys_dds import CertificateSubject
 
 if TYPE_CHECKING:
   from .cell_agent import CellAgent
@@ -48,15 +50,16 @@ class UvnHttpd:
     self.min_update_delay = self.agent.uvn_id.settings.timing_profile.status_min_delay
     self.root = self.agent.root / "www"
     self.doc_root = self.root / "root"
-    self.port = 8080
-    self._http_servers = {}
-    self._http_threads = {}
     self._last_update_ts = None
     self._dirty = True
-    self._lighttpd_pid = None
-    self._lighttpd_conf = self.agent.root / "lighttpd.conf"
-    self._lighttpd_pem =  self.agent.root / "lighttpd.pem"
-    self._fakeroot = None
+    self._lighttpd = Lighttpd(
+      root=self.root,
+      doc_root=self.doc_root,
+      log_dir=self.agent.log_dir,
+      cert_subject=CertificateSubject(org=self.agent.uvn_id.name, cn=self.agent.cell.name),
+      secret=self.agent.uvn_id.master_secret,
+      auth_realm=self.agent.uvn_id.name,
+      protected_paths=["^/particles"])
 
 
   def update(self) -> None:
@@ -94,35 +97,6 @@ class UvnHttpd:
     with as_file(files(www_data).joinpath("style.css")) as tmp_f:
       return tmp_f.read_text()
 
-
-  def _assert_ssl_cert(self, regenerate: bool=True) -> None:
-    log.debug(f"[WWW] creating server SSL certificate")
-    if self._lighttpd_pem.is_file():
-      if not regenerate:
-        return
-      self._lighttpd_pem.unlink()
-
-    country_id = "US"
-    state_id = "Denial"
-    location_id = "Springfield"
-    org_id = self.agent.uvn_id.name
-    common_name = self.agent.cell.name
-    pem_subject = f"/C={country_id}/ST={state_id}/L={location_id}/O={org_id}/CN={common_name}"
-    exec_command([
-      "openssl",
-        "req",
-        "-x509",
-        "-newkey", "ec",
-        "-pkeyopt", "ec_paramgen_curve:secp384r1",
-        "-keyout", self._lighttpd_pem,
-        "-out",  self._lighttpd_pem,
-        "-days", "365",
-        "-nodes",
-        "-subj", pem_subject,
-    ])
-    self._lighttpd_pem.chmod(0o600)
-    log.debug(f"[WWW] SSL certificate: {self._lighttpd_pem}")
-    
 
   @staticmethod
   def index_html(
@@ -168,12 +142,10 @@ class UvnHttpd:
       shutil.copy2(router.ospf_lsa_f, ospf_lsa)
       shutil.copy2(router.ospf_routes_f, ospf_routes)
 
-
     index_html = www_root / "index.html"
 
     online_peers = sum(1 for c in peers.online_cells)
     offline_peers = sum(1 for c in peers.cells) - online_peers
-
 
     Templates.generate(index_html, "www/index.html", {
       "cell": cell,
@@ -213,104 +185,12 @@ class UvnHttpd:
     log.debug("[WWW] agent status updated")
 
 
-  def start(self, addresses: Iterable[str]) -> None:
-    if self._lighttpd_pid is not None:
-      raise RuntimeError("httpd already started")
-
-    # Addresses are not used for anything at the moment
-    addresses = list(addresses)
-    lighttpd_started = False
-    try:
-      self._lighttpd_pid = self._lighttpd_conf.parent / "lighttpd.pid"
-
-      # self._fakeroot = TemporaryDirectory()
-      self._assert_ssl_cert()
-
-      htdigest = self._lighttpd_conf.parent / "lighttpd.auth"
-      if self.agent.uvn_id.master_secret is None:
-        htdigest.write_text("")
-      else:
-        with htdigest.open("wt") as output:
-          output.write(self.agent.uvn_id.master_secret + "\n")
-      htdigest.chmod(0o600)
-
-      self._lighttpd_conf.parent.mkdir(parents=True, exist_ok=True, mode=0o755)
-      Templates.generate(self._lighttpd_conf, "httpd/lighttpd.conf", {
-        "root": self.root,
-        "port": self.port,
-        "addresses": addresses,
-        "pid_file": self._lighttpd_pid,
-        "pem_file": self._lighttpd_pem,
-        "log_dir": self.agent.log_dir,
-        "htdigest": htdigest,
-        "auth_realm": self.agent.uvn_id.name,
-        # "fakeroot": Path(self._fakeroot.name),
-      })
-
-      # Delete pid file if it exists
-      if self._lighttpd_pid.is_file():
-        self._lighttpd_pid.unlink()
-
-      # Make sure that required directories exist
-      self.root.mkdir(parents=True, exist_ok=True)
-      self._lighttpd_pid.parent.mkdir(parents=True, exist_ok=True)
-      
-      # Start lighttpd in daemon mode
-      log.debug(f"[WWW] starting lighttpd...")
-      # exec_command(["lighttpd", "-D", "-f", self._lighttpd_conf],
-      #   fail_msg="failed to start lighttpd")
-      self._lighttpd = subprocess.Popen(["lighttpd", "-D", "-f", self._lighttpd_conf])
-      lighttpd_started = True
-
-      # Wait for lighttpd to come online and
-      max_wait = 5
-      pid = None
-      for i in range(max_wait):
-        log.debug("[WWW] waiting for lighttpd to come online...")
-        if self._lighttpd_pid.is_file():
-          try:
-            pid = int(self._lighttpd_pid.read_text())
-            break
-          except:
-            continue
-        time.sleep(1)
-      if pid is None:
-        raise RuntimeError("failed to detect lighttpd process")
-      log.debug(f"[WWW] lighttpd started: pid={pid}")
-      log.warning(f"[WWW] listening on 0.0.0.0:443")
-    except Exception as e:
-      self._lighttpd_pid = None
-      self._lighttpd = None
-      log.error("failed to start lighttpd")
-      # log.exception(e)
-      if lighttpd_started:
-        # lighttpd was started by we couldn't detect its pid
-        log.error("[WWW] lighttpd process was started but possibly not stopped. Please check your system.")
-      raise e
+  def start(self) -> None:
+    self.root.mkdir(exist_ok=True, parents=True)
+    self.doc_root.mkdir(exist_ok=True, parents=True)
+    self._lighttpd.start()
 
 
   def stop(self) -> None:
-    if self._lighttpd_pid is None:
-      # Not started
-      return
-
-    lighttpd_stopped = False
-    try:
-      if self._lighttpd_pid.is_file():
-        pid = int(self._lighttpd_pid.read_text())
-        log.debug(f"[WWW] stopping lighttpd: pid={pid}")
-        exec_command(["kill", "-s", "SIGTERM", str(pid)],
-          fail_msg="failed to signal lighttpd process")
-      # TODO(asorbini) check that lighttpd actually stopped
-      lighttpd_stopped = True
-      log.activity(f"[WWW] stopped")
-    except Exception as e:
-      log.error(f"[WWW] error while stopping:")
-      if lighttpd_stopped:
-        log.error(f"[WWW] failed to stop lighttpd. Please check your system.")
-      raise
-    finally:
-      self._lighttpd_pid = None
-      self._lighttpd = None
-      self._fakeroot = None
+    self._lighttpd.stop()
 
