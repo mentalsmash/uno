@@ -131,7 +131,7 @@ tbody .badge {
                           <th>Deployment Id</th>
                           <th>Backbone</th>
                           <th>LANs</th>
-                          <th>Started On</th>
+                          <th>Started</th>
                           <th>Last Update</th>
                         </tr>
                       </thead>
@@ -188,7 +188,7 @@ tbody .badge {
                           </td>
                           <td>
                             {% if peer.ts_start %}
-                            {{peer.ts_start | format_ts}} ({{peer.ts_start | time_since}})
+                            {{peer.ts_start | time_since}}
                             {% else %}
                             N/A
                             {% endif %}
