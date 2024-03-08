@@ -25,7 +25,6 @@ from .ip import LanDescriptor
 import ipaddress
 
 if TYPE_CHECKING:
-  from .cell_agent import CellAgent
   from .peer import UvnPeer, UvnPeersList
   from .peer_test import UvnPeersTester
   from .wg import WireGuardInterface
