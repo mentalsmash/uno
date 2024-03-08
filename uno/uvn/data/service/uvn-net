@@ -247,7 +247,7 @@ uvn_net_start()
   for nic in ${UVN_NET_VPN_INTERFACES}; do
     # Read nic IP address from configuration file
     local nic_addr=$(grep "^${nic}=" "${UVN_NET_CONF_DIR}/wg-ip.config" | cut -d= -f2- | cut -d, -f1 | xargs)
-    local nic_mtu=$(grep "^${nic}=" "${UVN_NET_CONF_DIR}/wg-ip.config" | cut -d= -f2- | cut -d, -f2 | xargs)
+    local nic_mtu=$(grep "^${nic}=" "${UVN_NET_CONF_DIR}/wg-ip.config" | grep , | cut -d= -f2- | cut -d, -f2 | xargs)
     uvn_vpn_start ${nic} "${UVN_NET_CONF_DIR}/wg/${nic}.conf" ${nic_addr} ${nic_mtu}
   done
 
