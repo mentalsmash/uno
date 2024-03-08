@@ -131,6 +131,7 @@ tbody .badge {
                           <th>Deployment Id</th>
                           <th>Backbone</th>
                           <th>LANs</th>
+                          <th>Started On</th>
                           <th>Last Update</th>
                         </tr>
                       </thead>
@@ -184,6 +185,13 @@ tbody .badge {
                             {% endif %}
                             {%- endfor %}
                             {%endif%}{# if not peers_tester #}
+                          </td>
+                          <td>
+                            {% if peer.ts_start %}
+                            {{peer.ts_start | format_ts}} ({{peer.ts_start | time_since}})
+                            {% else %}
+                            N/A
+                            {% endif %}
                           </td>
                           <td>
                             {% if peer.generation_ts %}
