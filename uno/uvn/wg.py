@@ -327,7 +327,15 @@ class WireGuardInterface:
       exec_command(
         ["ip", "link", "add", "dev", self.config.intf.name, "type", "wireguard"])
     except:
-      raise WireGuardError(f"failed to create wiregaurd interface: {self.config.intf.name}")
+      raise WireGuardError(f"failed to create wireguard interface: {self.config.intf.name}")
+    # Set MTU
+    if self.config.intf.mtu:
+      try:
+        log.debug(f"[WG] {self.config.intf.name}: setting interface MTU")
+        exec_command(
+          ["ip", "link", "set", "dev", self.config.intf.name, "mtu", str(self.config.intf.mtu)])
+      except:
+        raise WireGuardError(f"failed to set interface MTU: {self.config.intf.name}, {self.config.intf.mtu}")
     # Mark interface as up
     self.created = True
     log.activity(f"[WG] {self.config.intf.name}: created")
