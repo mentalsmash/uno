@@ -84,7 +84,10 @@ class CellAgent(Agent):
     self._cell = self.uvn_id.cells[cell_id]
 
     self.root_vpn_config = root_vpn_config
-    self.root_vpn = WireGuardInterface(self.root_vpn_config)
+    self.root_vpn = (
+      WireGuardInterface(self.root_vpn_config)
+      if self.enable_root_vpn else None
+    )
 
     self.backbone_vpn_configs = list(backbone_vpn_configs)
     self.backbone_vpns = [WireGuardInterface(v) for v in self.backbone_vpn_configs]
@@ -208,8 +211,8 @@ class CellAgent(Agent):
   def vpn_interfaces(self) -> Sequence[WireGuardInterface]:
     return [
       *self.backbone_vpns,
-      *([self.root_vpn] if self.enable_root_vpn else []),
-      *([self.particles_vpn] if self.enable_particles_vpn else []),
+      *([self.root_vpn] if self.root_vpn else []),
+      *([self.particles_vpn] if self.particles_vpn else []),
     ]
 
 
@@ -268,8 +271,8 @@ class CellAgent(Agent):
         for cfg in self.backbone_vpn_configs
     }
     initial_peers = [
-      self.root_vpn_config.peers[0].address,
-      *backbone_peers
+      *backbone_peers,
+      *([self.root_vpn.config.peers[0].address] if self.root_vpn else []),
     ]
     initial_peers = [f"[0]@{p}" for p in initial_peers]
 
@@ -314,9 +317,9 @@ class CellAgent(Agent):
       ts_start=self.ts_start,
       backbone_vpns=self.backbone_vpns,
       cell=self.cell,
-      enable_particles_vpn=self.enable_particles_vpn,
       lans=self.lans,
       particles_dir=self.particles_dir,
+      particles_vpn=self.particles_vpn,
       peers_tester=self.peers_tester,
       root_vpn=self.root_vpn,
       router=self.router,
@@ -581,7 +584,10 @@ class CellAgent(Agent):
     if updated_agent.root_vpn_config.generation_ts != self.root_vpn_config.generation_ts:
       def _update_root_vpn():
         self.root_vpn_config = updated_agent.root_vpn_config
-        self.root_vpn = WireGuardInterface(self.root_vpn_config)
+        self.root_vpn = (
+          WireGuardInterface(self.root_vpn_config)
+          if self.enable_root_vpn else None
+        )
       log.warning(f"[AGENT] Root VPN configuration changed: {self.root_vpn_config.generation_ts} → {updated_agent.root_vpn_config.generation_ts}")
       updaters.append(_update_root_vpn)
 
@@ -619,7 +625,7 @@ class CellAgent(Agent):
           exec_command(["cp", "-rv", *extracted_files, self.root])
       log.activity(f"[AGENT] restarting services with new configuration...")
       self._start()
-      log.warning(f"[AGENT] new configuration loaded: uvn_id={self.uvn_id.generation_ts}, root_vpn={self.root_vpn_config.generation_ts}, particles_vpn={self.particles_vpn_config.generation_ts}, backbone={self.deployment.generation_ts}")
+      log.warning(f"[AGENT] new configuration loaded: {self.registry_id}")
       return True
     else:
       log.warning(f"[AGENT] no changes in configuration detected")

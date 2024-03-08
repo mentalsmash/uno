@@ -48,6 +48,8 @@ class RegistryAgent(Agent):
   def __init__(self, registry: Registry) -> None:
     if not registry.deployed:
       raise ValueError("uvn not deployed", registry)
+    if not registry.uvn_id.settings.enable_root_vpn:
+      raise ValueError("root vpn disabled by uvn", registry)
 
     self.registry = registry
     self.root_vpn_config = self.registry.root_vpn_config.root_config

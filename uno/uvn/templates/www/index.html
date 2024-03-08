@@ -357,7 +357,7 @@ tbody .badge {
                         {% endwith %}
                       </div>
                       {% endif %}{# if root_vpn #}
-                      {% if enable_particles_vpn and particles_vpn %}
+                      {% if particles_vpn %}
                       <div class="col-xl-6">
                         {% with vpn = particles_vpn %}
                         {% with vpn_name = "Particles" %}
@@ -371,7 +371,7 @@ tbody .badge {
                         {% endwith %}
                         {% endwith %}
                       </div>
-                      {% endif %}{# if enable_particles_vpn and particles_vpn #}
+                      {% endif %}{# if particles_vpn #}
                       {% for backbone_vpn in backbone_vpns %}
                       {%- set i_str = loop.index | string-%}
                       <div class="col-xl-6">
@@ -533,7 +533,7 @@ tbody .badge {
                   <li class="list-group-item">
                     <span class="key">Particles VPN:</span>
                     <span class="value">
-                      {{"Enabled" if uvn_id.settings.enable_particles_vpn else "Disabled"}}
+                      {{"Enabled" if particles_vpn else "Disabled"}}
                     </span>
                   </li>
                   <li class="list-group-item">
@@ -725,7 +725,7 @@ tbody .badge {
                       <td>{{particle.name}}</td>
                       <td><a href="mailto:{{cell.owner}}">{{particle.owner_name}}</a></td>
                       <td>
-                        {% if enable_particles_vpn %}
+                        {% if particles_vpn %}
                         <a href="particles/{{particle.name}}.png">
                           QR
                         </a>
@@ -734,7 +734,7 @@ tbody .badge {
                         {% endif %}
                       </td>
                       <td>
-                        {% if enable_particles_vpn %}
+                        {% if particles_vpn %}
                         <a href="particles/{{particle.name}}.wireguard">
                           Text
                         </a>
