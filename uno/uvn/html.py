@@ -29,7 +29,6 @@ def index_html(
     peers_tester: UvnPeersTester|None=None,
     root_vpn: WireGuardInterface|None=None,
     router: Router|None=None,
-    style_css: str|None=None,
     uvn_status_plot: Path|None=None,
     uvn_backbone_plot: Path|None=None,
     vpn_stats: dict|None=None) -> None:
@@ -78,7 +77,6 @@ def index_html(
 
   Templates.generate(index_html, "www/index.html", {
     "cell": cell,
-    "css_style": style_css or "",
     "deployment": deployment,
     "backbone_plot": www_status_plot,
     "backbone_plot_basic": www_backbone_plot,

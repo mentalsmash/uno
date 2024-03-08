@@ -16,9 +16,6 @@
 ###############################################################################
 from typing import TYPE_CHECKING
 
-from .data import www as www_data
-from importlib.resources import as_file, files
-
 from .time import Timestamp
 from .lighttpd import Lighttpd
 from .keys_dds import CertificateSubject
@@ -50,12 +47,6 @@ class UvnHttpd:
 
   def request_update(self) -> None:
     self._dirty = True
-
-
-  @property
-  def style_css(self) -> str:
-    with as_file(files(www_data).joinpath("style.css")) as tmp_f:
-      return tmp_f.read_text()
 
 
   def start(self) -> None:
