@@ -86,7 +86,8 @@ uvn_vpn_start()
 {
   local nic=${1} \
         config="${2}" \
-        nic_addr=${3}
+        nic_addr=${3} \
+        nic_mtu=${4}
 
   uvn_log_info "enabling VPN interface: ${nic}"
 
@@ -100,6 +101,16 @@ uvn_vpn_start()
   ); then
     uvn_log_failed "failed to create VPN interface: ${nic}"
     return 1
+  fi
+
+  if [ -n "${nic_mtu}" ]; then
+    if ! (
+      set -x
+      ip link set dev ${nic} mtu ${nic_mtu}
+    ); then
+      uvn_log_failed "failed to set interface MTU: ${nic}, ${nic_mtu}"
+      return 1
+    fi
   fi
 
   # Reset the interface's configuration if it exists
@@ -235,8 +246,9 @@ uvn_net_start()
 
   for nic in ${UVN_NET_VPN_INTERFACES}; do
     # Read nic IP address from configuration file
-    local nic_addr=$(grep "^${nic}=" "${UVN_NET_CONF_DIR}/wg-ip.config" | cut -d= -f2- | xargs)
-    uvn_vpn_start ${nic} "${UVN_NET_CONF_DIR}/wg/${nic}.conf" ${nic_addr}
+    local nic_addr=$(grep "^${nic}=" "${UVN_NET_CONF_DIR}/wg-ip.config" | cut -d= -f2- | cut -d, -f1 | xargs)
+    local nic_mtu=$(grep "^${nic}=" "${UVN_NET_CONF_DIR}/wg-ip.config" | cut -d= -f2- | cut -d, -f2 | xargs)
+    uvn_vpn_start ${nic} "${UVN_NET_CONF_DIR}/wg/${nic}.conf" ${nic_addr} ${nic_mtu}
   done
 
   for nic in ${UVN_NET_LAN_INTERFACES}; do

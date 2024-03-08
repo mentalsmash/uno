@@ -66,6 +66,8 @@ class CentralizedVpnConfig:
         for peer_id in self.peer_ids
     }
 
+    peer_mtu = self.settings.peer_mtu
+
     self.root_config = WireGuardConfig(
       intf=WireGuardInterfaceConfig(
         name=self.settings.interface.format(1),
@@ -74,7 +76,7 @@ class CentralizedVpnConfig:
         netmask=self.settings.netmask,
         port=None if self.root_endpoint is None else self.settings.port,
         endpoint=f"{self.root_endpoint}:{self.settings.port}" if self.root_endpoint is not None else None,
-        mtu=self.settings.peer_mtu),
+        mtu=peer_mtu),
       peers=[
         WireGuardInterfacePeerConfig(
           id=peer_id,
@@ -101,7 +103,7 @@ class CentralizedVpnConfig:
           netmask=self.settings.netmask,
           port=None if not peer_endpoint else self.settings.peer_port,
           endpoint=f"{peer_endpoint}:{self.settings.peer_port}" if peer_endpoint else None,
-          mtu=self.settings.peer_mtu),
+          mtu=peer_mtu),
         peers=[
           WireGuardInterfacePeerConfig(
             id=0,
@@ -207,7 +209,8 @@ class P2PVpnConfig:
             endpoint=f"{peer_a_endpoint}:{self.settings.port + peer_a_port_local}"
               if peer_a_endpoint else None,
             address=peer_a_address,
-            netmask=ipv4_netmask_to_cidr(link_network.netmask)),
+            netmask=ipv4_netmask_to_cidr(link_network.netmask),
+            mtu=self.settings.peer_mtu),
           peers=[
             WireGuardInterfacePeerConfig(
               id=peer_b_id,
