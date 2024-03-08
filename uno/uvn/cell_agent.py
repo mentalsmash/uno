@@ -72,9 +72,9 @@ class CellAgent(Agent):
       cell_id: int,
       registry_id: str,
       deployment: P2PLinksMap,
-      backbone_vpn_configs: Sequence[WireGuardConfig],
-      particles_vpn_config: CentralizedVpnConfig,
-      root_vpn_config: WireGuardConfig) -> None:
+      backbone_vpn_configs: Sequence[WireGuardConfig]|None=None,
+      particles_vpn_config: CentralizedVpnConfig|None=None,
+      root_vpn_config: WireGuardConfig|None=None) -> None:
     
     self._uvn_id = uvn_id
     self._deployment = deployment
@@ -82,19 +82,17 @@ class CellAgent(Agent):
 
     self._cell = self.uvn_id.cells[cell_id]
 
-    self.root_vpn_config = root_vpn_config
     self.root_vpn = (
-      WireGuardInterface(self.root_vpn_config)
-      if self.enable_root_vpn else None
+      WireGuardInterface(root_vpn_config)
+      if root_vpn_config else None
     )
 
-    self.backbone_vpn_configs = list(backbone_vpn_configs)
-    self.backbone_vpns = [WireGuardInterface(v) for v in self.backbone_vpn_configs]
+    self.backbone_vpns = [WireGuardInterface(v) for v in backbone_vpn_configs or []]
 
     self.particles_vpn_config = particles_vpn_config
     self.particles_vpn = (
       WireGuardInterface(self.particles_vpn_config.root_config)
-      if self.enable_particles_vpn else None
+      if self.particles_vpn_config else None
     )
     self._root: Path = root.resolve()
 
@@ -230,19 +228,6 @@ class CellAgent(Agent):
 
 
   @property
-  def enable_particles_vpn(self) -> bool:
-    return (
-      bool(self.uvn_id.particles)
-      and self.uvn_id.settings.enable_particles_vpn
-      and self.cell.enable_particles_vpn)
-
-
-  @property
-  def enable_root_vpn(self) -> bool:
-    return self.uvn_id.settings.enable_root_vpn
-
-
-  @property
   def uvn_status_plot(self) -> Path:
     status_plot = self.root / "uvn-status.png"
     if not status_plot.is_file() or self._uvn_status_plot_dirty:
@@ -262,8 +247,8 @@ class CellAgent(Agent):
           for peer_b_id, peer_b in peer_a["peers"].items()
             if peer_b[0] == 0 or peer_b_id == self.cell.id
     } - {
-      cfg.intf.address
-        for cfg in self.backbone_vpn_configs
+      vpn.config.intf.address
+        for vpn in self.backbone_vpns
     }
     initial_peers = [
       *backbone_peers,
@@ -495,10 +480,10 @@ class CellAgent(Agent):
 
   def find_backbone_peer_by_address(self, addr: str | ipaddress.IPv4Address) -> Optional[UvnPeer]:
     addr = ipaddress.ip_address(addr)
-    for bbone in self.backbone_vpn_configs:
-      if bbone.peers[0].address == addr:
-        return self.peers[bbone.peers[0].id]
-      elif bbone.intf.address == addr:
+    for vpn in self.backbone_vpns:
+      if vpn.config.peers[0].address == addr:
+        return self.peers[vpn.config.peers[0].id]
+      elif vpn.config.intf.address == addr:
         return self.peers.local
     return None
 
@@ -529,7 +514,7 @@ class CellAgent(Agent):
   def _write_particle_configurations(self) -> None:
     if self.particles_dir.is_dir():
       shutil.rmtree(self.particles_dir)
-    if not self.enable_particles_vpn:
+    if not self.particles_vpn_config:
       return
     for particle_id, particle_client_cfg in self.particles_vpn_config.peer_configs.items():
       particle = self.uvn_id.particles[particle_id]
@@ -542,20 +527,18 @@ class CellAgent(Agent):
     self.id_db.uvn_id = self.uvn_id
     self.peers.uvn_id = self.uvn_id
     self.peers.registry_id = updated_agent.registry_id
-    self.root_vpn_config = updated_agent.root_vpn_config
     self.root_vpn = (
-      WireGuardInterface(self.root_vpn_config)
-      if self.enable_root_vpn else None
+      WireGuardInterface(updated_agent.root_vpn.config)
+      if updated_agent.root_vpn else None
     )
     self._deployment = updated_agent.deployment
-    self.backbone_vpn_configs = list(updated_agent.backbone_vpn_configs)
-    self.backbone_vpns = [WireGuardInterface(v) for v in self.backbone_vpn_configs]
+    self.backbone_vpns = [WireGuardInterface(v.config) for v in updated_agent.backbone_vpns]
     self._uvn_backbone_plot_dirty = True
     self._uvn_status_plot_dirty = True
     self.particles_vpn_config = updated_agent.particles_vpn_config
     self.particles_vpn = (
       WireGuardInterface(self.particles_vpn_config.root_config)
-      if self.enable_particles_vpn else None
+      if self.particles_vpn_config else None
     )
     self._registry_id = updated_agent.registry_id
 
@@ -577,12 +560,17 @@ class CellAgent(Agent):
       "cell_id": self.cell.id,
       "registry_id": self.registry_id,
       "deployment": self.deployment.serialize(),
-      "root_vpn_config": self.root_vpn_config.serialize(),
-      "particles_vpn_config": self.particles_vpn_config.serialize(),
+      "root_vpn_config": self.root_vpn.config.serialize() if self.root_vpn else None,
+      "particles_vpn_config": self.particles_vpn_config.serialize()
+        if self.particles_vpn_config else None,
       "backbone_vpn_configs": [
-        v.serialize() for v in self.backbone_vpn_configs
+        v.config.serialize() for v in self.backbone_vpns
       ],
     }
+    if not serialized["root_vpn_config"]:
+      del serialized["root_vpn_config"]
+    if not serialized["particles_vpn_config"]:
+      del serialized["particles_vpn_config"]
     if not serialized["cell_id"]:
       del serialized["cell_id"]
     # if not serialized["ns"]:
@@ -596,16 +584,22 @@ class CellAgent(Agent):
   def deserialize(serialized: dict,
       root: Path,
       **init_args) -> "CellAgent":
+    particles_vpn_config = serialized.get("particles_vpn_config")
+    if particles_vpn_config:
+      particles_vpn_config = CentralizedVpnConfig.deserialize(
+        particles_vpn_config,
+        settings_cls=ParticlesVpnSettings)
+    root_vpn_config = serialized.get("root_vpn_config")
+    if root_vpn_config:
+      root_vpn_config = WireGuardConfig.deserialize(root_vpn_config)
     return CellAgent(
       root=root,
       uvn_id=UvnId.deserialize(serialized["uvn_id"]),
       cell_id=serialized["cell_id"],
       registry_id=serialized["registry_id"],
       deployment=P2PLinksMap.deserialize(serialized["deployment"]),
-      root_vpn_config=WireGuardConfig.deserialize(serialized["root_vpn_config"]),
-      particles_vpn_config=CentralizedVpnConfig.deserialize(
-        serialized["particles_vpn_config"],
-        settings_cls=ParticlesVpnSettings),
+      root_vpn_config=root_vpn_config,
+      particles_vpn_config=particles_vpn_config,
       backbone_vpn_configs=[
         WireGuardConfig.deserialize(v)
         for v in serialized.get("backbone_vpn_configs", [])
@@ -652,8 +646,10 @@ class CellAgent(Agent):
       cell_id=cell.id,
       registry_id=registry.id,
       deployment=registry.backbone_vpn_config.deployment,
-      root_vpn_config=registry.root_vpn_config.peer_configs[cell.id],
-      particles_vpn_config=registry.particles_vpn_configs[cell.id],
+      root_vpn_config=registry.root_vpn_config.peer_configs[cell.id]
+        if registry.uvn_id.settings.enable_root_vpn else None,
+      particles_vpn_config=registry.particles_vpn_configs[cell.id]
+        if registry.uvn_id.settings.enable_particles_vpn and cell.enable_particles_vpn else None,
       backbone_vpn_configs=registry.backbone_vpn_config.peer_configs[cell.id]
         if registry.backbone_vpn_config.peer_configs else [])
     agent_config = cell_agent.save_to_disk()
