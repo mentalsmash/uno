@@ -87,16 +87,13 @@ class Agent(UvnPeerListener, RoutesMonitorListener):
       until: Optional[Callable[[], bool]]=None,
       max_spin_time: Optional[int]=None) -> None:
     self._spin(until=until, max_spin_time=max_spin_time)
-    # try:
-    #   self._start(boot=True)
-    #   self._spin(until=until, max_spin_time=max_spin_time)
-    # finally:
-    #   self._stop(exiting=True)
 
 
   def spin_until_consistent(self,
       max_spin_time: Optional[int]=None,
       config_only: bool=False) -> None:
+    log.warning(f"[AGENT] waiting until agents{' and uvn' if not config_only else ''} are consistent: {self.registry_id}")
+
     spin_state = {
       "consistent_config": False
     }
@@ -109,11 +106,6 @@ class Agent(UvnPeerListener, RoutesMonitorListener):
       elif spin_state["consistent_config"] and self.peers.status_fully_routed_uvn:
         log.warning(f"[AGENT] spinning condition reached: fully routed uvn")
         return True
-      # if not spin_state["consistent_config"]:
-      #   log.debug(f"[AGENT] at configuration [{len(self.consistent_config_peers)}/{len(self.uvn_id.cells)}]: {list(map(str, self.inconsistent_config_peers))}")
-      #   log.debug(f"[AGENT] not configured yet [{len(self.inconsistent_config_peers)}/{len(self.uvn_id.cells)}]: {list(map(str, self.inconsistent_config_peers))}")
-      # else:
-      #   log.debug(f"[AGENT] still waiting for UVN to become consistent")
     
     timedout = self.spin(until=_until_consistent, max_spin_time=max_spin_time)
     if timedout:
@@ -127,7 +119,6 @@ class Agent(UvnPeerListener, RoutesMonitorListener):
     log.debug(f"starting to spin on {spin_start}")
     while True:
       done, active_writers, active_readers, active_data, extra_conds = self.dp.wait()
-      
       spin_time = Timestamp.now()
       spin_length = int(spin_time.subtract(spin_start).total_seconds())
       timedout = max_spin_time is not None and spin_length >= max_spin_time
@@ -262,10 +253,9 @@ class Agent(UvnPeerListener, RoutesMonitorListener):
 
   @property
   def dds_config(self) -> DdsParticipantConfig:
-    participant_xml_config, participant_profile, writers_and_readers = self.dds_xml_config
+    participant_xml_config, writers_and_readers = self.dds_xml_config
     return DdsParticipantConfig(
       participant_xml_config=participant_xml_config,
-      participant_profile=participant_profile,
       user_conditions=self.user_conditions,
       **writers_and_readers)
 
@@ -625,7 +615,7 @@ class Agent(UvnPeerListener, RoutesMonitorListener):
       log.debug("[AGENT] systemd notified")
 
 
-  def _stop(self, exiting: bool=False) -> None:
+  def _stop(self) -> None:
     log.activity("[AGENT] performing shutdown...")
     self.started = False
     errors = []
@@ -653,13 +643,6 @@ class Agent(UvnPeerListener, RoutesMonitorListener):
       self.net.stop()
     except Exception as e:
       log.error(f"[AGENT] failed to stop network services")
-      log.exception(e)
-      errors.append(e)
-    try:
-      if exiting:
-        self.net.uvn_agent.delete_pid()
-    except Exception as e:
-      log.error(f"[AGENT failed to delete PID file: {self.net.uvn_agent.pid_file}")
       log.exception(e)
       errors.append(e)
 

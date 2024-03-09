@@ -347,7 +347,6 @@ uvn_deploy()
             $([ -z "${UVN_STRATEGY}" ] || printf -- "-S ${UVN_STRATEGY}") \
             --yes \
             ${UVN_EXTRA_ARGS}
-        ${UNO} plot ${UVN_EXTRA_ARGS}
     )
 }
 
@@ -357,7 +356,7 @@ uvn_install()
           cell_name="${2}" \
           with_deployment="${3}"
     
-    ${UNO} cell install \
+    ${UNO} install \
         -r "${CELLS_DIR}/${cell_name}" \
         "${UVN_DIR}/cells/${cell_name}.uvn-agent"
 

@@ -72,7 +72,7 @@ def registry_configure_args(args):
   }
 
 
-def _update_registry_agent(registry) -> None:
+def _update_registry_agent(registry: Registry) -> None:
   agent = RegistryAgent(registry)
   agent.net.generate_configuration()
 
@@ -106,6 +106,9 @@ def registry_action(args):
   action_args = {}
   action = None
   config_args = {}
+  agent_args = {
+    "registry": registry,
+  }
   if args.action == "cell-ban":
     action = registry.uvn_id.ban_cell
     action_args = {
@@ -174,7 +177,38 @@ def registry_action(args):
       deployment=registry.backbone_vpn_config.deployment,
       output_file=output_file)
     log.warning(f"backbone plot generated: {output_file}")
-  
+  elif args.action == "rekey-particle":
+    action_args = {
+      "particle": next(p for p in registry.uvn_id.particles.values() if p.name == args.name),
+      "cells": [
+        next(c for c in registry.uvn_id.cells.values() if c.name == name)
+        for name in args.cell
+      ] if args.cell else None,
+    }
+    action = registry.rekey_particle
+  elif args.action == "rekey-cell":
+    action_args = {
+      "cell": next(c for c in registry.uvn_id.cells.values() if c.name == args.name),
+      "root_vpn": args.root_vpn,
+      "particles_vpn": args.particles_vpn,
+    }
+    action = registry.rekey_cell
+    # Don't regenerate static config if 
+    # rekeying the root vpn
+    if args.root_vpn:
+      agent_args = {}
+  elif args.action == "rekey-uvn":
+    if not (args.root_vpn or args.particles_vpn):
+      raise RuntimeError("nothing to rekey")
+    config_args = {
+      "drop_keys_root_vpn": args.root_vpn,
+      "drop_keys_particles_vpn": args.particles_vpn,
+    }
+    # Don't regenerate static config if 
+    # rekeying the root vpn
+    if args.root_vpn:
+      agent_args = {}
+
   if action:
     result = action(**action_args)
     if getattr(args, "print", False):
@@ -182,8 +216,8 @@ def registry_action(args):
   
   if action or config_args:
     modified = registry.configure(**config_args)
-    if modified:
-      _update_registry_agent(registry)
+    if modified and agent_args:
+      _update_registry_agent(**agent_args)
 
 
 def registry_common_args(parser: argparse.ArgumentParser):
@@ -216,13 +250,18 @@ def registry_agent(args):
     agent.spin()
 
 
-def registry_sync(args, registry: Optional[Registry]=None):
-  registry = registry or registry_load(args)
+def registry_sync(args):
+  registry = registry_load(args)
   agent = RegistryAgent(registry)
   with agent.start():
-    agent.spin_until_consistent(
-      config_only=args.consistent_config,
-      max_spin_time=args.max_wait_time)
+    if agent.needs_rekeying:
+      agent.spin_until_rekeyed(
+        config_only=args.consistent_config,
+        max_spin_time=args.max_wait_time)
+    else:
+      agent.spin_until_consistent(
+        config_only=args.consistent_config,
+        max_spin_time=args.max_wait_time)
 
 
 ###############################################################################
@@ -1105,6 +1144,86 @@ def main():
     help="File to generate.")
 
   registry_common_args(cmd_decrypt)
+
+
+  #############################################################################
+  # uno rekey ...
+  #############################################################################
+  cmd_rekey = subparsers.add_parser("rekey",
+    help="Regenerate the key material for a particle or a cell.",
+    formatter_class=SortingHelpFormatter)
+  subparsers_rekey = cmd_rekey.add_subparsers(help="Rekeying commands")
+
+
+  #############################################################################
+  # uno rekey particle
+  #############################################################################
+  cmd_rekey_particle = subparsers_rekey.add_parser("particle",
+    help="Regenerate the key material for a particle.",
+    formatter_class=SortingHelpFormatter)
+  cmd_rekey_particle.set_defaults(
+    cmd=registry_action,
+    action="rekey-particle")
+
+  cmd_rekey_particle.add_argument("name",
+    help="The particle's unique name.")
+
+  cmd_rekey_particle.add_argument("-c", "--cell",
+    metavar="NAME",
+    help="Restrict the rekeying to the specified cell. Repeat to select multiple.",
+    default=[],
+    action="append")
+
+  registry_common_args(cmd_rekey_particle)
+
+
+  #############################################################################
+  # uno rekey cell
+  #############################################################################
+  cmd_rekey_cell = subparsers_rekey.add_parser("cell",
+    help="Regenerate the key material for a cell.",
+    formatter_class=SortingHelpFormatter)
+  cmd_rekey_cell.set_defaults(
+    cmd=registry_action,
+    action="rekey-cell")
+
+  cmd_rekey_cell.add_argument("name",
+    help="The cell's unique name.")
+
+  cmd_rekey_cell.add_argument("-R", "--root-vpn",
+    help="Regenerate the Root VPN key.",
+    default=False,
+    action="store_true")
+
+  cmd_rekey_cell.add_argument("-P", "--particles-vpn",
+    help="Regenerate all Particles VPN keys.",
+    default=False,
+    action="store_true")
+
+  registry_common_args(cmd_rekey_cell)
+
+
+  #############################################################################
+  # uno rekey uvn
+  #############################################################################
+  cmd_rekey_uvn = subparsers_rekey.add_parser("uvn",
+    help="Regenerate the key material for the uvn.",
+    formatter_class=SortingHelpFormatter)
+  cmd_rekey_uvn.set_defaults(
+    cmd=registry_action,
+    action="rekey-uvn")
+
+  cmd_rekey_uvn.add_argument("-R", "--root-vpn",
+    help="Regenerate the Root VPN keys.",
+    default=False,
+    action="store_true")
+
+  cmd_rekey_uvn.add_argument("-P", "--particles-vpn",
+    help="Regenerate all Particles VPN keys.",
+    default=False,
+    action="store_true")
+
+  registry_common_args(cmd_rekey_uvn)
 
 
   #############################################################################

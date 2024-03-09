@@ -94,7 +94,7 @@ class RoutesMonitor:
       stderr=subprocess.DEVNULL,
       preexec_fn=os.setpgrp,
       text=True)
-    self._monitor_thread = threading.Thread(target=RoutesMonitor._run, args=[self], daemon=True)
+    self._monitor_thread = threading.Thread(target=self._run)
     self._active = True
     self._monitor_thread.start()
 
@@ -102,15 +102,15 @@ class RoutesMonitor:
   def stop(self) -> None:
     self._active = False
     if self._monitor is not None:
-      self._monitor.kill()
+      import signal
+      self._monitor.send_signal(signal.SIGINT)
       if self._monitor_thread is not None:
         self._monitor_thread.join()
         self._monitor_thread = None
       self._monitor = None
 
 
-  @staticmethod
-  def _run(self: "RoutesMonitor"):
+  def _run(self):
     log.activity(f"[ROUTE-MONITOR] starting to monitor kernel routes")
     while self._active:
       try:

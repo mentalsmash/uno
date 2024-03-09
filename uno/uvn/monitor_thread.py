@@ -20,7 +20,7 @@ from .log import Logger as log
 
 class MonitorThread(threading.Thread):
   def __init__(self, name, min_wait=0):
-    threading.Thread.__init__(self, daemon=True)
+    threading.Thread.__init__(self)
     # set thread name
     self.name = name
     self._min_wait = min_wait

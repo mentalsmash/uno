@@ -425,7 +425,7 @@ class VpnSettings(Versioned):
       "peer_port": self.peer_port,
       "subnet": str(self.subnet),
       "interface": self.interface,
-      "allowed_ips": list(self.allowed_ips),
+      "allowed_ips": sorted(self.allowed_ips),
       "peer_mtu": self.peer_mtu,
     })
     if self._allowed_ips is None:

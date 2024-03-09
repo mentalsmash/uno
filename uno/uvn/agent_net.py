@@ -664,12 +664,14 @@ class AgentNetworking:
   
 
   def _enable_lan_nat(self, lan: NicDescriptor) -> None:
+    # ipv4_enable_forward(lan.nic.name)
     ipv4_enable_output_nat(lan.nic.name)
     self._lans_nat.append(lan)
     log.debug(f"NAT ENABLED for LAN: {lan}")
 
 
   def _disable_lan_nat(self, lan: LanDescriptor, ignore_errors: bool=False) -> None:
+    # ipv4_disable_forward(lan.nic.name, ignore_errors=ignore_errors)
     ipv4_disable_output_nat(lan.nic.name, ignore_errors=ignore_errors)
     if lan in self._lans_nat:
       self._lans_nat.remove(lan)
@@ -677,23 +679,15 @@ class AgentNetworking:
 
 
   def _enable_vpn_nat(self, vpn: WireGuardInterface) -> None:
-    ipv4_enable_forward(vpn.config.intf.name)
-    ipv4_enable_output_nat(vpn.config.intf.name)
-    # # For "tunnel" interfaces we must enable ipv6 too
-    # if vpn.config.tunnel_root:
-    #   ipv4_enable_forward(vpn.config.intf.name, v6=True)
-    #   ipv4_enable_output_nat(vpn.config.intf.name, v6=True)
+    # ipv4_enable_forward(vpn.config.intf.name)
+    # ipv4_enable_output_nat(vpn.config.intf.name)
     self._vpn_nat.append(vpn)
     log.debug(f"NAT ENABLED for VPN interface: {vpn}")
 
 
   def _disable_vpn_nat(self, vpn: WireGuardInterface, ignore_errors: bool=False) -> None:
-    ipv4_disable_forward(vpn.config.intf.name, ignore_errors=ignore_errors)
-    ipv4_disable_output_nat(vpn.config.intf.name, ignore_errors=ignore_errors)
-    # # For "tunnel" interfaces we must enable ipv6 too
-    # if vpn.config.tunnel_root:
-    #   ipv4_disable_forward(vpn.config.intf.name, v6=True, ignore_errors=ignore_errors)
-    #   ipv4_disable_output_nat(vpn.config.intf.name, v6=True, ignore_errors=ignore_errors)
+    # ipv4_disable_forward(vpn.config.intf.name, ignore_errors=ignore_errors)
+    # ipv4_disable_output_nat(vpn.config.intf.name, ignore_errors=ignore_errors)
     if vpn in self._vpn_nat:
       self._vpn_nat.remove(vpn)
     log.debug(f"NAT DISABLED for VPN: {vpn}")

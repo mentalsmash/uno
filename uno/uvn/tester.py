@@ -157,18 +157,23 @@ class UvnPeersTester:
   def _ping_test(self, peer: UvnPeer, lan: LanDescriptor) -> bool:
     log.activity(f"[LAN] PING start: {peer}/{lan}")
     result = exec_command(
-        ["ping", "-w", str(self.DEFAULT_PING_LEN),"-c", str(self.DEFAULT_PING_COUNT), str(lan.gw)],
+        ["ping",
+            "-w", str(self.DEFAULT_PING_LEN),
+            "-c", str(self.DEFAULT_PING_COUNT),
+            *(["-I", self._interface] if self._interface else []),
+            str(lan.gw)],
         noexcept=True)
     result = result.returncode == 0
     log.activity(f"[LAN] PING {'OK' if result else 'FAILED'}: {peer}/{lan}")
     return result
   
 
-  def start(self) -> None:
+  def start(self, interface: str | None = None) -> None:
     if self._test_thread is not None:
       return
     self._active = True
-    self._test_thread = threading.Thread(target=self.run, daemon=True)
+    self._interface = interface
+    self._test_thread = threading.Thread(target=self.run)
     self._test_thread.start()
 
 
@@ -179,3 +184,4 @@ class UvnPeersTester:
     self.trigger()
     self._test_thread.join()
     self._test_thread = None
+    self._interface = None

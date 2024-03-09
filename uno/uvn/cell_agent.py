@@ -53,7 +53,6 @@ from .log import Logger as log
 
 
 class CellAgent(Agent):
-  PARTICIPANT_PROFILE = "UnoParticipants::CellAgent"
   TOPICS = {
     "writers": [
       UvnTopic.CELL_ID,
@@ -183,9 +182,13 @@ class CellAgent(Agent):
 
   @property
   def services(self) -> list[Tuple["Agent.Service", dict]]:
+    # lans = list(self.lans)
     return [
       *super().services,
-      (self.peers_tester, {}),
+      (self.peers_tester, {
+        # "interface": lans[0].nic.name
+        #   if lans else None,
+      }),
       *([(self.www, {})] if self.enable_www else []),
     ]
 
@@ -262,7 +265,6 @@ class CellAgent(Agent):
 
     key_id = KeyId.from_uvn_id(self.cell)
     Templates.generate(self.participant_xml_config, "dds/uno.xml", {
-      "deployment_id": self.deployment.generation_ts,
       "uvn": self.uvn_id,
       "cell": self.cell,
       "initial_peers": initial_peers,
@@ -278,14 +280,13 @@ class CellAgent(Agent):
       "domain": self.uvn_id.settings.dds_domain,
       "domain_tag": self.uvn_id.name,
     })
-    return (self.participant_xml_config, CellAgent.PARTICIPANT_PROFILE, CellAgent.TOPICS)
+    return (self.participant_xml_config, CellAgent.TOPICS)
 
 
   @property
   def user_conditions(self) -> list[dds.GuardCondition]:
     return [
       *super().user_conditions,
-      self.routes_monitor.updated_condition,
       self.peers_tester.result_available_condition,
     ]
 

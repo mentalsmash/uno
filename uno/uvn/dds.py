@@ -32,13 +32,13 @@ class UvnTopic(Enum):
 
 
 class DdsParticipantConfig:
+  PARTICIPANT_PROFILE = "UnoParticipants::UvnAgent"
+
   def __init__(self,
       participant_xml_config: Path,
-      participant_profile: str,
       writers: Iterable[UvnTopic] | None = None,
       readers: Mapping[UvnTopic, dict] | None = None,
       user_conditions: Iterable[dds.GuardCondition] | None = None) -> None:
-    self.participant_profile = participant_profile
     self.participant_xml_config = participant_xml_config
     self.writers = list(writers or [])
     self.readers = dict(readers or {})
@@ -125,32 +125,21 @@ class DdsParticipant:
     self.types = {}
     self._reader_conditions = {}
     self._data_conditions = {}
-    self.exit_condition = None
+    self.exit_condition = dds.GuardCondition()
     self._user_conditions = []
 
 
   def start(self,config: DdsParticipantConfig) -> None:
     log.debug("[DDS] STARTING...")
 
-    # if config_file_out is not None:
-    #   config_file = config_file_out
-    # else:
-    #   tmp_config_h = NamedTemporaryFile()
-    #   tmp_config = Path(tmp_config_h.name)
-    #   config_file = tmp_config
-
-    # config_file.write_text(config.participant_xml_config)
-
     qos_provider = dds.QosProvider(str(config.participant_xml_config))
     self.types = self._register_types(qos_provider)
 
-    self._dp = qos_provider.create_participant_from_config(config.participant_profile)
+    self._dp = qos_provider.create_participant_from_config(DdsParticipantConfig.PARTICIPANT_PROFILE)
 
     self.writers, self._writer_conditions = self._create_writers(self._dp, config.writers)
 
     self._readers, self._reader_conditions, self._data_conditions = self._create_readers(self._dp, config.readers)
-
-    self.exit_condition = dds.GuardCondition()
 
     self._user_conditions = config.user_conditions
 
@@ -189,7 +178,6 @@ class DdsParticipant:
     self._reader_conditions = {}
     self._data_conditions = {}
     self._user_conditions = []
-    self.exit_condition = None
     self._dp = None
     log.activity("[DDS] stopped")
 
@@ -202,6 +190,7 @@ class DdsParticipant:
       return (False, [], [], [], [])
     assert(len(active_conditions) > 0)
     if self.exit_condition in active_conditions:
+      self.exit_condition.trigger_value = False
       return (True, [], [], [], [])
 
     active_writers = [

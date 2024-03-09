@@ -14,7 +14,7 @@ if [ -f /uvn.yaml ]; then
 # Check if we have a package, and if so, bootstrap it
 elif [ -f /package.uvn-agent ]; then
   chmod 600 /package.uvn-agent
-  uno cell install ${VERBOSE} /package.uvn-agent -r ${UVN_DIR}
+  uno install ${VERBOSE} /package.uvn-agent -r ${UVN_DIR}
 fi
 
 

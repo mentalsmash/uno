@@ -15,7 +15,7 @@
 # along with this program. If not, see <https://www.gnu.org/licenses/>.
 ###############################################################################
 from pathlib import Path
-from typing import Optional, Mapping, Tuple
+from typing import Optional, Mapping, Tuple, Iterable
 
 import yaml
 
@@ -40,19 +40,19 @@ from .deployment import (
 )
 from .vpn_config import CentralizedVpnConfig, P2PVpnConfig
 from .log import Logger as log
-from .dds import locate_rti_license, UvnTopic
+from .dds import locate_rti_license
 from .exec import exec_command
 from .particle import generate_particle_packages
 from .id_db import IdentityDatabase
 from .keys_dds import DdsKeysBackend
-from .htdigest import htdigest_generate
+from .ask import ask_yes_no
 
 class Registry(Versioned):
   UVN_FILENAME = "uvn.yaml"
   CONFIG_FILENAME = "registry.yaml"
   AGENT_PACKAGE_FILENAME = "{}.uvn-agent"
   AGENT_CONFIG_FILENAME = "agent.yaml"
-  UVN_SECRET = "uvn.secret"
+
 
   @staticmethod
   def create(
@@ -107,6 +107,8 @@ class Registry(Versioned):
       local_id=self.uvn_id,
       uvn_id=self.uvn_id)
     self.loaded = True
+    self._rekeyed_root_vpn = set()
+    self._rekeyed_particles_vpn = set()
 
 
   @property
@@ -156,12 +158,38 @@ class Registry(Versioned):
     return self.root / "particles"
 
 
+  @property
+  def rekeyed_registry(self) -> "Registry|None":
+    rekeyed_uvn = self.root / f"{Registry.UVN_FILENAME}.rekeyed"
+    rekeyed_reg = self.root / f"{Registry.CONFIG_FILENAME}.rekeyed"
+    if rekeyed_uvn.exists() and rekeyed_reg.exists():
+      return Registry.load(self.root, uvn_config=rekeyed_uvn, registry_config=rekeyed_reg)
+    return None
+
+
+  def save_rekeyed(self) -> None:
+    rekeyed_registry = self.rekeyed_registry
+    if not rekeyed_registry:
+      raise RuntimeError("no rekeyed registry to save")
+    rekeyed_registry._save_to_disk(noninteractive=True)
+    self.drop_rekeyed()
+
+
+  def drop_rekeyed(self) -> None:
+    rekeyed_uvn = self.root / f"{Registry.UVN_FILENAME}.rekeyed"
+    rekeyed_reg = self.root / f"{Registry.CONFIG_FILENAME}.rekeyed"
+    if rekeyed_uvn.exists():
+      rekeyed_uvn.unlink()
+    if rekeyed_reg.exists():
+      rekeyed_reg.unlink()
+
+
   def configure(
       self,
       rti_license: Path | None = None,
       drop_keys_root_vpn: bool=False,
       drop_keys_particles_vpn: bool=False,
-      drop_keys_dds: bool=False,
+      drop_keys_id_db: bool=False,
       # drop_keys_gpg: bool=False,
       redeploy: bool=False,
       **uvn_args) -> bool:
@@ -174,6 +202,11 @@ class Registry(Versioned):
     if rti_license is not None:
       self.rti_license = rti_license
 
+    rekeyed_root = len(self._rekeyed_root_vpn) > 0
+    rekeyed_particles = len(self._rekeyed_particles_vpn) > 0
+    self._rekeyed_root_vpn.clear()
+    self._rekeyed_particles_vpn.clear()
+    
     changed = self.collect_changes()
     changed_uvn = next((c for c, _ in changed if isinstance(c, (UvnId, UvnSettings))), None) is not None
     changed_cell = next((c for c, _ in changed if isinstance(c, CellId)), None) is not None
@@ -182,6 +215,7 @@ class Registry(Versioned):
       changed_uvn
       or changed_cell
       or drop_keys_root_vpn
+      or rekeyed_root
       or next((c for c, _ in changed if isinstance(c, RootVpnSettings)), None) is not None
     )
     changed_particles_vpn = (
@@ -189,6 +223,7 @@ class Registry(Versioned):
       or changed_cell
       or changed_particle
       or drop_keys_particles_vpn
+      or rekeyed_particles
       or next((c for c, _ in changed if isinstance(c, ParticlesVpnSettings)), None) is not None
     )
     changed_backbone_vpn = (
@@ -224,9 +259,15 @@ class Registry(Versioned):
     if changed_backbone_vpn:
       self._configure_backbone_vpn()
 
-    if redeploy or changed:
+    if (redeploy
+        or changed
+        or changed_root_vpn
+        or changed_particles_vpn
+        or changed_backbone_vpn):
       log.warning("[REGISTRY] configuration updated")
-      self._save_to_disk(drop_keys=drop_keys_dds)
+      self._save_to_disk(
+        drop_keys_id_db=drop_keys_id_db,
+        rekeyed=rekeyed_root or drop_keys_root_vpn)
 
     return bool(changed)
 
@@ -303,14 +344,46 @@ class Registry(Versioned):
       peer_endpoints=peer_endpoints)
     self.backbone_vpn_config.generate(self.deployment_strategy)
 
-    
-
     if self.backbone_vpn_config.deployment.peers:
       log.warning(f"[REGISTRY] UVN backbone links updated [{self.backbone_vpn_config.deployment.generation_ts}]")
       self.uvn_id.log_deployment(
         deployment=self.backbone_vpn_config.deployment)
     elif self.uvn_id.cells:
       log.error(f"[REGISTRY] UVN has {len(self.uvn_id.cells)} cells but no backbone links!")
+
+
+  def rekey_particle(self, particle: ParticleId, cells: Iterable[CellId]|None=None):
+    if not cells:
+      cells = list(self.uvn_id.cells.values())
+    
+    particles = list(p for p in self.uvn_id.all_particles if p != particle)
+    for cell in cells:
+      particles_vpn_config = self.particles_vpn_configs[cell.id]
+      particles_vpn_config.keymat.purge_gone_peers(particles)
+      self._rekeyed_particles_vpn.add(cell)
+    
+    self._rekeyed_particles_vpn.add(particle)
+    self.updated()
+  
+
+  def rekey_cell(self, cell: CellId, root_vpn: bool=False, particles_vpn: bool=False):
+    if not (root_vpn or particles_vpn):
+      raise RuntimeError("nothing to rekey")
+
+    cells = list(c for c in self.uvn_id.cells.values() if c != cell)
+    if root_vpn:
+      log.warning(f"[REGISTRY] dropping Root VPN key for cell: {cell}")
+      self.root_vpn_config.keymat.purge_gone_peers(cells)
+      self._rekeyed_root_vpn.add(cell)
+    
+    if particles_vpn:
+      log.warning(f"[REGISTRY] dropping Particles VPN keys for cell: {cell}")
+      self.particles_vpn_configs[cell.id].keymat.drop_keys()
+      self._rekeyed_particles_vpn.add(cell)
+      for p in self.uvn_id.particles.values():
+        self._rekeyed_particles_vpn.add(p)
+
+    self.updated()
 
 
   @property
@@ -357,11 +430,11 @@ class Registry(Versioned):
 
   def _generate_agents(self) -> None:
     from .cell_agent import CellAgent
+    import shutil
 
     log.activity("[REGISTRY] regenerating cell and particle artifacts")
 
     if self.cells_dir.is_dir():
-      import shutil
       shutil.rmtree(self.cells_dir)
 
     for cell in self.uvn_id.cells.values():
@@ -371,7 +444,6 @@ class Registry(Versioned):
         output_dir=self.cells_dir)
 
     if self.particles_dir.is_dir():
-      import shutil
       shutil.rmtree(self.particles_dir)
 
     generate_particle_packages(
@@ -444,9 +516,12 @@ class Registry(Versioned):
 
 
   @staticmethod
-  def load(root: Path) -> "Registry":
-    uvn_file = root / Registry.UVN_FILENAME
-    config_file = root / Registry.CONFIG_FILENAME
+  def load(
+      root: Path,
+      uvn_config: Path|None=None,
+      registry_config: Path|None=None) -> "Registry":
+    uvn_file = uvn_config or root / Registry.UVN_FILENAME
+    config_file = registry_config or root / Registry.CONFIG_FILENAME
     serialized = {
       "uvn": yaml.safe_load(uvn_file.read_text()),
       "config": yaml.safe_load(config_file.read_text()),
@@ -455,23 +530,29 @@ class Registry(Versioned):
     return registry
 
 
-  def _save_to_disk(self, drop_keys: bool=False) -> None:
-    from .ask import ask_yes_no
-    ask_yes_no("Save updated registry to disk?")
+  def _save_to_disk(self, drop_keys_id_db: bool=False, rekeyed: bool=False, noninteractive: bool=False) -> None:
+    if not noninteractive:
+      ask_yes_no("Save updated registry to disk?")
+
     serialized = self.serialize()
 
     uvn_file = self.root / self.UVN_FILENAME
+    if rekeyed:
+      uvn_file = Path(f"{uvn_file}.rekeyed")
     uvn_file.parent.mkdir(parents=True, exist_ok=True)
     uvn_file.write_text(yaml.safe_dump(serialized["uvn"]))
     uvn_file.chmod(0o600)
     log.warning(f"[REGISTRY] updated UVN configuration: {uvn_file}")
 
     config_file = self.root / self.CONFIG_FILENAME
+    if rekeyed:
+      config_file = Path(f"{config_file}.rekeyed")
     config_file.parent.mkdir(parents=True, exist_ok=True)
     config_file.write_text(yaml.safe_dump(serialized.get("config", {})))
     config_file.chmod(0o600)
     log.warning(f"[REGISTRY] updated registry state: {config_file}")
 
-
+    if drop_keys_id_db:
+      raise NotImplementedError()
     self.id_db.assert_keys()
     self._generate_agents()

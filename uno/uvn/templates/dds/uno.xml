@@ -257,7 +257,7 @@
     </qos_library>
 
     <domain_library name="UnoDomains">
-      <domain name="Registry" domain_id="{{domain}}">
+      <domain name="UVN" domain_id="{{domain}}">
         <register_type name="UvnInfo" type_ref="uno::UvnInfo"/>
         <register_type name="CellInfo" type_ref="uno::CellInfo"/>
         <register_type name="AgentConfig" type_ref="uno::AgentConfig"/>
@@ -268,30 +268,8 @@
     </domain_library>
 
     <domain_participant_library name="UnoParticipants">
-      <domain_participant name="RootAgent" domain_ref="UnoDomains::Registry">
-        <subscriber name="Subscriber">
-          <data_reader name="CellInfoReader" topic_ref="uno/cell">
-            <content_filter name="RootCellInfoFilter" kind="builtin.sql">
-              <expression>id.uvn MATCH &apos;{{uvn.name}}&apos;</expression>
-            </content_filter>
-            <datareader_qos base_name="UnoQosProfiles::PeerStatusTopic">
-            </datareader_qos>
-          </data_reader>
-        </subscriber>
-        <publisher name="Publisher">
-          <data_writer name="UvnInfoWriter" topic_ref="uno/uvn">
-            <datawriter_qos base_name="UnoQosProfiles::BaseTopic">
-            </datawriter_qos>
-          </data_writer>
-          <data_writer name="AgentConfigWriter" topic_ref="uno/config">
-            <datawriter_qos base_name="UnoQosProfiles::AgentConfig">
-            </datawriter_qos>
-          </data_writer>
-        </publisher>
-        <participant_qos base_name="UnoQosProfiles::UvnAgent">
-        </participant_qos>
-      </domain_participant>
-      <domain_participant name="CellAgent" domain_ref="UnoDomains::Registry">
+      <domain_participant name="UvnAgent" domain_ref="UnoDomains::UVN">
+      {% if cell %}
         <subscriber name="Subscriber">
           <data_reader name="CellInfoReader" topic_ref="uno/cell">
             <content_filter name="CellInfoFilter" kind="builtin.sql">
@@ -321,6 +299,27 @@
             </datawriter_qos>
           </data_writer>
         </publisher>
+      {% else %}{# if cell #}
+        <subscriber name="Subscriber">
+          <data_reader name="CellInfoReader" topic_ref="uno/cell">
+            <content_filter name="RootCellInfoFilter" kind="builtin.sql">
+              <expression>id.uvn MATCH &apos;{{uvn.name}}&apos;</expression>
+            </content_filter>
+            <datareader_qos base_name="UnoQosProfiles::PeerStatusTopic">
+            </datareader_qos>
+          </data_reader>
+        </subscriber>
+        <publisher name="Publisher">
+          <data_writer name="UvnInfoWriter" topic_ref="uno/uvn">
+            <datawriter_qos base_name="UnoQosProfiles::BaseTopic">
+            </datawriter_qos>
+          </data_writer>
+          <data_writer name="AgentConfigWriter" topic_ref="uno/config">
+            <datawriter_qos base_name="UnoQosProfiles::AgentConfig">
+            </datawriter_qos>
+          </data_writer>
+        </publisher>
+      {% endif %}{# if cell #}
         <participant_qos base_name="UnoQosProfiles::UvnAgent">
         </participant_qos>
       </domain_participant>

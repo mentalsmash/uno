@@ -144,22 +144,22 @@ uvn_vpn_start()
     return 1
   fi
 
-  if ! (
-    set -x
+  # if ! (
+  #   set -x
 
-    # Accept incoming packets from the interface
-    iptables -A INPUT -i ${nic} -j ACCEPT
+  #   # Accept incoming packets from the interface
+  #   iptables -A INPUT -i ${nic} -j ACCEPT
 
-    # Enable in/out IP forwarding on the interface
-    iptables -A FORWARD -i ${nic} -j ACCEPT
-    iptables -A FORWARD -o ${nic} -j ACCEPT
+  #   # Enable in/out IP forwarding on the interface
+  #   iptables -A FORWARD -i ${nic} -j ACCEPT
+  #   iptables -A FORWARD -o ${nic} -j ACCEPT
 
-    # Enable output NAT on the interface 
-    iptables -t nat -A POSTROUTING -o ${nic} -j MASQUERADE
-  ); then
-    uvn_log_failed "failed to configure iptables for VPN interface: ${nic}"
-    return 1
-  fi
+  #   # Enable output NAT on the interface 
+  #   # iptables -t nat -A POSTROUTING -o ${nic} -j MASQUERADE
+  # ); then
+  #   uvn_log_failed "failed to configure iptables for VPN interface: ${nic}"
+  #   return 1
+  # fi
 
   uvn_log_info "VPN interface ready: ${nic}"
 }
@@ -174,15 +174,15 @@ uvn_vpn_stop()
   (
     set -x
 
-    # Disable IP forwarding
-    iptables -D FORWARD -i ${nic} -j ACCEPT
-    iptables -D FORWARD -o ${nic} -j ACCEPT
+    # # Disable IP forwarding
+    # iptables -D FORWARD -i ${nic} -j ACCEPT
+    # iptables -D FORWARD -o ${nic} -j ACCEPT
 
-    # Stop accepting packets
-    iptables -D INPUT -i ${nic} -j ACCEPT
+    # # Stop accepting packets
+    # iptables -D INPUT -i ${nic} -j ACCEPT
 
     # Disable output NAT
-    iptables -t nat -D POSTROUTING -o ${nic} -j MASQUERADE
+    # iptables -t nat -D POSTROUTING -o ${nic} -j MASQUERADE
 
     # Reset interface
     ip link set down dev ${nic}
