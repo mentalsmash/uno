@@ -305,6 +305,14 @@ class Agent(UvnPeerListener, RoutesMonitorListener):
     raise NotImplementedError()
 
 
+  @property
+  def bind_addresses(self) -> list[ipaddress.IPv4Address]:
+    return [
+      *(l.nic.address for l in self.lans),
+      *(v.config.intf.address for v in self.vpn_interfaces),
+    ]
+
+
   def _validate_boot_config(self):
     pass
 

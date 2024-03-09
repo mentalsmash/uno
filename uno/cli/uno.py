@@ -178,6 +178,7 @@ def registry_action(args):
       output_file=output_file)
     log.warning(f"backbone plot generated: {output_file}")
   elif args.action == "rekey-particle":
+    registry = registry.rekeyed_registry or registry
     action_args = {
       "particle": next(p for p in registry.uvn_id.particles.values() if p.name == args.name),
       "cells": [
@@ -185,12 +186,19 @@ def registry_action(args):
         for name in args.cell
       ] if args.cell else None,
     }
+    config_args = {
+      "allow_rekeyed": True,
+    }
     action = registry.rekey_particle
   elif args.action == "rekey-cell":
+    registry = registry.rekeyed_registry or registry
     action_args = {
       "cell": next(c for c in registry.uvn_id.cells.values() if c.name == args.name),
       "root_vpn": args.root_vpn,
       "particles_vpn": args.particles_vpn,
+    }
+    config_args = {
+      "allow_rekeyed": True,
     }
     action = registry.rekey_cell
     # Don't regenerate static config if 
@@ -198,11 +206,13 @@ def registry_action(args):
     if args.root_vpn:
       agent_args = {}
   elif args.action == "rekey-uvn":
+    registry = registry.rekeyed_registry or registry
     if not (args.root_vpn or args.particles_vpn):
       raise RuntimeError("nothing to rekey")
     config_args = {
       "drop_keys_root_vpn": args.root_vpn,
       "drop_keys_particles_vpn": args.particles_vpn,
+      "allow_rekeyed": True,
     }
     # Don't regenerate static config if 
     # rekeying the root vpn

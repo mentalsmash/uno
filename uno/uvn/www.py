@@ -14,7 +14,7 @@
 # You should have received a copy of the GNU Affero General Public License
 # along with this program. If not, see <https://www.gnu.org/licenses/>.
 ###############################################################################
-from typing import TYPE_CHECKING
+from typing import TYPE_CHECKING, Iterable
 
 from .time import Timestamp
 from .lighttpd import Lighttpd
@@ -51,7 +51,7 @@ class UvnHttpd:
     self._dirty = True
 
 
-  def start(self) -> None:
+  def start(self, bind_addresses: Iterable[str]|None=None) -> None:
     assert(self._lighttpd is None)
 
     self.root.mkdir(exist_ok=True, parents=True)
@@ -66,7 +66,8 @@ class UvnHttpd:
       cert_subject=CertificateSubject(org=self.agent.uvn_id.name, cn=self.agent.cell.name),
       secret=secret_line,
       auth_realm=self.agent.uvn_id.name,
-      protected_paths=["^/particles"])
+      protected_paths=["^/particles"],
+      bind_addresses=bind_addresses)
     self._lighttpd.start()
 
 

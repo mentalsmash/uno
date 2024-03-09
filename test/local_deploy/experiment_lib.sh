@@ -270,7 +270,7 @@ uvn_create()
             -a ${uvn_address} \
             -o "${uvn_admin_name} <${uvn_admin}>" \
             -r ${UVN_DIR} \
-            $([ -z "${UVN_TIMING_FAST}" ] || printf -- "-T fast" ) \
+            $([ -z "${UVN_TIMING_FAST}" ] || printf -- "--timing-profile fast" ) \
             $([ -z "${UVN_SECRET}" ] || printf -- "-m ${UVN_SECRET}" ) \
             --yes \
             ${UVN_EXTRA_ARGS}

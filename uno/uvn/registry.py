@@ -192,7 +192,11 @@ class Registry(Versioned):
       drop_keys_id_db: bool=False,
       # drop_keys_gpg: bool=False,
       redeploy: bool=False,
+      allow_rekeyed: bool=False,
       **uvn_args) -> bool:
+    if not allow_rekeyed and self.rekeyed_registry:
+      raise RuntimeError("pending rekeying changes. run 'uno sync' or delete the *.rekeyed files")
+
     if not self.root.is_dir():
       self.root.mkdir(parents=True, mode=0o700)
 
@@ -359,7 +363,7 @@ class Registry(Versioned):
     particles = list(p for p in self.uvn_id.all_particles if p != particle)
     for cell in cells:
       particles_vpn_config = self.particles_vpn_configs[cell.id]
-      particles_vpn_config.keymat.purge_gone_peers(particles)
+      particles_vpn_config.keymat.purge_gone_peers((p.id for p in particles))
       self._rekeyed_particles_vpn.add(cell)
     
     self._rekeyed_particles_vpn.add(particle)
@@ -373,7 +377,7 @@ class Registry(Versioned):
     cells = list(c for c in self.uvn_id.cells.values() if c != cell)
     if root_vpn:
       log.warning(f"[REGISTRY] dropping Root VPN key for cell: {cell}")
-      self.root_vpn_config.keymat.purge_gone_peers(cells)
+      self.root_vpn_config.keymat.purge_gone_peers((c.id for c in cells))
       self._rekeyed_root_vpn.add(cell)
     
     if particles_vpn:

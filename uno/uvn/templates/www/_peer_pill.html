@@ -10,7 +10,14 @@
 {%- else -%}
 {%-  set pill_status = "warning" -%}
 {%- endif -%}
+{%- if peer.routed_networks -%}
+{%- set peer_ip = (peer.routed_networks | first).nic.address | string -%}
+<a href="https://{{peer_ip}}">
+{%- endif -%}
 <span class="badge text-bg-{{pill_status}} me-2">
   {{peer.name}}
 </span>
+{%- if peer.routed_networks -%}
+</a>
+{%- endif -%}
 {%- endif -%}

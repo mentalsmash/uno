@@ -36,7 +36,8 @@ class Lighttpd:
       auth_realm: str|None=None,
       conf_template: str="httpd/lighttpd.conf",
       protected_paths: Iterable[str]|None=None,
-      uwsgi: int=0):
+      uwsgi: int=0,
+      bind_addresses: Iterable[str]|None=None):
     self.root = root
     self.port = port
     self.doc_root = doc_root
@@ -47,6 +48,7 @@ class Lighttpd:
     self.conf_template = conf_template
     self.protected_paths = list(protected_paths or [])
     self.uwsgi = uwsgi
+    self.bind_addresses = list(bind_addresses or [])
     self._lighttpd_pid = None
     self._lighttpd_conf = self.root / "lighttpd.conf"
     self._lighttpd_pem =  self.root / "lighttpd.pem"
@@ -104,6 +106,7 @@ class Lighttpd:
         "auth_realm": self.auth_realm,
         "protected_paths": self.protected_paths,
         "uwsgi": self.uwsgi,
+        "bind_addresses": self.bind_addresses,
       })
 
       # Delete pid file if it exists

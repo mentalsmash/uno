@@ -189,7 +189,9 @@ class CellAgent(Agent):
         # "interface": lans[0].nic.name
         #   if lans else None,
       }),
-      *([(self.www, {})] if self.enable_www else []),
+      *([(self.www, {
+        "bind_addresses": self.bind_addresses
+      })] if self.enable_www else []),
     ]
 
 
