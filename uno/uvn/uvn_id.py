@@ -1220,7 +1220,9 @@ class UvnId(Versioned):
       backbone_vpn_mtu: int | None = None,
       deployment_strategy: str | None = None,
       deployment_strategy_args: str | None = None,
-      master_secret: str | None = None):
+      master_secret: str | None = None,
+      dds_domain: int | None = None,
+      enable_dds_security: bool | None = None):
     owner, owner_name = parse_owner_id(owner_id)
     if owner is not None:
       self.owner = owner
@@ -1261,6 +1263,10 @@ class UvnId(Versioned):
       from .htdigest import htdigest_generate
       master_secret = htdigest_generate(user=self.owner, realm=self.name, password=master_secret).split(":")[2]
       self.master_secret = master_secret
+    if dds_domain is not None:
+      self.settings.dds_domain = dds_domain
+    if enable_dds_security is not None:
+      self.settings.enable_dds_security = enable_dds_security
 
 
   @property

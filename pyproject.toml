@@ -42,6 +42,11 @@ sphinx-tabs = "^3.4.4"
 [tool.poetry.dev-dependencies]
 pytest = "^5.2"
 
+[tool.pytest.ini_options]
+addopts = [
+  "--import-mode=importlib",
+]
+
 [tool.poetry.scripts]
 uno = 'uno.cli.uno:main'
 uvn-net = 'uno.cli.uvn_net:main'

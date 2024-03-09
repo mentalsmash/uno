@@ -40,7 +40,7 @@ class UvnHttpd:
 
   def spin_once(self) -> None:
     if (not self._dirty and self._last_update_ts
-      and Timestamp.now().subtract(self._last_update_ts) < self.min_update_delay):
+      and int(Timestamp.now().subtract(self._last_update_ts).total_seconds()) < self.min_update_delay):
       return
     views.index_html(self.agent, self.doc_root)
     self._last_update_ts = Timestamp.now()

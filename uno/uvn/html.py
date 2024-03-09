@@ -9,7 +9,7 @@ from .time import Timestamp
 from .wg import WireGuardInterface
 from .uvn_id import CellId
 from .ip import LanDescriptor
-from .peer_test import UvnPeersTester
+from .tester import UvnPeersTester
 from .router import Router
 from .render import Templates
 from .log import Logger as log

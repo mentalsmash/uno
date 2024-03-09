@@ -67,7 +67,7 @@ class UvnPeersTester:
   def test_delay(self) -> int:
     if self._last_trigger_ts is None:
       return self.max_test_delay + 1
-    return Timestamp.now().subtract(self._last_trigger_ts)
+    return int(Timestamp.now().subtract(self._last_trigger_ts).total_seconds())
 
 
   def find_status_by_lan(self, lan: LanDescriptor) -> bool:
@@ -134,7 +134,7 @@ class UvnPeersTester:
           continue
 
         test_end = Timestamp.now()
-        test_length = test_end.subtract(self._last_trigger_ts)
+        test_length = int(test_end.subtract(self._last_trigger_ts).total_seconds())
         
         log.activity(f"[LAN] test completed in {test_length} seconds")
 

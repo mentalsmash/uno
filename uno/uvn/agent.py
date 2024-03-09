@@ -129,7 +129,7 @@ class Agent(UvnPeerListener, RoutesMonitorListener):
       done, active_writers, active_readers, active_data, extra_conds = self.dp.wait()
       
       spin_time = Timestamp.now()
-      spin_length = spin_time.subtract(spin_start)
+      spin_length = int(spin_time.subtract(spin_start).total_seconds())
       timedout = max_spin_time is not None and spin_length >= max_spin_time
       if timedout:
         log.debug(f"time out after {max_spin_time} sec")

@@ -14,44 +14,38 @@
 # You should have received a copy of the GNU Affero General Public License
 # along with this program. If not, see <https://www.gnu.org/licenses/>.
 ###############################################################################
-import datetime
+from datetime import datetime, timezone, timedelta
 import time
 
 from typing import Union, Optional
 
 class Timestamp:
-  EPOCH = datetime.datetime.utcfromtimestamp(0)
+  EPOCH = datetime.utcfromtimestamp(0)
   DEFAULT_FORMAT = "%Y%m%d-%H%M%S-%f"
 
 
-  def __init__(self, ts: int):
+  def __init__(self, ts: datetime):
     self._ts = ts
 
 
-  def subtract(self, ts: Union["Timestamp", int]) -> float:
-    self_ts = time.mktime(self._ts)
-    if isinstance(ts, Timestamp):
-      other_ts = time.mktime(ts._ts)
-    else:
-      other_ts = time.mktime(ts)
-    return self_ts - other_ts
+  def __eq__(self, other: object) -> bool:
+    if not isinstance(other, Timestamp):
+      return False
+    return self._ts.timetz() == other._ts.timetz()
+
+
+  def subtract(self, ts: Union["Timestamp", int]) -> timedelta:
+    return self._ts - ts._ts
 
 
   def format(self, fmt: Optional[str]=None) -> str:
     if fmt is None:
       fmt = self.DEFAULT_FORMAT
-    # return time.strftime(fmt, self._ts)
-    # return datetime.datetime.strftime()
-    return datetime.datetime.fromtimestamp(self.from_epoch()).strftime(fmt)
+    return self._ts.strftime(fmt)
 
-
-  def millis(self) -> int:
-    ts = datetime.datetime.fromtimestamp(time.mktime(self._ts))
-    return (ts - self.EPOCH).total_seconds() * 1000.0
-  
 
   def from_epoch(self) -> int:
-    return int(time.mktime(self._ts))
+    return int(self._ts.timestamp())
 
 
   def __str__(self):
@@ -62,17 +56,18 @@ class Timestamp:
   def parse(val, fmt: Optional[str] = None):
     if fmt is None:
       fmt = Timestamp.DEFAULT_FORMAT
-    date = datetime.datetime.strptime(val, fmt)
-    ts = time.gmtime(date.timestamp())
-    # ts = time.strptime(val, fmt)
+    ts = datetime.strptime(val, fmt)
+    ts = ts.replace(tzinfo=timezone.utc)
     return Timestamp(ts)
 
 
   @staticmethod
   def now():
-    return Timestamp(time.gmtime())
+    ts = datetime.now(timezone.utc)
+    return Timestamp(ts)
 
 
   @staticmethod
   def unix(ts: Union[str, int]):
-    return Timestamp(time.gmtime(int(ts)))
+    ts = datetime.fromtimestamp(float(ts), timezone.utc)
+    return Timestamp(ts)

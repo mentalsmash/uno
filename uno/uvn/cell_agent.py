@@ -36,7 +36,7 @@ from .registry import Registry
 from .peer import UvnPeersList, UvnPeer
 from .exec import exec_command
 from .vpn_config import P2PLinksMap, CentralizedVpnConfig
-from .peer_test import UvnPeersTester
+from .tester import UvnPeersTester
 from .time import Timestamp
 from .www import UvnHttpd
 from .particle import write_particle_configuration

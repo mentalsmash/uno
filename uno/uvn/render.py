@@ -26,7 +26,7 @@ import ipaddress
 
 if TYPE_CHECKING:
   from .peer import UvnPeer, UvnPeersList
-  from .peer_test import UvnPeersTester
+  from .tester import UvnPeersTester
   from .wg import WireGuardInterface
 
 
@@ -54,7 +54,7 @@ def _filter_time_since(ts: str | Timestamp) -> str:
     return "N/A"
   if isinstance(ts, str):
     ts = Timestamp.parse(ts)
-  diff = timedelta(seconds=Timestamp.now().subtract(ts))
+  diff = Timestamp.now().subtract(ts)
   mm, ss = divmod(diff.seconds, 60)
   hh, mm = divmod(mm, 60)
   result = []
