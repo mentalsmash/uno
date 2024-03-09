@@ -126,19 +126,15 @@ the `Dockerfile` included in this repository:
    and it is created using command `uno define uvn`:
 
    ```sh
-   # make sure the directory doesn't exist
-   rm -rf my-uvn
-
    # initialize the UVN registry
-   uno define uvn \
-     -r my-uvn \
-     my-uvn \
+   mkdir my-uvn
+   
+   cd my-uvn
+
+   uno define uvn my-uvn \
      -o "John Doe <john@example.com>" \
      -L /path/to/rti_license.dat \
      -m mastersecret
-  
-   # check the generated directory
-   ls -l my-uvn/
    ```
 
 2. Define one or more UVN "cells".
