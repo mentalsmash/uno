@@ -21,7 +21,7 @@ from typing import Union, Optional
 
 class Timestamp:
   EPOCH = datetime.datetime.utcfromtimestamp(0)
-  DEFAULT_FORMAT = "%Y%m%d-%H%M%S"
+  DEFAULT_FORMAT = "%Y%m%d-%H%M%S-%f"
 
 
   def __init__(self, ts: int):
@@ -40,7 +40,9 @@ class Timestamp:
   def format(self, fmt: Optional[str]=None) -> str:
     if fmt is None:
       fmt = self.DEFAULT_FORMAT
-    return time.strftime(fmt, self._ts)
+    # return time.strftime(fmt, self._ts)
+    # return datetime.datetime.strftime()
+    return datetime.datetime.fromtimestamp(self.from_epoch()).strftime(fmt)
 
 
   def millis(self) -> int:
@@ -60,7 +62,9 @@ class Timestamp:
   def parse(val, fmt: Optional[str] = None):
     if fmt is None:
       fmt = Timestamp.DEFAULT_FORMAT
-    ts = time.strptime(val, fmt)
+    date = datetime.datetime.strptime(val, fmt)
+    ts = time.gmtime(date.timestamp())
+    # ts = time.strptime(val, fmt)
     return Timestamp(ts)
 
 

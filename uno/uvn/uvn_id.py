@@ -581,6 +581,8 @@ class UvnSettings(Versioned):
   DEFAULT_TIMING_PROFILE = TimingProfile.DEFAULT
   DEFAULT_ENABLE_PARTICLES_VPN = True
   DEFAULT_ENABLE_ROOT_VPN = True
+  DEFAULT_ENABLE_DDS_SECURITY = False
+  DEFAULT_DDS_DOMAIN = 46
 
   def __init__(self,
       root_vpn: Optional[RootVpnSettings]=None,
@@ -589,6 +591,8 @@ class UvnSettings(Versioned):
       timing_profile: Optional[TimingProfile]=None,
       enable_particles_vpn: Optional[bool]=None,
       enable_root_vpn: Optional[bool]=None,
+      dds_domain: Optional[int]=None,
+      enable_dds_security: Optional[bool]=None,
       **super_args) -> None:
     super().__init__(**super_args)
     self.root_vpn = root_vpn or RootVpnSettings()
@@ -597,6 +601,8 @@ class UvnSettings(Versioned):
     self.timing_profile = timing_profile
     self.enable_particles_vpn = enable_particles_vpn
     self.enable_root_vpn = enable_root_vpn
+    self.dds_domain = dds_domain
+    self.enable_dds_security = enable_dds_security
 
 
   def __eq__(self, other: object) -> bool:
@@ -688,6 +694,30 @@ class UvnSettings(Versioned):
     self.update("enable_root_vpn", val)
 
 
+  @property
+  def dds_domain(self) -> int:
+    if self._dds_domain is None:
+      return self.DEFAULT_DDS_DOMAIN
+    return self._dds_domain
+
+
+  @dds_domain.setter
+  def dds_domain(self, val: int | None) -> None:
+    self.update("dds_domain", val)
+
+
+  @property
+  def enable_dds_security(self) -> int:
+    if self._enable_dds_security is None:
+      return self.DEFAULT_ENABLE_DDS_SECURITY
+    return self._enable_dds_security
+
+
+  @enable_dds_security.setter
+  def enable_dds_security(self, val: int | None) -> None:
+    self.update("enable_dds_security", val)
+
+
   def collect_changes(self) -> list[Tuple[Versioned, dict]]:
     changed = super().collect_changes()
     changed.extend(self.root_vpn.collect_changes())
@@ -705,6 +735,8 @@ class UvnSettings(Versioned):
       "timing_profile": self.timing_profile.name,
       "enable_particles_vpn": self.enable_particles_vpn,
       "enable_root_vpn": self.enable_root_vpn,
+      "dds_domain": self.dds_domain,
+      "enable_dds_security": self.enable_dds_security,
     })
     if not serialized["root_vpn"]:
       del serialized["root_vpn"]
@@ -718,6 +750,10 @@ class UvnSettings(Versioned):
       del serialized["enable_particles_vpn"]
     if self._enable_root_vpn is None:
       del serialized["enable_root_vpn"]
+    if self._dds_domain is None:
+      del serialized["dds_domain"]
+    if self._enable_dds_security is None:
+      del serialized["enable_dds_security"]
     return serialized
 
 
@@ -731,6 +767,8 @@ class UvnSettings(Versioned):
       timing_profile=TimingProfile[timing_profile] if timing_profile else None,
       enable_particles_vpn=serialized.get("enable_particles_vpn"),
       enable_root_vpn=serialized.get("enable_root_vpn"),
+      enable_dds_security=serialized.get("enable_dds_security"),
+      dds_domain=serialized.get("dds_domain"),
       **Versioned.deserialize_args(serialized))
     self.loaded = True
     return self

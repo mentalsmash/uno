@@ -377,6 +377,7 @@ class DdsKeysBackend(KeysBackend):
 
   @property
   def not_before(self) -> str:
+    print("INIT_TS", self.init_ts)
     return Timestamp.parse(self.init_ts).format(self.GRANT_TIME_FORMAT)
   
 

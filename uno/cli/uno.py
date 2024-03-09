@@ -65,6 +65,8 @@ def registry_configure_args(args):
         "deployment_strategy",
         "deployment_strategy_args",
         "master_secret",
+        "dds_domain",
+        "enable_dds_security",
       ]
     }
   }
@@ -186,6 +188,7 @@ def registry_action(args):
 
 def registry_common_args(parser: argparse.ArgumentParser):
   parser.add_argument("-r", "--root",
+    metavar="DIR",
     default=Path.cwd(),
     type=Path,
     help="UVN root directory.")
@@ -478,11 +481,21 @@ def _define_registry_config_args(parser, owner_id_required: bool=False):
     default=None,
     type=Path)
 
-
   parser.add_argument("-m", "--master-secret",
     metavar="PASSWORD",
     help="A password that will be used to protect access to the UVN agents.",
     default=False)
+
+  parser.add_argument("--dds-domain",
+    metavar="DOMAIN_ID",
+    help="Custom DDS Domain ID to use for agent communication.",
+    default=None,
+    type=int)
+
+  parser.add_argument("--enable-dds-security",
+    help="Use DDS Security features to procet agent communication. Requires RTI Connext DDS to be installed and loaded in the agent's environment.",
+    default=False,
+    action="store_true")
 
   _define_deployment_args(parser)
   _define_print_args(parser)
@@ -560,6 +573,29 @@ def _define_sync_args(parser):
     default=3600,
     type=int)
 
+from argparse import HelpFormatter
+from operator import attrgetter
+class SortingHelpFormatter(HelpFormatter):
+  def add_arguments(self, actions):
+    actions = sorted(actions, key=attrgetter('option_strings'))
+    super(SortingHelpFormatter, self).add_arguments(actions)
+  
+  def _iter_indented_subactions(self, action):
+    try:
+      get_subactions = action._get_subactions
+    except AttributeError:
+      pass
+    else:
+      self._indent()
+      if isinstance(action, argparse._SubParsersAction):
+        for subaction in sorted(get_subactions(), key=lambda x: x.dest):
+            yield subaction
+      else:
+        for subaction in get_subactions():
+            yield subaction
+      self._dedent()
+
+
 ###############################################################################
 ###############################################################################
 #  Main Script
@@ -570,24 +606,26 @@ def main():
   #############################################################################
   # define arguments parser
   #############################################################################
-  parser = argparse.ArgumentParser()
+  parser = argparse.ArgumentParser(
+    formatter_class=SortingHelpFormatter)
   parser.set_defaults(cmd=None)
 
   subparsers = parser.add_subparsers(help="Top-level Commands")
-
 
   #############################################################################
   # uno define ...
   #############################################################################
   cmd_define = subparsers.add_parser("define",
-    help="Create a new UVN, add cells, add particles.")
+    help="Create a new UVN, add cells, add particles.",
+    formatter_class=SortingHelpFormatter)
   subparsers_define = cmd_define.add_subparsers(help="UVN definition")
 
   #############################################################################
   # uno define uvn ...
   #############################################################################
   cmd_define_uvn = subparsers_define.add_parser("uvn",
-    help="Create a new UVN.")
+    help="Create a new UVN.",
+    formatter_class=SortingHelpFormatter)
   cmd_define_uvn.set_defaults(
     cmd=registry_configure,
     update=False)
@@ -605,7 +643,8 @@ def main():
   # uno define cell ...
   #############################################################################
   cmd_define_cell = subparsers_define.add_parser("cell",
-    help="Add a new cell to the UVN.")
+    help="Add a new cell to the UVN.",
+    formatter_class=SortingHelpFormatter)
   cmd_define_cell.set_defaults(
     cmd=registry_action,
     action="cell-define")
@@ -620,7 +659,8 @@ def main():
   # uno define particle ...
   #############################################################################
   cmd_define_particle = subparsers_define.add_parser("particle",
-    help="Add a new particle to the UVN.")
+    help="Add a new particle to the UVN.",
+    formatter_class=SortingHelpFormatter)
   cmd_define_particle.set_defaults(
     cmd=registry_action,
     action="particle-define")
@@ -636,7 +676,8 @@ def main():
   # uno config ...
   #############################################################################
   cmd_config = subparsers.add_parser("config",
-    help="Modify the configuration of the UVN, cells, particles.")
+    help="Modify the configuration of the UVN, cells, particles.",
+    formatter_class=SortingHelpFormatter)
   subparsers_config = cmd_config.add_subparsers(help="UVN configuration")
 
 
@@ -644,7 +685,8 @@ def main():
   # uno config uvn ...
   #############################################################################
   cmd_config_uvn = subparsers_config.add_parser("uvn",
-    help="Update the UVN's configuration.")
+    help="Update the UVN's configuration.",
+    formatter_class=SortingHelpFormatter)
   cmd_config_uvn.set_defaults(
     cmd=registry_configure,
     update=True)
@@ -656,7 +698,8 @@ def main():
   # uno config cell ...
   #############################################################################
   cmd_config_cell = subparsers_config.add_parser("cell",
-    help="Update a cell's configuration.")
+    help="Update a cell's configuration.",
+    formatter_class=SortingHelpFormatter)
   cmd_config_cell.set_defaults(
     cmd=registry_action,
     action="cell-config")
@@ -671,7 +714,8 @@ def main():
   # uno config particle ...
   #############################################################################
   cmd_config_particle = subparsers_config.add_parser("particle",
-    help="Add a new particle to the UVN.")
+    help="Add a new particle to the UVN.",
+    formatter_class=SortingHelpFormatter)
   cmd_config_particle.set_defaults(
     cmd=registry_action,
     action="particle-config")
@@ -686,7 +730,8 @@ def main():
   # uno redeploy ...
   #############################################################################
   cmd_redeploy = subparsers.add_parser("redeploy",
-    help="Update the UVN configuration with a new backbone deployment.")
+    help="Update the UVN configuration with a new backbone deployment.",
+    formatter_class=SortingHelpFormatter)
   cmd_redeploy.set_defaults(
     cmd=registry_action,
     action="redeploy")
@@ -698,67 +743,69 @@ def main():
   # uno sync ...
   #############################################################################
   cmd_sync = subparsers.add_parser("sync",
-    help="Push current configuration to cell agents.")
+    help="Push current configuration to cell agents.",
+    formatter_class=SortingHelpFormatter)
   cmd_sync.set_defaults(cmd=registry_sync)
 
   _define_sync_args(cmd_sync)
   registry_common_args(cmd_sync)
 
 
-  #############################################################################
-  # uno plot
-  #############################################################################
-  cmd_plot = subparsers.add_parser("plot",
-    help="Generate an image of the current backbone deployment.")
-  cmd_plot.set_defaults(
-    cmd=registry_action,
-    action="plot")
+  # #############################################################################
+  # # uno plot
+  # #############################################################################
+  # cmd_plot = subparsers.add_parser("plot",
+  #   help="Generate an image of the current backbone deployment.")
+  # cmd_plot.set_defaults(
+  #   cmd=registry_action,
+  #   action="plot")
 
-  cmd_plot.add_argument("-o", "--output",
-    help="Save the generated image to a custom path.",
-    default=None,
-    type=Path)
+  # cmd_plot.add_argument("-o", "--output",
+  #   help="Save the generated image to a custom path.",
+  #   default=None,
+  #   type=Path)
 
-  registry_common_args(cmd_plot)
-
-
-  #############################################################################
-  # uno cell ...
-  #############################################################################
-  cmd_cell = subparsers.add_parser("cell",
-    help="Perform operation on a deployed cell.")
-  subparsers_cell = cmd_cell.add_subparsers(help="Cell operations")
+  # registry_common_args(cmd_plot)
 
 
+  # #############################################################################
+  # # uno cell ...
+  # #############################################################################
+  # cmd_cell = subparsers.add_parser("cell",
+  #   help="Perform operation on a deployed cell.")
+  # subparsers_cell = cmd_cell.add_subparsers(help="Cell operations")
+
+
   #############################################################################
-  # uno cell install ...
+  # uno install ...
   #############################################################################
-  cmd_cell_install = subparsers_cell.add_parser("install",
-    help="Install a cell agent package.")
-  cmd_cell_install.set_defaults(
+  cmd_install = subparsers.add_parser("install",
+    help="Install an agent package.",
+    formatter_class=SortingHelpFormatter)
+  cmd_install.set_defaults(
     cmd=cell_bootstrap,
     update=False)
 
-  cmd_cell_install.add_argument("package",
+  cmd_install.add_argument("package",
     help="Package file to install.",
     type=Path)
 
-  registry_common_args(cmd_cell_install)
+  registry_common_args(cmd_install)
 
-  #############################################################################
-  # uno cell update ...
-  #############################################################################
-  cmd_cell_update = subparsers_cell.add_parser("update",
-    help="Update an existing cell agent with a new package.")
-  cmd_cell_update.set_defaults(
-    cmd=cell_bootstrap,
-    update=True)
+  # #############################################################################
+  # # uno cell update ...
+  # #############################################################################
+  # cmd_cell_update = subparsers_cell.add_parser("update",
+  #   help="Update an existing cell agent with a new package.")
+  # cmd_cell_update.set_defaults(
+  #   cmd=cell_bootstrap,
+  #   update=True)
 
-  cmd_cell_update.add_argument("package",
-    help="New package file to install.",
-    type=Path)
+  # cmd_cell_update.add_argument("package",
+  #   help="New package file to install.",
+  #   type=Path)
 
-  registry_common_args(cmd_cell_update)
+  # registry_common_args(cmd_cell_update)
 
   #############################################################################
   # uno cell agent ...
@@ -779,38 +826,39 @@ def main():
   #   action="store_true",
   #   help="Start a webserver to serve the agent's status.")
 
-  #############################################################################
-  # uno net ...
-  #############################################################################
-  cmd_net = subparsers.add_parser("net",
-    help="Control the UVN's network services.")
-  subparsers_cell_net = cmd_net.add_subparsers(help="UVN network operations")
+  # #############################################################################
+  # # uno net ...
+  # #############################################################################
+  # cmd_net = subparsers.add_parser("net",
+  #   help="Control the UVN's network services.")
+  # subparsers_cell_net = cmd_net.add_subparsers(help="UVN network operations")
 
 
-  #############################################################################
-  # uno net up
-  #############################################################################
-  cmd_net_up = subparsers_cell_net.add_parser("up",
-    help="Enable all system services required to connect the host to the UVN.")
-  cmd_net_up.set_defaults(cmd=uvn_net_up)
+  # #############################################################################
+  # # uno net up
+  # #############################################################################
+  # cmd_net_up = subparsers_cell_net.add_parser("up",
+  #   help="Enable all system services required to connect the host to the UVN.")
+  # cmd_net_up.set_defaults(cmd=uvn_net_up)
 
-  registry_common_args(cmd_net_up)
+  # registry_common_args(cmd_net_up)
 
-  #############################################################################
-  # uno net down
-  #############################################################################
-  cmd_net_down = subparsers_cell_net.add_parser("down",
-    help="Stop all system services used to connect the UVN.")
-  cmd_net_down.set_defaults(cmd=uvn_net_down)
+  # #############################################################################
+  # # uno net down
+  # #############################################################################
+  # cmd_net_down = subparsers_cell_net.add_parser("down",
+  #   help="Stop all system services used to connect the UVN.")
+  # cmd_net_down.set_defaults(cmd=uvn_net_down)
 
-  registry_common_args(cmd_net_down)
+  # registry_common_args(cmd_net_down)
 
 
   #############################################################################
   # uno service ...
   #############################################################################
   cmd_service = subparsers.add_parser("service",
-    help="Install and control the UVN connection (and cell agent) as a systemd service.")
+    help="Install and control the UVN connection (and cell agent) as a systemd service.",
+    formatter_class=SortingHelpFormatter)
   subparsers_service = cmd_service.add_subparsers(help="Systemd service configuration")
 
 
@@ -818,7 +866,8 @@ def main():
   # uno service install ...
   #############################################################################
   cmd_service_enable = subparsers_service.add_parser("install",
-    help="Install the uvn-net and uvn-agent systemd services, and enable them for the selected directory.")
+    help="Install the uvn-net and uvn-agent systemd services, and enable them for the selected directory.",
+    formatter_class=SortingHelpFormatter)
   cmd_service_enable.set_defaults(
     cmd=cell_service_enable)
 
@@ -844,7 +893,8 @@ def main():
   # uno service remove ...
   #############################################################################
   cmd_service_disable = subparsers_service.add_parser("remove",
-    help="Disable the uvn-net and uvn-agent systemd services. Stop them if they are active.")
+    help="Disable the uvn-net and uvn-agent systemd services. Stop them if they are active.",
+    formatter_class=SortingHelpFormatter)
   cmd_service_disable.set_defaults(
     cmd=cell_service_disable)
 
@@ -855,7 +905,8 @@ def main():
   # uno agent ..
   #############################################################################
   cmd_agent = subparsers.add_parser("agent",
-    help="Start an agent for the selected directory (either cell or registry).")
+    help="Start an agent for the selected directory (either cell or registry).",
+    formatter_class=SortingHelpFormatter)
   cmd_agent.set_defaults(
     cmd=uno_agent)
 
@@ -882,7 +933,8 @@ def main():
   # uno ban ...
   #############################################################################
   cmd_ban = subparsers.add_parser("ban",
-    help="Exclude a particle or a cell from the UVN.")
+    help="Exclude a particle or a cell from the UVN.",
+    formatter_class=SortingHelpFormatter)
   subparsers_ban = cmd_ban.add_subparsers(help="Banishing commands")
 
 
@@ -890,7 +942,8 @@ def main():
   # uno ban cell
   #############################################################################
   cmd_ban_cell = subparsers_ban.add_parser("cell",
-    help="Exclude a cell from the UVN.")
+    help="Exclude a cell from the UVN.",
+    formatter_class=SortingHelpFormatter)
   cmd_ban_cell.set_defaults(
     cmd=registry_action,
     action="cell-ban")
@@ -905,7 +958,8 @@ def main():
   # uno ban particle
   #############################################################################
   cmd_ban_particle = subparsers_ban.add_parser("particle",
-    help="Exclude a particle from the UVN.")
+    help="Exclude a particle from the UVN.",
+    formatter_class=SortingHelpFormatter)
   cmd_ban_particle.set_defaults(
     cmd=registry_action,
     action="particle-ban")
@@ -920,7 +974,8 @@ def main():
   # uno unban ...
   #############################################################################
   cmd_unban = subparsers.add_parser("unban",
-    help="Allow a particle or a cell back into the UVN.")
+    help="Allow a particle or a cell back into the UVN.",
+    formatter_class=SortingHelpFormatter)
   subparsers_unban = cmd_unban.add_subparsers(help="Unbanishing commands")
 
 
@@ -928,7 +983,8 @@ def main():
   # uno unban cell
   #############################################################################
   cmd_unban_cell = subparsers_unban.add_parser("cell",
-    help="Allow a cell back into the UVN.")
+    help="Allow a cell back into the UVN.",
+    formatter_class=SortingHelpFormatter)
   cmd_unban_cell.set_defaults(
     cmd=registry_action,
     action="cell-unban")
@@ -943,7 +999,8 @@ def main():
   # uno ban particle
   #############################################################################
   cmd_unban_particle = subparsers_unban.add_parser("particle",
-    help="Allow a particle back into the UVN.")
+    help="Allow a particle back into the UVN.",
+    formatter_class=SortingHelpFormatter)
   cmd_unban_particle.set_defaults(
     cmd=registry_action,
     action="particle-unban")
@@ -958,7 +1015,8 @@ def main():
   # uno delete ...
   #############################################################################
   cmd_del = subparsers.add_parser("delete",
-    help="Permanently delete a particle or a cell.")
+    help="Permanently delete a particle or a cell.",
+    formatter_class=SortingHelpFormatter)
   subparsers_del = cmd_del.add_subparsers(help="Unbanishing commands")
 
 
@@ -966,7 +1024,8 @@ def main():
   # uno delete cell
   #############################################################################
   cmd_del_cell = subparsers_del.add_parser("cell",
-    help="Delete a cell from the UVN.")
+    help="Delete a cell from the UVN.",
+    formatter_class=SortingHelpFormatter)
   cmd_del_cell.set_defaults(
     cmd=registry_action,
     action="cell-delete")
@@ -981,7 +1040,8 @@ def main():
   # uno delete particle
   #############################################################################
   cmd_del_particle = subparsers_del.add_parser("particle",
-    help="Delete a particle from the UVN.")
+    help="Delete a particle from the UVN.",
+    formatter_class=SortingHelpFormatter)
   cmd_del_particle.set_defaults(
     cmd=registry_action,
     action="particle-delete")
@@ -996,7 +1056,8 @@ def main():
   # uno encrypt ...
   #############################################################################
   cmd_encrypt = subparsers.add_parser("encrypt",
-    help="Encrypt a file for a UVN cell.")
+    help="Encrypt a file for a UVN cell.",
+    formatter_class=SortingHelpFormatter)
   cmd_encrypt.set_defaults(
     cmd=uno_encrypt,
     action="encrypt")
@@ -1022,7 +1083,8 @@ def main():
   # uno decrypt ...
   #############################################################################
   cmd_decrypt = subparsers.add_parser("decrypt",
-    help="Decrypt a file received by a UVN cell.")
+    help="Decrypt a file received by a UVN cell.",
+    formatter_class=SortingHelpFormatter)
   cmd_decrypt.set_defaults(
     cmd=uno_encrypt,
     action="decrypt")

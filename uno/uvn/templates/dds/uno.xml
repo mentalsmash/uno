@@ -90,6 +90,12 @@
                 <name>dds.sec.access.permissions</name>
                 <value>{{permissions}}</value>
               </element>
+              {% if domain_tag %}
+              <element>
+                <name>dds.domain_participant.domain_tag</name>
+                <value>{{domain_tag}}</value>
+              </element>
+              {% endif %}
             </value>
           </property>
           <database>
@@ -251,7 +257,7 @@
     </qos_library>
 
     <domain_library name="UnoDomains">
-      <domain name="Registry" domain_id="46">
+      <domain name="Registry" domain_id="{{domain}}">
         <register_type name="UvnInfo" type_ref="uno::UvnInfo"/>
         <register_type name="CellInfo" type_ref="uno::CellInfo"/>
         <register_type name="AgentConfig" type_ref="uno::AgentConfig"/>

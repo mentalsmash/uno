@@ -176,16 +176,14 @@ the `Dockerfile` included in this repository:
    Cells are added with command `uno define cell`:
 
    ```sh
-   uno define cell \
-     lan-a \
-     --address lan-a.my-organization.org \
-     --network 192.168.1.0/24
+   uno define cell lan-a \
+     -a lan-a.my-organization.org \
+     -N 192.168.1.0/24
 
-   uno define cell \
-     lan-b \
-     --address lan-b.my-organization.org \
-     --owner "Jane Doe <jane@example.com" \
-     --network 192.168.2.0/24
+   uno define cell lan-b \
+     -a lan-b.my-organization.org \
+     -o "Jane Doe <jane@example.com" \
+     -N 192.168.2.0/24
 
    # ...
 
@@ -208,9 +206,9 @@ the `Dockerfile` included in this repository:
    Particle are registered using command `uno define particle`:
 
    ```sh
-   uno define particle --name john
+   uno define particle john
 
-   uno define particle --name jane --owner "Jane Doe <jane@example.com"
+   uno define particle jane -o "Jane Doe <jane@example.com"
    ```
 
 4. Generate a deployment configuration for the UVN.
@@ -283,19 +281,32 @@ the `Dockerfile` included in this repository:
    # Delete the package
    rm lan-a.uvn-agent
 
-   # Enable static configuration service
-   sudo uno cell service enable -r /opt/uvn
+   # Enable and start the agent as a systemd service
+   sudo uno service install -r /opt/uvn -b -s -a
 
-   # Start agent to monitor state of the UVN
-   sudo uno cell agent
+   # Check the agent service logs
+   journalctl -xue uvn-cell.service
+
+   # Check the network service logs
+   journalctl -xue uvn-net-cell.service
+
+   # Check the agent's HTML status page
+   firefox https://lan-a-agent-host
+
+   # Stop the service(s)
+   systemctl stop uvn-net-cell uvn-cell
+
+   # Disable and delete systemd service
+   sudo uno service remove -r /opt/uvn
    ```
 
 6. Configure port forwarding to the agents of every public cell.
 
    UVN agents use the following UDP ports:
 
-   - `63448`: used by private cells to connect to the registry (e.g. to pull new configurations).
-   - `63449`: used by the registry node to connect to public cells (e.g. to push new configurations).
+   - `63447`: used by private cells to connect to the registry (e.g. to pull new configurations).
+   - `63448`: used by the registry to connect to public cells (e.g. to push new configurations).
+   - `63449`: used by cells to allow particle connections.
    - `63550` - `63550 + N`: ports used to establish backbone links between cells. The exact number
      depends on the deployment strategy used.
 

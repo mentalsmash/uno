@@ -274,7 +274,9 @@ class CellAgent(Agent):
       "key": self.id_db.backend.key(key_id),
       "governance": self.id_db.backend.governance,
       "permissions": self.id_db.backend.permissions(key_id),
-      "enable_dds_security": False,
+      "enable_dds_security": self.uvn_id.settings.enable_dds_security,
+      "domain": self.uvn_id.settings.dds_domain,
+      "domain_tag": self.uvn_id.name,
     })
     return (self.participant_xml_config, CellAgent.PARTICIPANT_PROFILE, CellAgent.TOPICS)
 
