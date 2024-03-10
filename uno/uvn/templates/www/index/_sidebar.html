@@ -40,19 +40,19 @@
             <ul class="nav flex-column ms-1">
               <li>
                 <!-- <svg width="24px" height="24px" stroke-width="1.5" viewBox="0 0 24 24" fill="none" xmlns="http://www.w3.org/2000/svg" color="#000000"><path d="M6 20L18 20" stroke="#000000" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"></path><path d="M12 4V16M12 16L15.5 12.5M12 16L8.5 12.5" stroke="#000000" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"></path></svg> -->
-                <i class="fs-6 bi bi-upload"></i>
+                <i class="fs-6 bi bi-download"></i>
                 <span class="ms-2 fs-6 d-none d-sm-inline">
                   <small>
-                    U {{vpn_stats["traffic"]["rx"] | humanbytes}}
+                    D {{vpn_stats["traffic"]["rx"] | humanbytes}}
                   </small>
                 </span>
               </li>
               <li>
                 <!-- <svg width="24px" height="24px" stroke-width="1.5" viewBox="0 0 24 24" fill="none" xmlns="http://www.w3.org/2000/svg" color="#000000"><path d="M6 20L18 20" stroke="#000000" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"></path><path d="M12 16V4M12 4L15.5 7.5M12 4L8.5 7.5" stroke="#000000" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"></path></svg> -->
-                <i class="fs-6 bi bi-download"></i>
+                <i class="fs-6 bi bi-upload"></i>
                 <span class="ms-2 fs-6 d-none d-sm-inline">
                   <small>
-                    D {{vpn_stats["traffic"]["tx"] | humanbytes}}
+                    U {{vpn_stats["traffic"]["tx"] | humanbytes}}
                   </small>
                 </span>
               </li>
