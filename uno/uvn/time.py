@@ -53,11 +53,14 @@ class Timestamp:
 
 
   @staticmethod
-  def parse(val, fmt: Optional[str] = None):
+  def parse(val: str|int, fmt: Optional[str] = None):
     if fmt is None:
       fmt = Timestamp.DEFAULT_FORMAT
-    ts = datetime.strptime(val, fmt)
-    ts = ts.replace(tzinfo=timezone.utc)
+    if isinstance(val, str):
+      ts = datetime.strptime(val, fmt)
+      ts = ts.replace(tzinfo=timezone.utc)
+    else:
+      ts = datetime.fromtimestamp(val, tz=timezone.utc)
     return Timestamp(ts)
 
 

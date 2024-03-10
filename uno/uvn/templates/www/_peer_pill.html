@@ -14,7 +14,7 @@
 {%- set peer_ip = (peer.routed_networks | first).nic.address | string -%}
 <a href="https://{{peer_ip}}">
 {%- endif -%}
-<span class="badge text-bg-{{pill_status}} me-2">
+<span class="badge text-bg-{{pill_status}} me-2 my-1">
   {{peer.name}}
 </span>
 {%- if peer.routed_networks -%}

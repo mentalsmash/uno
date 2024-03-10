@@ -1,0 +1,114 @@
+<div class="accordion-item border-0">
+  <h3 class="accordion-header">
+    <button class="accordion-button"
+        type="button"
+        data-bs-toggle="collapse"
+        data-bs-target="#networks-status"
+        aria-expanded="false"
+        aria-controls="networks-status">
+      <svg width="24px" height="24px" stroke-width="1.5" viewBox="0 0 24 24" fill="none" xmlns="http://www.w3.org/2000/svg" color="#000000"><rect width="7" height="5" rx="0.6" transform="matrix(0 -1 -1 0 22 21)" stroke="#000000" stroke-width="1.5" stroke-width="1.5"></rect><rect width="7" height="5" rx="0.6" transform="matrix(0 -1 -1 0 7 15.5)" stroke="#000000" stroke-width="1.5" stroke-width="1.5"></rect><rect width="7" height="5" rx="0.6" transform="matrix(0 -1 -1 0 22 10)" stroke="#000000" stroke-width="1.5" stroke-width="1.5"></rect><path d="M17 17.5H13.5C12.3954 17.5 11.5 16.6046 11.5 15.5V8.5C11.5 7.39543 12.3954 6.5 13.5 6.5H17" stroke="#000000" stroke-width="1.5"></path><path d="M11.5 12H7" stroke="#000000" stroke-width="1.5"></path></svg>
+      <span class="d-inline-block py-9 px-2 m-0 h5">Networks</span>
+    </button>
+  </h3>
+  <div class="accordion-collapse collapse p-2"
+        id="networks-status">
+    <div class="table-responsive">
+      <table class="table table-sm table-striped">
+        <thead class="table-dark">
+          <tr>
+            <th></th>
+            <th>Subnet</th>
+            <th>Status</th>
+            <th>Agent</th>
+            <th>Interface</th>
+            <th>Address</th>
+            <th>Gateway</th>
+            <th>Next Hop</th>
+            {# <th>Last Update</th> #}
+          </tr>
+        </thead>
+        <tbody>
+          {% for lan in lans | sort(attribute="nic.name") %}
+          {%- set lan_status = peers_tester.find_status_by_lan(lan) -%}
+          {%- set peer = lan.next_hop | find_backbone_peer_by_address(peers, backbone_vpns) -%}
+          <tr>
+            <td class="text-center">
+              <svg width="24px" height="24px" viewBox="0 0 24 24" stroke-width="1.5" fill="none" xmlns="http://www.w3.org/2000/svg" color="#000000"><path d="M10 16H14" stroke="#000000" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"></path><path d="M2 8L11.7317 3.13416C11.9006 3.04971 12.0994 3.0497 12.2683 3.13416L22 8" stroke="#000000" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"></path><path d="M20 11V19C20 20.1046 19.1046 21 18 21H6C4.89543 21 4 20.1046 4 19V11" stroke="#000000" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"></path></svg>
+            </td>
+            <td>{{lan.nic.subnet.network_address}}/{{lan.nic.netmask}}</td>
+            <td>
+              {% if lan_status %}
+              <span class="text-bg-success badge ">Ok</span>
+              {% else %}
+              <span class="text-bg-danger badge">Error</span>
+              {% endif %}
+            </td>
+            <td>
+              {%- with peer = peers.local -%}
+              {%- include "www/_peer_pill.html" with context -%}
+              {%- endwith -%}
+            </td>
+            <td>{{lan.nic.name}}</td>
+            <td>{{lan.nic.address}}</td>
+            <td>{{lan.gw}}</td>
+            <td>
+              {% if peer and not peer.local %}
+              {% with peer=next_hop %}
+              {% include "www/_peer_pill.html" with context %}
+              {% endwith %}
+              {% else %}
+              {% if lan.next_hop %}
+              {{lan.next_hop}}
+              {% else %}
+              N/A
+              {% endif %}
+              {% endif %}
+              {% include "www/_peer_pill.html" with context %}
+            </td>
+            {# <td>{{lan_status.ts_last_check | format_ts}}</td> #}
+          </tr>
+          {% endfor %}
+          {% for peer in peers | sort(attribute="name") if not peer.local %}
+          {% for lan in peer.routed_networks | sort(attribute="nic.name") %}
+          {%- set lan_status = peers_tester.find_status_by_lan(lan) -%}
+          {%- set next_hop = lan.next_hop | find_backbone_peer_by_address(peers, backbone_vpns) -%}
+          <tr>
+            <td class="text-center">
+              <svg width="24px" height="24px" stroke-width="1.5" viewBox="0 0 24 24" fill="none" xmlns="http://www.w3.org/2000/svg" color="#000000"><path d="M3 19H12M21 19H12M12 19V13M12 13H18V5H6V13H12Z" stroke="#000000" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"></path><path d="M9 9.01L9.01 8.99889" stroke="#000000" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"></path><path d="M12 9.01L12.01 8.99889" stroke="#000000" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"></path></svg>
+            </td>
+            <td>{{lan.nic.subnet.network_address}}/{{lan.nic.netmask}}</td>
+            <td>
+              {% if lan_status %}
+              <span class="text-bg-success badge ">Ok</span>
+              {% else %}
+              <span class="text-bg-danger badge">Error</span>
+              {% endif %}
+            </td>
+            <td>
+              {%- include "www/_peer_pill.html" with context -%}
+            </td>
+            <td>{{lan.nic.name}}</td>
+            <td>{{lan.nic.address}}</td>
+            <td>{{lan.gw}}</td>
+            <td>
+              {% if next_hop %}
+              {% with peer=next_hop %}
+              {% include "www/_peer_pill.html" with context %}
+              {% endwith %}
+              {% else %}
+              {% if lan.next_hop %}
+              {{lan.next_hop}}
+              {% else %}
+              N/A
+              {% endif %}
+              {% endif %}
+            </td>
+            {# <td>{{lan_status.ts_last_check | time_since}}</td> #}
+          </tr>
+          {% endfor %}
+          {% endfor %}
+        </tbody>
+      </table>
+    </div>
+  </div>
+</div>

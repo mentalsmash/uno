@@ -16,12 +16,12 @@
 ###############################################################################
 import rti.connextdds as dds
 from pathlib import Path
-from typing import Iterable, Optional, Callable, Tuple
+from typing import Iterable, Optional, Callable, Tuple, Mapping
 import time
 import ipaddress
 import sdnotify
 
-from .uvn_id import UvnId, CellId
+from .uvn_id import UvnId, CellId, ParticleId
 from .wg import WireGuardInterface
 from .ip import (
   LanDescriptor,
@@ -80,6 +80,10 @@ class Agent(UvnPeerListener, RoutesMonitorListener):
     # then reload it after finishing handling dds data (since reload
     # will cause DDS entities to be deleted)
     self._reload_agent = None
+    # Cached vpn statistics
+    self._vpn_stats = None
+    self._vpn_stats_update_ts = None
+    self._vpn_stats_update = True
     super().__init__()
 
 
@@ -118,6 +122,8 @@ class Agent(UvnPeerListener, RoutesMonitorListener):
     spin_start = Timestamp.now()
     log.debug(f"starting to spin on {spin_start}")
     while True:
+      self._update_vpn_stats()
+
       done, active_writers, active_readers, active_data, extra_conds = self.dp.wait()
       spin_time = Timestamp.now()
       spin_length = int(spin_time.subtract(spin_start).total_seconds())
@@ -313,6 +319,71 @@ class Agent(UvnPeerListener, RoutesMonitorListener):
     ]
 
 
+  @property
+  def vpn_stats(self) -> Mapping[str, dict]:
+    return self._vpn_stats or {
+      "interfaces": {},
+      "traffic": {
+        "rx": 0,
+        "tx": 0,
+      },
+    }
+
+
+  def _update_vpn_stats(self) -> None:
+    if (not self._vpn_stats_update
+        and self._vpn_stats_update_ts
+        and int(Timestamp.now().subtract(self._vpn_stats_update_ts).total_seconds()) < 2):
+      return
+
+    intf_stats = {
+      vpn: vpn.stat()
+        for vpn in self.vpn_interfaces
+    }
+    traffic_rx = sum(peer["transfer"]["recv"]
+      for stat in intf_stats.values()
+        for peer in stat["peers"].values()
+    )
+    traffic_tx = sum(peer["transfer"]["send"]
+      for stat in intf_stats.values()
+        for peer in stat["peers"].values()
+    )
+    self._vpn_stats = {
+      "interfaces": intf_stats,
+      "traffic": {
+        "rx": traffic_rx,
+        "tx": traffic_tx,
+      },
+    }
+    peers = {}
+    for vpn, vpn_stats in self._vpn_stats["interfaces"].items():
+      for peer_id, peer_stats in vpn_stats["peers"].items():
+        peer = self.lookup_vpn_peer(vpn, peer_id)
+        peer_result = peers[peer] = peers.get(peer, {})
+        peer_result[vpn] = peer_stats
+    
+    for peer, vpn_status in peers.items():
+      update_args = {
+        "vpn_status": vpn_status,
+      }
+      # We assume there's only one vpn interface associated with a particle
+      online = next(iter(vpn_status.values()))["online"]
+      if peer.particle:
+        update_args["status"] = (
+          UvnPeerStatus.ONLINE if online else
+          UvnPeerStatus.OFFLINE if peer.status == UvnPeerStatus.ONLINE else
+          UvnPeerStatus.DECLARED
+        )
+      self.peers.update_peer(peer, **update_args)
+
+    self._vpn_stats_update_ts = Timestamp.now()
+    self._vpn_stats_update= False
+
+
+  def lookup_vpn_peer(self, vpn: WireGuardInterface, peer_id: int) -> UvnPeer:
+    raise NotImplementedError()
+
+
   def _validate_boot_config(self):
     pass
 
@@ -444,6 +515,7 @@ class Agent(UvnPeerListener, RoutesMonitorListener):
       self.reload(reload_agent)
 
 
+
   def reload(self, updated_agent: "Agent") -> None:
     log.warning(f"[AGENT] stopping services to load new configuration: {updated_agent.registry_id}")
     self._stop()
@@ -476,6 +548,8 @@ class Agent(UvnPeerListener, RoutesMonitorListener):
       log.error(f"[STATUS] cells OFFLINE [{len(gone_cells)}]: {', '.join(c.name for c in gone_cells)}")
     if new_cells:
       log.warning(f"[STATUS] cells ONLINE [{len(new_cells)}]: {', '.join(c.name for c in new_cells)}")
+    # trigger vpn stats update
+    self._vpn_stats_update = True
 
 
   def on_event_all_cells_connected(self) -> None:
@@ -567,6 +641,13 @@ class Agent(UvnPeerListener, RoutesMonitorListener):
       log.warning(f"[STATUS] route DEL: {r}")
     if self.router:
       self.router.update_state()
+
+
+  def on_event_vpn_connections(self, new_online: set[UvnPeer.VpnStatus], gone_online: set[UvnPeer.VpnStatus]) -> None:
+    for vpn in new_online:
+      log.warning(f"[STATUS] vpn ON: {vpn.parent} → {vpn.intf.config.intf.name}")
+    for vpn in gone_online:
+      log.warning(f"[STATUS] vpn OFF: {vpn.parent} → {vpn.intf.config.intf.name}")
 
 
   def _on_user_condition(self, condition: dds.GuardCondition):

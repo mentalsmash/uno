@@ -148,6 +148,7 @@ docker_container()
             $([ -z "${UNO_DIR}" ] || printf -- "-v ${UNO_DIR}:/uno") \
             $([ -z "${host_uvn}" ] || printf -- "-v ${host_uvn}:/uvn") \
             $([ -z "${host_uvn}" ] || printf -- "-w /uvn") \
+            $([ -z "${VERBOSE}" ] || printf -- "-e VERBOSE=${VERBOSE}") \
         "
         cmd="$(
             if [ -z "${host_uvn}" ]; then
@@ -170,7 +171,6 @@ docker_container()
             --cap-add sys_module \
             -e INIT=/experiment/init.sh \
             -v ${EXPERIMENT_DIR}/${container_name}:/experiment \
-            -e VERBOSE=-v \
             ${extra_args} \
             uno:latest \
             ${cmd} \

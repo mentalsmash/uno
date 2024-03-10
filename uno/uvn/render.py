@@ -50,7 +50,11 @@ def humanbytes(B):
 
 
 def _filter_time_since(ts: str | Timestamp) -> str:
-  if not ts:
+  if (not ts
+      or (
+        isinstance(ts, str)
+        and ts.startswith("19700101-000000-000000")
+      )):
     return "N/A"
   if isinstance(ts, str):
     ts = Timestamp.parse(ts)

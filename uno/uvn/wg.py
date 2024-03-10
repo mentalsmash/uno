@@ -27,6 +27,12 @@ from .render import Templates
 from .log import Logger as log
 from .ip import ip_nic_is_up, ip_nic_exists
 
+
+def _check_handshake_online(handshake: Timestamp) -> bool:
+  handshake_age = Timestamp.now().subtract(handshake)
+  return handshake_age.total_seconds() <= 130
+
+
 class WireGuardError(Exception):
   def __init__(self, msg):
     self.msg = msg
@@ -568,6 +574,21 @@ class WireGuardInterface:
   #     raise WireGuardError(f"failed to list interface peers: {self.config.intf.name}")
   #   return list(filter(lambda v: len(v) > 0, result.stdout.decode("utf-8").split("\n")))
 
+  def _map_peer_ids(self, input: Mapping[str, object]) -> Mapping[str, Mapping[int, object]]:
+    return{
+      "peers": {
+        peer.id: v
+          for pubkey, v in input.items()
+            for peer in [next((p for p in self.config.peers if p.pubkey == pubkey), None)]
+              if peer is not None
+      },
+      "unknown_peers": {
+        pubkey: v
+          for pubkey, v in input.items()
+            for peer in [next((p for p in self.config.peers if p.pubkey == pubkey), None)]
+              if peer is None
+      },
+    }
 
 
   def stat(self) -> dict:
@@ -578,7 +599,8 @@ class WireGuardInterface:
     allowed_ips = self._list_allowed_ips()
     peers = {
       pubkey : {
-        "last_handshake": str(handshakes[pubkey]),
+        "last_handshake": str(handshake),
+        "online": _check_handshake_online(handshake),
         "transfer": {
           "recv": transfers[pubkey]["recv"],
           "send": transfers[pubkey]["send"],
@@ -589,20 +611,10 @@ class WireGuardInterface:
         },
         "allowed_ips": allowed_ips[pubkey],
       } for pubkey in peer_keys
+          for handshake in [handshakes[pubkey]]
     }
     return {
-      "peers": {
-        peer.id: v
-          for pubkey, v in peers.items()
-            for peer in [next((p for p in self.config.peers if p.pubkey == pubkey), None)]
-              if peer is not None
-      },
-      "unknown_peers": {
-        pubkey: v
-          for pubkey, v in peers.items()
-            for peer in [next((p for p in self.config.peers if p.pubkey == pubkey), None)]
-              if peer is None
-      },
+      **self._map_peer_ids(peers),
       "up": ip_nic_is_up(self.config.intf.name),
       "created": ip_nic_exists(self.config.intf.name),
       # TODO(asorbini) read current interface address with "ip a s"

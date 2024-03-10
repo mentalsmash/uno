@@ -246,7 +246,8 @@ class Versioned:
     if current != val:
       setattr(self, _attr, val)
       setattr(self, f"__prev__{attr}", current)
-      log.debug(f"[{self}] {attr} = {val}")
+      if self.loaded:
+        log.debug(f"[{self}] {attr} = {val}")
       self.updated()
 
 
@@ -724,6 +725,16 @@ class UvnSettings(Versioned):
     changed.extend(self.particles_vpn.collect_changes())
     changed.extend(self.backbone_vpn.collect_changes())
     return changed
+
+
+  @property
+  def peek_changed(self) -> bool:
+    return (
+      super().peek_changed
+      or self.root_vpn.peek_changed
+      or self.particles_vpn.peek_changed
+      or self.backbone_vpn.peek_changed
+    )
 
 
   def serialize(self) -> dict:
@@ -1360,6 +1371,21 @@ class UvnId(Versioned):
         *self.excluded_particles.values())
         for ch in o.collect_changes()
     ]
+
+
+  @property
+  def peek_changed(self) -> bool:
+    for o in (
+        super(),
+        self.settings,
+        *self.cells.values(),
+        *self.excluded_cells.values(),
+        *self.particles.values(),
+        *self.excluded_particles.values()
+      ):
+      if o.peek_changed:
+        return True
+    return False
 
 
   def serialize(self) -> dict:

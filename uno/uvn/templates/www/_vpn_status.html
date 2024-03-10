@@ -40,31 +40,44 @@
       </li>
       <li class="list-group-item">
         <span class="key">Peers Status:</span>
-        <table class="table table-sm table-striped vpn-peers">
-          <thead class="table-dark">
-            <tr>
-              <th>Peer</th>
-              <th>Handshake</th>
-              <th>Rx</th>
-              <th>Tx</th>
-              <th>Endpoint</th>
-              <th>Allowed</th>
-            </tr>
-          </thead>
-          <tbody>
-            {% for peer_id, peer_stats in stats.peers | dictsort %}
-            {% set peer = peers[peer_id]%}
-            <tr>
-              <td>{{peer.name}}</td>
-              <td>{% if peer_stats.last_handshake != "19700101-000000"%}{{peer_stats.last_handshake | time_since}}{%else%}N/A{%endif%}</td>
-              <td>{{peer_stats.transfer.recv | humanbytes}}</td>
-              <td>{{peer_stats.transfer.send | humanbytes}}</td>
-              <td>{%if peer_stats.endpoint.address != "<unknown>"%}{{peer_stats.endpoint.address}}:{{peer_stats.endpoint.port}}{%else%}N/A{%endif%}</td>
-              <td>{{peer_stats.allowed_ips|join(", ")}}</td>
-            </tr>
-            {% endfor %}
-          </tbody>
-        </table>
+        <div class="table-responsive">
+          <table class="table table-sm table-striped vpn-peers">
+            <thead class="table-dark">
+              <tr>
+                <th>Peer</th>
+                <th>Handshake</th>
+                <th>Rx</th>
+                <th>Tx</th>
+                <th>Endpoint</th>
+                <th>Allowed</th>
+              </tr>
+            </thead>
+            <tbody>
+              {% for peer_id, peer_stats in stats.peers | dictsort %}
+              {% set peer = peers[peer_id]%}
+              <tr>
+                <td>
+                  {%- if peer_stats.online -%}
+                  {%-  set pill_status = "success" -%}
+                  {%- elif peer_stats.last_handshake and peer_stats.last_handshake != "19700101-000000-000000" -%}
+                  {%-  set pill_status = "danger" -%}
+                  {%- else -%}
+                  {%-  set pill_status = "warning" -%}
+                  {%- endif -%}
+                  <span class="badge text-bg-{{pill_status}} me-2">
+                    {{peer.name}}
+                  </span>
+                </td>
+                <td>{% if peer_stats.last_handshake %}{{peer_stats.last_handshake | time_since}}{%else%}N/A{%endif%}</td>
+                <td>{{peer_stats.transfer.recv | humanbytes}}</td>
+                <td>{{peer_stats.transfer.send | humanbytes}}</td>
+                <td>{%if peer_stats.endpoint.address != "<unknown>"%}{{peer_stats.endpoint.address}}:{{peer_stats.endpoint.port}}{%else%}N/A{%endif%}</td>
+                <td>{{peer_stats.allowed_ips|join(", ")}}</td>
+              </tr>
+              {% endfor %}
+            </tbody>
+          </table>
+        </div>
       </li>
     </ul>
   </div>

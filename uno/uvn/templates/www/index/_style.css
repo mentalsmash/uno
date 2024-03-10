@@ -1,0 +1,25 @@
+.key {
+  font-weight: bold;
+  margin-right: .2em;
+}
+
+.subtitle {
+  display: block;
+  font-size: 60%;
+}
+table,
+.uvn-settings {
+  font-size: 80%;
+}
+.accordion-button:not(.collapsed) {
+  background-color: var(--bs-accordion-bg);
+  color: var(--bs-accordion-btn-color);
+}
+
+#router-status pre {
+  font-size: 80%;
+}
+
+tbody .badge {
+  font-size: 100%;
+}

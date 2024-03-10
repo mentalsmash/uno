@@ -22,6 +22,8 @@ from typing import Optional, Sequence, Union
 from .log import Logger as log, level as log_level, verbosity
 
 
+DEBUG = bool(os.environ.get("DEBUG", False))
+
 def exec_command(
     cmd_args: Sequence[Union[str, Path]],
     fail_msg: Optional[str] = None,
@@ -38,7 +40,8 @@ def exec_command(
   if cwd is not None:
     run_args["cwd"] = cwd
 
-  log.debug(f"[exec] {' '.join(map(str, cmd_args))}")
+  if DEBUG:
+    log.debug(f"[exec] {' '.join(map(str, cmd_args))}")
 
   if output_file is not None:
     output_file.parent.mkdir(exist_ok=True, parents=True)

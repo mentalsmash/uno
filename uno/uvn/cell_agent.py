@@ -214,6 +214,20 @@ class CellAgent(Agent):
     ]
 
 
+  def lookup_vpn_peer(self, vpn: WireGuardInterface, peer_id: int) -> UvnPeer:
+    if vpn == self.root_vpn:
+      return self.peers[peer_id]
+    elif vpn == self.particles_vpn:
+      if peer_id == 0:
+        return self.peers.local
+      else:
+        return next(p for p in self.peers.particles if p.id == peer_id)
+    elif vpn in self.backbone_vpns:
+      return self.peers[peer_id]
+    else:
+      raise NotImplementedError()
+
+
   @property
   def lans(self) -> set[LanDescriptor]:
     def _allowed_nic(nic: NicDescriptor) -> bool:
@@ -491,29 +505,6 @@ class CellAgent(Agent):
       elif vpn.config.intf.address == addr:
         return self.peers.local
     return None
-
-
-  @property
-  def vpn_stats(self) -> Mapping[str, dict]:
-    intf_stats = {
-      vpn: vpn.stat()
-        for vpn in self.vpn_interfaces
-    }
-    traffic_rx = sum(peer["transfer"]["recv"]
-      for stat in intf_stats.values()
-        for peer in stat["peers"].values()
-    )
-    traffic_tx = sum(peer["transfer"]["send"]
-      for stat in intf_stats.values()
-        for peer in stat["peers"].values()
-    )
-    return {
-      "interfaces": intf_stats,
-      "traffic": {
-        "rx": traffic_rx,
-        "tx": traffic_tx,
-      },
-    }
 
 
   def _write_particle_configurations(self) -> None:

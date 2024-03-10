@@ -192,7 +192,7 @@ def cell_agent_status_plot(
   else:
     warning_nodes.append(agent.uvn_id.name)
 
-  for peer in (p for p in agent.peers if p.id):
+  for peer in (p for p in agent.peers.cells):
     cell = agent.uvn_id.cells[peer.id]
     edge = (cell.name, agent.uvn_id.name)
     graph.add_edge(*edge)

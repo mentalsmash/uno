@@ -5,6 +5,6 @@
 {%- else -%}
 {%-  set pill_status = "danger" -%}
 {%- endif -%}
-<span class="text-{{pill_status}} me-2">
+<span class="text-{{pill_status}} me-2 my-1" title="{{peer.registry_id}}">
   {{peer.registry_id | format_hash}}
 </span>

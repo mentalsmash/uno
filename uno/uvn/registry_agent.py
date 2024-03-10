@@ -21,7 +21,7 @@ from .uvn_id import UvnId, CellId
 from .wg import WireGuardInterface
 from .dds import DdsParticipantConfig, UvnTopic
 from .registry import Registry
-from .peer import UvnPeersList
+from .peer import UvnPeersList, UvnPeer
 from .render import Templates
 from .dds_data import uvn_info, cell_agent_config
 from .agent_net import AgentNetworking
@@ -112,6 +112,13 @@ class RegistryAgent(Agent):
   @property
   def vpn_interfaces(self) -> set[WireGuardInterface]:
     return {self.root_vpn}
+
+
+  def lookup_vpn_peer(self, vpn: WireGuardInterface, peer_id: int) -> UvnPeer:
+    if vpn == self.root_vpn:
+      return self.peers[peer_id]
+    else:
+      raise NotImplementedError()
 
 
   @property

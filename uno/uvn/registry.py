@@ -196,6 +196,10 @@ class Registry(Versioned):
       **uvn_args) -> bool:
     if not allow_rekeyed and self.rekeyed_registry:
       raise RuntimeError("pending rekeying changes. run 'uno sync' or delete the *.rekeyed files")
+    
+    if drop_keys_root_vpn and self.uvn_id.excluded_cells:
+      log.warning(f"[REGISTRY] banned cells will need to be manually updated in order to rejoin the uvn {list(self.uvn_id.excluded_cells.values())}")
+      ask_yes_no("Continue with rekeying?")
 
     if not self.root.is_dir():
       self.root.mkdir(parents=True, mode=0o700)
@@ -461,6 +465,14 @@ class Registry(Versioned):
     changed = super().collect_changes()
     changed.extend(self.uvn_id.collect_changes())
     return changed
+
+
+  @property
+  def peek_changed(self) -> bool:
+    return (
+      super().peek_changed
+      or self.uvn_id.peek_changed
+    )
 
 
   def serialize(self) -> dict:

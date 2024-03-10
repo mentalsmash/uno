@@ -15,17 +15,18 @@
 # along with this program. If not, see <https://www.gnu.org/licenses/>.
 ###############################################################################
 from typing import Optional, Mapping, Iterable, Tuple, Union, Callable, TYPE_CHECKING
+import threading
+from enum import Enum
+import ipaddress
 
 import rti.connextdds as dds
 
-from enum import Enum
-
-import ipaddress
-
-from .uvn_id import UvnId, CellId, Versioned
+from .uvn_id import UvnId, CellId, ParticleId, Versioned
 from .ip import LanDescriptor
 from .time import Timestamp
+from .wg import WireGuardInterface
 from .log import Logger as log
+
 
 class UvnPeerStatus(Enum):
   DECLARED = 0
@@ -34,31 +35,58 @@ class UvnPeerStatus(Enum):
 
 
 class UvnPeer(Versioned):
+  class VpnStatus(Versioned):
+    def __init__(self,
+        parent: "UvnPeer",
+        intf: WireGuardInterface,
+        online: bool=False) -> None:
+      self.parent = parent
+      self.intf = intf
+      super().__init__()
+      self.online = online
+      self.loaded = True
+
+
+    @property
+    def online(self) -> Timestamp:
+      return self._online
+
+
+    @online.setter
+    def online(self, val: bool) -> None:
+      self.update("online", val)
+
+
+
   def __init__(self,
       parent: "UvnPeersList",
       id: int,
       name: str,
-      registry_id: Optional[str]=None,
-      status: Optional[UvnPeerStatus]=None,
-      routed_networks: Optional[Iterable[LanDescriptor]]=None,
-      reachable_networks: Optional[Iterable[LanDescriptor]]=None,
-      unreachable_networks: Optional[Iterable[LanDescriptor]]=None,
-      ih: Optional[dds.InstanceHandle]=None,
-      ih_dw: Optional[dds.InstanceHandle]=None,
-      ts_start: Optional[int|str|Timestamp]=None,
+      registry_id: str|None=None,
+      status: UvnPeerStatus|None=None,
+      routed_networks: Iterable[LanDescriptor]|None=None,
+      reachable_networks: Iterable[LanDescriptor]|None=None,
+      unreachable_networks: Iterable[LanDescriptor]|None=None,
+      ih: dds.InstanceHandle|None=None,
+      ih_dw: dds.InstanceHandle|None=None,
+      ts_start: int|str|Timestamp|None=None,
+      particle: bool=False,
+      vpn_status: Mapping[WireGuardInterface, Mapping[str, object]]|None=None,
       **init_args) -> None:
     self._parent = parent
     self._id = id
+    self._particle = particle
     self._name = name
     super().__init__(**init_args)
     self.registry_id = registry_id
     self.status = status or UvnPeerStatus.DECLARED
     self.ts_start = ts_start
-    self.routed_networks = set(routed_networks or [])
-    self.reachable_networks = set(reachable_networks or [])
-    self.unreachable_networks = set(unreachable_networks or [])
+    self.routed_networks = routed_networks
+    self.reachable_networks = reachable_networks
+    self.unreachable_networks = unreachable_networks
     self.ih = ih
     self.ih_dw = ih_dw
+    self.vpn_status = vpn_status
     self.loaded = True
 
 
@@ -171,10 +199,46 @@ class UvnPeer(Versioned):
 
 
   @property
+  def vpn_status(self) -> "Mapping[WireGuardInterface, UvnPeer.VpnStatus]":
+    return self._vpn_status
+  
+
+  @vpn_status.setter
+  def vpn_status(self, val: Mapping[WireGuardInterface, Mapping[str, object]]) -> None:
+    val = val or {}
+    current = getattr(self, "_vpn_status", {})
+    updated = True if not hasattr(self, "_vpn_status") else False
+    for vpn, peer_status in val.items():
+      peer_current = current.get(vpn)
+      if peer_current is None:
+        updated = True
+        current[vpn] = UvnPeer.VpnStatus(parent=self, intf=vpn)
+      for k, v in peer_status.items():
+        if k not in ("online",):
+          continue
+        setattr(current[vpn], k, v)
+        updated = updated or current[vpn].peek_changed
+    existing_keys = set(current.keys())
+    gone_keys = existing_keys - set(val.keys())
+    updated = updated or len(gone_keys) > 0
+    for k in gone_keys:
+      del current[k]
+    if updated:
+      self.update("vpn_status", current)
+
+
+  @property
   def cell(self) -> CellId|None:
-    if self.registry:
+    if self.registry or self._particle:
       return None
     return self._parent.uvn_id.cells[self.id]
+
+
+  @property
+  def particle(self) -> ParticleId|None:
+    if self.cell or self.registry:
+      return None
+    return self._parent.uvn_id.particles[self.id]
 
 
   @property
@@ -182,10 +246,26 @@ class UvnPeer(Versioned):
     return {s.nic.subnet for s in self.reachable_networks}
 
 
+
+  @property
+  def peek_changed(self) -> bool:
+    return (
+      super().peek_changed
+      or next((True for v in self.vpn_status.values() if v.peek_changed), False)
+    )
+
+
+  def collect_changes(self) -> list[Tuple[Versioned, dict]]:
+    return [ch
+      for o in (super(), *self.vpn_status.values())
+        for ch in o.collect_changes()
+    ]
+
+
   def __eq__(self, other: object) -> TYPE_CHECKING:
     if not isinstance(other, UvnPeer):
       return False
-    return self.id == other.id
+    return self._particle == other._particle and self.id == other.id
 
 
   def __hash__(self) -> int:
@@ -209,6 +289,7 @@ class UvnPeerListener:
     LOCAL_REACHABLE_NETWORKS = 7
     REACHABLE_NETWORKS = 8
     FULLY_ROUTED_UVN = 9
+    VPN_CONNECTIONS = 10
 
 
   def on_event_online_cells(self, new_cells: set[UvnPeer], gone_cells: set[UvnPeer]) -> None:
@@ -251,6 +332,10 @@ class UvnPeerListener:
     pass
 
 
+  def on_event_vpn_connections(self, new_online: set[UvnPeer.VpnStatus], gone_online: set[UvnPeer.VpnStatus]) -> None:
+    pass
+
+
 
 class UvnPeersList(Versioned):
   def __init__(self,
@@ -262,7 +347,6 @@ class UvnPeersList(Versioned):
     self._peers = []
     self.registry_id = registry_id
     self.listeners: list[UvnPeerListener] = list()
-    import threading
     self._update_lock = threading.Lock()
     super().__init__()
     self.uvn_id = uvn_id
@@ -289,9 +373,9 @@ class UvnPeersList(Versioned):
   @uvn_id.setter
   def uvn_id(self, uvn_id: UvnId):
     peers = []
-    for cell in (None, *uvn_id.cells.values()):
+    for uvn_obj in (uvn_id, *uvn_id.cells.values(), *uvn_id.particles.values()):
       try:
-        peer = self[cell]
+        peer = self[uvn_obj]
       except KeyError:
         peer = None
       except IndexError:
@@ -299,11 +383,13 @@ class UvnPeersList(Versioned):
       if peer is None:
         peer = UvnPeer(
           parent=self,
-          id=0 if cell is None else cell.id,
-          name=uvn_id.name if cell is None else cell.name)
+          id=0 if uvn_obj == uvn_id else uvn_obj.id,
+          name=uvn_obj.name,
+          particle=isinstance(uvn_obj, ParticleId))
       peers.append(peer)
     self._uvn_id = uvn_id
     self._peers = sorted(peers, key=lambda v: v.id)
+    
 
 
   @property
@@ -318,7 +404,12 @@ class UvnPeersList(Versioned):
 
   @property
   def cells(self) -> Iterable[UvnPeer]:
-    return (p for p in self if p.id)
+    return (p for p in self if p.cell)
+
+
+  @property
+  def particles(self) -> Iterable[UvnPeer]:
+    return (p for p in self if p.particle)
 
 
   @property
@@ -392,6 +483,14 @@ class UvnPeersList(Versioned):
   @status_fully_routed_uvn.setter
   def status_fully_routed_uvn(self, val: bool) -> None:
     self.update("status_fully_routed_uvn", val)
+
+
+  @property
+  def peek_changed(self) -> bool:
+    return (
+      super().peek_changed
+      or next((True for p in self if p.peek_changed), False)
+    )
 
 
   def collect_changes(self) -> list[Tuple[Versioned, dict]]:
@@ -469,28 +568,52 @@ class UvnPeersList(Versioned):
   
     log.activity(f"[STATUS] processing {len(changed)} updated objects")
 
+    ###########################################################################
+    # Check if there were updates related to VPN connections
+    ###########################################################################
+    vpn_changed = {
+      c
+      for c, prev_vals in changed
+        if isinstance(c, UvnPeer.VpnStatus)
+        and "online" in prev_vals
+    }
+    vpn_online = {c for c in vpn_changed if c.online}
+    vpn_offline = {c for c in vpn_changed if not c.online}
+    if vpn_online or vpn_offline:
+      self._notify(UvnPeerListener.Event.VPN_CONNECTIONS, vpn_online, vpn_offline)
+
+
+    ###########################################################################
+    # Check status of cell agents (online/offline)
+    ###########################################################################
     gone_cells = {
       c
       for c, prev_vals in changed
-        if isinstance(c, UvnPeer) and not c.registry
+        if isinstance(c, UvnPeer) and c.cell
           and "status" in prev_vals
           and c.status == UvnPeerStatus.OFFLINE
     }
     new_cells = {
       c
       for c, prev_vals in changed
-        if isinstance(c, UvnPeer) and not c.registry
+        if isinstance(c, UvnPeer) and c.cell
           and "status" in prev_vals
           and c.status == UvnPeerStatus.ONLINE
     }
     if gone_cells or new_cells:
       self._notify(UvnPeerListener.Event.ONLINE_CELLS, new_cells, gone_cells)
 
+      #########################################################################
+      # Check if all agents are online
+      #########################################################################
       all_cell_connected = sum(1 for c in self.online_cells) == len(self.uvn_id.cells)
       if all_cell_connected != self.status_all_cell_connected:
         self.status_all_cell_connected = all_cell_connected
         self._notify(UvnPeerListener.Event.ALL_CELLS_CONNECTED)
 
+    ###########################################################################
+    # Check status of registry agent (online/offline)
+    ###########################################################################
     if next((c
       for c, prev_vals in  changed
         if isinstance(c, UvnPeer) and c.registry
@@ -509,6 +632,9 @@ class UvnPeersList(Versioned):
       self._notify(UvnPeerListener.Event.REGISTRY_CONNECTED)
 
 
+    ###########################################################################
+    # Check if any agent announced an attached network
+    ###########################################################################
     changed_routed = {
       c: prev_vals["routed_networks"] or set()
       for c, prev_vals in changed
@@ -522,6 +648,9 @@ class UvnPeersList(Versioned):
     if gone_routed or new_routed:
       self._notify(UvnPeerListener.Event.ROUTED_NETWORKS, new_routed, gone_routed)
 
+      ###########################################################################
+      # Check if we've discovered all expected networks
+      ###########################################################################
       routed_subnets = set(l.nic.subnet for c in self.cells for l in c.routed_networks)
       expected_subnets = set(l for c in self.uvn_id.cells.values() for l in c.allowed_lans)
       routed_networks_discovered = routed_subnets == expected_subnets
@@ -529,6 +658,9 @@ class UvnPeersList(Versioned):
         self.status_routed_networks_discovered = routed_networks_discovered
         self._notify(UvnPeerListener.Event.ROUTED_NETWORKS_DISCOVERED)
 
+    ###########################################################################
+    # Check if any agent changed their configuration id
+    ###########################################################################
     changed_config = {
       c: prev_vals["registry_id"]
         for c, prev_vals in changed
@@ -546,11 +678,17 @@ class UvnPeersList(Versioned):
     if gone_consistent or new_consistent:
       self._notify(UvnPeerListener.Event.CONSISTENT_CONFIG_CELLS, new_consistent, gone_consistent)
     
+      ###########################################################################
+      # Check if all agents have the same configuration id as ours
+      ###########################################################################
       consistent_config_uvn = sum(1 for c in self.consistent_config_cells) == len(self.uvn_id.cells)
       if consistent_config_uvn != self.status_consistent_config_uvn:
         self.status_consistent_config_uvn = consistent_config_uvn
         self._notify(UvnPeerListener.Event.CONSISTENT_CONFIG_UVN)
 
+    ###########################################################################
+    # Check if any agent has changed their reachable/unreachable networks
+    ###########################################################################
     changed_reachable = {
       c: prev_vals["reachable_networks"] or set()
         for c, prev_vals in changed
@@ -559,12 +697,18 @@ class UvnPeersList(Versioned):
     }
 
     if self.local in changed_reachable:
+      ###########################################################################
+      # Check if the local agent's reachable/unreachable networks changed
+      ###########################################################################
       prev_reachable = changed_reachable[self.local]
       current_reachable = self.local.reachable_networks
       gone_reachable = prev_reachable - current_reachable
       new_reachable = current_reachable - prev_reachable
       self._notify(UvnPeerListener.Event.LOCAL_REACHABLE_NETWORKS, new_reachable, gone_reachable)
 
+    ###########################################################################
+    # Check if the other agents' reachable/unreachable networks changed
+    ###########################################################################
     prev_reachable = {(c, l) for c, reachable in changed_reachable.items() if c != self.local for l in reachable}
     current_reachable = {(c, l) for c in changed_reachable if c != self.local for l in c.reachable_networks}
     gone_reachable = prev_reachable - current_reachable
@@ -573,6 +717,9 @@ class UvnPeersList(Versioned):
       self._notify(UvnPeerListener.Event.REACHABLE_NETWORKS, new_reachable, gone_reachable)
 
     if changed_reachable:
+      ###########################################################################
+      # Check if all networks are reachable from everywhere
+      ###########################################################################
       fully_routed_uvn = sum(1 for c in self.fully_routed_cells) == len(self.uvn_id.cells)
       if fully_routed_uvn != self.status_fully_routed_uvn:
         self.status_fully_routed_uvn = fully_routed_uvn
@@ -587,7 +734,7 @@ class UvnPeersList(Versioned):
     return iter(self._peers)
 
 
-  def __getitem__(self, i: Union[int, Optional[CellId], dds.InstanceHandle]) -> UvnPeer:
+  def __getitem__(self, i: Union[None, str, int, UvnId, CellId, ParticleId, dds.InstanceHandle]) -> UvnPeer:
     if isinstance(i, int):
       if i == 0:
         return self._peers[0]
@@ -595,14 +742,29 @@ class UvnPeersList(Versioned):
         return next(p for p in self._peers[1:] if p.id == i)
       except StopIteration:
         raise KeyError(i) from None
+    elif isinstance(i, str):
+      try:
+        return next(p for p in self._peers if p.name == i)
+      except StopIteration:
+        raise KeyError(i) from None
     elif isinstance(i, dds.InstanceHandle):
       try:
         return next(p for p in self._peers if p.ih == i)
       except StopIteration:
         raise KeyError(i) from None
+    elif isinstance(i, UvnId):
+      try:
+        return next(p for p in self._peers[:0] if self.uvn_id == i)
+      except StopIteration:
+        raise KeyError(i) from None
     elif isinstance(i, CellId):
       try:
-        return next(p for p in self._peers[1:] if p.id == i.id)
+        return next(p for p in self._peers[1:] if p.cell == i)
+      except StopIteration:
+        raise KeyError(i) from None
+    elif isinstance(i, ParticleId):
+      try:
+        return next(p for p in self._peers[1:] if p.particle == i)
       except StopIteration:
         raise KeyError(i) from None
     elif i is None:
