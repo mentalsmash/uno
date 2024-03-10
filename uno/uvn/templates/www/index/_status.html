@@ -1,19 +1,39 @@
-<div class="row accordion-item border-0">
-  <h2 class="accordion-header">
-    <button class="accordion-button"
-        type="button"
-        data-bs-toggle="collapse"
-        data-bs-target="#panel-uvn-status"
-        aria-expanded="false"
-        aria-controls="panel-uvn-status">
-      <svg width="24px" height="24px" stroke-width="1.5" viewBox="0 0 24 24" fill="none" xmlns="http://www.w3.org/2000/svg" color="#000000"><path d="M10 9H6" stroke="#000000" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"></path><path d="M15.5 11C14.1193 11 13 9.88071 13 8.5C13 7.11929 14.1193 6 15.5 6C16.8807 6 18 7.11929 18 8.5C18 9.88071 16.8807 11 15.5 11Z" stroke="#000000" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"></path><path d="M6 6H9" stroke="#000000" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"></path><path d="M18 18L13.5 15L11 17L6 13" stroke="#000000" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"></path><path d="M3 20.4V3.6C3 3.26863 3.26863 3 3.6 3H20.4C20.7314 3 21 3.26863 21 3.6V20.4C21 20.7314 20.7314 21 20.4 21H3.6C3.26863 21 3 20.7314 3 20.4Z" stroke="#000000" stroke-width="1.5"></path></svg>
-      <span class="d-inline-block py-9 px-2 m-0 h2">Status</span>
-    </button>
+<div class="row border-0 pt-5" id="status">
+  <h2 class="">
+    <!-- <svg width="24px" height="24px" stroke-width="1.5" viewBox="0 0 24 24" fill="none" xmlns="http://www.w3.org/2000/svg" color="#000000"><path d="M10 9H6" stroke="#000000" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"></path><path d="M15.5 11C14.1193 11 13 9.88071 13 8.5C13 7.11929 14.1193 6 15.5 6C16.8807 6 18 7.11929 18 8.5C18 9.88071 16.8807 11 15.5 11Z" stroke="#000000" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"></path><path d="M6 6H9" stroke="#000000" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"></path><path d="M18 18L13.5 15L11 17L6 13" stroke="#000000" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"></path><path d="M3 20.4V3.6C3 3.26863 3.26863 3 3.6 3H20.4C20.7314 3 21 3.26863 21 3.6V20.4C21 20.7314 20.7314 21 20.4 21H3.6C3.26863 21 3 20.7314 3 20.4Z" stroke="#000000" stroke-width="1.5"></path></svg> -->
+    <i class="fs-2 bi bi-display"></i>
+    <span class="d-inline px-2 m-0 h2">Status</span>
   </h2>
-  <div class="container accordion-collapse collapse"
+  <div class="container-fluid"
       id="panel-uvn-status">
     <div class="row">
-      <div class="col-xl-12 accordion pb-3">
+      <div class="col-sm-{%if backbone_plot_basic %}6{%else%}12{%endif%}">
+        <!-- <a href="{{backbone_plot}}" target="_blank"> -->
+          <figure class="figure text-center">
+            <img src="{{backbone_plot}}"
+              alt="UVN Peers and Routed LANs Status"
+              class="figure-img img-fluid"
+              onclick="this.requestFullscreen()">
+            <figcaption class="figure-caption">UVN Peers and Routed LANs.</figcaption>
+          </figure>
+        <!-- </a> -->
+      </div>
+      {%if backbone_plot_basic %}
+      <div class="col-sm-6">
+        <!-- <a href="{{backbone_plot_basic}}" target="_blank"> -->
+          <figure class="figure text-center">
+            <img src="{{backbone_plot_basic}}"
+              alt="UVN Backbone links"
+              class="figure-img img-fluid"
+              onclick="this.requestFullscreen()">
+            <figcaption class="figure-caption">UVN Backbone.</figcaption>
+          </figure>
+        <!-- </a> -->
+      </div>
+      {% endif %}
+    </div>
+    <div class="row">
+      <div class="col-xl-12 pb-3">
         {% include "www/index/_status_agents.html" with context %}
         {% include "www/index/_status_networks.html" with context %}
         {% include "www/index/_status_vpns.html" with context %}

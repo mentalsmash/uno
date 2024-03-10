@@ -1,0 +1,134 @@
+<div class="col-sm-4 col-lg-3 col-xl-2 px-0 bg-dark d-none d-sm-block">
+  <div class="d-flex flex-column align-items-center align-items-sm-start pt-5 text-white min-vh-100 sticky-top">
+    <ul class="nav flex-column mb-sm-auto mb-0 align-items-center align-items-sm-start w-100 border-bottom border-light-subtle" id="menu">
+      <li class="nav-item border-top border-light-subtle w-100">
+        <a href="#" class="nav-link align-middle px-0 text-white">
+          <i class="ms-2 fs-4 bi-house"></i>
+          <span class="ms-2 fs-4 d-none d-sm-inline">Home</span>
+        </a>
+      </li>
+      <li class="nav-item border-top border-light-subtle w-100">
+        <a href="#status" class="nav-link px-0 align-middle text-white">
+          <i class="ms-2 fs-4 bi bi-display"></i>
+          <span class="fs-4 ms-2 d-none d-sm-inline">Status</span>
+        </a>
+      </li>
+      <li class="nav-item">
+        <!-- <a href="#submenu1" data-bs-toggle="collapse" class="nav-link px-0 align-middle">
+          <i class="fs-4 bi bi-display"></i>
+          <span class="fs-4 ms-2 d-none d-sm-inline">Status</span>
+        </a> -->
+        <!-- <ul class="collapse show nav flex-column" id="submenu1" data-bs-parent="#menu"> -->
+          <ul class="nav flex-column ms-2" id="submenu1">
+          <li class="w-100">
+            <a href="#status-agents" class="nav-link px-0 align-middle text-white">
+              <i class="fs-6 bi bi-robot"></i>
+              <span class="ms-2 fs-6 d-none d-sm-inline">Agents</span>
+            </a>
+          </li>
+          <li class="px-0 mx-0">
+            <a href="#status-networks" class="nav-link px-0 text-white">
+              <i class="fs-6 bi bi-diagram-3"></i>
+              <span class="ms-2 fs-6 d-none d-sm-inline">Networks</span>
+            </a>
+          </li>
+          <li class="px-0 mx-0">
+            <a href="#status-vpns" class="nav-link px-0 text-white">
+              <i class="fs-6 bi bi-key"></i>
+              <span class="ms-2 fs-6 d-none d-sm-inline">VPN</span>
+            </a>
+            <ul class="nav flex-column ms-1">
+              <li>
+                <!-- <svg width="24px" height="24px" stroke-width="1.5" viewBox="0 0 24 24" fill="none" xmlns="http://www.w3.org/2000/svg" color="#000000"><path d="M6 20L18 20" stroke="#000000" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"></path><path d="M12 4V16M12 16L15.5 12.5M12 16L8.5 12.5" stroke="#000000" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"></path></svg> -->
+                <i class="fs-6 bi bi-upload"></i>
+                <span class="ms-2 fs-6 d-none d-sm-inline">
+                  <small>
+                    U {{vpn_stats["traffic"]["rx"] | humanbytes}}
+                  </small>
+                </span>
+              </li>
+              <li>
+                <!-- <svg width="24px" height="24px" stroke-width="1.5" viewBox="0 0 24 24" fill="none" xmlns="http://www.w3.org/2000/svg" color="#000000"><path d="M6 20L18 20" stroke="#000000" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"></path><path d="M12 16V4M12 4L15.5 7.5M12 4L8.5 7.5" stroke="#000000" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"></path></svg> -->
+                <i class="fs-6 bi bi-download"></i>
+                <span class="ms-2 fs-6 d-none d-sm-inline">
+                  <small>
+                    D {{vpn_stats["traffic"]["tx"] | humanbytes}}
+                  </small>
+                </span>
+              </li>
+            </ul>
+          </li>
+          <li class="px-0 mx-0">
+            <a href="#status-router" class="nav-link px-0 text-white">
+              <i class="fs-6 bi bi-dpad"></i>
+              <span class="ms-2 fs-6 d-none d-sm-inline">Router</span>
+            </a>
+          </li>
+        </ul>
+      </li>
+      <li class="nav-item border-top border-light-subtle w-100">
+        <a href="#config" class="nav-link px-0 align-middle text-white">
+          <i class="ms-2 fs-4 bi bi-sliders2"></i>
+          <span class="fs-4 ms-2 d-none d-sm-inline">Settings</span>
+        </a>
+      </li>
+      <li class="nav-item">
+        <!-- <a href="#submenu2" data-bs-toggle="collapse" class="nav-link px-0 align-middle">
+          <i class="fs-4 bi bi-sliders2"></i>
+          <span class="fs-4 ms-2 d-none d-sm-inline">Configuration</span>
+        </a> -->
+        <!-- <ul class="collapse show nav flex-column" id="submenu2" data-bs-parent="#menu"> -->
+        <ul class="nav flex-column ms-2" id="submenu2">
+          <li class="w-100">
+            <a href="#config-uvn" class="nav-link px-0 text-white">
+              <i class="fs-6 bi bi-building-lock"></i>
+              <span class="ms-2 fs-6 d-none d-sm-inline">UVN</span>
+            </a>
+          </li>
+          <li class="px-0 mx-0">
+            <a href="#config-cells" class="nav-link px-0 align-middle text-white">
+              <i class="fs-6 bi bi-house-lock"></i>
+              <span class="ms-2 fs-6 d-none d-sm-inline">Cells</span>
+            </a>
+          </li>
+          <li class="px-0 mx-0">
+            <a href="#config-particles" class="nav-link px-0 align-middle text-white">
+              <i class="fs-6 bi bi-car-front"></i>
+              <span class="ms-2 fs-6 d-none d-sm-inline">Particles</span>
+            </a>
+          </li>
+          <li class="px-0 mx-0">
+            <a href="#config-vpn" class="nav-link px-0 text-white">
+              <i class="fs-6 bi bi-lock"></i>
+              <span class="ms-2 fs-6 d-none d-sm-inline">VPN</span>
+            </a>
+          </li>
+          <li class="px-0 mx-0">
+            <a href="#config-backbone" class="nav-link px-0 text-white">
+              <i class="fs-6 bi bi-diagram-2"></i>
+              <span class="ms-2 fs-6 d-none d-sm-inline">Backbone</span>
+            </a>
+          </li>
+          <li class="px-0 mx-0">
+            <a href="#config-ports" class="nav-link px-0 text-white">
+              <i class="fs-6 bi bi-ethernet"></i>
+              <span class="ms-2 fs-6 d-none d-sm-inline">Ports</span>
+            </a>
+          </li>
+        </ul>
+      </li>
+    </ul>
+    <!-- <div class="pb-4 d-flex align-items-center text-bg-warning">
+      <span class="badge text-bg-warning">
+        <svg width="24px" height="24px" stroke-width="1.5" viewBox="0 0 24 24" fill="none" xmlns="http://www.w3.org/2000/svg" color="#000000"><path d="M6 20L18 20" stroke="#000000" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"></path><path d="M12 4V16M12 16L15.5 12.5M12 16L8.5 12.5" stroke="#000000" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"></path></svg>
+        Rx: {{vpn_stats["traffic"]["rx"] | humanbytes}}
+      </span>
+    
+      <span class="badge text-bg-warning">
+        <svg width="24px" height="24px" stroke-width="1.5" viewBox="0 0 24 24" fill="none" xmlns="http://www.w3.org/2000/svg" color="#000000"><path d="M6 20L18 20" stroke="#000000" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"></path><path d="M12 16V4M12 4L15.5 7.5M12 4L8.5 7.5" stroke="#000000" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"></path></svg>
+        Tx: {{vpn_stats["traffic"]["tx"] | humanbytes}}
+      </span>
+    </div> -->    
+  </div>
+</div>
+

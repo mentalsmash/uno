@@ -2,6 +2,7 @@
 <html lang="en">
   <head>
     <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.2/dist/css/bootstrap.min.css" rel="stylesheet" integrity="sha384-T3c6CoIi6uLrA9TneNEoa7RxnatzjcDSCmG1MXxSR1GAsXEV/Dwwykc2MPK8M2HN" crossorigin="anonymous">
+    <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/bootstrap-icons@1.11.3/font/bootstrap-icons.min.css">
     <meta name="viewport" content="width=device-width, initial-scale=1">
     <title>
       {% if cell %}
@@ -15,39 +16,22 @@
     </style>
   </head>
   <body>
-    <div class="container-fluid pb-3 px-0">
-      {% include "www/index/_title.html" with context %}
-      <div class="row">
-        <div class="col-sm-{%if backbone_plot_basic %}6{%else%}12{%endif%}">
-          <!-- <a href="{{backbone_plot}}" target="_blank"> -->
-            <figure class="figure text-center">
-              <img src="{{backbone_plot}}"
-                alt="UVN Peers and Routed LANs Status"
-                class="figure-img img-fluid"
-                onclick="this.requestFullscreen()">
-              <figcaption class="figure-caption">UVN Peers and Routed LANs.</figcaption>
-            </figure>
-          <!-- </a> -->
-        </div>
-        {%if backbone_plot_basic %}
-        <div class="col-sm-6">
-          <!-- <a href="{{backbone_plot_basic}}" target="_blank"> -->
-            <figure class="figure text-center">
-              <img src="{{backbone_plot_basic}}"
-                alt="UVN Backbone links"
-                class="figure-img img-fluid"
-                onclick="this.requestFullscreen()">
-              <figcaption class="figure-caption">UVN Backbone.</figcaption>
-            </figure>
-          <!-- </a> -->
-        </div>
-        {% endif %}
+    <div class="container-fluid">
+      <div class="fixed-top">
+        {% include "www/index/_title.html" with context %}
+        {% include "www/index/_top_menu.html" with context %}
       </div>
-      <div class="accordion" id="panels">
-        {% include "www/index/_status.html" with context %}
-        {% include "www/index/_config.html" with context %}
+      <div class="row flex-nowrap pt-5 pt-sm-0">
+        {% include "www/index/_sidebar.html" with context %}
+        <div class="col-12 col-sm-8 col-lg-9 col-xl-10 pb-3 pt-5">
+          {% include "www/index/_notifications.html" with context %}
+          <div class="" id="panels">
+            {% include "www/index/_status.html" with context %}
+            {% include "www/index/_config.html" with context %}
+          </div>
+          {% include "www/index/_footer.html" with context %}
+        </div>
       </div>
-      {% include "www/index/_footer.html" with context %}
     </div>
     <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.2/dist/js/bootstrap.bundle.min.js" integrity="sha384-C6RzsynM9kWDrMNeT87bh95OGNyZPhcTNXj1NW7RuBCsyN/o0jlpcV8Qyq46cDfL" crossorigin="anonymous"></script>
   </body>
