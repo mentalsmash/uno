@@ -3,7 +3,7 @@
     role="tabpanel"
     aria-labelledby="tab-status-agents"
     tabindex="0">
-  {% with enable_particles = particles_vpn is not None %}
+  {% with enable_particles = bool(particles_vpn) %}
     {% include "www/_peers_table.html" with context %}
   {% endwith %}
 </div>
