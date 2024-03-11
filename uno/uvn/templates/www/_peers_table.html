@@ -20,7 +20,10 @@
         </tr>
       </thead>
       <tbody>
-        {% for peer in peers | sort_peers %}
+        {% for peer in peers | sort_peers |  %}
+        {% if not enable_particles and peer.particle %}
+        {%   continue %}
+        {% endif %}
         <tr>
           <td>
             {% if peer.registry %}
