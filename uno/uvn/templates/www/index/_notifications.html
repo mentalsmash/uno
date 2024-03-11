@@ -21,3 +21,8 @@
 </div>
 {%   endif %}{# if peers_online #}
 {% endif %}{# if peers_offline #}
+{%if peers.status_fully_routed_uvn %}
+<div class="alert alert-success" role="alert">
+  All networks are reachable from every cells.
+</div>
+{% endif %}
