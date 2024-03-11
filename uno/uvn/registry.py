@@ -246,6 +246,10 @@ class Registry(Versioned):
       or changed_cell
       or next((c for c, _ in changed if isinstance(c, BackboneVpnSettings)), None) is not None
     )
+    log.debug(f"[REGISTRY] configure:")
+    log.debug(f"[REGISTRY] - args: force={force}, redeploy={redeploy}, allow_rekeyed={allow_rekeyed}, rti_license={rti_license}")
+    log.debug(f"[REGISTRY] - changed: {list(map(str, changed))}")
+    log.debug(f"[REGISTRY] - changed flags: uvn={changed_uvn}, cell={changed_cell}, particle={changed_particle}, root_vpn={changed_root_vpn}, particles_vpn={changed_particles_vpn}, backboned_vpn={changed_backbone_vpn}")
 
     for cell in self.uvn_id.excluded_cells.values():
       cell_particles_vpn_config = self.particles_vpn_configs.get(cell.id)
