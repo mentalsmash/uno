@@ -14,6 +14,7 @@
       <table class="table table-striped">
         <thead class="table-dark">
           <tr>
+            <th>Type</th>
             <th>Agent</th>
             <th>Status</th>
             <th>Deployment Id</th>
@@ -27,6 +28,15 @@
           {% for peer in peers | sort(attribute="id") if peer.cell or peer.registry %}
           <tr>
             <td>
+              {% if peer.registry %}
+              <i class="fs-4 bi bi-building-lock"></i>
+              {% elif peer.cell %}
+              <i class="fs-4 bi bi-house-lock"></i>
+              {% else %}
+              <i class="fs-4 bi bi-car-front"></i>
+              {% endif %}
+            </td>
+            <td>
               {%- include "www/_peer_pill.html" with context -%}
             </td>
             <td>
@@ -37,6 +47,7 @@
               {%- else %}
               <span class="text-bg-danger badge">Offline</span>
               {%- endif %}
+            </td>
             <td>
               {% if peer.registry_id %}
               {%   include "www/_peer_deployment_pill.html" with context %}
@@ -88,6 +99,17 @@
               N/A
               {% endif %}
             </td>
+          </tr>
+          {%else%}
+          <tr>
+            <td>-</td>
+            <td>None</td>
+            <td>N/A</td>
+            <td>N/A</td>
+            <td>N/A</td>
+            <td>N/A</td>
+            <td>N/A</td>
+            <td>N/A</td>
           </tr>
           {% endfor %}
         </tbody>
