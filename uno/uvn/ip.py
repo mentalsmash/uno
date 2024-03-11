@@ -415,7 +415,7 @@ def iptables_docker_forward(nic_a: str, nic_b: str, bidir: bool=True, enable: bo
         exec_command(["iptables", "-I", "DOCKER-USER", "-i", a, "-o", b, "-j", "ACCEPT"])
 
     def _delete_rule(a: str, b: str) -> None:
-        exec_command(["iptables", "-S", "DOCKER-USER", "-i", a, "-o", b])
+        exec_command(["iptables", "-D", "DOCKER-USER", "-i", a, "-o", b, "-j", "ACCEPT"])
 
     action = _forward if enable else _delete_rule
     
