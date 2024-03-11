@@ -69,12 +69,14 @@ class Registry(Versioned):
     uvn_id = UvnId(name=name, owner_id=owner_id)
 
     registry = Registry(root=root, uvn_id=uvn_id)
-    registry.configure(**configure_args)
+    registry.configure(**configure_args, init=True)
+
     # Make sure we have an RTI license, since we're gonna need it later.
     if not registry.rti_license.is_file():
       rti_license = locate_rti_license(search_path=[registry.root])
       if not rti_license or not rti_license.is_file():
         log.error(f"[REGISTRY] RTI license not found, cell agents will not be available")
+        raise RuntimeError("please specify an RTI license file")
       else:
         registry.rti_license = rti_license
     
@@ -192,6 +194,7 @@ class Registry(Versioned):
       drop_keys_id_db: bool=False,
       # drop_keys_gpg: bool=False,
       redeploy: bool=False,
+      init: bool=False,
       allow_rekeyed: bool=False,
       **uvn_args) -> bool:
     if not allow_rekeyed and self.rekeyed_registry:
@@ -220,14 +223,16 @@ class Registry(Versioned):
     changed_cell = next((c for c, _ in changed if isinstance(c, CellId)), None) is not None
     changed_particle = next((c for c, _ in changed if isinstance(c, ParticleId)), None) is not None
     changed_root_vpn = (
-      changed_uvn
+      init
+      or changed_uvn
       or changed_cell
       or drop_keys_root_vpn
       or rekeyed_root
       or next((c for c, _ in changed if isinstance(c, RootVpnSettings)), None) is not None
     )
     changed_particles_vpn = (
-      changed_uvn
+      init
+      or changed_uvn
       or changed_cell
       or changed_particle
       or drop_keys_particles_vpn
@@ -235,7 +240,8 @@ class Registry(Versioned):
       or next((c for c, _ in changed if isinstance(c, ParticlesVpnSettings)), None) is not None
     )
     changed_backbone_vpn = (
-      changed_uvn
+      init
+      or changed_uvn
       or changed_cell
       or redeploy
       or next((c for c, _ in changed if isinstance(c, BackboneVpnSettings)), None) is not None

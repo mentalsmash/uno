@@ -204,7 +204,7 @@ class Versioned:
     self._generation_ts = generation_ts or Timestamp.now().format()
     self._init_ts = init_ts or Timestamp.now().format()
     self._changed = False
-    self._loaded = not deserializing
+    self._loaded = False
 
 
   def __str__(self) -> str:
