@@ -1,0 +1,183 @@
+<div class="bg-dark p-1" id="tab-menu">
+  <ul class="nav nav-pills nav-fill" id="tab-menu-status">
+    <li class="nav-item">
+      <button
+        class="nav-link text-white active"
+        id="tab-status-graphs"
+        data-bs-toggle="tab"
+        data-bs-target="#status-graphs"
+        type="button"
+        role="tab"
+        aria-controls="status-graphs"
+        aria-selected="true"
+        title="Graphs">
+        <i class="fs-6 bi bi-easel"></i>
+        <span class="fs-6 ms-1 d-none d-xl-inline">Graphs</span>
+      </button>
+    </li>
+
+    <li class="nav-item">
+      <button
+        class="nav-link text-white"
+        id="tab-status-agents"
+        data-bs-toggle="tab"
+        data-bs-target="#status-agents"
+        type="button"
+        role="tab"
+        aria-controls="status-agents"
+        aria-selected="false"
+        title="Agents">
+        <i class="fs-6 bi bi-robot"></i>
+        <span class="fs-6 ms-1 d-none d-xl-inline">Agents</span>
+      </button>
+    </li>
+
+    <li class="nav-item">
+      <button
+        class="nav-link text-white"
+        id="tab-status-networks"
+        data-bs-toggle="tab"
+        data-bs-target="#status-networks"
+        type="button"
+        role="tab"
+        aria-controls="status-networks"
+        aria-selected="false"
+        title="Networks">
+        <i class="fs-6 bi bi-diagram-3"></i>
+        <span class="fs-6 ms-1 d-none d-xl-inline">Networks</span>
+      </button>
+    </li>
+
+    <li class="nav-item">
+      <button
+        class="nav-link text-white"
+        id="tab-status-vpns"
+        data-bs-toggle="tab"
+        data-bs-target="#status-vpns"
+        type="button"
+        role="tab"
+        aria-controls="status-vpns"
+        aria-selected="false"
+        title="VPN">
+        <i class="fs-6 bi bi-key"></i>
+        <span class="fs-6 ms-1 d-none d-xl-inline">VPN</span>
+      </button>
+    </li>
+
+    {% if router -%}
+    <li class="nav-item">
+      <button
+        class="nav-link text-white"
+        id="tab-status-router"
+        data-bs-toggle="tab"
+        data-bs-target="#status-router"
+        type="button"
+        role="tab"
+        aria-controls="status-router"
+        aria-selected="false"
+        title="Router">
+        <i class="fs-6 bi bi-dpad"></i>
+        <span class="fs-6 ms-1 d-none d-xl-inline">Router</span>
+      </button>
+    </li>
+    {% endif %}{# if router #}
+
+    <li class="nav-item">
+      <button
+        class="nav-link text-white"
+        id="tab-config-uvn"
+        data-bs-toggle="tab"
+        data-bs-target="#config-uvn"
+        type="button"
+        role="tab"
+        aria-controls="config-uvn"
+        aria-selected="false"
+        title="UVN">
+        <i class="fs-6 bi bi-building-lock"></i>
+        <span class="fs-6 ms-1 d-none d-xl-inline">UVN</span>
+      </button>
+    </li>
+    
+    <li class="nav-item">
+      <button
+        class="nav-link text-white"
+        id="tab-config-cells"
+        data-bs-toggle="tab"
+        data-bs-target="#config-cells"
+        type="button"
+        role="tab"
+        aria-controls="config-cells"
+        aria-selected="false"
+        title="Cells">
+        <i class="fs-6 bi bi-house-lock"></i>
+        <span class="fs-6 ms-1 d-none d-xl-inline">Cells</span>
+      </button>
+    </li>
+
+    <li class="nav-item">
+      <button
+        class="nav-link text-white"
+        id="tab-config-particles"
+        data-bs-toggle="tab"
+        data-bs-target="#config-particles"
+        type="button"
+        role="tab"
+        aria-controls="config-particles"
+        aria-selected="false"
+        title="Particles">
+        <i class="fs-6 bi bi-car-front"></i>
+        <span class="fs-6 ms-1 d-none d-xl-inline">Particles</span>
+      </button>
+    </li>
+
+    <li class="nav-item">
+      <button
+        class="nav-link text-white"
+        id="tab-config-vpns"
+        data-bs-toggle="tab"
+        data-bs-target="#config-vpns"
+        type="button"
+        role="tab"
+        aria-controls="config-vpns"
+        aria-selected="false"
+        title="VPN Settings">
+        <i class="fs-6 bi bi-lock"></i>
+        <span class="fs-6 ms-1 d-none d-xl-inline">VPN Settings</span>
+      </button>
+    </li>
+
+
+    <li class="nav-item">
+      <button
+        class="nav-link text-white"
+        id="tab-config-backbone"
+        data-bs-toggle="tab"
+        data-bs-target="#config-backbone"
+        type="button"
+        role="tab"
+        aria-controls="config-backbone"
+        aria-selected="false"
+        title="Backbone Links">
+        <i class="fs-6 bi bi-diagram-2"></i>
+        <span class="fs-6 ms-1 d-none d-xl-inline">Backbone</span>
+      </button>
+    </li>
+
+    <li class="nav-item">
+      <button
+        class="nav-link text-white"
+        id="tab-config-ports"
+        data-bs-toggle="tab"
+        data-bs-target="#config-ports"
+        type="button"
+        role="tab"
+        aria-controls="config-ports"
+        aria-selected="false"
+        title="Network Ports">
+        <i class="fs-6 bi bi-ethernet"></i>
+        <span class="fs-6 ms-1 d-none d-xl-inline">Ports</span>
+      </button>
+    </li>
+
+  </ul>
+</div>
