@@ -33,7 +33,7 @@ def write_particle_configuration(
     output_dir: Path,
     output_filename: Optional[str]=None) -> set[Path]:
   if output_filename is None:
-    output_filename = f"{particle.name}@{cell.name}"
+    output_filename = f"{particle.name}_{cell.name}"
   particle_cfg_file = output_dir / f"{output_filename}.conf"
   particle_qr_file = output_dir / f"{output_filename}.png"
   output_dir.mkdir(parents=True, exist_ok=True, mode=0o700)
