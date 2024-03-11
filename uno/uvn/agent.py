@@ -219,6 +219,8 @@ class Agent(UvnPeerListener, RoutesMonitorListener):
         log.debug(f"[AGENT] backbone plot generated: {plot}")
       else:
         log.debug(f"[AGENT] backbone plot NOT generated")
+        if plot.is_file():
+          plot.unlink()
     return plot
 
 
