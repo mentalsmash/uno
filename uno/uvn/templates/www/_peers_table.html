@@ -57,19 +57,17 @@
             {% endif %}
           </td>
           <td>
+            {% if peer.cell %}
             {% set backbone_peers = deployment.get_peers(peer.id) -%}
             {% for peer_id in backbone_peers -%}
             {%- set bb_peer = peers[peer_id] -%}
             {%- with peer = bb_peer -%}
             {%- include "www/_peer_pill.html" with context -%}
             {%- endwith -%}
-            {% else %}
-            {% if peer.status.name == "DECLARED" or not peer.id %}
-            N/A
-            {% else %}
-            None
-            {% endif %}
             {% endfor %}
+            {% else %}
+            N/A
+            {% endif %}
           </td>
           <td>
             {% if not peers_tester %}
