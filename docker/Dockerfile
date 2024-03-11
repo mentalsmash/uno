@@ -1,4 +1,5 @@
-FROM ubuntu:jammy
+ARG BASE_IMAGE="ubuntu:jammy"
+FROM ${BASE_IMAGE}
 
 ARG INSTALL_EXTRA_PACKAGES
 
