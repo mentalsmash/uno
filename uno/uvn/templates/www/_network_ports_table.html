@@ -1,0 +1,56 @@
+<h3 class="mb-2">
+  <!-- <svg width="24px" height="24px" stroke-width="1.5" viewBox="0 0 24 24" fill="none" xmlns="http://www.w3.org/2000/svg" color="#000000"><rect width="7" height="5" rx="0.6" transform="matrix(0 -1 -1 0 22 21)" stroke="#000000" stroke-width="1.5" stroke-width="1.5"></rect><rect width="7" height="5" rx="0.6" transform="matrix(0 -1 -1 0 7 15.5)" stroke="#000000" stroke-width="1.5" stroke-width="1.5"></rect><rect width="7" height="5" rx="0.6" transform="matrix(0 -1 -1 0 22 10)" stroke="#000000" stroke-width="1.5" stroke-width="1.5"></rect><path d="M17 17.5H13.5C12.3954 17.5 11.5 16.6046 11.5 15.5V8.5C11.5 7.39543 12.3954 6.5 13.5 6.5H17" stroke="#000000" stroke-width="1.5"></path><path d="M11.5 12H7" stroke="#000000" stroke-width="1.5"></path></svg> -->
+  <i class="fs-4 bi bi-ethernet"></i>
+  <span class="ms-1 fs-4 d-inline">Network Ports</span>
+</h3>
+<div class="table-responsive p-2 mb-5">
+  <table class="table table-sm table-striped">
+    <thead class="table-dark">
+      <tr>
+        <th>Peer</th>
+        <th>Endpoint</th>
+        <th>Ports</th>
+      </tr>
+    </thead>
+    <tbody>
+      <tr>
+        <td></td>
+        <td></td>
+        <td></td>
+      </tr>
+
+      {% for peer in peers | sort(attribute="id") if peer.cell or peer.registry %}
+      <tr>
+        <td>
+          {% include "www/_peer_pill.html" with context %}
+        </td>
+        <td>
+          {%- if peer.cell and peer.cell.address -%}
+          {{peer.cell.address}}
+          {%- elif peer.registry -%}
+          {{uvn_id.address}}
+          {%- else -%}
+          N/A
+          {%- endif -%}
+        </td>
+        <td>
+          {% if peer.cell %}
+          {% if peer.cell.address %}
+            {{uvn_id.settings.root_vpn.peer_port}}
+
+            {{uvn_id.settings.particles_vpn.port}}
+          {% endif %}
+
+          {% set peer_bbone = deployment.peers[peer.id]["peers"] | length %}
+          {% for n in range(peer_bbone) %}
+            {{uvn_id.settings.backbone_vpn.port + n}}
+          {% endfor %}
+          {% elif peer.registry %}
+          {{uvn_id.settings.root_vpn.port}}
+          {% endif %}
+        </td>
+      </tr>
+      {% endfor %}
+    </tbody>
+  </table>
+</div>
