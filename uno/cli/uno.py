@@ -538,7 +538,7 @@ def _define_registry_config_args(parser, owner_id_required: bool=False):
   parser.add_argument("-m", "--master-secret",
     metavar="PASSWORD",
     help="A password that will be used to protect access to the UVN agents.",
-    default=False)
+    default=None)
 
   parser.add_argument("--dds-domain",
     metavar="DOMAIN_ID",
