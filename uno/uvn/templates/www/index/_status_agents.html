@@ -25,7 +25,7 @@
           </tr>
         </thead>
         <tbody>
-          {% for peer in peers | sort(attribute="id") %}
+          {% for peer in peers | sort_peers %}
           <tr>
             <td>
               {% if peer.registry %}

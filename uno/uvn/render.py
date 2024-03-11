@@ -124,6 +124,17 @@ def _filter_format_hash(val: str) -> str:
   return val[:4] + "..." + val[-4:]
 
 
+def _filter_sort_peers(val: UvnPeersList) -> Generator[UvnPeer, None, None]:
+  def peer_type_id(v: UvnPeer):
+    return (
+      0 if v.registry else
+      1 if v.cell else
+      2
+    )
+  for p in sorted(val, key=lambda v: (peer_type_id(v), v.id)):
+    yield p
+
+
 class _Templates:
   def __init__(self):
     self._env = jinja2.Environment(
@@ -138,6 +149,7 @@ class _Templates:
     self._env.filters["humanbytes"] = humanbytes
     self._env.filters["yaml"] = _filter_yaml
     self._env.filters["format_hash"] = _filter_format_hash
+    self._env.filters["sort_peers"] = _filter_sort_peers
 
 
   def template(self, name: str) -> jinja2.Template:
