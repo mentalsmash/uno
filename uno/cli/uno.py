@@ -124,7 +124,7 @@ def registry_action(args):
     action_args = {
       "name": args.name,
     }
-  elif args.action in ("cell-define", "cell-update"):
+  elif args.action in ("cell-define", "cell-config"):
     action_args = {
       "name": args.name,
       "owner_id": args.owner_id,
@@ -133,7 +133,7 @@ def registry_action(args):
       "enable_particles_vpn": False if args.disable_particles_vpn else None,
       "httpd_port": args.httpd_port,
     }
-    if args.action == "cell-update":
+    if args.action == "cell-config":
       action = registry.uvn_id.update_cell
     else:
       action = registry.uvn_id.add_cell
@@ -152,12 +152,12 @@ def registry_action(args):
     action_args = {
       "name": args.name,
     }
-  elif args.action in ("particle-define", "particle-update"):
+  elif args.action in ("particle-define", "particle-config"):
     action_args = {
       "name": args.name,
       "owner_id": args.owner_id,
     }
-    if args.action == "particle-update":
+    if args.action == "particle-config":
       action = registry.uvn_id.update_particle
     else:
       action = registry.uvn_id.add_particle
@@ -218,6 +218,8 @@ def registry_action(args):
     # rekeying the root vpn
     if args.root_vpn:
       agent_args = {}
+  else:
+    raise NotImplementedError(args.action)
 
   if action:
     result = action(**action_args)
