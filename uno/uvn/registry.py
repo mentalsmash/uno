@@ -306,11 +306,8 @@ class Registry(Versioned):
     cells = sorted(self.uvn_id.all_cells, key=lambda v: v.id)
 
     self.root_vpn_config = CentralizedVpnConfig(
-      root_endpoint=self.uvn_id.address if private_cells else None,
-      peer_endpoints={
-        c.id: c.address
-        for c in cells
-      },
+      root_endpoint=self.uvn_id.address,
+      peer_endpoints={c.id: c.address for c in cells},
       peer_ids=[c.id for c in cells],
       settings=self.uvn_id.settings.root_vpn,
       keymat=keymat)
