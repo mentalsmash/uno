@@ -28,12 +28,13 @@ from .log import Logger as log
 
 def write_particle_configuration(
     particle: ParticleId,
+    cell: CellId,
     particle_vpn_config: WireGuardConfig,
     output_dir: Path,
     output_filename: Optional[str]=None) -> set[Path]:
   if output_filename is None:
-    output_filename = particle.name
-  particle_cfg_file = output_dir / f"{output_filename}.wireguard.conf"
+    output_filename = f"{particle.name}@{cell.name}"
+  particle_cfg_file = output_dir / f"{output_filename}.conf"
   particle_qr_file = output_dir / f"{output_filename}.png"
   output_dir.mkdir(parents=True, exist_ok=True, mode=0o700)
   Templates.generate(particle_cfg_file, *particle_vpn_config.template_args, mode=0o600)
@@ -60,6 +61,7 @@ def generate_particle_packages(
       particle_vpn_config = cell_particles_vpn_config.peer_configs[particle.id]
       write_particle_configuration(
         particle=particle,
+        cell=cell,
         particle_vpn_config=particle_vpn_config,
         output_dir=particle_dir,
         output_filename=cell.name)

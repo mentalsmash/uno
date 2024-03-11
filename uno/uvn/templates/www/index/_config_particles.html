@@ -31,7 +31,7 @@
           <td><a href="mailto:{{cell.owner}}">{{particle.owner_name}}</a></td>
           <td>
             {% if particles_vpn %}
-            <a href="particles/{{particle.name}}.png">
+            <a href="particles/{{particle.name}}@{{cell.name}}.png">
               QR
             </a>
             {% else %}
@@ -40,7 +40,7 @@
           </td>
           <td>
             {% if particles_vpn %}
-            <a href="particles/{{particle.name}}.wireguard.conf">
+            <a href="particles/{{particle.name}}@{{cell.name}}.conf">
               Text
             </a>
             {% else %}

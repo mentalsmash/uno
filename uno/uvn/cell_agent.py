@@ -514,7 +514,7 @@ class CellAgent(Agent):
       return
     for particle_id, particle_client_cfg in self.particles_vpn_config.peer_configs.items():
       particle = self.uvn_id.particles[particle_id]
-      write_particle_configuration(particle, particle_client_cfg, self.particles_dir)
+      write_particle_configuration(particle, self.cell, particle_client_cfg, self.particles_dir)
 
 
   def _reload(self, updated_agent: "CellAgent") -> None:
