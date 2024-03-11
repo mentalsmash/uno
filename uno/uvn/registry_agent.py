@@ -19,7 +19,7 @@ from typing import Tuple
 
 from .uvn_id import UvnId, CellId
 from .wg import WireGuardInterface
-from .dds import DdsParticipantConfig, UvnTopic
+from .dds import UvnTopic
 from .registry import Registry
 from .peer import UvnPeersList, UvnPeer
 from .render import Templates
@@ -33,8 +33,13 @@ from .peer import UvnPeerStatus
 from .time import Timestamp
 from .log import Logger as log
 
+from enum import Enum
 
 class RegistryAgent(Agent):
+  class SyncMode(Enum):
+    IMMEDIATE = 0
+    CONNECTED = 1
+
   TOPICS = {
     "writers": [
       UvnTopic.UVN_ID,
@@ -46,7 +51,9 @@ class RegistryAgent(Agent):
     },
   }
 
-  def __init__(self, registry: Registry) -> None:
+  def __init__(self,
+      registry: Registry,
+      sync_mode: SyncMode|None=None) -> None:
     if not registry.deployed:
       raise ValueError("uvn not deployed", registry)
     if not registry.uvn_id.settings.enable_root_vpn:
@@ -54,6 +61,11 @@ class RegistryAgent(Agent):
 
     self.registry = registry
     self._rekeyed_registry = self.registry.rekeyed_registry
+    self.sync_mode = sync_mode or (
+      RegistryAgent.SyncMode.CONNECTED
+        if self._rekeyed_registry else
+      RegistryAgent.SyncMode.IMMEDIATE
+    )
 
     self.root_vpn = WireGuardInterface(self.registry.root_vpn_config.root_config)
 
@@ -90,7 +102,6 @@ class RegistryAgent(Agent):
 
   @property
   def deployment(self) -> P2PLinksMap:
-
     return self.registry.backbone_vpn_config.deployment
 
 
@@ -158,12 +169,15 @@ class RegistryAgent(Agent):
 
   def _on_started(self, boot: bool=False) -> None:
     self._write_uvn_info()
-    self._write_agent_configs()
+    if self.sync_mode == RegistryAgent.SyncMode.IMMEDIATE:
+      self._write_agent_configs()
 
 
   def on_event_all_cells_connected(self) -> None:
     super().on_event_all_cells_connected()
-    self._write_agent_configs()
+    if (self.peers.status_all_cell_connected
+        and self.sync_mode == RegistryAgent.SyncMode.CONNECTED):
+      self._write_agent_configs()
 
 
   def _write_uvn_info(self) -> None:
