@@ -92,9 +92,10 @@ def registry_configure(args):
     _update_registry_agent(registry)
   else:
     registry = registry_load(args)
-    modified = args.force or registry.configure(
+    modified = registry.configure(
       **configure_args,
       force=args.force)
+    modified = args.force or modified
     if modified:
       _update_registry_agent(registry)
     if args.print:
