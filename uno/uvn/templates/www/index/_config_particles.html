@@ -6,7 +6,9 @@
   {% with particles = uvn_id.particles.values() %}
   {% with title = "Particles" %}
   {% with icon = "car-front" %}
+  {% with include_config = True %}
   {% include "www/_particles_table.html" with context %}
+  {% endwith %}
   {% endwith %}
   {% endwith %}
   {% endwith %}
