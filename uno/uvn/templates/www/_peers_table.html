@@ -70,6 +70,7 @@
             {% endif %}
           </td>
           <td>
+            {% if peer.cell %}
             {% if not peers_tester %}
             N/A
             {%else%}
@@ -83,6 +84,9 @@
             {% endif %}
             {%- endfor %}
             {%endif%}{# if not peers_tester #}
+            {% else %}
+            N/A
+            {% endif %}
           </td>
           <td>
             {% if peer.ts_start %}
