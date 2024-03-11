@@ -92,7 +92,9 @@ def registry_configure(args):
     _update_registry_agent(registry)
   else:
     registry = registry_load(args)
-    modified = registry.configure(**configure_args)
+    modified = registry.configure(
+      **configure_args,
+      force=args.force)
     if modified:
       _update_registry_agent(registry)
     if args.print:
@@ -744,6 +746,11 @@ def main():
 
   _define_registry_config_args(cmd_config_uvn)
   registry_common_args(cmd_config_uvn)
+
+  cmd_config_uvn.add_argument("-f", "--force",
+    help="Force processing and regeneration of all registry configuration",
+    default=False,
+    action="store_true")
 
   #############################################################################
   # uno config cell ...

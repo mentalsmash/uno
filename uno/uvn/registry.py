@@ -69,7 +69,7 @@ class Registry(Versioned):
     uvn_id = UvnId(name=name, owner_id=owner_id)
 
     registry = Registry(root=root, uvn_id=uvn_id)
-    registry.configure(**configure_args, init=True)
+    registry.configure(**configure_args, force=True)
 
     # Make sure we have an RTI license, since we're gonna need it later.
     if not registry.rti_license.is_file():
@@ -194,8 +194,8 @@ class Registry(Versioned):
       drop_keys_id_db: bool=False,
       # drop_keys_gpg: bool=False,
       redeploy: bool=False,
-      init: bool=False,
       allow_rekeyed: bool=False,
+      force: bool=False,
       **uvn_args) -> bool:
     if not allow_rekeyed and self.rekeyed_registry:
       raise RuntimeError("pending rekeying changes. run 'uno sync' or delete the *.rekeyed files")
@@ -223,7 +223,7 @@ class Registry(Versioned):
     changed_cell = next((c for c, _ in changed if isinstance(c, CellId)), None) is not None
     changed_particle = next((c for c, _ in changed if isinstance(c, ParticleId)), None) is not None
     changed_root_vpn = (
-      init
+      force
       or changed_uvn
       or changed_cell
       or drop_keys_root_vpn
@@ -231,7 +231,7 @@ class Registry(Versioned):
       or next((c for c, _ in changed if isinstance(c, RootVpnSettings)), None) is not None
     )
     changed_particles_vpn = (
-      init
+      force
       or changed_uvn
       or changed_cell
       or changed_particle
@@ -240,7 +240,7 @@ class Registry(Versioned):
       or next((c for c, _ in changed if isinstance(c, ParticlesVpnSettings)), None) is not None
     )
     changed_backbone_vpn = (
-      init
+      force
       or changed_uvn
       or changed_cell
       or redeploy
