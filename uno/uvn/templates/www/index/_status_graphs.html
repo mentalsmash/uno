@@ -6,6 +6,10 @@
   <div class="container-fluid">
     <div class="row">
       <div class="col-sm-{%if backbone_plot_basic %}6{%else%}12{%endif%}">
+        <h3 class="mb-2">
+          <i class="fs-4 bi bi-easel"></i>
+          <span class="d-inline ms-1 h4">UVN Networks</span>
+        </h3>
         <!-- <a href="{{backbone_plot}}" target="_blank"> -->
           <figure class="figure text-center">
             <img src="{{backbone_plot}}"
@@ -13,12 +17,16 @@
               class="figure-img img-fluid"
               onclick="this.requestFullscreen()"
               title="Click to open in fullscreen">
-            <figcaption class="figure-caption">UVN Peers and Routed LANs.</figcaption>
+            <!-- <figcaption class="figure-caption">UVN Peers and Routed LANs.</figcaption> -->
           </figure>
         <!-- </a> -->
       </div>
       {%if backbone_plot_basic %}
       <div class="col-sm-6">
+        <h3 class="mb-2">
+          <i class="fs-4 bi bi-easel"></i>
+          <span class="d-inline ms-1 h4">UVN Backbone</span>
+        </h3>
         <!-- <a href="{{backbone_plot_basic}}" target="_blank"> -->
           <figure class="figure text-center">
             <img src="{{backbone_plot_basic}}"
@@ -26,7 +34,7 @@
               class="figure-img img-fluid"
               onclick="this.requestFullscreen()"
               title="Click to open in fullscreen">
-            <figcaption class="figure-caption">UVN Backbone.</figcaption>
+            <!-- <figcaption class="figure-caption">UVN Backbone.</figcaption> -->
           </figure>
         <!-- </a> -->
       </div>

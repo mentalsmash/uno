@@ -1,34 +1,37 @@
-<div class="text-center text-sm-start border-bottom border-2 mb-0 p-1 p-sm-2 fs-6 container-fluid
-    border-dark
+{%- if peers.status_fully_routed_uvn %}
+{%-   set classes="bg-success text-light" %}
+{%- elif peers.local.reachable_networks | length > 0 %}
+{%-   set classes="bg-warning text-dark" %}
+{%- else %}
+{%-   set classes="bg-danger text-light" %}
+{%- endif %}
+<div class="
+    border-bottom border-2 border-dark
+    fs-6
+    py-1
+    container-fluid
     shadow
-    {%if peers.status_fully_routed_uvn %}
-    bg-success
-    text-light
-    {% elif peers.local.reachable_networks | length > 0 %}
-    bg-warning
-    text-dark
-    {% else %}
-    bg-danger
-    text-light
-    {% endif %}">
+    {{classes}}
+    ">
 
   <div class="row">
     <div class="col-12 col-sm-8">
-      <h1 class="fs-6 m-0 p-1">
+      <h1 class="fs-6 m-0 pb-1 pb-sm-0 pt-2 text-center text-sm-start">
         {{cell.name}} @ {{uvn_id.name}}
       </h1>
     </div>
     <div class="col-12 col-sm-4 d-none d-sm-block">
-      <div class="float-end">
+      <div class="float-end pt-1">
         {% include "www/_vpn_stats_pills.html" with context %}
       </div>
     </div>
   </div>
 </div>
-<div class="container-fluid d-sm-none bg-dark p-1">
+
+<div class="container-fluid d-sm-none bg-dark pb-2 p-1">
   <div class="row">
     <div class="col-12">
-      <div class="d-flex justify-content-center">
+      <div class="d-flex justify-content-evenly">
         {% include "www/_vpn_stats_pills.html" with context %}
       </div>
     </div>

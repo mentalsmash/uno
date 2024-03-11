@@ -1,11 +1,11 @@
-<span class="d-inline-block text-bg-warning ms-1 py-1 px-2 border border-dark rounded"
+<div class="d-inline-block text-bg-warning ms-1 py-1 px-2 border border-dark rounded"
       style="font-size: 85%;">
   <i class="bi bi-download"></i>
-  {{vpn_stats["traffic"]["rx"] | humanbytes}}
-</span>
+  <span class="ms-1">{{vpn_stats["traffic"]["rx"] | humanbytes}}</span>
+</div>
 
-<span class="d-inline-block text-bg-warning ms-1 py-1 px-2 border border-dark rounded"
+<div class="d-inline-block text-bg-warning ms-1 py-1 px-2 border border-dark rounded"
     style="font-size: 85%;">
   <i class="bi bi-upload"></i>
-  {{vpn_stats["traffic"]["tx"] | humanbytes}}
-</span>
+  <span class="ms-1">{{vpn_stats["traffic"]["tx"] | humanbytes}}</span>
+</div>
