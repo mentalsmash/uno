@@ -124,7 +124,8 @@ def _filter_format_hash(val: str) -> str:
   return val[:4] + "..." + val[-4:]
 
 
-def _filter_sort_peers(val: "UvnPeersList") -> "Generator[UvnPeer, None, None]":
+def _filter_sort_peers(val: "UvnPeersList", enable_particles: bool=True) -> "Generator[UvnPeer, None, None]":
+  enable_particles = bool(enable_particles)
   def peer_type_id(v: "UvnPeer"):
     return (
       0 if v.registry else
@@ -132,6 +133,8 @@ def _filter_sort_peers(val: "UvnPeersList") -> "Generator[UvnPeer, None, None]":
       2
     )
   for p in sorted(val, key=lambda v: (peer_type_id(v), v.id)):
+    if not enable_particles and p.particle:
+      continue
     yield p
 
 
