@@ -231,11 +231,63 @@ uvn_lan_stop()
     # Disable output NAT
     iptables -t nat -D POSTROUTING -o ${nic} -j MASQUERADE
   ); then
-    uvn_log_failed " failed to disable iptables for LAN interface: ${nic}"
+    uvn_log_failed "failed to disable iptables for LAN interface: ${nic}"
     return 1
   fi
 
   uvn_log_info "LAN interface deconfigured: ${nic}"
+}
+
+
+uvn_net_iptables_docker_enable()
+{
+  if ! iptables -n --list DOCKER-USER >/dev/null 2>/dev/null; then
+    return
+  fi
+
+  local all_nics="${UVN_NET_VPN_INTERFACES} ${UVN_NET_LAN_INTERFACES}"
+
+  for nic_a in ${all_nics}; do
+    for nic_b in ${all_nics}; do
+      if [ "${nic_a}" = "${nic_b}" ]; then
+        continue
+      fi
+      if ! (
+        set -x
+        iptables -I DOCKER-USER -i ${nic_a} -o ${nic_b} -j ACCEPT
+      ); then
+        uvn_log_failed "failed to enable forwarding between ${nic_a} and ${nic_b}"
+        return 1
+      fi
+    done
+  done
+}
+
+uvn_net_iptables_docker_disable()
+{
+  if ! iptables -n --list DOCKER-USER >/dev/null 2>/dev/null; then
+    return
+  fi
+
+  local all_nics="${UVN_NET_VPN_INTERFACES} ${UVN_NET_LAN_INTERFACES}"
+  local rc=
+
+  for nic_a in ${all_nics}; do
+    for nic_b in ${all_nics}; do
+      if [ "${nic_a}" = "${nic_b}" ]; then
+        continue
+      fi
+      if ! (
+        set -x
+        iptables -S DOCKER-USER -i ${nic_a} -o ${nic_b} -j ACCEPT
+      ); then
+        uvn_log_failed "failed to disable forwarding between ${nic_a} and ${nic_b}"
+        rc=1
+      fi
+    done
+  done
+
+  return ${rc}
 }
 
 
@@ -255,6 +307,9 @@ uvn_net_start()
     uvn_lan_start ${nic}
   done
 
+  # Make sure forwarding is enabled if Docker is installed
+  uvn_net_iptables_docker_enable
+
   # Make sure IPv4 forwarding is enabled in the kernel
   (
     set -x
@@ -272,6 +327,9 @@ uvn_net_stop()
 
   UVN_NET_STOP_FAILED=
   local failed=
+
+  # Make sure forwarding is disabled if Docker is installed
+  uvn_net_iptables_docker_disable || failed=docker
 
   for nic in ${UVN_NET_VPN_INTERFACES}; do
     if ! uvn_vpn_stop ${nic}; then

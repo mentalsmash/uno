@@ -25,6 +25,8 @@ from .ip import (
   ipv4_disable_forward,
   ipv4_disable_output_nat,
   ipv4_enable_kernel_forwarding,
+  iptables_detect_docker,
+  iptables_docker_forward,
   NicDescriptor,
   LanDescriptor,
 )
@@ -43,6 +45,13 @@ def _sha256sum(input: Path) -> str:
   if len(cksum) != 64:
     raise RuntimeError("invalid checksum generated", input, cksum)
   return cksum
+
+
+def _interface_name(intf: LanDescriptor|WireGuardInterface) -> str:
+  if isinstance(intf, LanDescriptor):
+    return intf.nic.name
+  else:
+    return intf.config.intf.name
 
 
 class UvnService:
@@ -466,6 +475,7 @@ class AgentNetworking:
     self._lans_nat = []
     self._vpn_started = []
     self._vpn_nat = []
+    self._iptables_docker_rules = {}
     self._uvn_net_enabled = False
     self._boot = True
     self.configure(
@@ -564,6 +574,9 @@ class AgentNetworking:
         self._enable_vpn_nat(vpn)
       for lan in self._allowed_lans:
         self._enable_lan_nat(lan)
+      
+      self._enable_iptables_docker()
+
       if self._router:
         self._router.start()
         self._router_started = self._router
@@ -595,6 +608,8 @@ class AgentNetworking:
     lans_nat = self._allowed_lans if assert_stopped else list(self._lans_nat)
     router = self._router if assert_stopped else self._router_started
     errors = []
+
+    self._disable_iptables_docker()
 
     for vpn in vpns_nat:
       try:
@@ -680,7 +695,7 @@ class AgentNetworking:
 
   def _enable_vpn_nat(self, vpn: WireGuardInterface) -> None:
     # ipv4_enable_forward(vpn.config.intf.name)
-    # ipv4_enable_output_nat(vpn.config.intf.name)
+    # ipv4_enable_output_nat(vpn.config.intf.name)      
     self._vpn_nat.append(vpn)
     log.debug(f"NAT ENABLED for VPN interface: {vpn}")
 
@@ -691,3 +706,35 @@ class AgentNetworking:
     if vpn in self._vpn_nat:
       self._vpn_nat.remove(vpn)
     log.debug(f"NAT DISABLED for VPN: {vpn}")
+
+
+  def _enable_iptables_docker(self) -> None:
+    # Check if docker rules are installed on iptables.
+    # If they are, assume we must explicitly allow forwarding between
+    # interfaces via the DOCKER-USER chain
+    # (see https://docs.docker.com/network/packet-filtering-firewalls/#docker-on-a-router)
+    self._iptables_docker_rules = {}
+    if not iptables_detect_docker():
+      return
+
+    # Create explicit forwarding rules between each pair of interfaces
+    all_interfaces = set(*self._vpn_nat, self._lans_nat)
+    rules = self._iptables_docker_rules
+    for intf_a in all_interfaces:
+      for intf_b in all_interfaces:
+        intf_b_rules = rules[intf_b] = rules.get(intf_b, set())
+        if intf_a in intf_b:
+          continue
+        iptables_docker_forward(_interface_name(intf_a), _interface_name(intf_b), enable=True)
+        intf_b_rules.add(intf_a)
+
+
+  def _disable_iptables_docker(self) -> None:
+    # Create explicit forwarding rules between each pair of interfaces
+    for intf_a, intf_a_rules in list(self._iptables_docker_rules.items()):
+      for intf_b in intf_a_rules:
+        iptables_docker_forward(_interface_name(intf_a), _interface_name(intf_b), enable=False)
+        self._iptables_docker_rules[intf_a].remove(intf_b)
+      del self._iptables_docker_rules[intf_a]
+    self._iptables_docker_rules = {}
+

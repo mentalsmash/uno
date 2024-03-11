@@ -403,3 +403,23 @@ def ip_nic_exists(nic: str) -> bool:
     # TODO(asorbini) check that the interface was actually returned
     return bool(result.stdout.decode("utf-8").strip())
 
+
+def iptables_detect_docker() -> bool:
+    # Check if the chain DOCKER-USER exists
+    result = exec_command(["iptables", "-n", "--list", "DOCKER-USER"], noexcept=True)
+    return result.returncode == 0
+
+
+def iptables_docker_forward(nic_a: str, nic_b: str, bidir: bool=True, enable: bool=True) -> None:
+    def _forward(a: str, b: str) -> None:
+        exec_command([f"iptables -I DOCKER-USER -i {a} -o {b} -j ACCEPT"])
+
+    def _delete_rule(a: str, b: str) -> None:
+        exec_command([f"iptables -S DOCKER-USER -i {a} -o {b} -j ACCEPT"])
+
+    action = _forward if enable else _delete_rule
+    
+    action(nic_a, nic_b)
+    if bidir:
+        action(nic_b, nic_a)
+
