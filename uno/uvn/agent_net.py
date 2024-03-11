@@ -733,7 +733,7 @@ class AgentNetworking:
   def _disable_iptables_docker(self) -> None:
     # Create explicit forwarding rules between each pair of interfaces
     for intf_a, intf_a_rules in list(self._iptables_docker_rules.items()):
-      for intf_b in intf_a_rules:
+      for intf_b in list(intf_a_rules):
         iptables_docker_forward(_interface_name(intf_a), _interface_name(intf_b), enable=False)
         self._iptables_docker_rules[intf_a].remove(intf_b)
       del self._iptables_docker_rules[intf_a]
