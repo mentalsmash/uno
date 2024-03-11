@@ -119,6 +119,7 @@ class DdsParticipant:
     self._qos_provider = None
     self._dp = None
     self._waitset = None
+    self._waitset_attached = []
     self.writers = {}
     self._writer_conditions = {}
     self._readers = {}
@@ -152,21 +153,20 @@ class DdsParticipant:
         *self._data_conditions.values(),
         *self._user_conditions):
       self._waitset += condition
+      self._waitset_attached.append(condition)
     
     log.activity("[DDS] started")
 
 
   def stop(self) -> None:
     log.debug("[DDS] STOP in process...")
-    for condition in (
-        self.exit_condition,
-        *self._writer_conditions.values(),
-        *self._reader_conditions.values(),
-        *self._data_conditions.values(),
-        *self._user_conditions):
+    for condition in list(self._waitset_attached):
       if not condition:
         continue
       self._waitset -= condition
+      self._waitset_attached.remove(condition)
+    self._waitset_attached = []
+
     if self._dp:
       self._dp.close()
 
