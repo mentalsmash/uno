@@ -33,7 +33,7 @@ def write_particle_configuration(
     output_filename: Optional[str]=None) -> set[Path]:
   if output_filename is None:
     output_filename = particle.name
-  particle_cfg_file = output_dir / f"{output_filename}.wireguard"
+  particle_cfg_file = output_dir / f"{output_filename}.wireguard.conf"
   particle_qr_file = output_dir / f"{output_filename}.png"
   output_dir.mkdir(parents=True, exist_ok=True, mode=0o700)
   Templates.generate(particle_cfg_file, *particle_vpn_config.template_args, mode=0o600)
