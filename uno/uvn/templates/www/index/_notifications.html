@@ -13,11 +13,11 @@
 {% if peers_offline %}
 {%   if peers_online %}
 <div class="alert alert-warning" role="alert">
-  {{peers_offline}} peer{%if peers_offline != 1%}s are{%else%} is{%endif%} offline.
+  {{peers_offline}} agent{%if peers_offline != 1%}s are{%else%} is{%endif%} offline.
 </div>
 {%   else %}
 <div class="alert alert-warning" role="alert">
-  All peers are currently offline!
+  All agents are currently offline!
 </div>
 {%   endif %}{# if peers_online #}
 {% endif %}{# if peers_offline #}
