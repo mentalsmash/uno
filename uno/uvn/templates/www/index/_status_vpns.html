@@ -23,7 +23,6 @@
         {% endwith %}
         {% endwith %}
         {% endwith %}
-        {% endwith %}
       </div>
       {% endif %}{# if stats #}
       {% endif %}{# if root_vpn #}
@@ -36,7 +35,6 @@
         {% with vpn_id = "particles" %}
         {% with peers = uvn_id.particles %}
         {% include "www/_vpn_status.html" with context %}
-        {% endwith %}
         {% endwith %}
         {% endwith %}
         {% endwith %}
@@ -54,7 +52,6 @@
         {% with vpn_id = "backbone" + i_str %}
         {% with peers = uvn_id.cells %}
         {% include "www/_vpn_status.html" with context %}
-        {% endwith %}
         {% endwith %}
         {% endwith %}
         {% endwith %}
