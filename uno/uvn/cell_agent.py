@@ -497,6 +497,11 @@ class CellAgent(Agent):
     self.www.request_update()
 
 
+  def on_event_vpn_connections(self, new_online: set[UvnPeer.VpnStatus], gone_online: set[UvnPeer.VpnStatus]) -> None:
+    super().on_event_vpn_connections(new_online, gone_online)
+    self.www.request_update()
+
+
   def find_backbone_peer_by_address(self, addr: str | ipaddress.IPv4Address) -> Optional[UvnPeer]:
     addr = ipaddress.ip_address(addr)
     for vpn in self.backbone_vpns:
