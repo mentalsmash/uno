@@ -29,11 +29,17 @@
           <tr>
             <td>
               {% if peer.registry %}
-              <i class="fs-4 bi bi-building-lock"></i>
+              <span title="Registry">
+                <i class="fs-4 bi bi-building-lock"></i>
+              </span>
               {% elif peer.cell %}
-              <i class="fs-4 bi bi-house-lock"></i>
+              <span title="Cell">
+                <i class="fs-4 bi bi-house-lock"></i>
+              </span>
               {% else %}
-              <i class="fs-4 bi bi-car-front"></i>
+              <span title="Particle">
+                <i class="fs-4 bi bi-car-front"></i>
+              </span>
               {% endif %}
             </td>
             <td>
