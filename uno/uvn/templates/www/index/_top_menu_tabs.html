@@ -2,7 +2,7 @@
   <ul class="nav nav-pills nav-fill" id="tab-menu">
     <li class="nav-item">
       <button
-        class="nav-link active"
+        class="nav-link text-white active"
         id="tab-status-graphs"
         data-bs-toggle="tab"
         data-bs-target="#status-graphs"
@@ -18,7 +18,7 @@
 
     <li class="nav-item">
       <button
-        class="nav-link"
+        class="nav-link text-white"
         id="tab-status-agents"
         data-bs-toggle="tab"
         data-bs-target="#status-agents"
@@ -34,7 +34,7 @@
 
     <li class="nav-item">
       <button
-        class="nav-link"
+        class="nav-link text-white"
         id="tab-status-networks"
         data-bs-toggle="tab"
         data-bs-target="#status-networks"
@@ -50,7 +50,7 @@
 
     <li class="nav-item">
       <button
-        class="nav-link"
+        class="nav-link text-white"
         id="tab-status-vpns"
         data-bs-toggle="tab"
         data-bs-target="#status-vpns"
@@ -64,9 +64,10 @@
       </button>
     </li>
 
+    {% if router -%}
     <li class="nav-item">
       <button
-        class="nav-link"
+        class="nav-link text-white"
         id="tab-status-router"
         data-bs-toggle="tab"
         data-bs-target="#status-router"
@@ -79,10 +80,11 @@
         <span class="fs-6 ms-1 d-none d-xl-inline">Router</span>
       </button>
     </li>
+    {% endif %}{# if router #}
 
     <li class="nav-item">
       <button
-        class="nav-link"
+        class="nav-link text-white"
         id="tab-config-uvn"
         data-bs-toggle="tab"
         data-bs-target="#config-uvn"
@@ -98,7 +100,7 @@
     
     <li class="nav-item">
       <button
-        class="nav-link"
+        class="nav-link text-white"
         id="tab-config-cells"
         data-bs-toggle="tab"
         data-bs-target="#config-cells"
@@ -114,7 +116,7 @@
 
     <li class="nav-item">
       <button
-        class="nav-link"
+        class="nav-link text-white"
         id="tab-config-particles"
         data-bs-toggle="tab"
         data-bs-target="#config-particles"
@@ -130,7 +132,7 @@
 
     <li class="nav-item">
       <button
-        class="nav-link"
+        class="nav-link text-white"
         id="tab-config-vpns"
         data-bs-toggle="tab"
         data-bs-target="#config-vpns"
@@ -147,7 +149,7 @@
 
     <li class="nav-item">
       <button
-        class="nav-link"
+        class="nav-link text-white"
         id="tab-config-backbone"
         data-bs-toggle="tab"
         data-bs-target="#config-backbone"
@@ -163,7 +165,7 @@
 
     <li class="nav-item">
       <button
-        class="nav-link"
+        class="nav-link text-white"
         id="tab-config-ports"
         data-bs-toggle="tab"
         data-bs-target="#config-ports"
@@ -178,4 +180,4 @@
     </li>
 
   </ul>
-</div>  
+</div>
