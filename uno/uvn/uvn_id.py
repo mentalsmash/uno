@@ -1347,7 +1347,7 @@ class UvnId(Versioned):
 
   @property
   def private_cells(self) -> Iterable[CellId]:
-    return (c for c in self.cells.values() if not c.address)
+    return (c for c in self.all_cells if not c.address)
 
 
   @property
