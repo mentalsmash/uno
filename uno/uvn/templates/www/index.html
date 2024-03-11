@@ -59,7 +59,7 @@
             <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Close"></button>
           </div>
           <div class="modal-body">
-            { include "www/index/_notifications.html" with context }
+            {% include "www/index/_notifications.html" with context %}
             <ul class="list-group list-group-flush">
               <li class="list-group-item">
                 <span class="key">Page generated on</span> <span class="value">{{generation_ts | format_ts}}</span>
