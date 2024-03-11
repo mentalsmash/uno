@@ -241,9 +241,9 @@ class Registry(Versioned):
     )
     changed_backbone_vpn = (
       force
+      or redeploy
       or changed_uvn
       or changed_cell
-      or redeploy
       or next((c for c, _ in changed if isinstance(c, BackboneVpnSettings)), None) is not None
     )
 
@@ -361,6 +361,8 @@ class Registry(Versioned):
         deployment=self.backbone_vpn_config.deployment)
     elif self.uvn_id.cells:
       log.error(f"[REGISTRY] UVN has {len(self.uvn_id.cells)} cells but no backbone links!")
+    else:
+      log.warning(f"[REGISTRY] UVN has no cells")
 
 
   def rekey_particle(self, particle: ParticleId, cells: Iterable[CellId]|None=None):
