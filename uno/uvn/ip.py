@@ -412,10 +412,10 @@ def iptables_detect_docker() -> bool:
 
 def iptables_docker_forward(nic_a: str, nic_b: str, bidir: bool=True, enable: bool=True) -> None:
     def _forward(a: str, b: str) -> None:
-        exec_command([f"iptables -I DOCKER-USER -i {a} -o {b} -j ACCEPT"])
+        exec_command(["iptables", "-I", "DOCKER-USER", "-i", a, "-o", b, "-j", "ACCEPT"])
 
     def _delete_rule(a: str, b: str) -> None:
-        exec_command([f"iptables -S DOCKER-USER -i {a} -o {b} -j ACCEPT"])
+        exec_command(["iptables", "-S", "DOCKER-USER", "-i", a, "-o", b])
 
     action = _forward if enable else _delete_rule
     

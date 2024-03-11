@@ -279,7 +279,7 @@ uvn_net_iptables_docker_disable()
       fi
       if ! (
         set -x
-        iptables -S DOCKER-USER -i ${nic_a} -o ${nic_b} -j ACCEPT
+        iptables -S DOCKER-USER -i ${nic_a} -o ${nic_b}
       ); then
         uvn_log_failed "failed to disable forwarding between ${nic_a} and ${nic_b}"
         rc=1
