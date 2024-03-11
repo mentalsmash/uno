@@ -4,38 +4,4 @@
     aria-labelledby="tab-config-uvn"
     tabindex="0">
   {% include "www/_uvn_table.html" with context %}
-
-  {% with cells = uvn_id.cells.values() %}
-  {% with title = "Cells" %}
-  {% with icon = "house-lock" %}
-  {% include "www/_cells_table.html" with context %}
-  {% endwith %}
-  {% endwith %}
-  {% endwith %}
-
-  {% with cells = uvn_id.excluded_cells.values() %}
-  {% with title = "Banned Cells" %}
-  {% with icon = "ban" %}
-  {% include "www/_cells_table.html" with context %}
-  {% endwith %}
-  {% endwith %}
-  {% endwith %}
-
-  {% with particles = uvn_id.particles.values() %}
-  {% with title = "Particles" %}
-  {% with icon = "car-front" %}
-  {% with include_config = True %}
-  {% include "www/_particles_table.html" with context %}
-  {% endwith %}
-  {% endwith %}
-  {% endwith %}
-  {% endwith %}
-
-  {% with particles = uvn_id.excluded_particles.values() %}
-  {% with title = "Banned Particles" %}
-  {% with icon = "ban" %}
-  {% include "www/_particles_table.html" with context %}
-  {% endwith %}
-  {% endwith %}
-  {% endwith %}
 </div>
