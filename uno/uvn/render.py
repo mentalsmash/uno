@@ -124,8 +124,8 @@ def _filter_format_hash(val: str) -> str:
   return val[:4] + "..." + val[-4:]
 
 
-def _filter_sort_peers(val: UvnPeersList) -> Generator[UvnPeer, None, None]:
-  def peer_type_id(v: UvnPeer):
+def _filter_sort_peers(val: "UvnPeersList") -> "Generator[UvnPeer, None, None]":
+  def peer_type_id(v: "UvnPeer"):
     return (
       0 if v.registry else
       1 if v.cell else
