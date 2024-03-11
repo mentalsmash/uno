@@ -723,7 +723,7 @@ class AgentNetworking:
     for intf_a in all_interfaces:
       for intf_b in all_interfaces:
         intf_b_rules = rules[intf_b] = rules.get(intf_b, set())
-        if intf_a in intf_b:
+        if intf_a == intf_b:
           continue
         iptables_docker_forward(_interface_name(intf_a), _interface_name(intf_b), enable=True)
         intf_b_rules.add(intf_a)
