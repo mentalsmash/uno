@@ -19,15 +19,29 @@
     <div class="container-fluid">
       <div class="fixed-top">
         {% include "www/index/_title.html" with context %}
-        {% include "www/index/_top_menu.html" with context %}
+        {% include "www/index/_top_menu_tabs.html" with context %}
       </div>
       <div class="row flex-nowrap pt-5 pt-sm-0">
-        {% include "www/index/_sidebar.html" with context %}
-        <div class="col-12 col-sm-8 col-lg-9 col-xl-10 pb-3 pt-5">
+        {# include "www/index/_sidebar.html" with context #}
+        <!-- <div class="col-12 col-sm-8 col-lg-9 col-xl-10 pb-3 pt-5"> -->
+        <div class="col-12 pb-3 pt-5">
           {% include "www/index/_notifications.html" with context %}
-          <div class="" id="panels">
-            {% include "www/index/_status.html" with context %}
-            {% include "www/index/_config.html" with context %}
+          <div class="tab-content" id="panels">
+            {% include "www/index/_status_graphs.html" with context %}
+            {% include "www/index/_status_agents.html" with context %}
+            {% include "www/index/_status_networks.html" with context %}
+            {% include "www/index/_status_vpns.html" with context %}
+            {% if router -%}
+            {% include "www/index/_status_router.html" with context %}
+            {% endif %}
+            {# include "www/index/_status.html" with context #}
+            {# include "www/index/_config.html" with context #}
+            {% include "www/index/_config_uvn.html" with context %}
+            {% include "www/index/_config_cells.html" with context %}
+            {% include "www/index/_config_particles.html" with context %}
+            {% include "www/index/_config_vpn.html" with context %}
+            {% include "www/index/_config_backbone.html" with context %}
+            {% include "www/index/_config_ports.html" with context %}
           </div>
           {% include "www/index/_footer.html" with context %}
         </div>
