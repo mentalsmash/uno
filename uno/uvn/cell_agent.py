@@ -536,6 +536,8 @@ class CellAgent(Agent):
       WireGuardInterface(self.particles_vpn_config.root_config)
       if self.particles_vpn_config else None
     )
+    self._vpn_stats_update = True
+    self._vpn_stats = None
     self._registry_id = updated_agent.registry_id
 
 
