@@ -718,7 +718,7 @@ class AgentNetworking:
       return
 
     # Create explicit forwarding rules between each pair of interfaces
-    all_interfaces = set(*self._vpn_nat, self._lans_nat)
+    all_interfaces = set(*self._vpn_nat, *self._lans_nat)
     rules = self._iptables_docker_rules
     for intf_a in all_interfaces:
       for intf_b in all_interfaces:
