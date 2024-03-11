@@ -55,7 +55,11 @@
           <th>Id</th>
           <th>Name</th>
           <th>Admin</th>
+          <th>Location</th>
           <th>Public Address</th>
+          <th>Networks</th>
+          <th>Particles VPN</th>
+          <th>Httpd Port</th>
         </tr>
       </thead>
       <tbody>
@@ -68,6 +72,7 @@
             {% endwith %}
           </td>
           <td><a href="mailto:{{cell.owner}}">{{cell.owner_name}}</a></td>
+          <td>{{cell.location}}</td>
           <td>
             {% if cell.address %}
             {{cell.address}}
@@ -75,13 +80,19 @@
             N/A
             {% endif %}
           </td>
+          <td>{{cell.allowed_lans | sort | join(", ") }}</td>
+          <td>{{'Allowed' if cell.enable_particles_vpn else 'Disabled'}}</td>
+          <td>{{cell.httpd_port}}</td>
         </tr>
         {% else %}
         <tr>
           <td>None</td>
-          <td></td>
-          <td></td>
-          <td></td>
+          <td>N/A</td>
+          <td>N/A</td>
+          <td>N/A</td>
+          <td>N/A</td>
+          <td>N/A</td>
+          <td>N/A</td>
         </tr>
         {% endfor %}
       </tbody>
