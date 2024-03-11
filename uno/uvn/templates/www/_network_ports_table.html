@@ -13,12 +13,6 @@
       </tr>
     </thead>
     <tbody>
-      <tr>
-        <td></td>
-        <td></td>
-        <td></td>
-      </tr>
-
       {% for peer in peers | sort(attribute="id") if peer.cell or peer.registry %}
       <tr>
         <td>
@@ -49,6 +43,14 @@
           {{uvn_id.settings.root_vpn.port}}
           {% endif %}
         </td>
+      </tr>
+      {% else %}
+      <tr>
+        <td>
+          None
+        </td>
+        <td>N/A</td>
+        <td>N/A</td>
       </tr>
       {% endfor %}
     </tbody>
