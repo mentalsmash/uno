@@ -3,99 +3,19 @@
     role="tabpanel"
     aria-labelledby="tab-config-cells"
     tabindex="0">
-  <h3 class="mb-2">
-    <!-- <svg width="24px" height="24px" stroke-width="1.5" viewBox="0 0 24 24" fill="none" xmlns="http://www.w3.org/2000/svg" color="#000000"><path d="M12 2C6.47715 2 2 6.47715 2 12C2 17.5228 6.47715 22 12 22C17.5228 22 22 17.5228 22 12C22 6.47715 17.5228 2 12 2Z" stroke="#000000" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"></path><path d="M4.271 18.3457C4.271 18.3457 6.50002 15.5 12 15.5C17.5 15.5 19.7291 18.3457 19.7291 18.3457" stroke="#000000" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"></path><path d="M12 12C13.6569 12 15 10.6569 15 9C15 7.34315 13.6569 6 12 6C10.3431 6 9 7.34315 9 9C9 10.6569 10.3431 12 12 12Z" stroke="#000000" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"></path></svg> -->
-    <!-- <svg width="24px" height="24px" viewBox="0 0 24 24" stroke-width="1.5" fill="none" xmlns="http://www.w3.org/2000/svg" color="#000000"><path d="M10 16H14" stroke="#000000" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"></path><path d="M2 8L11.7317 3.13416C11.9006 3.04971 12.0994 3.0497 12.2683 3.13416L22 8" stroke="#000000" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"></path><path d="M20 11V19C20 20.1046 19.1046 21 18 21H6C4.89543 21 4 20.1046 4 19V11" stroke="#000000" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"></path></svg> -->
-    <i class="fs-4 bi bi-house-lock"></i>
-    <span class="ms-1 fs-4 d-inline">Cells</span>
-  </h3>
-  <div class="table-responsive p-2">
-    <table class="table table-sm table-striped">
-      <thead class="table-dark">
-        <tr>
-          <th>Id</th>
-          <th>Name</th>
-          <th>Admin</th>
-          <th>Public Address</th>
-        </tr>
-      </thead>
-      <tbody>
-        {% for cell in uvn_id.cells.values() | sort(attribute="id") -%}
-        <tr>
-          <td>{{cell.id}}</td>
-          <td>
-            {% with name=cell.name, endpoint=cell.address %}
-            {% include "www/_peer_name_pill.html" with context %}
-            {% endwith %}
-          </td>
-          <td><a href="mailto:{{cell.owner}}">{{cell.owner_name}}</a></td>
-          <td>
-            {% if cell.address %}
-            {{cell.address}}
-            {% else %}
-            N/A
-            {% endif %}
-          </td>
-        </tr>
-        {% endfor %}
-      </tbody>
-    </table>
-  </div>
+  {% with cells = uvn_id.cells.values() %}
+  {% with title = "Cells" %}
+  {% with icon = "house-lock" %}
+  {% include "www/_cells_table.html" with context %}
+  {% endwith %}
+  {% endwith %}
+  {% endwith %}
 
-  <h3 class="mt-5 mb-2">
-    <!-- <svg width="24px" height="24px" stroke-width="1.5" viewBox="0 0 24 24" fill="none" xmlns="http://www.w3.org/2000/svg" color="#000000"><path d="M12 2C6.47715 2 2 6.47715 2 12C2 17.5228 6.47715 22 12 22C17.5228 22 22 17.5228 22 12C22 6.47715 17.5228 2 12 2Z" stroke="#000000" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"></path><path d="M4.271 18.3457C4.271 18.3457 6.50002 15.5 12 15.5C17.5 15.5 19.7291 18.3457 19.7291 18.3457" stroke="#000000" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"></path><path d="M12 12C13.6569 12 15 10.6569 15 9C15 7.34315 13.6569 6 12 6C10.3431 6 9 7.34315 9 9C9 10.6569 10.3431 12 12 12Z" stroke="#000000" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"></path></svg> -->
-    <!-- <svg width="24px" height="24px" viewBox="0 0 24 24" stroke-width="1.5" fill="none" xmlns="http://www.w3.org/2000/svg" color="#000000"><path d="M10 16H14" stroke="#000000" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"></path><path d="M2 8L11.7317 3.13416C11.9006 3.04971 12.0994 3.0497 12.2683 3.13416L22 8" stroke="#000000" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"></path><path d="M20 11V19C20 20.1046 19.1046 21 18 21H6C4.89543 21 4 20.1046 4 19V11" stroke="#000000" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"></path></svg> -->
-    <i class="fs-4 bi bi-ban"></i>
-    <span class="ms-1 fs-4 d-inline">Banned Cells</span>
-  </h3>
-  <div class="table-responsive p-2">
-    <table class="table table-sm table-striped">
-      <thead class="table-dark">
-        <tr>
-          <th>Id</th>
-          <th>Name</th>
-          <th>Admin</th>
-          <th>Location</th>
-          <th>Public Address</th>
-          <th>Networks</th>
-          <th>Particles VPN</th>
-          <th>Httpd Port</th>
-        </tr>
-      </thead>
-      <tbody>
-        {% for cell in uvn_id.excluded_cells.values() | sort(attribute="id") -%}
-        <tr>
-          <td>{{cell.id}}</td>
-          <td>
-            {% with name=cell.name, endpoint=cell.address %}
-            {% include "www/_peer_name_pill.html" with context %}
-            {% endwith %}
-          </td>
-          <td><a href="mailto:{{cell.owner}}">{{cell.owner_name}}</a></td>
-          <td>{{cell.location}}</td>
-          <td>
-            {% if cell.address %}
-            {{cell.address}}
-            {% else %}
-            N/A
-            {% endif %}
-          </td>
-          <td>{{cell.allowed_lans | sort | join(", ") }}</td>
-          <td>{{'Allowed' if cell.enable_particles_vpn else 'Disabled'}}</td>
-          <td>{{cell.httpd_port}}</td>
-        </tr>
-        {% else %}
-        <tr>
-          <td>None</td>
-          <td>N/A</td>
-          <td>N/A</td>
-          <td>N/A</td>
-          <td>N/A</td>
-          <td>N/A</td>
-          <td>N/A</td>
-        </tr>
-        {% endfor %}
-      </tbody>
-    </table>
-  </div>
+  {% with cells = uvn_id.excluded_cells.values() %}
+  {% with title = "Banned Cells" %}
+  {% with icon = "ban" %}
+  {% include "www/_cells_table.html" with context %}
+  {% endwith %}
+  {% endwith %}
+  {% endwith %}
 </div>
