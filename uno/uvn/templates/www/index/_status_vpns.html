@@ -11,11 +11,12 @@
   <div class="container-fluid accordion bg-body-secondary p-2" id="panel-vpn-status">
     <div class="row" id="vpn-status">
       {% if root_vpn %}
+      {% set stats = vpn_stats["interfaces"].get(root_vpn) %}
+      {% if stats %}
       <div class="col-xl-6">
         {% with vpn = root_vpn %}
         {% with vpn_name = "Root" %}
         {% with vpn_id = "root" %}
-        {% with stats = vpn_stats["interfaces"][root_vpn] %}
         {% with peers = [uvn_id] %}
         {% include "www/_vpn_status.html" with context %}
         {% endwith %}
@@ -24,13 +25,15 @@
         {% endwith %}
         {% endwith %}
       </div>
+      {% endif %}{# if stats #}
       {% endif %}{# if root_vpn #}
       {% if particles_vpn %}
+      {% set stats = vpn_stats["interfaces"].get(particles_vpn) %}
+      {% if stats %}
       <div class="col-xl-6">
         {% with vpn = particles_vpn %}
         {% with vpn_name = "Particles" %}
         {% with vpn_id = "particles" %}
-        {% with stats = vpn_stats["interfaces"][particles_vpn] %}
         {% with peers = uvn_id.particles %}
         {% include "www/_vpn_status.html" with context %}
         {% endwith %}
@@ -39,14 +42,16 @@
         {% endwith %}
         {% endwith %}
       </div>
+      {% endif %}{# if stats #}
       {% endif %}{# if particles_vpn #}
       {% for backbone_vpn in backbone_vpns %}
       {%- set i_str = loop.index | string-%}
+      {%- set stats = vpn_stats["interfaces"].get(backbone_vpn) %}
+      {% if stats %}
       <div class="col-xl-6">
         {% with vpn = backbone_vpn %}
         {% with vpn_name = "Backbone #" + i_str %}
         {% with vpn_id = "backbone" + i_str %}
-        {% with stats = vpn_stats["interfaces"][backbone_vpn] %}
         {% with peers = uvn_id.cells %}
         {% include "www/_vpn_status.html" with context %}
         {% endwith %}
@@ -55,6 +60,7 @@
         {% endwith %}
         {% endwith %}
       </div>
+      {% endif %}{# if stats #}
       {% endfor %}{# for backbone_vpn in backbone_vpns #}
     </div><!--row-->
   </div><!--container-->

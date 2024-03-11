@@ -158,7 +158,7 @@ class RegistryAgent(Agent):
 
   def _on_started(self, boot: bool=False) -> None:
     self._write_uvn_info()
-    # self._write_agent_configs()
+    self._write_agent_configs()
 
 
   def on_event_all_cells_connected(self) -> None:
