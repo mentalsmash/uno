@@ -1,6 +1,8 @@
 [Unit]
 Description=uno UVN registry network connection
 Before=uvn-registry.service
+After=docker.service
+Wants=docker.service
 
 [Service]
 Type=oneshot

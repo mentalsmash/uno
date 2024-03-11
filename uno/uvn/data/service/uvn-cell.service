@@ -1,7 +1,6 @@
 [Unit]
 Description=uno UVN cell agent
 After=uvn-net-cell.service
-# Wants=uvn-net-cell.service
 BindsTo=uvn-net-cell.service
 
 [Service]

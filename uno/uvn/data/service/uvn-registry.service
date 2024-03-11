@@ -1,7 +1,6 @@
 [Unit]
 Description=uno UVN registry agent
 After=uvn-net-registry.service
-# Wants=uvn-net-registry.service
 BindsTo=uvn-net-registry.service
 
 [Service]

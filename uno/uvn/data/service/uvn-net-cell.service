@@ -1,6 +1,8 @@
 [Unit]
 Description=uno UVN cell network connection
 Before=uvn-cell.service
+After=docker.service
+Wants=docker.service
 
 [Service]
 Type=oneshot
