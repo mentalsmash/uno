@@ -17,7 +17,7 @@
 from typing import Optional, Mapping
 from pathlib import Path
 
-from .uvn_id import ParticleId, UvnId
+from .uvn_id import ParticleId, UvnId, CellId
 from .render import Templates
 from .qr import encode_qr_from_file
 from .wg import WireGuardConfig
