@@ -423,3 +423,10 @@ def iptables_docker_forward(nic_a: str, nic_b: str, bidir: bool=True, enable: bo
     if bidir:
         action(nic_b, nic_a)
 
+
+def iptables_tcp_pmtu(enable: bool=True):
+    exec_command([
+        "iptables",
+            "-A" if enable else "-D",
+            "FORWARD", "-p", "tcp", "--tcp-flags", "SYN,RST", "SYN", "-j", "TCPMSS", "--clamp-mss-to-pmtu"
+    ])

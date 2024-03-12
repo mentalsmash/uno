@@ -27,6 +27,7 @@ from .ip import (
   ipv4_enable_kernel_forwarding,
   iptables_detect_docker,
   iptables_docker_forward,
+  iptables_tcp_pmtu,
   NicDescriptor,
   LanDescriptor,
 )
@@ -476,6 +477,7 @@ class AgentNetworking:
     self._vpn_started = []
     self._vpn_nat = []
     self._iptables_docker_rules = {}
+    self._iptables_tcp_pmtu = False
     self._uvn_net_enabled = False
     self._boot = True
     self.configure(
@@ -577,6 +579,9 @@ class AgentNetworking:
       
       self._enable_iptables_docker()
 
+      iptables_tcp_pmtu(enable=True)
+      self._iptables_tcp_pmtu = True
+
       if self._router:
         self._router.start()
         self._router_started = self._router
@@ -610,6 +615,10 @@ class AgentNetworking:
     errors = []
 
     self._disable_iptables_docker()
+
+    if self._iptables_tcp_pmtu:
+      self._iptables_tcp_pmtu = False
+      iptables_tcp_pmtu(disable=True)
 
     for vpn in vpns_nat:
       try:

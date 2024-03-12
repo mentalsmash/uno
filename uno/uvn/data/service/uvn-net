@@ -290,6 +290,28 @@ uvn_net_iptables_docker_disable()
   return ${rc}
 }
 
+uvn_net_iptables_tcp_pmtu_enable()
+{
+  if ! (
+    set -x
+    iptables -A FORWARD --protocol tcp --tcp-flags SYN,RST SYN --jump TCPMSS --clamp-mss-to-pmtu
+  ); then
+    uvn_log_failed "failed to set tcp pmtu rule"
+    return 1
+  fi
+}
+
+uvn_net_iptables_tcp_pmtu_disable()
+{
+  if ! (
+    set -x
+    iptables -D FORWARD --protocol tcp --tcp-flags SYN,RST SYN --jump TCPMSS --clamp-mss-to-pmtu
+  ); then
+    uvn_log_failed "failed to delete tcp pmtu rule"
+    return 1
+  fi
+}
+
 
 # Configure all network interfaces associated with the UVN
 uvn_net_start()
@@ -310,6 +332,8 @@ uvn_net_start()
   # Make sure forwarding is enabled if Docker is installed
   uvn_net_iptables_docker_enable
 
+  uvn_net_iptables_tcp_pmtu_enable
+
   # Make sure IPv4 forwarding is enabled in the kernel
   (
     set -x
@@ -329,7 +353,10 @@ uvn_net_stop()
   local failed=
 
   # Make sure forwarding is disabled if Docker is installed
-  uvn_net_iptables_docker_disable || failed=docker
+  uvn_net_iptables_docker_disable || failed="${failed} docker"
+
+  # 
+  uvn_net_iptables_tcp_pmtu_disable || failed="${failed} tcp_pmtu"
 
   for nic in ${UVN_NET_VPN_INTERFACES}; do
     if ! uvn_vpn_stop ${nic}; then
