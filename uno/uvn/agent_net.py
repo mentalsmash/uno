@@ -715,7 +715,7 @@ class AgentNetworking:
     #   ipv4_enable_forward(vpn.config.intf.name)
     if vpn.config.masquerade:
       for lan in lans:
-        # ipv4_enable_output_nat(vpn.config.intf.name)
+        ipv4_enable_output_nat(vpn.config.intf.name)
         exec_command([
           "iptables", "-t", "nat", "-A", "POSTROUTING", "-s", vpn.config.intf.subnet, "-o", lan.nic.name, "-j", "MASQUERADE",
         ])
@@ -726,16 +726,16 @@ class AgentNetworking:
   def _disable_vpn_nat(self, vpn: WireGuardInterface, lans: list[LanDescriptor], ignore_errors: bool=False) -> None:
     # if vpn.config.forward:
     #   ipv4_disable_forward(vpn.config.intf.name, ignore_errors=ignore_errors)
-    # if vpn.config.masquerade:
-    #   ipv4_disable_output_nat(vpn.config.intf.name, ignore_errors=ignore_errors)
+    if vpn.config.masquerade:
+      ipv4_disable_output_nat(vpn.config.intf.name, ignore_errors=ignore_errors)
     # if vpn in self._vpn_nat:
     #   self._vpn_nat.remove(vpn)
-    for lan in lans:
-      exec_command([
-        "iptables", "-t", "nat", "-D", "POSTROUTING", "-s", vpn.config.intf.subnet, "-o", lan.nic.name, "-j", "MASQUERADE",
-      ])
-      if (vpn, lan) in self._vpn_nat:
-        self._vpn_nat.remove((vpn, lan))
+      for lan in lans:
+        exec_command([
+          "iptables", "-t", "nat", "-D", "POSTROUTING", "-s", vpn.config.intf.subnet, "-o", lan.nic.name, "-j", "MASQUERADE",
+        ])
+        if (vpn, lan) in self._vpn_nat:
+          self._vpn_nat.remove((vpn, lan))
 
     log.debug(f"NAT DISABLED for VPN: {vpn} -> {lans}")
 

@@ -163,6 +163,11 @@ uvn_vpn_start()
   # fi
 
   if [ -n "${nic_nat}" ] && ! (
+    (
+      set -x
+      iptables -t nat -A POSTROUTING -o ${nic} -j MASQUERADE
+    )
+
     # Enable output NAT on the interface 
     for lan_nic in ${UVN_NET_LAN_INTERFACES}; do
       (
@@ -198,7 +203,8 @@ uvn_vpn_stop()
     # iptables -D INPUT -i ${nic} -j ACCEPT
 
     # # Disable output NAT
-    # iptables -t nat -D POSTROUTING -o ${nic} -j MASQUERADE || true
+    iptables -t nat -D POSTROUTING -o ${nic} -j MASQUERADE || true
+
     for lan_nic in ${UVN_NET_LAN_INTERFACES}; do
       (
         set -x
