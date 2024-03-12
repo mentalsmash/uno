@@ -571,8 +571,8 @@ class AgentNetworking:
       # Make sure kernel forwarding is enabled
       ipv4_enable_kernel_forwarding()
 
-      # iptables_tcp_pmtu(enable=True)
-      # self._iptables_tcp_pmtu = True
+      iptables_tcp_pmtu(enable=True)
+      self._iptables_tcp_pmtu = True
 
       for vpn in self._vpn_interfaces:
         vpn.start()

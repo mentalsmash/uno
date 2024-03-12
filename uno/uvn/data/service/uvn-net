@@ -366,7 +366,7 @@ uvn_net_start()
 {
   uvn_log_info "starting all network interfaces"
 
-  # uvn_net_iptables_tcp_pmtu_enable
+  uvn_net_iptables_tcp_pmtu_enable
 
   for nic in ${UVN_NET_VPN_INTERFACES}; do
     # Read nic IP address from configuration file
@@ -407,7 +407,7 @@ uvn_net_stop()
   # uvn_net_iptables_docker_disable || failed="${failed} docker"
 
   # 
-  # uvn_net_iptables_tcp_pmtu_disable || failed="${failed} tcp_pmtu"
+  uvn_net_iptables_tcp_pmtu_disable || failed="${failed} tcp_pmtu"
 
   for nic in ${UVN_NET_VPN_INTERFACES}; do
     local nic_net=$(grep "^${nic}=" "${UVN_NET_CONF_DIR}/wg-ip.config" | grep , | cut -d= -f2- | cut -d, -f2 | xargs)
