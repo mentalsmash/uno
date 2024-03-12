@@ -577,7 +577,7 @@ class AgentNetworking:
       for vpn in self._vpn_interfaces:
         vpn.start()
         self._vpn_started.append(vpn)
-        # self._enable_vpn_nat(vpn)
+        self._enable_vpn_nat(vpn, self._allowed_lans)
       # for lan in self._allowed_lans:
       #   self._enable_lan_nat(lan)
       
@@ -609,7 +609,16 @@ class AgentNetworking:
     # Always perform all clean up operations.
     # If self._uvn_net_enabled this functions should do nothing
     # unless some targets are passed as arguments
-    vpns_nat = self._vpn_interfaces if assert_stopped else list(self._vpn_nat)
+    from functools import reduce
+    def _aggregate(res, v):
+      v, l = v
+      res[v] = res.get(v, list())
+      res[v].append(l)
+      return v
+    vpns_nat = {
+      v: self._allowed_lans
+      for v in self._vpn_interfaces
+    } if assert_stopped else reduce(_aggregate, self._vpn_nat, {})
     vpns_up = self._vpn_interfaces if assert_stopped else list(self._vpn_started)
     lans_nat = self._allowed_lans if assert_stopped else list(self._lans_nat)
     router = self._router if assert_stopped else self._router_started
@@ -621,15 +630,13 @@ class AgentNetworking:
       self._iptables_tcp_pmtu = False
       iptables_tcp_pmtu(enable=False)
 
-    for vpn in vpns_nat:
+    for vpn, lans in vpns_nat:
       try:
-        self._disable_vpn_nat(vpn)
+        self._disable_vpn_nat(vpn, lans)
       except Exception as e:
-        log.error(f"[NET] failed to disable NAT on VPN interface: {vpn}")
+        log.error(f"[NET] failed to disable NAT on VPN interface: {vpn} -> {lans}")
         log.exception(e)
         errors.append((vpn, e))
-      if vpn in self._vpn_nat:
-        self._vpn_nat.remove(vpn)
 
     for vpn in vpns_up:
       try:
@@ -703,23 +710,34 @@ class AgentNetworking:
     log.debug(f"NAT DISABLED for LAN: {lan}")
 
 
-  def _enable_vpn_nat(self, vpn: WireGuardInterface) -> None:
+  def _enable_vpn_nat(self, vpn: WireGuardInterface, lans: Iterable[LanDescriptor]) -> None:
     # if vpn.config.forward:
     #   ipv4_enable_forward(vpn.config.intf.name)
-    # if vpn.config.masquerade:
-    #   ipv4_enable_output_nat(vpn.config.intf.name)      
-    self._vpn_nat.append(vpn)
-    log.debug(f"NAT ENABLED for VPN interface: {vpn}")
+    if vpn.config.masquerade:
+      for lan in lans:
+        # ipv4_enable_output_nat(vpn.config.intf.name)
+        exec_command([
+          "iptables", "-t", "nat", "-A", "POSTROUTING", "-s", vpn.config.intf.subnet, "-o", lan.nic.name, "-j", "MASQUERADE",
+        ])
+        self._vpn_nat.append((vpn, lan))
+    log.debug(f"NAT ENABLED for VPN interface: {vpn} -> {lans}")
 
 
-  def _disable_vpn_nat(self, vpn: WireGuardInterface, ignore_errors: bool=False) -> None:
+  def _disable_vpn_nat(self, vpn: WireGuardInterface, lans: list[LanDescriptor], ignore_errors: bool=False) -> None:
     # if vpn.config.forward:
     #   ipv4_disable_forward(vpn.config.intf.name, ignore_errors=ignore_errors)
     # if vpn.config.masquerade:
     #   ipv4_disable_output_nat(vpn.config.intf.name, ignore_errors=ignore_errors)
-    if vpn in self._vpn_nat:
-      self._vpn_nat.remove(vpn)
-    log.debug(f"NAT DISABLED for VPN: {vpn}")
+    # if vpn in self._vpn_nat:
+    #   self._vpn_nat.remove(vpn)
+    for lan in lans:
+      exec_command([
+        "iptables", "-t", "nat", "-D", "POSTROUTING", "-s", vpn.config.intf.subnet, "-o", lan.nic.name, "-j", "MASQUERADE",
+      ])
+      if (vpn, lan) in self._vpn_nat:
+        self._vpn_nat.remove((vpn, lan))
+
+    log.debug(f"NAT DISABLED for VPN: {vpn} -> {lans}")
 
 
   def _enable_iptables_docker(self) -> None:

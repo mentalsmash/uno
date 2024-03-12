@@ -87,9 +87,9 @@ uvn_vpn_start()
   local nic=${1} \
         config="${2}" \
         nic_addr=${3} \
-        nic_mtu=${4} \
-        nic_nat=${5} \
-        nic_fwd=${6}
+        nic_net=${4} \
+        nic_mtu=${5} \
+        nic_nat=${6}
 
   uvn_log_info "enabling VPN interface: ${nic}"
 
@@ -162,16 +162,18 @@ uvn_vpn_start()
   #   return 1
   # fi
 
-  # if [ -n "${nic_nat}" -o -n 1 ] && ! (
-  #   set -x
-
-  #   # Enable output NAT on the interface 
-  #   # iptables -t nat -A POSTROUTING -o ${nic} -j MASQUERADE
-  #   true
-  # ); then
-  #   uvn_log_failed "failed to configure nat rules for VPN interface: ${nic}"
-  #   return 1
-  # fi
+  if [ -n "${nic_nat}" -o -n 1 ] && ! (
+    # Enable output NAT on the interface 
+    for lan_nic in ${UVN_NET_LAN_INTERFACES}; do
+      (
+        set -x
+        iptables -t nat -A POSTROUTING -s ${nic_net} -o ${lan_nic} -j MASQUERADE
+      )
+    done
+  ); then
+    uvn_log_failed "failed to configure nat rules for VPN interface: ${nic}"
+    return 1
+  fi
 
   uvn_log_info "VPN interface ready: ${nic}"
 }
@@ -180,7 +182,8 @@ uvn_vpn_start()
 # Disable a WireGuard VPN interface.
 uvn_vpn_stop()
 {
-  local nic=${1}
+  local nic=${1} \
+        nic_net=${2}
 
   uvn_log_info "disabling VPN interface: ${nic}"
   (
@@ -196,6 +199,12 @@ uvn_vpn_stop()
 
     # # Disable output NAT
     # iptables -t nat -D POSTROUTING -o ${nic} -j MASQUERADE || true
+    for lan_nic in ${UVN_NET_LAN_INTERFACES}; do
+      (
+        set -x
+        iptables -t nat -D POSTROUTING -s ${nic_net} -o ${lan_nic} -j MASQUERADE || true
+      )
+    done
 
     # Reset interface
     ip link set down dev ${nic} || true
@@ -337,10 +346,10 @@ uvn_net_start()
   for nic in ${UVN_NET_VPN_INTERFACES}; do
     # Read nic IP address from configuration file
     local nic_addr=$(grep "^${nic}=" "${UVN_NET_CONF_DIR}/wg-ip.config" | cut -d= -f2- | cut -d, -f1 | xargs)
-    local nic_mtu=$(grep "^${nic}=" "${UVN_NET_CONF_DIR}/wg-ip.config" | grep , | cut -d= -f2- | cut -d, -f2 | xargs)
-    local nic_nat=$(grep "^${nic}=" "${UVN_NET_CONF_DIR}/wg-ip.config" | grep , | cut -d= -f2- | cut -d, -f3 | xargs)
-    local nic_fwd=$(grep "^${nic}=" "${UVN_NET_CONF_DIR}/wg-ip.config" | grep , | cut -d= -f2- | cut -d, -f4 | xargs)
-    uvn_vpn_start ${nic} "${UVN_NET_CONF_DIR}/wg/${nic}.conf" "${nic_addr}" "${nic_mtu}" "${nic_nat}" "${nic_fwd}"
+    local nic_net=$(grep "^${nic}=" "${UVN_NET_CONF_DIR}/wg-ip.config" | grep , | cut -d= -f2- | cut -d, -f2 | xargs)
+    local nic_mtu=$(grep "^${nic}=" "${UVN_NET_CONF_DIR}/wg-ip.config" | grep , | cut -d= -f2- | cut -d, -f3 | xargs)
+    local nic_nat=$(grep "^${nic}=" "${UVN_NET_CONF_DIR}/wg-ip.config" | grep , | cut -d= -f2- | cut -d, -f4 | xargs)
+    uvn_vpn_start ${nic} "${UVN_NET_CONF_DIR}/wg/${nic}.conf" "${nic_addr}" "${nic_net}" "${nic_mtu}" "${nic_nat}"
   done
 
   # for nic in ${UVN_NET_LAN_INTERFACES}; do
@@ -376,7 +385,8 @@ uvn_net_stop()
   # uvn_net_iptables_tcp_pmtu_disable || failed="${failed} tcp_pmtu"
 
   for nic in ${UVN_NET_VPN_INTERFACES}; do
-    if ! uvn_vpn_stop ${nic}; then
+    local nic_net=$(grep "^${nic}=" "${UVN_NET_CONF_DIR}/wg-ip.config" | grep , | cut -d= -f2- | cut -d, -f2 | xargs)
+    if ! uvn_vpn_stop ${nic} ${nic_net}; then
       failed="${nic} ${failed}"
     fi
   done
