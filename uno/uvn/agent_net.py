@@ -618,7 +618,7 @@ class AgentNetworking:
 
     if self._iptables_tcp_pmtu:
       self._iptables_tcp_pmtu = False
-      iptables_tcp_pmtu(disable=True)
+      iptables_tcp_pmtu(enable=False)
 
     for vpn in vpns_nat:
       try:
