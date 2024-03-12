@@ -444,7 +444,7 @@ uvn_router_start()
   uvn_log_info "starting router"
   if ! (
     set -x
-    sed -i -r 's/^(zebra|ospfd)=no$/\1=yes/g' /etc/frr/daemons
+    sed -i -r 's/^(zebra|ospfd|bgpd)=no$/\1=yes/g' /etc/frr/daemons
   ); then
     uvn_log_failed "failed to enable frr daemons"
     return 1

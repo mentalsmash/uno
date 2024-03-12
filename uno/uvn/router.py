@@ -53,14 +53,18 @@ class Router:
       return {
         "name": vpn.config.intf.name,
         "address": vpn.config.intf.address,
+        "address_peer": vpn.config.peers[0].address,
         "mask": vpn.config.intf.netmask,
         "neighbor": self.agent.uvn_id.settings.root_vpn.base_ip + vpn.config.peers[0].id,
+        "bgp_as": vpn.config.peers[0].id,
+        "subnet": vpn.config.intf.subnet,
       }
     #########################################################################
     # FRR configuration for cell agent
     #########################################################################
     static_routes = []
     ctx = {
+      "bgp_as": self.agent.cell.id,
       "timing": self.agent.uvn_id.settings.timing_profile,
       "message_digest_key": f"{self.agent.uvn_id.name}-{self.agent.deployment.generation_ts}",
       "hostname": self.agent.cell.address,
@@ -73,6 +77,7 @@ class Router:
           "name": lan.nic.name,
           "address": lan.nic.address,
           "mask": lan.nic.netmask,
+          "subnet": lan.nic.subnet,
           "area": lan.nic.subnet.network_address,
           "gw": lan.gw,
         } for lan in self.agent.lans
@@ -86,7 +91,7 @@ class Router:
       "router_id": str(self.agent.root_vpn.config.intf.address),
       "log_dir": self.log_dir,
     }
-    return ("router/frr.conf", ctx)
+    return ("router/frr.bgp.conf", ctx)
 
 
   def start(self) -> None:
@@ -101,7 +106,7 @@ class Router:
     Templates.generate(self.FRR_CONF, *self.frr_config)
     
     # Make sure the required frr daemons are enabled
-    exec_command(["sed", "-i", "-r", r"s/^(zebra|ospfd)=no$/\1=yes/g", "/etc/frr/daemons"])
+    exec_command(["sed", "-i", "-r", r"s/^(zebra|ospfd|bgpd)=no$/\1=yes/g", "/etc/frr/daemons"])
 
     # (Re)start frr
     exec_command(["service", "frr", "restart"])
