@@ -162,7 +162,7 @@ uvn_vpn_start()
   #   return 1
   # fi
 
-  if [ -n "${nic_nat}" -o -n 1 ] && ! (
+  if [ -n "${nic_nat}" ] && ! (
     # Enable output NAT on the interface 
     for lan_nic in ${UVN_NET_LAN_INTERFACES}; do
       (
