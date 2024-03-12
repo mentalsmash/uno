@@ -175,6 +175,15 @@ uvn_vpn_start()
         iptables -t nat -A POSTROUTING -s ${nic_net} -o ${lan_nic} -j MASQUERADE
       )
     done
+    for vpn_nic in ${UVN_NET_VPN_INTERFACES}; do
+      if [ "${vpn_nic}" = "${nic}" ]; then
+        continue
+      fi
+      (
+        set -x
+        iptables -t nat -A POSTROUTING -s ${nic_net} -o ${vpn_nic} -j MASQUERADE
+      )
+    done
   ); then
     uvn_log_failed "failed to configure nat rules for VPN interface: ${nic}"
     return 1
@@ -209,6 +218,16 @@ uvn_vpn_stop()
       (
         set -x
         iptables -t nat -D POSTROUTING -s ${nic_net} -o ${lan_nic} -j MASQUERADE || true
+      )
+    done
+
+    for vpn_nic in ${UVN_NET_VPN_INTERFACES}; do
+      if [ "${vpn_nic}" = "${nic}" ]; then
+        continue
+      fi
+      (
+        set -x
+        iptables -t nat -D POSTROUTING -s ${nic_net} -o ${vpn_nic} -j MASQUERADE || true
       )
     done
 
