@@ -214,6 +214,7 @@ class P2PVpnConfig:
               if peer_a_endpoint else None,
             address=peer_a_address,
             netmask=ipv4_netmask_to_cidr(link_network.netmask),
+            # netmask=32,
             mtu=self.settings.peer_mtu),
           peers=[
             WireGuardInterfacePeerConfig(

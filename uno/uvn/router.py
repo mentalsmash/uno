@@ -54,6 +54,7 @@ class Router:
         "name": vpn.config.intf.name,
         "address": vpn.config.intf.address,
         "mask": vpn.config.intf.netmask,
+        "neighbor": self.agent.uvn_id.settings.root_vpn.base_ip + vpn.config.peers[0].id,
       }
     #########################################################################
     # FRR configuration for cell agent
