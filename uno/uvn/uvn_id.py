@@ -462,6 +462,7 @@ class RootVpnSettings(VpnSettings):
   DEFAULT_PEER_PORT = 63448
   DEFAULT_SUBNET = "10.255.128.0/22"
   DEFAULT_INTERFACE = "uwg-v{}"
+  DEFAULT_PEER_MTU = 1320
 
   @staticmethod
   def deserialize(serialized: dict) -> "RootVpnSettings":
@@ -477,8 +478,7 @@ class ParticlesVpnSettings(VpnSettings):
   DEFAULT_ALLOWED_IPS = [
     # "0.0.0.0/0",
   ]
-  # Lower MTU to allow for WireGuard headers
-  DEFAULT_PEER_MTU = 1348
+  DEFAULT_PEER_MTU = 1320
 
   @staticmethod
   def deserialize(serialized: dict) -> "ParticlesVpnSettings":
@@ -497,8 +497,7 @@ class BackboneVpnSettings(VpnSettings):
   ]
   DEFAULT_LINK_NETMASK = 31
   DEFAULT_DEPLOYMENT_STRATEGY = DeploymentStrategyKind.CROSSED
-  # DEFAULT_PEER_MTU = 1392
-  DEFAULT_PEER_MTU = 1348
+  DEFAULT_PEER_MTU = 1320
 
   def __init__(self,
       deployment_strategy: DeploymentStrategyKind | None=None,
