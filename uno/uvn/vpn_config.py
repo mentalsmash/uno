@@ -85,7 +85,7 @@ class CentralizedVpnConfig:
           address=peer_ips[peer_id],
           allowed=[str(peer_ips[peer_id])],
           endpoint=None if peer_endpoint is None else f"{peer_endpoint}:{self.settings.peer_port}",
-          keepalive=None if self.root_endpoint is not None else self.DEFAULT_KEEPALIVE)
+          keepalive=self.DEFAULT_KEEPALIVE if peer_endpoint else None)
         for peer_id in self.peer_ids
           for peer_key, peer_psk in [self.keymat.get_peer_material(peer_id)]
             for peer_endpoint in [self.peer_endpoints.get(peer_id)]
@@ -122,7 +122,7 @@ class CentralizedVpnConfig:
             # the server to push packets to it if needed. The assumption is
             # that the peer will be behind NAT, and thus require the NAT mapping
             # to be kept valid for communication to be initiated by the server.
-            keepalive=None if peer_endpoint else self.DEFAULT_KEEPALIVE)
+            keepalive=self.DEFAULT_KEEPALIVE if self.root_endpoint else None)
         ],
         tunnel=tunnel,
         tunnel_root=False)
