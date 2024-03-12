@@ -146,30 +146,32 @@ uvn_vpn_start()
     return 1
   fi
 
-  if [ -n "${nic_fwd}" ] && ! (
-    set -x
+  # if [ -n "${nic_fwd}" ] && ! (
+  #   set -x
 
-    # # Accept incoming packets from the interface
-    # iptables -A INPUT -i ${nic} -j ACCEPT
+  #   # # Accept incoming packets from the interface
+  #   # iptables -A INPUT -i ${nic} -j ACCEPT
 
-    # Enable in/out IP forwarding on the interface
-    iptables -A FORWARD -i ${nic} -j ACCEPT
-    iptables -A FORWARD -i ${nic} -m state --state ESTABLISHED,RELATED -j ACCEPT
-    # iptables -A FORWARD -o ${nic} -j ACCEPT
-  ); then
-    uvn_log_failed "failed to configure forward rules for VPN interface: ${nic}"
-    return 1
-  fi
+  #   # Enable in/out IP forwarding on the interface
+  #   # iptables -A FORWARD -i ${nic} -j ACCEPT
+  #   # iptables -A FORWARD -i ${nic} -m state --state ESTABLISHED,RELATED -j ACCEPT
+  #   # # iptables -A FORWARD -o ${nic} -j ACCEPT
+  #   true
+  # ); then
+  #   uvn_log_failed "failed to configure forward rules for VPN interface: ${nic}"
+  #   return 1
+  # fi
 
-  if [ -n "${nic_nat}" ] && ! (
-    set -x
+  # if [ -n "${nic_nat}" -o -n 1 ] && ! (
+  #   set -x
 
-    # Enable output NAT on the interface 
-    iptables -t nat -A POSTROUTING -o ${nic} -j MASQUERADE
-  ); then
-    uvn_log_failed "failed to configure nat rules for VPN interface: ${nic}"
-    return 1
-  fi
+  #   # Enable output NAT on the interface 
+  #   # iptables -t nat -A POSTROUTING -o ${nic} -j MASQUERADE
+  #   true
+  # ); then
+  #   uvn_log_failed "failed to configure nat rules for VPN interface: ${nic}"
+  #   return 1
+  # fi
 
   uvn_log_info "VPN interface ready: ${nic}"
 }
@@ -185,15 +187,15 @@ uvn_vpn_stop()
     set -x
 
     # Disable IP forwarding
-    iptables -D FORWARD -i ${nic} -j ACCEPT || true
-    iptables -D FORWARD -i ${nic} -m state --state ESTABLISHED,RELATED -j ACCEPT  || true
-    # iptables -D FORWARD -o ${nic} -j ACCEPT
+    # iptables -D FORWARD -i ${nic} -j ACCEPT || true
+    # iptables -D FORWARD -i ${nic} -m state --state ESTABLISHED,RELATED -j ACCEPT  || true
+    # # iptables -D FORWARD -o ${nic} -j ACCEPT
 
     # # Stop accepting packets
     # iptables -D INPUT -i ${nic} -j ACCEPT
 
     # # Disable output NAT
-    iptables -t nat -D POSTROUTING -o ${nic} -j MASQUERADE || true
+    # iptables -t nat -D POSTROUTING -o ${nic} -j MASQUERADE || true
 
     # Reset interface
     ip link set down dev ${nic} || true
@@ -222,7 +224,8 @@ uvn_lan_start()
   if ! (
     set -x
     # Enable output NAT
-    iptables -t nat -A POSTROUTING -o ${nic} -j MASQUERADE
+    # iptables -t nat -A POSTROUTING -o ${nic} -j MASQUERADE
+    true
   ); then
     uvn_log_failed "failed to configure iptables for LAN interface: ${nic}"
     return 1
@@ -240,7 +243,7 @@ uvn_lan_stop()
   if ! (
     set -x
     # Disable output NAT
-    iptables -t nat -D POSTROUTING -o ${nic} -j MASQUERADE
+    # iptables -t nat -D POSTROUTING -o ${nic} -j MASQUERADE
   ); then
     uvn_log_failed "failed to disable iptables for LAN interface: ${nic}"
     return 1
@@ -329,7 +332,7 @@ uvn_net_start()
 {
   uvn_log_info "starting all network interfaces"
 
-  uvn_net_iptables_tcp_pmtu_enable
+  # uvn_net_iptables_tcp_pmtu_enable
 
   for nic in ${UVN_NET_VPN_INTERFACES}; do
     # Read nic IP address from configuration file
@@ -340,12 +343,12 @@ uvn_net_start()
     uvn_vpn_start ${nic} "${UVN_NET_CONF_DIR}/wg/${nic}.conf" "${nic_addr}" "${nic_mtu}" "${nic_nat}" "${nic_fwd}"
   done
 
-  for nic in ${UVN_NET_LAN_INTERFACES}; do
-    uvn_lan_start ${nic}
-  done
+  # for nic in ${UVN_NET_LAN_INTERFACES}; do
+  #   uvn_lan_start ${nic}
+  # done
 
   # Make sure forwarding is enabled if Docker is installed
-  uvn_net_iptables_docker_enable
+  # uvn_net_iptables_docker_enable
 
 
   # Make sure IPv4 forwarding is enabled in the kernel
@@ -367,10 +370,10 @@ uvn_net_stop()
   local failed=
 
   # Make sure forwarding is disabled if Docker is installed
-  uvn_net_iptables_docker_disable || failed="${failed} docker"
+  # uvn_net_iptables_docker_disable || failed="${failed} docker"
 
   # 
-  uvn_net_iptables_tcp_pmtu_disable || failed="${failed} tcp_pmtu"
+  # uvn_net_iptables_tcp_pmtu_disable || failed="${failed} tcp_pmtu"
 
   for nic in ${UVN_NET_VPN_INTERFACES}; do
     if ! uvn_vpn_stop ${nic}; then
@@ -378,11 +381,11 @@ uvn_net_stop()
     fi
   done
 
-  for nic in ${UVN_NET_LAN_INTERFACES}; do
-    if ! uvn_lan_stop ${nic}; then
-      failed="${nic} ${failed}"
-    fi
-  done
+  # for nic in ${UVN_NET_LAN_INTERFACES}; do
+  #   if ! uvn_lan_stop ${nic}; then
+  #     failed="${nic} ${failed}"
+  #   fi
+  # done
 
 
   UVN_NET_STOP_FAILED="${failed}"

@@ -346,6 +346,9 @@ _static_routes_subnet()
                             $(eval "echo \${NET_${onet}}") \
                             $(eval "echo \${IP_${net}_cell}")
     done
+    router_static_route ${h_routes} \
+        10.255.192.0/22 \
+        $(eval "echo \${IP_${net}_cell}")
 }
 
 # Initialize experiment environement directories
