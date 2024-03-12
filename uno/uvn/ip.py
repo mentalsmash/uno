@@ -215,9 +215,12 @@ def ipv4_enable_forward(nic, v6: bool=False):
     exec_command(
         [iptables, "-A", "FORWARD", "-i", str(nic), "-j", "ACCEPT"])
     exec_command(
-        [iptables, "-A", "FORWARD", "-o", str(nic), "-j", "ACCEPT"])
-    exec_command(
-        [iptables, "-A", "INPUT", "-i", str(nic), "-j", "ACCEPT"])
+        [iptables, "-A", "FORWARD", "-i", str(nic), "-m", "state", "--state", "ESTABLISHED,RELATED",
+         "-j", "ACCEPT"])
+    # exec_command(
+    #     [iptables, "-A", "FORWARD", "-o", str(nic), "-j", "ACCEPT"])
+    # exec_command(
+    #     [iptables, "-A", "INPUT", "-i", str(nic), "-j", "ACCEPT"])
 
 
 def ipv4_disable_forward(nic, v6: bool=False, ignore_errors=False):
@@ -226,11 +229,14 @@ def ipv4_disable_forward(nic, v6: bool=False, ignore_errors=False):
         [iptables, "-D", "FORWARD", "-i", str(nic), "-j", "ACCEPT"],
         noexcept=ignore_errors)
     exec_command(
-        [iptables, "-D", "FORWARD", "-o", str(nic), "-j", "ACCEPT"],
-        noexcept=ignore_errors)
-    exec_command(
-        [iptables, "-D", "INPUT", "-i", str(nic), "-j", "ACCEPT"],
-        noexcept=ignore_errors)
+        [iptables, "-D", "FORWARD", "-i", str(nic), "-m", "state", "--state", "ESTABLISHED,RELATED",
+         "-j", "ACCEPT"])
+    # exec_command(
+    #     [iptables, "-D", "FORWARD", "-o", str(nic), "-j", "ACCEPT"],
+    #     noexcept=ignore_errors)
+    # exec_command(
+    #     [iptables, "-D", "INPUT", "-i", str(nic), "-j", "ACCEPT"],
+    #     noexcept=ignore_errors)
 
 def ipv4_enable_kernel_forwarding():
     exec_command(

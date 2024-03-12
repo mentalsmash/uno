@@ -570,6 +570,10 @@ class AgentNetworking:
     try:
       # Make sure kernel forwarding is enabled
       ipv4_enable_kernel_forwarding()
+
+      iptables_tcp_pmtu(enable=True)
+      self._iptables_tcp_pmtu = True
+
       for vpn in self._vpn_interfaces:
         vpn.start()
         self._vpn_started.append(vpn)
@@ -578,9 +582,6 @@ class AgentNetworking:
         self._enable_lan_nat(lan)
       
       self._enable_iptables_docker()
-
-      iptables_tcp_pmtu(enable=True)
-      self._iptables_tcp_pmtu = True
 
       if self._router:
         self._router.start()
@@ -703,15 +704,19 @@ class AgentNetworking:
 
 
   def _enable_vpn_nat(self, vpn: WireGuardInterface) -> None:
-    ipv4_enable_forward(vpn.config.intf.name)
-    ipv4_enable_output_nat(vpn.config.intf.name)      
+    if vpn.config.forward:
+      ipv4_enable_forward(vpn.config.intf.name)
+    if vpn.config.masquerade:
+      ipv4_enable_output_nat(vpn.config.intf.name)      
     self._vpn_nat.append(vpn)
     log.debug(f"NAT ENABLED for VPN interface: {vpn}")
 
 
   def _disable_vpn_nat(self, vpn: WireGuardInterface, ignore_errors: bool=False) -> None:
-    ipv4_disable_forward(vpn.config.intf.name, ignore_errors=ignore_errors)
-    ipv4_disable_output_nat(vpn.config.intf.name, ignore_errors=ignore_errors)
+    if vpn.config.forward:
+      ipv4_disable_forward(vpn.config.intf.name, ignore_errors=ignore_errors)
+    if vpn.config.masquerade:
+      ipv4_disable_output_nat(vpn.config.intf.name, ignore_errors=ignore_errors)
     if vpn in self._vpn_nat:
       self._vpn_nat.remove(vpn)
     log.debug(f"NAT DISABLED for VPN: {vpn}")

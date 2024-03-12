@@ -234,11 +234,15 @@ class WireGuardConfig:
       peers: Sequence[WireGuardInterfacePeerConfig],
       tunnel: bool=False,
       tunnel_root: bool=False,
+      masquerade: bool=False,
+      forward: bool=False,
       generation_ts: Optional[str]=None) -> None:
     self.intf = intf
     self.peers = list(peers)
     self.tunnel = tunnel
     self.tunnel_root = tunnel_root
+    self.masquerade = masquerade
+    self.forward = forward
     self.generation_ts = generation_ts or Timestamp.now().format()
 
 
@@ -260,6 +264,8 @@ class WireGuardConfig:
       "generation_ts": self.generation_ts,
       "tunnel": self.tunnel,
       "tunnel_root": self.tunnel_root,
+      "masquerade": self.masquerade,
+      "forward": self.forward,
     }
     if len(self.peers) == 0:
       del serialized["peers"]
@@ -267,6 +273,10 @@ class WireGuardConfig:
       del serialized["tunnel"]
     if not self.tunnel_root:
       del serialized["tunnel_root"]
+    if not self.masquerade:
+      del serialized["masquerade"]
+    if not self.forward:
+      del serialized["forward"]
     return serialized
 
 
@@ -280,7 +290,9 @@ class WireGuardConfig:
       ],
       tunnel=serialized.get("tunnel", False),
       tunnel_root=serialized.get("tunnel_root", False),
-      generation_ts=serialized["generation_ts"])
+      generation_ts=serialized["generation_ts"],
+      masquerade=serialized.get("masquerade"),
+      forward=serialized.get("forward"))
 
 
 class WireGuardInterface:

@@ -54,7 +54,7 @@ class CentralizedVpnConfig:
 
 
 
-  def generate(self, tunnel: bool=False) -> None:
+  def generate(self) -> None:
     self.keymat.assert_keys(self.peer_ids)
 
     vpn_base_ip = self.settings.base_ip
@@ -90,7 +90,9 @@ class CentralizedVpnConfig:
           for peer_key, peer_psk in [self.keymat.get_peer_material(peer_id)]
             for peer_endpoint in [self.peer_endpoints.get(peer_id)]
       ],
-      tunnel=tunnel,
+      masquerade=self.settings.masquerade,
+      forward=self.settings.forward,
+      tunnel=self.settings.tunnel,
       tunnel_root=True)
 
 
@@ -124,7 +126,9 @@ class CentralizedVpnConfig:
             # to be kept valid for communication to be initiated by the server.
             keepalive=self.DEFAULT_KEEPALIVE if self.root_endpoint else None)
         ],
-        tunnel=tunnel,
+        masquerade=self.settings.masquerade,
+        forward=self.settings.forward,
+        tunnel=self.settings.tunnel,
         tunnel_root=False)
        for peer_id in self.peer_ids
           for peer_key, peer_psk in [self.keymat.get_peer_material(peer_id)]
@@ -221,7 +225,10 @@ class P2PVpnConfig:
               endpoint=f"{peer_b_endpoint}:{self.settings.port + peer_b_port_local}"
                 if peer_b_endpoint else None,
               keepalive=None if peer_a_endpoint is not None else self.DEFAULT_KEEPALIVE)
-          ])
+          ],
+          masquerade=self.settings.masquerade,
+          forward=self.settings.forward,
+          tunnel=self.settings.tunnel)
         for peer_b_id, (peer_a_port_local, peer_a_address, peer_b_address, link_network) in peer_a_deploy_cfg["peers"].items()
             for peer_b_deploy_cfg in [self.deployment.peers[peer_b_id]]
               for peer_b_port_local, _, _, _ in [peer_b_deploy_cfg["peers"][peer_a_id]]

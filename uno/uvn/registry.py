@@ -338,7 +338,7 @@ class Registry(Versioned):
         peer_ids=particle_ids,
         settings=self.uvn_id.settings.particles_vpn,
         keymat=keymat)
-      particles_vpn.generate(tunnel=True)
+      particles_vpn.generate()
     self.particles_vpn_configs = new_particles_vpn_configs
 
 

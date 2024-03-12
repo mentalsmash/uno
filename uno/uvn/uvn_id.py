@@ -299,6 +299,9 @@ class VpnSettings(Versioned):
   DEFAULT_INTERFACE = "vpn{}"
   DEFAULT_ALLOWED_IPS = []
   DEFAULT_PEER_MTU = None
+  DEFAULT_MASQUERADE = False
+  DEFAULT_FORWARD = False
+  DEFAULT_TUNNEL = False
 
 
   def __init__(self,
@@ -308,6 +311,9 @@ class VpnSettings(Versioned):
       interface: Optional[str]=None,
       allowed_ips: Optional[Iterable[str]]=None,
       peer_mtu: Optional[int]=None,
+      masquerade: Optional[bool]=None,
+      tunnel: Optional[bool]=None,
+      forward: Optional[bool]=None,
       **super_args) -> None:
     super().__init__(**super_args)
     self.port = port
@@ -316,6 +322,9 @@ class VpnSettings(Versioned):
     self.interface = interface
     self.allowed_ips = allowed_ips
     self.peer_mtu = peer_mtu
+    self.masquerade = masquerade
+    self.tunnel = tunnel
+    self.forward = forward
 
 
   def __eq__(self, other: object) -> bool:
@@ -327,11 +336,14 @@ class VpnSettings(Versioned):
       and self.port == other.port
       and self.peer_port == other.peer_port
       and self.peer_mtu == other.peer_mtu
+      and self.masquerade == other.masquerade
+      and self.forward == other.forward
+      and self.tunnel == other.tunnel
     )
 
 
   def __hash__(self) -> int:
-    return hash(self.allowed_ips, self.interface, self.port, self.peer_port, self.peer_mtu)
+    return hash(self.allowed_ips, self.interface, self.port, self.peer_port, self.peer_mtu, self.masquerade, self.forward, self.tunnel)
 
 
   @property
@@ -410,6 +422,42 @@ class VpnSettings(Versioned):
 
 
   @property
+  def masquerade(self) -> bool:
+    if self._masquerade is None:
+      return self.DEFAULT_MASQUERADE
+    return self._masquerade
+
+
+  @masquerade.setter
+  def masquerade(self, val: bool|None) -> None:
+    self.update("masquerade", val)
+
+
+  @property
+  def forward(self) -> bool:
+    if self._forward is None:
+      return self.DEFAULT_FORWARD
+    return self._forward
+
+
+  @forward.setter
+  def forward(self, val: bool|None) -> None:
+    self.update("forward", val)
+
+
+  @property
+  def tunnel(self) -> bool:
+    if self._tunnel is None:
+      return self.DEFAULT_TUNNEL
+    return self._tunnel
+
+
+  @tunnel.setter
+  def tunnel(self, val: bool|None) -> None:
+    self.update("tunnel", val)
+
+
+  @property
   def base_ip(self) -> ipaddress.IPv4Address:
     return self.subnet.network_address
 
@@ -428,6 +476,9 @@ class VpnSettings(Versioned):
       "interface": self.interface,
       "allowed_ips": sorted(self.allowed_ips),
       "peer_mtu": self.peer_mtu,
+      "masquerade": self.masquerade,
+      "forward": self.forward,
+      "tunnel": self.tunnel,
     })
     if self._allowed_ips is None:
       del serialized["allowed_ips"]
@@ -439,8 +490,14 @@ class VpnSettings(Versioned):
       del serialized["subnet"]
     if self._interface is None:
       del serialized["interface"]
-    if self.peer_mtu is None:
+    if self._peer_mtu is None:
       del serialized["peer_mtu"]
+    if self._masquerade is None:
+      del serialized["masquerade"]
+    if self._forward is None:
+      del serialized["forward"]
+    if self._tunnel is None:
+      del serialized["tunnel"]
     return serialized
 
 
@@ -453,6 +510,9 @@ class VpnSettings(Versioned):
       "interface": serialized.get("interface"),
       "allowed_ips": serialized.get("allowed_ips"),
       "peer_mtu": serialized.get("peer_mtu"),
+      "masquerade": serialized.get("masquerade"),
+      "forward": serialized.get("forward"),
+      "tunnel": serialized.get("tunnel"),
       **Versioned.deserialize_args(serialized)
     }
 
@@ -479,6 +539,9 @@ class ParticlesVpnSettings(VpnSettings):
     # "0.0.0.0/0",
   ]
   DEFAULT_PEER_MTU = 1320
+  DEFAULT_MASQUERADE = True
+  DEFAULT_FORWARD = True
+  DEFAULT_TUNNEL = True
 
   @staticmethod
   def deserialize(serialized: dict) -> "ParticlesVpnSettings":
@@ -498,6 +561,7 @@ class BackboneVpnSettings(VpnSettings):
   DEFAULT_LINK_NETMASK = 31
   DEFAULT_DEPLOYMENT_STRATEGY = DeploymentStrategyKind.CROSSED
   DEFAULT_PEER_MTU = 1320
+  DEFAULT_FORWARD = True
 
   def __init__(self,
       deployment_strategy: DeploymentStrategyKind | None=None,
