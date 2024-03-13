@@ -42,6 +42,7 @@ RUN export DEBIAN_FRONTEND="noninteractive" \
           inetutils-traceroute \
           netcat \
           iperf \
+          iperf3 \
           tcpdump \
           curl \
           elinks \
