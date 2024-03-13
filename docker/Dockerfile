@@ -60,7 +60,7 @@ COPY . /uno-dev
 ARG VERSION=master
 ARG DEV=
 
-ADD https://api.github.com/repos/mentalsmash/uno/commits?sha=${VERSION}
+ADD https://api.github.com/repos/mentalsmash/uno/commits?sha=${VERSION} /tmp/uno.commits
 RUN set -e; \
     if [ -n "${DEV}" ]; then \
       wheel=$(find /uno/ -mindepth 1 -maxdepth 1 -name "rti.connext*.whl" | head -1); \
