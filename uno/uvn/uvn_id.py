@@ -299,7 +299,7 @@ class VpnSettings(Versioned):
   DEFAULT_INTERFACE = "vpn{}"
   DEFAULT_ALLOWED_IPS = []
   DEFAULT_PEER_MTU = None
-  DEFAULT_MASQUERADE = True
+  DEFAULT_MASQUERADE = False
   DEFAULT_FORWARD = False
   DEFAULT_TUNNEL = False
 
@@ -523,6 +523,7 @@ class RootVpnSettings(VpnSettings):
   DEFAULT_SUBNET = "10.255.128.0/22"
   DEFAULT_INTERFACE = "uwg-v{}"
   DEFAULT_PEER_MTU = 1320
+  DEFAULT_MASQUERADE = True
 
   @staticmethod
   def deserialize(serialized: dict) -> "RootVpnSettings":
