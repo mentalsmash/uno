@@ -379,6 +379,8 @@ class CellAgent(Agent):
           return CellAgent.load(tmp_dir)
         load_agent = _generate_agent_root
 
+      # TODO(asorbini) preserve and copy the new agent's additional files
+
       # Read registry_id from received config and ignore it if invalid
       # or equal to the  current one
       agent_config = yaml.safe_load(config_file.read_text()) or {}

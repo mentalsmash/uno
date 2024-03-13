@@ -519,8 +519,10 @@ class Agent(UvnPeerListener, RoutesMonitorListener):
 
 
   def reload(self, updated_agent: "Agent") -> None:
-    log.warning(f"[AGENT] stopping services to load new configuration: {updated_agent.registry_id}")
-    self._stop()
+    was_started = self.started
+    if was_started:
+      log.warning(f"[AGENT] stopping services to load new configuration: {updated_agent.registry_id}")
+      self._stop()
     
     log.activity(f"[AGENT] updating configuration to {updated_agent.registry_id}")
     self._reload(updated_agent)
@@ -532,8 +534,9 @@ class Agent(UvnPeerListener, RoutesMonitorListener):
       exec_command(["cp", "-rv", *package_files, self.root])
     self.save_to_disk()
 
-    log.activity(f"[AGENT] restarting services with new configuration: {self.registry_id}")
-    self._start()
+    if was_started:
+      log.activity(f"[AGENT] restarting services with new configuration: {self.registry_id}")
+      self._start()
 
     log.warning(f"[AGENT] new configuration loaded: {self.registry_id}")
 
