@@ -63,16 +63,16 @@ ARG DEV=
 ADD https://api.github.com/repos/mentalsmash/uno/commits?sha=${VERSION} /tmp/uno.commits
 RUN set -e; \
     if [ -n "${DEV}" ]; then \
-      wheel=$(find /uno/ -mindepth 1 -maxdepth 1 -name "rti.connext*.whl" | head -1); \
+      wheel=$(find /uno-dev/ -mindepth 1 -maxdepth 1 -name "rti.connext*.whl" | head -1); \
       if [ -e "${wheel}" ]; then \
         pip3 install ${wheel}; \
       fi; \
       cp -r /uno-dev /uno; \
-      pip3 install -e /uno; \
     else \
       rm -rf /uno-dev; \
       git clone https://github.com/mentalsmash/uno -b ${VERSION} /uno; \
-    fi
+    fi; \
+    pip3 install -e /uno
 
 # Custom entrypoint
 ENTRYPOINT [ "/uno/docker/entrypoint.sh" ]
