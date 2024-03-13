@@ -718,7 +718,7 @@ class AgentNetworking:
       ipv4_enable_output_nat(vpn.config.intf.name)
       for nic in (*(l.nic.name for l in lans), *(v.config.intf.name for v in other_vpns)):
         exec_command([
-          "iptables", "-t", "nat", "-A", "POSTROUTING", "-s", vpn.config.intf.subnet, "-o", nic, "-j", "MASQUERADE",
+          "iptables", "-t", "nat", "-A", "POSTROUTING", "-s", str(vpn.config.intf.subnet), "-o", nic, "-j", "MASQUERADE",
         ])
     log.debug(f"NAT ENABLED for VPN interface: {vpn} -> {lans}")
 
@@ -732,7 +732,7 @@ class AgentNetworking:
     #   self._vpn_nat.remove(vpn)
       for nic in (*(l.nic.name for l in lans), *(v.config.intf.name for v in other_vpns)):
         exec_command([
-          "iptables", "-t", "nat", "-D", "POSTROUTING", "-s", vpn.config.intf.subnet, "-o", nic, "-j", "MASQUERADE",
+          "iptables", "-t", "nat", "-D", "POSTROUTING", "-s", str(vpn.config.intf.subnet), "-o", nic, "-j", "MASQUERADE",
         ])
 
     log.debug(f"NAT DISABLED for VPN: {vpn} -> {lans}")
