@@ -299,7 +299,7 @@ class VpnSettings(Versioned):
   DEFAULT_INTERFACE = "vpn{}"
   DEFAULT_ALLOWED_IPS = []
   DEFAULT_PEER_MTU = None
-  DEFAULT_MASQUERADE = False
+  DEFAULT_MASQUERADE = True
   DEFAULT_FORWARD = False
   DEFAULT_TUNNEL = False
 
