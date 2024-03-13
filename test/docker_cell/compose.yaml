@@ -1,0 +1,63 @@
+services:
+  cell:
+    image: uno:latest
+    container_name: uno-test-cell
+    environment:
+      - INIT=/init.sh
+    volumes:
+      - ./sh/config.sh:/config.sh
+      - ./sh/init_cell.sh:/init.sh
+      - ./cell.uvn-agent:/package.uvn-agent
+    privileged: true
+    networks:
+      uno_test_private:
+        ipv4_address: "${TEST_NET_PRIVATE}.10"
+    command: net
+    tty: true
+  host:
+    image: uno:latest
+    container_name: uno-test-host
+    environment:
+      - INIT=/init.sh
+    volumes:
+    - ./sh/config.sh:/config.sh
+      - ./sh/init_host.sh:/init.sh
+    privileged: true
+    networks:
+      uno_test_private:
+        ipv4_address: "${TEST_NET_PRIVATE}.20"
+    command: sh
+    tty: true
+  router:
+    image: uno:latest
+    container_name: uno-test-router
+    environment:
+      - INIT=/init.sh
+    volumes:
+      - ./sh/config.sh:/config.sh
+      - ./sh/init_router.sh:/init.sh
+      - ./uvn.networks:/uvn.networks
+    privileged: true
+    networks:
+      uno_test_private:
+        ipv4_address: "${TEST_NET_PRIVATE}.254"
+      uno_test_public:
+        ipv4_address: "${TEST_NET_PRIVATE}.254"
+    command: sh
+    tty: true
+
+
+networks:
+  uno_test_private:
+    driver: bridge
+    ipam: 
+      config:
+        - subnet: "192.168.200.0/24"
+          gateway: "192.168.200.1"
+  uno_test_public:
+    driver: bridge
+    ipam: 
+      config:
+        - subnet: "192.168.201.0/24"
+          gateway: "192.168.201.1"
+

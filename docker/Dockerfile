@@ -1,7 +1,7 @@
 ARG BASE_IMAGE="ubuntu:jammy"
 FROM ${BASE_IMAGE}
 
-ARG INSTALL_EXTRA_PACKAGES
+ARG EXTRAS
 
 # Update apt database and install apt-utils (for debconf)
 # Install psmisc to have killall
@@ -33,7 +33,7 @@ RUN export DEBIAN_FRONTEND="noninteractive" \
       openssl \
       cargo \
       build-essential \
-      $([ -z "${INSTALL_EXTRA_PACKAGES}" ] || \
+      $([ -z "${EXTRAS}" ] || \
         echo \
           rng-tools \
           vim \
