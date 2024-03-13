@@ -42,7 +42,7 @@ services:
       uno_test_private:
         ipv4_address: "${TEST_NET_PRIVATE}.254"
       uno_test_public:
-        ipv4_address: "${TEST_NET_PRIVATE}.254"
+        ipv4_address: "${TEST_NET_PUBLIC}.254"
     command: sh
     tty: true
 
@@ -52,12 +52,12 @@ networks:
     driver: bridge
     ipam: 
       config:
-        - subnet: "192.168.200.0/24"
-          gateway: "192.168.200.1"
+        - subnet: "${TEST_NET_PRIVATE}.0/24"
+          gateway: "${TEST_NET_PRIVATE}.1"
   uno_test_public:
     driver: bridge
     ipam: 
       config:
-        - subnet: "192.168.201.0/24"
-          gateway: "192.168.201.1"
+        - subnet: "${TEST_NET_PUBLIC}.0/24"
+          gateway: "${TEST_NET_PUBLIC}.1"
 
