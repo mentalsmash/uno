@@ -21,7 +21,7 @@ services:
       - INIT=/init.sh
     volumes:
     - ./sh/config.sh:/config.sh
-      - ./sh/init_host.sh:/init.sh
+    - ./sh/init_host.sh:/init.sh
     privileged: true
     networks:
       uno_test_private:

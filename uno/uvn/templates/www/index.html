@@ -31,9 +31,11 @@
             {% include "www/index/_status_agents.html" with context %}
             {% include "www/index/_status_networks.html" with context %}
             {% include "www/index/_status_vpns.html" with context %}
-            {% if router -%}
-            {% include "www/index/_status_router.html" with context %}
-            {% endif %}
+            {#
+              {% if router -%}
+              {% include "www/index/_status_router.html" with context %}
+              {% endif %}
+            #}
             {# include "www/index/_status.html" with context #}
             {# include "www/index/_config.html" with context #}
             {% include "www/index/_config_uvn.html" with context %}
