@@ -50,24 +50,27 @@ RUN export DEBIAN_FRONTEND="noninteractive" \
       ) \
     && apt-get clean
 
-# Enable zebra and ospfd in /etc/quagga/daemons
-RUN sed -i -r 's/^(zebra|ospfd)=no$/\1=yes/g' /etc/frr/daemons
-
 RUN adduser --shell /bin/bash uno
 
 # Copy uno
-COPY . /uno
+COPY . /uno-dev
 
-# Check if a local wheel for rti.connext is available
-# and install it
+ARG UNO_URL="https://github.com/mentalsmash.org/uno"
+ARG UNO_VERSION=master
+ARG DEV=
+
 RUN set -e; \
-  wheel=$(find /uno/ -mindepth 1 -maxdepth 1 -name "rti.connext*.whl" | head -1); \
-  if [ -e "${wheel}" ]; then \
-    pip3 install ${wheel}; \
-  fi
-
-# Install uno
-RUN pip3 install -e /uno
+    if [ -n "${DEV}" ]; then \
+      wheel=$(find /uno/ -mindepth 1 -maxdepth 1 -name "rti.connext*.whl" | head -1); \
+      if [ -e "${wheel}" ]; then \
+        pip3 install ${wheel}; \
+      fi; \
+      cp -r /uno-dev /uno; \
+      pip3 install -e /uno; \
+    else \
+      rm -rf /uno-dev; \
+      git clone ${UNO_URL} -b ${UNO_VERSION} /uno; \
+    fi
 
 # Custom entrypoint
 ENTRYPOINT [ "/uno/docker/entrypoint.sh" ]
@@ -76,6 +79,7 @@ CMD ["__default__"]
 # Define volumes
 ENV UVN_DIR "/uvn"
 ENV UNO_DIR "/uno"
-ENV UVN_INIT_CONFIG "/uvn.yaml"
 
 VOLUME [ "${UVN_DIR}" , "${UNO_DIR}"]
+
+WORKDIR /uvn
