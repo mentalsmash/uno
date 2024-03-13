@@ -515,6 +515,8 @@ uvn_net_create_marker()
 {
   mkdir -p $(dirname ${UVN_NET_CONF_MARKER})
   cp -v ${UVN_NET_CONF} ${UVN_NET_CONF_MARKER}
+  # Cache configuration directory in marker file
+  printf -- "UVN_NET_CONF_DIR=%s\n" "${UVN_NET_CONF_DIR}" >> ${UVN_NET_CONF_MARKER}
   printf -- "${UVN_NET_CONF_ID}" > "${UVN_NET_CONF_MARKER}.id"
   # rm -rf $(diname ${UVN_NET_CONF_MARKER})
   # cp -rv ${UVN_NET_CONF_DIR} $(diname ${UVN_NET_CONF_MARKER})
@@ -732,12 +734,12 @@ stop)
   fi
 
   RC=0
+  uvn_router_stop || RC=1
+
   if ! uvn_net_stop; then
     uvn_log_failed "errors encountered while disabling some network interfaces: ${UVN_NET_STOP_FAILED}"
     RC=1
   fi
-
-  uvn_router_stop || RC=1
 
   uvn_net_delete_marker
 
