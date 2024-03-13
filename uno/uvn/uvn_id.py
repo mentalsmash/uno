@@ -1537,11 +1537,11 @@ class UvnId(Versioned):
 
 
   def _next_cell_id(self) -> int:
-    return self._next_id_not_in_use(in_use=self.cells.keys())
+    return self._next_id_not_in_use(in_use=self.all_cells)
 
 
   def _next_particle_id(self) -> int:
-    return self._next_id_not_in_use(in_use=self.particles.keys())
+    return self._next_id_not_in_use(in_use=self.all_particles)
 
 
   def validate_cell(self, cell: CellId) -> None:

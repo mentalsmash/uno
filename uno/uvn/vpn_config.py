@@ -124,7 +124,7 @@ class CentralizedVpnConfig:
             # the server to push packets to it if needed. The assumption is
             # that the peer will be behind NAT, and thus require the NAT mapping
             # to be kept valid for communication to be initiated by the server.
-            keepalive=self.DEFAULT_KEEPALIVE if self.root_endpoint else None)
+            keepalive=self.DEFAULT_KEEPALIVE if not peer_endpoint else None)
         ],
         masquerade=self.settings.masquerade,
         forward=self.settings.forward,
