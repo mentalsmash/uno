@@ -57,7 +57,7 @@ RUN adduser --shell /bin/bash uno
 # Copy uno
 COPY . /uno-dev
 
-ARG UNO_URL="https://github.com/mentalsmash.org/uno"
+ARG UNO_URL="https://github.com/mentalsmash/uno"
 ARG UNO_VERSION=master
 ARG DEV=
 
