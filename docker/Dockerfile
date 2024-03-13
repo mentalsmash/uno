@@ -57,10 +57,10 @@ RUN adduser --shell /bin/bash uno
 # Copy uno
 COPY . /uno-dev
 
-ARG UNO_URL="https://github.com/mentalsmash/uno"
-ARG UNO_VERSION=master
+ARG VERSION=master
 ARG DEV=
 
+ADD https://api.github.com/repos/mentalsmash/uno/commits?sha=${VERSION}
 RUN set -e; \
     if [ -n "${DEV}" ]; then \
       wheel=$(find /uno/ -mindepth 1 -maxdepth 1 -name "rti.connext*.whl" | head -1); \
@@ -71,7 +71,7 @@ RUN set -e; \
       pip3 install -e /uno; \
     else \
       rm -rf /uno-dev; \
-      git clone ${UNO_URL} -b ${UNO_VERSION} /uno; \
+      git clone https://github.com/mentalsmash/uno -b ${VERSION} /uno; \
     fi
 
 # Custom entrypoint
