@@ -285,11 +285,26 @@ def registry_sync(args):
 ###############################################################################
 ###############################################################################
 def cell_bootstrap(args):
-  agent = CellAgent.extract(
-      package=args.package,
-      root=args.root)
-  if args.update and agent.net.uvn_agent.uvn_net.enabled():
-    agent.net.uvn_agent.uvn_net.restart()
+  if not args.update:
+    agent = CellAgent.extract(
+        package=args.package,
+        root=args.root)
+  else:
+    agent = CellAgent.load(args.root)
+    if args.package:
+      import tempfile
+      tmp_h = tempfile.TemporaryDirectory()
+      tmp_dir = Path(tmp_h.name)
+      updated_agent = CellAgent.extract(
+        package=args.package, root=tmp_dir)
+      agent.reload(updated_agent)
+    agent.net.generate_configuration()
+    agent.save_to_disk()
+    if agent.net.uvn_agent.uvn_net.enabled():
+      agent.net.uvn_agent.uvn_net.uvn_net_stop()
+      agent.net.uvn_agent.uvn_net.uvn_net_start()
+  # if args.update and agent.net.uvn_agent.uvn_net.enabled():
+  #   agent.net.uvn_agent.uvn_net.restart()
 
 
 def cell_agent(args):
@@ -851,20 +866,21 @@ def main():
 
   registry_common_args(cmd_install)
 
-  # #############################################################################
-  # # uno cell update ...
-  # #############################################################################
-  # cmd_cell_update = subparsers_cell.add_parser("update",
-  #   help="Update an existing cell agent with a new package.")
-  # cmd_cell_update.set_defaults(
-  #   cmd=cell_bootstrap,
-  #   update=True)
+  #############################################################################
+  # uno cell update ...
+  #############################################################################
+  cmd_update = subparsers.add_parser("update",
+    help="Update an existing cell agent by regenerating its configuration.")
+  cmd_update.set_defaults(
+    cmd=cell_bootstrap,
+    update=True)
 
-  # cmd_cell_update.add_argument("package",
-  #   help="New package file to install.",
-  #   type=Path)
+  cmd_update.add_argument("-p", "--package",
+    help="Optionally, a new package file to install.",
+    type=Path,
+    default=None)
 
-  # registry_common_args(cmd_cell_update)
+  registry_common_args(cmd_update)
 
   #############################################################################
   # uno cell agent ...
