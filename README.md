@@ -49,9 +49,9 @@ sudo apt install \
   iputils-ping \
   tar \
   qrencode \
-  git \
   lighttpd \
-  openssl
+  openssl \
+  git
 ```
 
 After installing the system dependencies, you can install **uno** from
@@ -77,40 +77,6 @@ pip install ./uno
 
 **uno**'s agents use the RTI Connext DDS Python API, which requires a valid RTI license file.
 [You can request a free evaluation license from the RTI website](https://www.rti.com/free-trial).
-
-### Docker Agent
-
-**uno**'s agent can be deployed using a Docker container.
-In order to do this, you must first build the image using
-the `Dockerfile` included in this repository:
-
-1. Install Docker Engine.
-
-2. Clone this repository and build the container image:
-
-   ```sh
-   git clone https://github.com/mentalsmash/uno
-
-   cd uno
-
-   docker build -t uno:latest -f docker/Dockerfile .
-   
-   ```
-
-3. Deploy agents using the generated image. The containers must be
-   created with root credentials in order to be able to manipulate
-   the host's network stack.
-
-   Example invocation:
-
-   ```sh
-   docker run --rm --detach \
-     -v /path/to/cell.uvn-agent:/package.uvn-agent \
-     -e CELL=agent-id \
-     --privileged \
-     --net host \
-     uno:latest
-   ```
 
 ## UVN Howto
 
@@ -272,7 +238,7 @@ the `Dockerfile` included in this repository:
    ssh lan-a-agent-host
 
    # Install the agent
-   sudo uno cell install lan-a.uvn-agent -r /opt/uvn
+   sudo uno install lan-a.uvn-agent -r /opt/uvn
 
    # Delete the package
    rm lan-a.uvn-agent
