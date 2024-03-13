@@ -31,8 +31,7 @@ RUN export DEBIAN_FRONTEND="noninteractive" \
       iputils-ping \
       lighttpd \
       openssl \
-      cargo \
-      build-essential \
+      git \
       $([ -z "${EXTRAS}" ] || \
         echo \
           rng-tools \
@@ -47,6 +46,8 @@ RUN export DEBIAN_FRONTEND="noninteractive" \
           curl \
           elinks \
           net-tools \
+          build-essential \
+          cargo \
       ) \
     && apt-get clean
 
