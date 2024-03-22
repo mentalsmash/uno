@@ -152,7 +152,7 @@ class UvnNetService(UvnService):
     return [
       self.marker,
       self.config_file,
-      self.global_uvn_id,
+      self.global_uvn_dir_marker,
     ]
 
 
@@ -170,7 +170,7 @@ class UvnNetService(UvnService):
 
 
   @property
-  def global_uvn_id(self) -> Path:
+  def global_uvn_dir_marker(self) -> Path:
     if self._root:
       return Path("/etc/uno/registry")
     else:
@@ -179,9 +179,9 @@ class UvnNetService(UvnService):
 
   @property
   def global_uvn_dir(self) -> Path|None:
-    if not self.global_uvn_id.exists():
+    if not self.global_uvn_dir_marker.exists():
       return None
-    return Path(self.global_uvn_id.read_text().strip())
+    return Path(self.global_uvn_dir_marker.read_text().strip())
 
 
   @staticmethod
@@ -223,7 +223,7 @@ class UvnNetService(UvnService):
 
 
   def uvn_net_start(self, config_dir: Path|None=None) -> None:
-    log.warning(f"[SERVICE] {self} starting from {self.global_uvn_id if not config_dir else config_dir}")
+    log.warning(f"[SERVICE] {self} starting from {self.global_uvn_dir_marker if not config_dir else config_dir}")
     self.uvn_net(
       ["start"],
       root=self._root,
@@ -240,11 +240,11 @@ class UvnNetService(UvnService):
     was_started = self.enabled()
     if was_started:
       self.uvn_net_stop()
-    if not self.global_uvn_id.parent.is_dir():
-      self.global_uvn_id.parent.mkdir(mode=0o755, parents=True)
-      # self.global_uvn_id.parent.chmod(0o700)
-    self.global_uvn_id.write_text(str(config_dir))
-    log.warning(f"[SERVICE] {self} configured: {self.global_uvn_id} → {config_dir}")
+    if not self.global_uvn_dir_marker.parent.is_dir():
+      self.global_uvn_dir_marker.parent.mkdir(mode=0o755, parents=True)
+      # self.global_uvn_dir_marker.parent.chmod(0o700)
+    self.global_uvn_dir_marker.write_text(str(config_dir))
+    log.warning(f"[SERVICE] {self} configured: {self.global_uvn_dir_marker} → {config_dir}")
     if was_started:
       self.uvn_net_start()
 
@@ -534,6 +534,9 @@ class AgentNetworking:
     other_agent_pid = self.uvn_agent.external_pid
     if other_agent_pid is not None:
       raise RuntimeError(f"agent already active in another process", other_agent_pid, self.uvn_agent.pid_file)
+
+    if iptables_detect_docker():
+      log.warning("docker detected in iptables, the agent might not work correctly on this host.")
 
     # Check if the uvn-net service is running, i.e. the
     # network layer might have been already initialized

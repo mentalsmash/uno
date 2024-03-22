@@ -17,7 +17,7 @@
 from pathlib import Path
 from typing import Iterable, Generator
 from functools import cached_property
-import yaml
+import hashlib
 
 from ..core.ask import ask_yes_no
 
@@ -25,11 +25,11 @@ from .uvn import Uvn
 from .cell import Cell
 from .particle import Particle
 from .user import User
-from .versioned import Versioned
+from .versioned import Versioned, noop_if_readonly, disabled_if_readonly
 
 from .deployment import (
-  P2PLinksMap,
-  P2PLinkAllocationMap,
+  P2pLinksMap,
+  P2pLinkAllocationMap,
   DeploymentStrategy,
   DeploymentStrategyKind,
   StaticDeploymentStrategy,
@@ -38,15 +38,17 @@ from .deployment import (
   RandomDeploymentStrategy,
   FullMeshDeploymentStrategy,
 )
-from .vpn_keymat import CentralizedVpnKeyMaterial, P2PVpnKeyMaterial
+from .vpn_keymat import CentralizedVpnKeyMaterial, P2pVpnKeyMaterial
 from .vpn_config import UvnVpnConfig
 from .dds import locate_rti_license
 from .id_db import IdentityDatabase
-from .keys_dds import DdsKeysBackend
+from .keys_backend_dds import DdsKeysBackend
 from .database import Database
-from .database_object import DatabaseObjectOwner
+from .database_object import DatabaseObjectOwner, inject_db_cursor
+from .agent_config import AgentConfig
+from .package import Packager
+
 from ..core.exec import exec_command
-from ..core.log import Logger as log
 
 
 class Registry(Versioned):
@@ -54,7 +56,11 @@ class Registry(Versioned):
     "uvn_id",
     "deployment",
     "rti_license",
-    "rekeyed_root",
+    "rekeyed_root_config_id",
+    "config_id",
+  ]
+  STR_PROPERTIES = [
+    "uvn_id"
   ]
   RO_PROPERTIES = [
     "uvn_id",
@@ -65,21 +71,41 @@ class Registry(Versioned):
     "root_vpn_keymat",
     "particles_vpn_keymats",
     "backbone_vpn_keymat",
-    "vpn_config",
+    # "vpn_config",
+    "config_id",
   ]
+  PROPERTY_GROUPS = {
+    "users": ["config_id"],
+    "particles": [
+      "config_id",
+      "particles_vpn_keymats",
+    ],
+    "cells": [
+      "config_id",
+      "deployment_config",
+      "root_vpn_keymat",
+      "backbone_vpn_keymat",
+      "particles_vpn_keymats",
+    ]
+  }
   CACHED_PROPERTIES = [
     "uvn",
     "users",
+    "config_id",
+    "rekeyed_root_vpn_keymat",
+    "root_vpn_keymat",
+    "backbone_vpn_keymat",
+    "particles_vpn_keymats",
   ]
-
-  INITIAL_REKEYED_ROOT = False
   INITIAL_RTI_LICENSE = lambda self: self.root / "rti_license.dat"
-  
+  INITIAL_CONFIG_ID = lambda self: self.generate_config_id()
+
   DB_TABLE = "registry"
   DB_TABLE_PROPERTIES = [
     "uvn_id",
     "deployment",
-    "rekeyed_root",
+    "rekeyed_root_config_id",
+    "config_id",
   ]
 
   UVN_FILENAME = "uvn.yaml"
@@ -87,51 +113,59 @@ class Registry(Versioned):
   AGENT_PACKAGE_FILENAME = "{}.uvn-agent"
   AGENT_CONFIG_FILENAME = "agent.yaml"
 
-  @staticmethod
-  def create(
+
+  def __init__(self, **properties) -> None:
+    super().__init__(**properties)
+    self.readonly = not isinstance(self.local_object, Uvn)
+
+
+  @classmethod
+  def create(cls,
       name: str,
       owner: str,
       password: str,
       root: Path | None = None,
       registry_config: dict | None = None):
     root = root or Path.cwd() / name
-    log.activity(f"[REGISTRY] initializing UVN {name} in {root}")
+    cls.log.activity("initializing UVN {} in {}", name, root)
     root_empty = next(root.glob("*"), None) is None
     if root.is_dir() and not root_empty:
       raise RuntimeError("target directory not empty", root)
 
-    db = Database(root)
+    db = Database(root, create=True)
     db.initialize()
 
     owner_email, owner_name = User.parse_user_id(owner)
-    owner = User(db=db,
-      email=owner_email,
-      name=owner_name,
-      realm=name,
-      password=password)
-    uvn = Uvn(db=db, name=name)
-    db.save_all([owner, uvn], chown={owner: [uvn]})
-    registry = Registry(db=db, uvn_id=uvn.id)
+    owner = db.new(User, {
+      "email": owner_email,
+      "name": owner_name,
+      "realm": name,
+      "password": password,
+    })
+    uvn = db.new(Uvn, {"name": name}, owner=owner)
+    # db.save_all([owner, uvn], chown={owner: [uvn]})
+    registry = db.new(Registry, {"uvn_id": uvn.id}, save=False)
     registry.configure(**registry_config)
 
     # Make sure we have an RTI license, since we're gonna need it later.
     if not registry.rti_license.is_file():
       rti_license = locate_rti_license(search_path=[registry.root])
       if not rti_license or not rti_license.is_file():
-        log.error(f"[REGISTRY] RTI license not found, cell agents will not be available")
         raise RuntimeError("please specify an RTI license file")
       else:
         registry.rti_license = rti_license
 
-    registry.generate()
-    log.info(f"[REGISTRY] initialized UVN {registry.uvn.name}: {registry.root}")
+    registry.generate_artifacts()
+    registry.log.info("initialized UVN {}: {}", registry.uvn.name, registry.root)
     return registry
 
 
   @staticmethod
-  def open(root: Path) -> "Registry":
+  def open(root: Path, readonly: bool=False) -> "Registry":
     db = Database(root)
-    return next(db.load(Registry, id=1))
+    return next(db.load(Registry, load_args={
+      "readonly": readonly if readonly else None,
+    }, id=1))
 
 
   @property
@@ -139,44 +173,69 @@ class Registry(Versioned):
     return self.db.root
 
 
+  @cached_property
+  @inject_db_cursor
+  def local_object(self, cursor: Database.Cursor) -> Uvn|Cell:
+    # Read id.yaml to determine the owner
+    id_file = self.root / "id.yaml"
+    if id_file.exists():
+      self.log.debug("loading identity marker: {}", id_file)
+      id_cfg = self.yaml_load(id_file.read_text())
+      owner = self.db.load_object_id(id_cfg["owner"], cursor=cursor)
+    else:
+      self.log.debug("identity marker not found: {}", id_file)
+      owner = self.uvn
+    return owner
+
+
+  @property
+  def cells_dir(self) -> Path:
+    return self.root / "cells"
+
+
+  @property
+  def particles_dir(self) -> Path:
+    return self.root / "particles"
+
+
   @property
   def id_db(self) -> IdentityDatabase:
-    backend = self.deserialize_child(DdsKeysBackend, {
+    backend = self.new_child(DdsKeysBackend, {
       "root": self.root / "id",
       "org": self.uvn.name,
-      "generation_ts": self.uvn.generation_ts,
-      "init_ts": self.uvn.init_ts,
     })
-    return self.deserialize_child(IdentityDatabase, {
+    return self.new_child(IdentityDatabase, {
+      "registry": self,
       "backend": backend,
-      "local_id": self.uvn,
-      "uvn": self.uvn,
     })
 
 
   @cached_property
   def vpn_config(self) -> UvnVpnConfig:
-    return self.deserialize_child(UvnVpnConfig)
+    return self.new_child(UvnVpnConfig)
 
 
   @cached_property
   def root_vpn_keymat(self) -> CentralizedVpnKeyMaterial:
-    return self.deserialize_child(CentralizedVpnKeyMaterial, {
+    return self.new_child(CentralizedVpnKeyMaterial, {
       "prefix": f"{self.uvn.name}:vpn:root",
+      "peer_ids": [c.id for c in self.uvn.cells.values()],
     })
 
 
   @cached_property
   def rekeyed_root_vpn_keymat(self) -> CentralizedVpnKeyMaterial:
-    return self.deserialize_child(CentralizedVpnKeyMaterial, {
+    return self.new_child(CentralizedVpnKeyMaterial, {
       "prefix": f"{self.uvn.name}:vpn:root",
+      "peer_ids": [c.id for c in self.uvn.cells.values()],
       "prefer_dropped": True,
+      "readonly": True,
     })
 
 
   @cached_property
-  def backbone_vpn_keymat(self) -> P2PVpnKeyMaterial:
-    return self.deserialize_child(P2PVpnKeyMaterial, {
+  def backbone_vpn_keymat(self) -> P2pVpnKeyMaterial:
+    return self.new_child(P2pVpnKeyMaterial, {
       "prefix": f"{self.uvn.name}:vpn:backbone",
     })
 
@@ -184,8 +243,9 @@ class Registry(Versioned):
   @cached_property
   def particles_vpn_keymats(self) -> dict[int, CentralizedVpnKeyMaterial]:
     return {
-      cell.id: self.deserialize_child(CentralizedVpnKeyMaterial, {
+      cell.id: self.new_child(CentralizedVpnKeyMaterial, {
         "prefix": f"{self.uvn.name}:vpn:particles:{cell.id}",
+        "peer_ids": [p.id for p in self.uvn.particles.values()],
       }) for cell in self.uvn.all_cells.values()
     }
 
@@ -210,32 +270,34 @@ class Registry(Versioned):
 
   def prepare_rti_license(self, val: str | Path) -> None:
     if val is not None and val != self.INITIAL_RTI_LICENSE():
-      log.activity(f"[REGISTRY] caching RTI license: {val} → {self.rti_license}")
-      exec_command(["cp", val, self.rti_license])
+      self.log.activity("caching RTI license: {} → {}", val, self.rti_license)
+      exec_command(["cp", "-v", val, self.rti_license])
       self.rti_license.chmod(0o644)
       # Mark object updated since we're never actually updating the property
       self.updated_property("rti_license")
     return None
 
 
-  def serialize_rti_license(self, val: Path) -> str:
+  def serialize_rti_license(self, val: Path, public: bool=False) -> str:
     return str(val)
 
 
-  def prepare_deployment(self, val: str | dict | P2PLinksMap) -> P2PLinksMap:
-    return self.deserialize_child(P2PLinksMap, val)
+  def prepare_deployment(self, val: str | dict | P2pLinksMap) -> P2pLinksMap:
+    return self.new_child(P2pLinksMap, val)
 
 
   @cached_property
-  def uvn(self) -> Uvn:
-    return next(self.db.load(Uvn, id=self.uvn_id))
+  @inject_db_cursor
+  def uvn(self, cursor: Database.Cursor) -> Uvn:
+    return next(self.db.load(Uvn, id=self.uvn_id, cursor=cursor))
 
 
   @cached_property
-  def users(self) -> dict[int, User]:
+  @inject_db_cursor
+  def users(self, cursor: Database.Cursor) -> dict[int, User]:
     return {
       user.id: user
-        for user in self.db.load(User, where="realm = ?", params=(self.uvn.name,))
+        for user in self.db.load(User, where="realm = ?", params=(self.uvn.name,), cursor=cursor)
     }
 
 
@@ -244,17 +306,19 @@ class Registry(Versioned):
     return self.deployment is not None
 
 
-  @property
-  def config_id(self) -> str:
-    import hashlib
+  # @cached_property
+  def generate_config_id(self) -> str:
     h = hashlib.sha256()
     h.update(self.generation_ts.format().encode())
+    for n in sorted(self.nested, key=lambda n: str(n.id)):
+      h.update(n.generation_ts.format().encode())
     return h.hexdigest()
 
 
   def save_rekeyed(self) -> None:
     self.root_vpn_keymat.clean_dropped_keys()
-    self.rekeyed_root = False
+    self.rekeyed_root_config_id = None
+    self.reset_cached_properties()
 
 
   def configure(self, **config_args) -> None:
@@ -263,87 +327,113 @@ class Registry(Versioned):
       self.updated_property("deployment_config")
 
 
-  def load_cell(self, name: str) -> Cell:
-    return next(self.db.load(Cell, where="name = ?", params=(name,)))
+  @inject_db_cursor
+  def load_cell(self, name: str, cursor: Database.Cursor) -> Cell:
+    return next(self.db.load(Cell, where="name = ?", params=(name,), cursor=cursor))
 
 
+  @disabled_if_readonly
   def add_cell(self, name: str, owner: User | None=None, **cell_config) -> Cell:
     if owner is None:
       owner = self.uvn.owner
-    # else:
-    #   owner = self.load_user(owner)
-    cell = self.db.new(Cell, owner=owner, uvn_id=self.uvn.id, name=name, **cell_config)
+
+    cell = self.uvn.new_child(Cell, {
+      "uvn_id": self.uvn.id,
+      "name": name,
+      **cell_config,
+    }, owner=owner)
+
     self.uvn.updated_property("cell_properties")
-    self.updated_property("deployment_config")
-    log.info(f"[REGISTRY] new cell added to {self.uvn}: {cell}")
+    self.updated_property("cells")
+    self.log.info("new cell added to uvn {}: {}", self.uvn, cell)
     return cell
 
 
+  @noop_if_readonly(None)
   def update_cell(self, cell: Cell, owner: User|None=None, **config) -> None:
     if owner:
       cell.set_ownership(owner)
     cell.configure(**config)
-    if {"address",} & cell.changed_properties:
+    if cell.dirty:
       self.uvn.updated_property("cell_properties")
-      self.updated_property("deployment_config")
+      self.updated_property("cells")
 
 
+  @disabled_if_readonly
   def delete_cell(self, cell: Cell) -> None:
     ask_yes_no(f"delete cell {cell.name} from uvn {self.uvn.name}?")
     self.particles_vpn_keymats[cell.id].drop_keys(delete=True)
     del self.particles_vpn_keymats[cell.id]
     self.db.delete(cell)
     self.uvn.updated_property("cell_properties")
-    self.updated_property("deployment_config")
-    log.info(f"[REGISTRY] cell deleted from uvn {self.uvn.name}: {cell}")
+    self.updated_property("cells")
+    self.log.info("cell deleted from uvn {}: {}", self.uvn, cell)
 
 
-  def load_particle(self, name: str) -> Particle:
-    return next(self.db.load(Particle, where="name = ?", params=(name,)))
+  @inject_db_cursor
+  def load_particle(self, name: str, cursor: Database.Cursor) -> Particle:
+    return next(self.db.load(Particle, where="name = ?", params=(name,), cursor=cursor))
 
 
+  @disabled_if_readonly
   def add_particle(self, name: str, owner: User|None=None, **particle_config) -> Particle:
     if owner is None:
       owner = self.uvn.owner
-    # else:
-    #   owner = next(self.db.load(User, where=f"email = ?", params=[owner]))
-    owner_id = owner.id
-    particle = self.db.new(Particle, owner=owner, uvn_id=self.uvn.id, name=name, owner_id=owner_id, **particle_config)
+    particle = self.uvn.new_child(Particle, {
+      "uvn_id": self.uvn.id,
+      "name": name,
+      **particle_config,
+    }, owner=owner)
     self.uvn.updated_property("particle_properties")
-    log.info(f"[REGISTRY] new particle added to {self.uvn}: {particle}")
+    self.updated_property("particles")
+    self.log.info("new particle added to {}: {}", self.uvn, particle)
     return particle
 
 
+  @noop_if_readonly(None)
   def update_particle(self, particle: Particle, owner: User|None=None, **config) -> None:
     if owner:
       particle.set_ownership(owner)
     particle.configure(config)
+    if particle.dirty:
+      self.updated_property("particles")
     self.db.save(particle)
 
 
+  @disabled_if_readonly
   def delete_particle(self, particle: Particle) -> None:
     ask_yes_no(f"delete particle {particle.name} from uvn {self.uvn.name}?")
     self.db.delete(particle)
     self.uvn.updated_property("particle_properties")
-    log.info(f"[REGISTRY] particle deleted from uvn {self.uvn.name}: {particle}")
+    self.updated_property("particles")
+    self.log.info("particle deleted from uvn {}: {}", self.uvn, particle)
 
 
-  def load_user(self, email: str) -> User:
-    return next(self.db.load(User, where="email = ?", params=[email]))
+  @inject_db_cursor
+  def load_user(self, email: str, cursor: Database.Cursor) -> User:
+    return next(self.db.load(User, where="email = ?", params=[email], cursor=cursor))
 
 
+  @disabled_if_readonly
   def add_user(self, email: str, **user_args) -> User:
     user_args["realm"] = self.uvn.name
-    user = self.db.new(User, email=email, **user_args)
+    user = self.new_child(User, {
+      "email": email,
+      **user_args,
+    })
     self.updated_property("users")
-    log.info(f"[REGISTRY] new user added to {self.uvn}: {user}")
+    self.log.info("new user added to uvn {}: {}", self.uvn, user)
     return user
 
 
+  @noop_if_readonly(None)
   def update_user(self, user: User, **config) -> None:
     user.configure(**config)
+    if user.dirty:
+      self.updated_property("users")
 
 
+  @disabled_if_readonly
   def delete_user(self, user: User) -> None:
     if self.uvn in user.owned_uvns:
       raise ValueError("uvn owner cannot be deleted", self.uvn, user)
@@ -363,9 +453,10 @@ class Registry(Versioned):
 
     self.db.delete(user)
     self.updated_property("users")
-    log.info(f"[REGISTRY] user deleted from uvn {self.uvn.name}: {user}")
+    self.log.info("user deleted from uvn {}: {}", self.uvn, user)
 
 
+  @disabled_if_readonly
   def ban(self,
       targets: Iterable[Cell|Particle|User],
       banned: bool=False,
@@ -414,9 +505,12 @@ class Registry(Versioned):
 
     if modified_cells:
       self.uvn.updated_property("cell_properties")
-      self.updated_property("deployment_config")
+      self.updated_property("cells")
     if modified_particles:
       self.uvn.updated_property("particle_properties")
+      self.updated_property("particles")
+    if modified_users:
+      self.updated_property("users")
 
 
   @property
@@ -424,46 +518,49 @@ class Registry(Versioned):
     return not self.deployed or "deployment_config" in self.changed_properties
 
 
+  @noop_if_readonly(None)
   def redeploy(self, drop_keys: bool=True, backbone_vpn_settings: dict|None=None) -> None:
     if backbone_vpn_settings:
       self.uvn.settings.backbone_vpn.configure(**backbone_vpn_settings)
-    log.activity("[REGISTRY] generating new backbone deployment")
+    self.log.activity("generating new backbone deployment")
     if drop_keys:
       self.backbone_vpn_keymat.drop_keys(delete=True)
-    network_map = P2PLinkAllocationMap(
+    network_map = P2pLinkAllocationMap(
       subnet=self.uvn.settings.backbone_vpn.subnet)
     new_deployment =  self.deployment_strategy.deploy(network_map=network_map)
-    if self.deployment is None:
-      self.deployment = new_deployment
-    else:
-      self.deployment.peers = new_deployment.peers
+    self.deployment = new_deployment
     if self.deployment.peers:
-      log.info(f"[REGISTRY] UVN backbone links updated [{self.deployment.generation_ts}]")
+      self.log.info("UVN backbone links updated [{}]", self.deployment.generation_ts)
       self.uvn.log_deployment(self.deployment)
     elif len(self.uvn.cells) > 1:
-      log.warning(f"[REGISTRY] UVN has {len(self.uvn.cells)} cells but no backbone links!")
+      self.log.warning("UVN has {} cells but no backbone links!", len(self.uvn.cells))
     else:
-      log.warning(f"[REGISTRY] UVN has no backbone")
+      self.log.debug("UVN has no backbone")
     self.clear_changed(["deployment_config"])
     if drop_keys:
       self.db.save(self.backbone_vpn_keymat)
+    self.updated_property("config_id")
 
 
   def drop_particles_vpn_keymats(self) -> None:
     ask_yes_no(f"drop and regenerate all keys for all particle vpns in uvn {self.uvn.name}?")
-    log.warning(f"[REGISTRY] dropping all keys for Particle VPNs")
+    self.log.warning("dropping all keys for Particle VPNs")
     for keymat in self.particles_vpn_keymats.values():
       keymat.drop_keys(delete=True)
     del self.particles_vpn_keymats
+    self.updated_property("config_id")
 
 
   def drop_root_vpn_keymat(self) -> None:
     ask_yes_no(f"drop and regenerate all keys for the root vpn of uvn {self.uvn.name}?")
-    log.warning(f"[REGISTRY] dropping existing keys for Root VPN")
+    self.log.warning("dropping existing keys for Root VPN")
+    if self.rekeyed_root_config_id is None:
+      self.rekeyed_root_config_id = self.config_id
     self.root_vpn_keymat.drop_keys()
-    self.rekeyed_root = True
+    self.updated_property("config_id")
 
 
+  @noop_if_readonly(None)
   def purge_keys(self) -> None:
     self.root_vpn_keymat.purge_gone_peers(list(self.uvn.all_cells), delete=True)
 
@@ -475,22 +572,28 @@ class Registry(Versioned):
       self.backbone_vpn_keymat.drop_keys(delete=True)
 
 
+  @noop_if_readonly(None)
   def assert_keys(self) -> None:
     self.vpn_config.assert_keys()
     self.id_db.assert_keys()
     
 
-  def generate(self) -> bool:
+  @noop_if_readonly(None)
+  def generate_artifacts(self, force: bool=False) -> bool:
     # Save modified objects and log them for the user
     def _save() -> int:
+      self.log.trace("checking modified elements:")
       changed_elements_vals = dict(self.collect_changes())
       changed_elements = set(changed_elements_vals.keys())
       if len(changed_elements) > 0:
-        log.activity("[REGISTRY] {} changed elements", len(changed_elements_vals))
+        self.log.activity("{} changed elements", len(changed_elements_vals))
         for ch, _ in changed_elements_vals.items():
-          log.activity("[REGISTRY] - {}: [{}]", ch, ", ".join(sorted(ch.changed_properties)))
+          self.log.activity("- {}: [{}]", ch, ", ".join(sorted(ch.changed_properties)))
         # _log_changed(changed_elements_vals)
-        self.db.save(self)
+      else:
+        self.log.debug("nothing changed in {}", self)
+      self.config_id = self.generate_config_id()
+      self.db.save(self, dirty=not force)
       return len(changed_elements)
 
     # Purge all keys that belong to deleted owners
@@ -508,15 +611,26 @@ class Registry(Versioned):
     changed_elements += _save()
 
     changed = changed_elements > 0
-    if not changed:
-      log.activity("[REGISTRY] unchanged")
-    return changed
+    if not changed and not force:
+      self.log.info("unchanged")
+      return False
+
+    for cell in self.uvn.cells.values():
+      Packager.generate_cell_agent_package(self, cell, self.cells_dir)
+
+    for particle in self.uvn.particles.values():
+      Packager.generate_particle_package(self, particle, self.particles_dir)
+
+    self.log.info("updated")
+    return True
+
 
 
   def rekey_uvn(self) -> None:
     ask_yes_no(f"drop and regenerate all vpn keys for uvn {self.uvn.name}?")
+    if self.rekeyed_root_config_id is None:
+      self.rekeyed_root_config_id = self.config_id
     self.root_vpn_keymat.drop_keys(delete=False)
-    self.rekeyed_root = True
     for keymat in self.particles_vpn_keymats.values():
       keymat.drop_keys(delete=True)
     self.backbone_vpn_keymat.drop_keys(delete=True)
@@ -546,9 +660,10 @@ class Registry(Versioned):
 
     cells = list(c for c in self.uvn.cells.values() if c != cell)
     if root_vpn:
-      log.warning(f"[REGISTRY] dropping Root VPN key for cell: {cell}")
+      self.log.warning("dropping Root VPN key for cell: {}", cell)
+      if self.rekeyed_root_config_id is None:
+        self.rekeyed_root_config_id = self.config_id
       self.root_vpn_keymat.purge_gone_peers((c.id for c in cells))
-      self.rekeyed_root = True
 
     if particles_vpn:
       self.particles_vpn_keymats[cell.id].drop_keys(delete=True)
@@ -560,37 +675,120 @@ class Registry(Versioned):
     private_peers = set(c.id for c in self.uvn.cells.values() if not c.address)
 
     if self.uvn.settings.backbone_vpn.deployment_strategy == DeploymentStrategyKind.CROSSED:
-      strategy = self.new_child(CrossedDeploymentStrategy,
-        peers=peers,
-        private_peers=private_peers,
-        args=self.uvn.settings.backbone_vpn.deployment_strategy_args)
+      strategy = self.new_child(CrossedDeploymentStrategy,{
+        "peers": peers,
+        "private_peers": private_peers,
+        "args": self.uvn.settings.backbone_vpn.deployment_strategy_args
+      })
     elif self.uvn.settings.backbone_vpn.deployment_strategy == DeploymentStrategyKind.RANDOM:
-      strategy = self.new_child(RandomDeploymentStrategy,
-        peers=peers,
-        private_peers=private_peers,
-        args=self.uvn.settings.backbone_vpn.deployment_strategy_args)
+      strategy = self.new_child(RandomDeploymentStrategy, {
+        "peers": peers,
+        "private_peers": private_peers,
+        "args": self.uvn.settings.backbone_vpn.deployment_strategy_args
+      })
     elif self.uvn.settings.backbone_vpn.deployment_strategy == DeploymentStrategyKind.CIRCULAR:
-      strategy = self.new_child(CircularDeploymentStrategy,
-        peers=peers,
-        private_peers=private_peers,
-        args=self.uvn.settings.backbone_vpn.deployment_strategy_args)
+      strategy = self.new_child(CircularDeploymentStrategy, {
+        "peers": peers,
+        "private_peers": private_peers,
+        "args": self.uvn.settings.backbone_vpn.deployment_strategy_args
+      })
     elif self.uvn.settings.backbone_vpn.deployment_strategy == DeploymentStrategyKind.FULL_MESH:
-      strategy = self.new_child(FullMeshDeploymentStrategy,
-        peers=peers,
-        private_peers=private_peers,
-        args=self.uvn.settings.backbone_vpn.deployment_strategy_args)
+      strategy = self.new_child(FullMeshDeploymentStrategy, {
+        "peers": peers,
+        "private_peers": private_peers,
+        "args": self.uvn.settings.backbone_vpn.deployment_strategy_args
+      })
     elif self.uvn.settings.backbone_vpn.deployment_strategy == DeploymentStrategyKind.STATIC:
-      strategy = self.new_child(StaticDeploymentStrategy,
-        peers=peers,
-        private_peers=private_peers,
-        args=self.uvn.settings.backbone_vpn.deployment_strategy_args)
+      strategy = self.new_child(StaticDeploymentStrategy, {
+        "peers": peers,
+        "private_peers": private_peers,
+        "args": self.uvn.settings.backbone_vpn.deployment_strategy_args
+      })
     else:
       raise RuntimeError("unknown deployment strategy or invalid configuration", self.uvn.settings.backbone_vpn.deployment_strategy)
 
-    log.activity(f"[REGISTRY] deployment strategy arguments:")
-    log.activity(f"[REGISTRY] - strategy: {strategy}")
-    log.activity(f"[REGISTRY] - public peers [{len(strategy.public_peers)}]: [{', '.join(map(str, map(self.uvn.cells.__getitem__, strategy.public_peers)))}]")
-    log.activity(f"[REGISTRY] - private peers [{len(strategy.private_peers)}]: [{', '.join(map(str, map( self.uvn.cells.__getitem__, strategy.private_peers)))}]")
-    log.activity(f"[REGISTRY] - extra args: {strategy.args}")
+    self.log.activity("deployment strategy arguments:")
+    self.log.activity("- strategy: {}", strategy)
+    self.log.activity("- public peers [{}]: [{}]",
+      len(strategy.public_peers),
+      ', '.join(map(str, map(self.uvn.cells.__getitem__, strategy.public_peers))))
+    self.log.activity("- private peers [{}]: [{}]",
+      len(strategy.private_peers),
+      ', '.join(map(str, map( self.uvn.cells.__getitem__, strategy.private_peers))))
+    self.log.activity("- extra args: {}", strategy.args)
     return strategy
+
+
+  def export_cell_database(self, db: "Database", cell: Cell) -> None:
+    self.db.export_tables(db, [Uvn, Cell, Particle, User, Registry])
+    priv_keymat = [
+      *self.root_vpn_keymat.get_peer_material(cell.id, private=True),
+      *self.backbone_vpn_keymat.get_peer_material(cell.id, private=True),
+      *self.particles_vpn_keymats[cell.id].get_peer_material(0, private=True),
+    ]
+    self.log.activity("exporting {} private keys for {}", len(priv_keymat), cell)
+    for k in priv_keymat:
+      self.log.activity("- {}", k)
+    self.db.export_objects(db, priv_keymat)
+
+    pub_keymat = [
+      *self.root_vpn_keymat.get_peer_material(cell.id),
+      *self.particles_vpn_keymats[cell.id].get_peer_material(0),
+      *self.backbone_vpn_keymat.get_peer_material(cell.id),
+    ]
+    self.log.activity("exporting {} public keys for {}", len(pub_keymat), cell)
+    for k in pub_keymat:
+      self.log.activity("- {}", k)
+    self.db.export_objects(db, pub_keymat, public=True)
+    agent_config = self.cell_agent_configs[cell.id]
+    db.save(agent_config, dirty=False, force_insert=True)
+
+
+  @property
+  def registry_agent_config(self) -> AgentConfig:
+    return self.assert_agent_config(self.uvn)
+
+
+  @property
+  def cell_agent_configs(self) -> set[AgentConfig]:
+    return {
+      cell.id: self.assert_agent_config(cell)
+        for cell in self.uvn.cells.values()
+    }
+
+
+  def assert_agent_config(self, owner: Uvn|Cell) -> AgentConfig:
+    def _assert_agent_config(owner: Uvn|Cell, init_args: dict, **search_args) -> AgentConfig:
+      existing = self.load_child(AgentConfig, **search_args)
+      if existing:
+        return existing
+      if self.readonly:
+        raise RuntimeError("missing agent configuration", owner)
+      return self.new_child(AgentConfig, {
+        "registry_id": self.config_id,
+        "deployment": self.deployment,
+        **init_args,
+      }, owner=owner)
+
+    if isinstance(owner, Cell):
+      cell = owner
+      return _assert_agent_config(cell, {
+        "root_vpn_config": self.vpn_config.root_vpn.peer_config(cell.id),
+        "particles_vpn_config": self.vpn_config.particles_vpn(cell),
+        "backbone_vpn_config": self.vpn_config.backbone_vpn.peer_config(cell.id),
+        "enable_router": True,
+        "enable_httpd": True,
+        "enable_peers_tester": True,
+      },
+      where="owner_id = ? AND registry_id = ?",
+      params=(self.json_dump(cell.object_id), self.config_id,))
+    else:
+      assert(isinstance(owner, Uvn))
+      return _assert_agent_config(self.uvn, {
+        "registry_id": self.config_id,
+        "deployment": self.deployment,
+        "root_vpn_config": self.vpn_config.root_vpn.root_config,
+      },
+      where="owner_id = ? AND registry_id = ?",
+      params=(self.json_dump(self.uvn.object_id), self.config_id,))
 

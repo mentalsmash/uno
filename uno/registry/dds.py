@@ -3,7 +3,9 @@ from typing import Iterable
 from enum import Enum
 import os
 
-from ..core.log import Logger as log
+from ..core.log import Logger
+log = Logger.sublogger("dds")
+
 
 class UvnTopic(Enum):
   UVN_ID = "uno/uvn"
@@ -17,9 +19,9 @@ def locate_rti_license(search_path: Iterable[Path] | None = None) -> Path | None
     if root in searched:
       return None
     rti_license = root / "rti_license.dat"
-    log.debug(f"[RTI-LICENSE] checking candidate: {rti_license}")
+    log.debug("checking RTI license candidate: {}", rti_license)
     if rti_license.is_file():
-      log.debug(f"[RTI-LICENSE] found in {root}")
+      log.debug("RTI license found in {}", root)
       return rti_license
     searched.add(root)
     return None
@@ -34,7 +36,7 @@ def locate_rti_license(search_path: Iterable[Path] | None = None) -> Path | None
   if rti_license_env:
     rti_license = Path(rti_license_env)
     if rti_license.is_file():
-      log.warning(f"[RTI-LICENSE] detected RTI_LICENSE_FILE = {rti_license}")
+      log.warning("detected RTI_LICENSE_FILE = {}", rti_license)
       return rti_license
 
   default_path = [Path.cwd()]

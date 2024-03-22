@@ -19,11 +19,11 @@ import numbers
 import sys
 from termcolor import colored
 import threading
-import pathlib
+from pathlib import Path
 from collections import namedtuple
 import os
+from functools import cached_property
 
-DEBUG = bool(os.environ.get("DEBUG", False))
 
 class LoggerError(Exception):
     def __init__(self, msg):
@@ -58,9 +58,10 @@ class _LogLevel:
         return self.name
 
 _LogLevels = namedtuple("LogLevels",
-    ['trace', 'debug', 'activity', 'info', 'warning', 'error', 'quiet'])
+    ["tracedbg", 'trace', 'debug', 'activity', 'info', 'warning', 'error', 'quiet'])
 
 level = _LogLevels(
+            _LogLevel('tracedbg', 5000),
             _LogLevel('trace', 500),
             _LogLevel('debug', 400),
             _LogLevel('activity', 350),
@@ -94,6 +95,7 @@ def set_verbosity(lvl):
         global _LOGGER_LEVEL
         _LOGGER_LEVEL = lvl
 
+
 def verbosity():
     return _LOGGER_LEVEL
 
@@ -115,11 +117,17 @@ def color_enabled():
         global _LOGGER_NOCOLOR
         return not _LOGGER_NOCOLOR
 
-def logger(context, no_prefix=False):
+def logger(context, no_prefix=False, parent: "UvnLogger|None"=None):
     global _LOGGER_LOCK
     with _LOGGER_LOCK:
         global _LOGGERS
-        return _LOGGERS.get(context, _UvnLogger(context, no_prefix=no_prefix))
+        logger = UvnLogger(context, no_prefix=no_prefix, parent=parent)
+        if logger.context in _LOGGERS:
+            logger = _LOGGERS[logger.context]
+        else:
+            _LOGGERS[logger.context] = logger
+        return logger
+
 
 def output_file(path):
     global _LOGGER_LOCK
@@ -127,7 +135,7 @@ def output_file(path):
     with _LOGGER_LOCK:
         if _LOGGER_FILE:
             _LOGGER_FILE.close()
-        path = pathlib.Path(path)
+        path = Path(path)
         path.parent.mkdir(exist_ok=True, parents=True)
         _LOGGER_FILE = path.open("w+")
 
@@ -139,7 +147,8 @@ def global_prefix(pfx):
 
 def _colorize(lvl, line):
     if lvl >= level.trace:
-        return colored(line, "white")
+        # return colored(line, "white")
+        return colored(line, no_color=True)
     elif lvl >= level.debug:
         return colored(line, "magenta")
     elif lvl >= level.activity:
@@ -178,7 +187,7 @@ def _format_default(logger, context, lvl, fmt, *args, **kwargs):
         if glb_prefix:
             fmt_args.extend(["[{}]"])
         fmt_args.extend(["[{}]", "[{}]"])
-        if not fmt.startswith("[") and fmt != "{}":
+        if not fmt.startswith("[") and (fmt != "{}" or not args[0].startswith("[")):
             fmt_args.append(" ")
     fmt_args.append(fmt)
     fmt = "".join(fmt_args)
@@ -192,7 +201,7 @@ def _format_default(logger, context, lvl, fmt, *args, **kwargs):
     
     return fmt.format(*fmt_args)
 
-class _UvnLogger:
+class UvnLogger:
     global_prefix = None
 
     def __init__(
@@ -200,13 +209,56 @@ class _UvnLogger:
         context,
         no_prefix=False,
         format=_format_default,
-        emit=_emit_default):
+        emit=_emit_default,
+        parent: "UvnLogger|None"=None):
         if not context:
             raise LoggerError("invalid logger context")
-        self.context = context
+        self.parent = parent
         self.format = format
         self.emit = emit
         self.no_prefix = no_prefix
+        self._update_sublogger_context(context)
+
+    @property
+    def context(self) -> str:
+        return self._context
+
+
+    @context.setter
+    def context(self, val: str) -> None:
+        with _LOGGER_LOCK:
+            del _LOGGERS[self._context]
+            self._update_sublogger_context(val)
+            _LOGGERS[self._context] = self
+
+
+    @cached_property
+    def DEBUG(self) -> bool:
+        return bool(os.environ.get("DEBUG", False))
+
+
+    @property
+    def level(self) -> _LogLevels:
+        return level
+
+
+    @property
+    def current_level(self) -> _LogLevel:
+        return verbosity()
+
+
+    @current_level.setter
+    def current_level(self, val: _LogLevel) -> None:
+        set_verbosity(val)
+
+
+    def _update_sublogger_context(self, context: str) -> None:
+        context = self.camelcase_to_kebabcase(context)
+        if self.parent:
+            self._context = f"{self.parent.context}.{context}"
+        else:
+            self._context = context
+
 
     def _log(self, lvl, *args, **kwargs):
         if not log_enabled(self.context, lvl):
@@ -265,5 +317,29 @@ class _UvnLogger:
     def trace(self, *args, **kwargs):
         self._log(level.trace, *args, **kwargs)
 
+    def tracedbg(self, *args, **kwargs):
+        self._log(level.tracedbg, *args, **kwargs)
+
+
+    def sublogger(self, subcontext: str) -> "UvnLogger":
+        return logger(subcontext, parent=self)
+
+
+    @classmethod
+    def camelcase_to_kebabcase(cls, val: str) -> str:
+        import re
+        val = val[0].lower() + val[1:]
+        return re.sub(r'(?<!^)(?=[A-Z])', '-', val).lower()
+
+
+    @classmethod
+    def format_dir(cls, val: Path) -> str:
+        try:
+            return str(val.relative_to(Path.cwd())) or "."
+        except:
+            return str(val)
+
+
+
 Logger = logger("uno")
-log_debug = (lambda *a, **kw: None) if not DEBUG else Logger.debug
+

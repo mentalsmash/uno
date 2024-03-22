@@ -17,8 +17,8 @@
 from typing import Optional, Callable, Union, Sequence
 
 class PairedValuesMap(dict):
-  @staticmethod
-  def pair_key(peer_a: int, peer_b: int):
+  @classmethod
+  def pair_key(cls, peer_a: int, peer_b: int):
     if (peer_a > peer_b):
       return (peer_b, peer_a)
     else:
@@ -64,8 +64,8 @@ class PairedValuesMap(dict):
     return self[self.pair_key(peer_a, peer_b)]
 
 
-  @staticmethod
-  def pick(peer_a: int, peer_b: int, peer_target: int, val: Sequence[object]) -> object:
+  @classmethod
+  def pick(cls, peer_a: int, peer_b: int, peer_target: int, val: Sequence[object]) -> object:
     key = PairedValuesMap.pair_key(peer_a, peer_b)
     peer_i = 0 if key[0] == peer_target else 1
     return val[peer_i]

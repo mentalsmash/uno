@@ -19,12 +19,12 @@
       </thead>
       {% for peer_a_id, peer_a in deployment.peers | dictsort -%}
       <tbody class="table-group-divider">
-        {% set peer_a_cell = uvn_id.cells[peer_a_id] -%}
+        {% set peer_a_cell = uvn.cells[peer_a_id] -%}
         {% for peer_b_id, (port_i, peer_a_addr, peer_b_addr, link_subnet) in peer_a.peers | dictsort -%}
-        {% set peer_b_cell = uvn_id.cells[peer_b_id] -%}
-        {% set peer_a_port = port_i + uvn_id.settings.backbone_vpn.port %}
+        {% set peer_b_cell = uvn.cells[peer_b_id] -%}
+        {% set peer_a_port = port_i + uvn.settings.backbone_vpn.port %}
         {% set peer_b_port_i = deployment.peers[peer_b_id]["peers"][peer_a_id][0] %}
-        {% set peer_b_port = peer_b_port_i + uvn_id.settings.backbone_vpn.port %}
+        {% set peer_b_port = peer_b_port_i + uvn.settings.backbone_vpn.port %}
         {% set peer_b_n = deployment.peers[peer_b_id]["n"] %}
         <tr>
           <td>

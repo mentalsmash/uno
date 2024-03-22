@@ -21,8 +21,9 @@ import subprocess
 
 from .render import Templates
 from ..core.exec import exec_command
-from ..core.log import Logger as log
-from ..registry.keys_dds import CertificateSubject
+from ..core.log import Logger
+log = Logger.sublogger("lighttpd")
+from ..registry.certificate_subject import CertificateSubject
 
 
 class Lighttpd:
@@ -54,7 +55,7 @@ class Lighttpd:
     self._lighttpd_pem =  self.root / "lighttpd.pem"
 
   def _assert_ssl_cert(self, regenerate: bool=True) -> None:
-    log.debug(f"[HTTPD] creating server SSL certificate")
+    log.debug("creating server SSL certificate")
     if self._lighttpd_pem.is_file():
       if not regenerate:
         return
@@ -74,7 +75,7 @@ class Lighttpd:
         "-subj", pem_subject,
     ])
     self._lighttpd_pem.chmod(0o600)
-    log.debug(f"[HTTPD] SSL certificate: {self._lighttpd_pem}")
+    log.debug("SSL certificate: {}", self._lighttpd_pem)
 
 
   def start(self) -> None:
@@ -128,7 +129,7 @@ class Lighttpd:
       max_wait = 5
       pid = None
       for i in range(max_wait):
-        log.debug("[HTTPD] waiting for lighttpd to come online...")
+        log.debug("waiting for lighttpd to come online...")
         if self._lighttpd_pid.is_file():
           try:
             pid = int(self._lighttpd_pid.read_text())
@@ -138,8 +139,8 @@ class Lighttpd:
         time.sleep(1)
       if pid is None:
         raise RuntimeError("failed to detect lighttpd process")
-      log.debug(f"[HTTPD] lighttpd started: pid={pid}")
-      log.warning(f"[HTTPD] listening on 0.0.0.0:{self.port}")
+      log.debug("lighttpd started: pid={}", pid)
+      log.warning("listening on 0.0.0.0:{}", self.port)
     except Exception as e:
       self._lighttpd_pid = None
       self._lighttpd = None
@@ -147,7 +148,7 @@ class Lighttpd:
       # log.exception(e)
       if lighttpd_started:
         # lighttpd was started by we couldn't detect its pid
-        log.error("[HTTPD] lighttpd process was started but possibly not stopped. Please check your system.")
+        log.error("lighttpd process was started but possibly not stopped. Please check your system.")
       raise e
 
 
@@ -160,16 +161,16 @@ class Lighttpd:
     try:
       if self._lighttpd_pid.is_file():
         pid = int(self._lighttpd_pid.read_text())
-        log.debug(f"[HTTPD] stopping lighttpd: pid={pid}")
+        log.debug("stopping lighttpd: pid={}", pid)
         exec_command(["kill", "-s", "SIGTERM", str(pid)],
           fail_msg="failed to signal lighttpd process")
       # TODO(asorbini) check that lighttpd actually stopped
       lighttpd_stopped = True
-      log.activity(f"[HTTPD] stopped")
+      log.activity("stopped")
     except Exception as e:
-      log.error(f"[HTTPD] error while stopping:")
+      log.error("error while stopping:")
       if lighttpd_stopped:
-        log.error(f"[HTTPD] failed to stop lighttpd. Please check your system.")
+        log.error("failed to stop lighttpd. Please check your system.")
       raise
     finally:
       self._lighttpd_pid = None

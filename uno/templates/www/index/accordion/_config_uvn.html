@@ -7,19 +7,19 @@
   <ul class="list-group">
     <li class="list-group-item">
       <span class="key">Name:</span>
-      <span class="value">{{uvn_id.name}}</span>
+      <span class="value">{{uvn.name}}</span>
     </li>
     <li class="list-group-item">
       <span class="key">Address:</span>
-      <span class="value">{{uvn_id.address}}</span>
+      <span class="value">{{uvn.address}}</span>
     </li>
     <li class="list-group-item">
       <span class="key">Owner:</span>
-      <span class="value"><a href="mailto:{{uvn_id.owner}}">{{uvn_id.owner_name}}</a></span>
+      <span class="value"><a href="mailto:{{uvn.owner}}">{{uvn.owner_name}}</a></span>
     </li>
     <li class="list-group-item">
       <span class="key">Last Configuration Change:</span>
-      <span class="value">{{uvn_id.generation_ts | format_ts}}</span>
+      <span class="value">{{uvn.generation_ts | format_ts}}</span>
     </li>
     <li class="list-group-item">
       <span class="key">Deployment Id:</span>
@@ -28,7 +28,7 @@
     <li class="list-group-item">
       <span class="key">Root VPN:</span>
       <span class="value">
-        {{"Enabled" if uvn_id.settings.enable_root_vpn else "Disabled"}}
+        {{"Enabled" if uvn.settings.enable_root_vpn else "Disabled"}}
       </span>
     </li>
     <li class="list-group-item">
@@ -40,7 +40,7 @@
     <li class="list-group-item">
       <span class="key">Timing Profile:</span>
       <span class="value">
-        {{uvn_id.settings.timing_profile.name}}
+        {{uvn.settings.timing_profile.name}}
       </span>
     </li>
   </ul>

@@ -22,22 +22,30 @@ from .cell import Cell
 from .particle import Particle
 from .versioned import Versioned
 
-from .keys import KeysBackend, KeyId, Key
-
-from ..core.log import Logger as log
+from .key import Key
+from .key_id import KeyId
 
 
 class IdentityDatabase(Versioned):
   PROPERTIES = [
-    "uvn",
-    "local_id",
+    "registry",
     "backend",
   ]
-  REQ_PROPERTIES = [
-    "uvn",
-    "local_id",
+  REQ_PROPERTIES = PROPERTIES
+  VOLATILE_PROPERTIES = [
+    "registry",
     "backend",
   ]
+
+
+  @property
+  def uvn(self) -> Uvn:
+    return self.registry.uvn
+
+
+  @property
+  def local_id(self) -> Uvn|Cell:
+    return self.registry.local_object
 
 
   @property
@@ -46,20 +54,20 @@ class IdentityDatabase(Versioned):
 
 
   def assert_keys(self) -> None:
-    log.debug(f"[ID] asserting keys for UVN {self.uvn}")
+    self.log.debug("asserting keys for UVN {}", self.uvn)
     
     self.backend.root.mkdir(parents=True, exist_ok=True, mode=0o700)
     
     asserted = {}
     for peer in self.peers:
-      log.debug(f"[ID] assert keys for {peer}")
-      key_id = KeyId.from_uvn_id(peer)
+      self.log.debug("assert keys for {}", peer)
+      key_id = KeyId.from_uvn(peer)
       key = self.backend.get_key(key_id)
       if key is None:
-        log.debug(f"[ID] key not found: {key_id}")
+        self.log.debug("key not found: {}", key_id)
         key = self.backend.generate_key(key_id)
         asserted[peer] = key
-    log.debug(f"[ID] asserted {len(asserted)} keys for UVN {self.uvn}")
+    self.log.debug("asserted {} keys for UVN {}", len(asserted), self.uvn)
 
 
   def export_keys(self, output_dir: Path, target: Uvn|Cell|Particle|None=None) -> set[Path]:
@@ -80,10 +88,10 @@ class IdentityDatabase(Versioned):
 
   def import_keys(self, base_dir: Path, exported_files: set[Path]) -> Mapping[Uvn|Cell|Particle, Key]:
     exported_files = set(exported_files)
-    log.debug(f"[ID] importing keys from {len(exported_files)} files")
+    self.log.debug("importing keys from {} files", len(exported_files))
     imported = {}
     for peer in self.peers:
-      key_id = KeyId.from_uvn_id(peer)
+      key_id = KeyId.from_uvn(peer)
       imported[peer] = self.backend.import_key(key_id=key_id, base_dir=base_dir, key_files=exported_files)
     return imported
 

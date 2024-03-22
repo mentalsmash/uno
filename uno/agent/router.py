@@ -20,30 +20,22 @@ from typing import TYPE_CHECKING, Iterable, Tuple
 from .render import Templates
 from ..core.wg import WireGuardInterface
 from ..core.exec import exec_command
-from ..core.log import Logger as log
+from .agent_service import AgentService
 
 if TYPE_CHECKING:
-  from .cell_agent import CellAgent
+  from .agent import Agent
 
 
-class Router:
+class Router(AgentService):
+  USER = ["frr", "frr"]
+  
   FRR_CONF = "/etc/frr/frr.conf"
-  ROUTER_USER = "frr"
-  ROUTER_GROUP = "frr"
-
-  def __init__(self, agent: "CellAgent") -> None:
-    self.agent = agent
 
 
-  @property
-  def log_dir(self) -> Path:
-    log_dir = self.agent.log_dir / "frr"
-    if not log_dir.is_dir():
-      log_dir.mkdir(parents=True)
-      exec_command([
-        "chown", f"{Router.ROUTER_USER}:{Router.ROUTER_GROUP}", log_dir
-      ])
-    return log_dir
+  @classmethod
+  def check_enabled(cls, agent: "Agent") -> bool:
+    # Cannot enable router without root_vpn interface (needed by config)
+    return agent.config.enable_router and agent.root_vpn is not None
 
 
   @property
@@ -54,7 +46,7 @@ class Router:
         "address": vpn.config.intf.address,
         "address_peer": vpn.config.peers[0].address,
         "mask": vpn.config.intf.netmask,
-        "neighbor": self.agent.uvn_id.settings.root_vpn.base_ip + vpn.config.peers[0].id,
+        "neighbor": self.agent.uvn.settings.root_vpn.base_ip + vpn.config.peers[0].id,
         "bgp_as": vpn.config.peers[0].id,
         "subnet": vpn.config.intf.subnet,
       }
@@ -63,10 +55,10 @@ class Router:
     #########################################################################
     static_routes = []
     ctx = {
-      "bgp_as": self.agent.cell.id,
-      "timing": self.agent.uvn_id.settings.timing_profile,
-      "message_digest_key": f"{self.agent.uvn_id.name}-{self.agent.deployment.generation_ts}",
-      "hostname": self.agent.cell.address,
+      "bgp_as": self.agent.local_object.id,
+      "timing": self.agent.uvn.settings.timing_profile,
+      "message_digest_key": f"{self.agent.uvn.name}-{self.agent.deployment.generation_ts}",
+      "hostname": self.agent.local_object.address,
       "root": _frr_serialize_vpn(self.agent.root_vpn),
       "backbone": [
         _frr_serialize_vpn(v) for v in self.agent.backbone_vpns
@@ -94,7 +86,7 @@ class Router:
 
 
   def start(self) -> None:
-    log.debug(f"[ROUTER] starting frrouting...")
+    self.log.debug("starting frrouting...")
     
     # Make sure log directory exists and is writable
     # TODO(asorbini) fix these ugly permissions
@@ -110,91 +102,13 @@ class Router:
     # (Re)start frr
     exec_command(["service", "frr", "restart"])
 
-    log.activity(f"[ROUTER] started")
-
-
-  def update_state(self) -> None:
-    self.ospf_neighbors()
-    self.ospf_routes()
-    self.ospf_interfaces()
-    self.ospf_borders()
-    self.ospf_lsa()
-    self.ospf_summary()
+    self.log.activity("started")
 
 
   def stop(self) -> None:
-    log.debug(f"[ROUTER] stopping frrouting...")
+    self.log.debug("stopping frrouting...")
     exec_command(["service", "frr", "stop"])
-    log.activity(f"[ROUTER] stopped")
-
-
-
-  def ospf_neighbors(self) -> None:
-    self.vtysh(["show ip ospf neighbor"], output_file=self.ospf_neighbors_f)
-
-
-  def ospf_routes(self) -> None:
-    self.vtysh(["show ip ospf route"], output_file=self.ospf_routes_f)
-
-
-  def ospf_interfaces(self) -> str:
-    self.vtysh(["show ip ospf interface"], output_file=self.ospf_interfaces_f)
-
-
-  def ospf_borders(self) -> None:
-    self.vtysh(["show ip ospf border-routers"], output_file=self.ospf_borders_f)
-
-
-  def ospf_lsa(self) -> None:
-    with self.ospf_lsa_f.open("wt") as output:
-      output.write(self.vtysh(["show ip ospf database self-originate"]))
-      output.write("\n")
-      output.write(self.vtysh(["show ip ospf database summary"]))
-      output.write("\n")
-      output.write(self.vtysh(["show ip ospf database asbr-summary"]))
-      output.write("\n")
-      output.write(self.vtysh(["show ip ospf database router"]))
-      output.write("\n")
-
-
-  def ospf_summary(self) -> str:
-    with self.ospf_summary_f.open("wt") as output:
-      output.write(self.vtysh(["show ip ospf database self-originate"]))
-      output.write("\n")
-      output.write(self.vtysh(["show ip ospf border-routers"]))
-      output.write("\n")
-      output.write(self.vtysh(["show ip ospf neighbor"]))
-      output.write("\n")
-
-
-  @property
-  def ospf_neighbors_f(self) -> Path:
-    return self.log_dir / "ospf.neighbors"
-
-
-  @property
-  def ospf_routes_f(self) -> Path:
-    return self.log_dir / "ospf.routes"
-
-
-  @property
-  def ospf_interfaces_f(self) -> Path:
-    return self.log_dir / "ospf.interfaces"
-
-
-  @property
-  def ospf_borders_f(self) -> Path:
-    return self.log_dir / "ospf.borders"
-
-
-  @property
-  def ospf_lsa_f(self) -> Path:
-    return self.log_dir / "ospf.lsa"
-
-
-  @property
-  def ospf_summary_f(self) -> Path:
-    return self.log_dir / "ospf.summary"
+    self.log.activity("stopped")
 
 
   def vtysh(self, cmd: Iterable[str|Path], output_file: Path|None=None) -> str|None:
@@ -205,3 +119,84 @@ class Router:
       output_file=output_file)
     if not output_file:
       return result.stdout.decode("utf-8")
+
+
+  def _generate_ospf_neighbors(self, output: Path) -> None:
+    self.vtysh(["show ip ospf neighbor"], output_file=output)
+
+
+  def _generate_ospf_routes(self, output: Path) -> None:
+    self.vtysh(["show ip ospf route"], output_file=output)
+
+
+  def _generate_ospf_interfaces(self, output: Path) -> str:
+    self.vtysh(["show ip ospf interface"], output_file=output)
+
+
+  def _generate_ospf_borders(self, output: Path) -> None:
+    self.vtysh(["show ip ospf border-routers"], output_file=output)
+
+
+  def _generate_ospf_lsa(self, output: Path) -> None:
+    with output.open("wt") as output:
+      output.write(self.vtysh(["show ip ospf database self-originate"]))
+      output.write("\n")
+      output.write(self.vtysh(["show ip ospf database summary"]))
+      output.write("\n")
+      output.write(self.vtysh(["show ip ospf database asbr-summary"]))
+      output.write("\n")
+      output.write(self.vtysh(["show ip ospf database router"]))
+      output.write("\n")
+
+
+  def _generate_ospf_summary(self, output: Path) -> str:
+    with output.open("wt") as output:
+      output.write(self.vtysh(["show ip ospf database self-originate"]))
+      output.write("\n")
+      output.write(self.vtysh(["show ip ospf border-routers"]))
+      output.write("\n")
+      output.write(self.vtysh(["show ip ospf neighbor"]))
+      output.write("\n")
+
+
+  @property
+  def ospf_neighbors(self) -> Path:
+    output = self.log_dir / "ospf.neighbors"
+    self._generate_ospf_neighbors(output)
+    return output
+
+
+  @property
+  def ospf_routes(self) -> Path:
+    output = self.log_dir / "ospf.routes"
+    self._generate_ospf_neighbors(output)
+    return output
+
+
+  @property
+  def ospf_interfaces(self) -> Path:
+    output = self.log_dir / "ospf.interfaces"
+    self._generate_ospf_neighbors(output)
+    return output
+
+
+  @property
+  def ospf_borders(self) -> Path:
+    output = self.log_dir / "ospf.borders"
+    self._generate_ospf_neighbors(output)
+    return output
+
+
+  @property
+  def ospf_lsa(self) -> Path:
+    output = self.log_dir / "ospf.lsa"
+    self._generate_ospf_neighbors(output)
+    return output
+
+
+  @property
+  def ospf_summary(self) -> Path:
+    output = self.log_dir / "ospf.summary"
+    self._generate_ospf_neighbors(output)
+    return output
+

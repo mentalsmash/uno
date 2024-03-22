@@ -3,12 +3,13 @@ from pathlib import Path
 import shutil
 import yaml
 
-from ..registry.deployment import P2PLinksMap
+from ..registry.deployment import P2pLinksMap
 from ..registry.cell import Cell
 from ..registry.lan_descriptor import LanDescriptor
 from ..core.time import Timestamp
 from ..core.wg import WireGuardInterface
-from ..core.log import Logger as log
+from ..core.log import Logger
+log = Logger.sublogger("web-ui")
 from .peer import UvnPeersList
 from .tester import UvnPeersTester
 from .router import Router
@@ -23,9 +24,9 @@ def index_html(agent: "CellAgent", docroot: Path) -> None:
       generation_ts=Timestamp.now().format(),
       peers=agent.peers,
       deployment=agent.deployment,
-      ts_start=agent.ts_start,
+      ts_start=agent.init_ts,
       backbone_vpns=agent.backbone_vpns,
-      cell=agent.cell,
+      cell=agent.local_object,
       lans=agent.lans,
       particles_dir=agent.particles_dir,
       particles_vpn=agent.particles_vpn,
@@ -40,7 +41,7 @@ def index_html(agent: "CellAgent", docroot: Path) -> None:
 def _index_html(
     www_root: Path,
     peers: UvnPeersList,
-    deployment: P2PLinksMap,
+    deployment: P2pLinksMap,
     ts_start: Timestamp,
     backbone_vpns: Iterable[WireGuardInterface]|None=None,
     cell: Cell|None=None,
@@ -54,7 +55,7 @@ def _index_html(
     uvn_status_plot: Path|None=None,
     uvn_backbone_plot: Path|None=None,
     vpn_stats: dict|None=None) -> None:
-  log.debug("[WWW] regenerating agent status...")
+  log.debug("regenerating agent status...")
 
   # Copy particle configurations if they exist
   if particles_dir and particles_dir.is_dir():
@@ -117,8 +118,8 @@ def _index_html(
     "ospf_lsa": ospf_lsa.relative_to(www_root),
     "ospf_routes": ospf_routes.relative_to(www_root),
     "ts_start": ts_start.format() if ts_start else None,
-    "uvn_id": peers.uvn_id,
-    "uvn_settings": yaml.safe_dump(peers.uvn_id.settings.serialize()),
+    "uvn": peers.uvn,
+    "uvn_settings": yaml.safe_dump(peers.uvn.settings.serialize()),
     "vpn_stats": vpn_stats or {
       "interfaces": {},
       "traffic": {
@@ -128,4 +129,4 @@ def _index_html(
     },
   })
 
-  log.debug("[WWW] agent status updated")
+  log.debug("agent status updated")

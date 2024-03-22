@@ -15,28 +15,20 @@
 # along with this program. If not, see <https://www.gnu.org/licenses/>.
 ###############################################################################
 from pathlib import Path
-from functools import cached_property
+from functools import cached_property, wraps
 from typing import Iterable, Callable, Generator, TYPE_CHECKING
 # from collections.abc import Mapping, KeysView, ItemsView, ValuesView
 from enum import Enum
 import yaml
+import json
 
 from ..core.time import Timestamp
-from ..core.log import Logger as log, log_debug, DEBUG
+from ..core.log import Logger
 
-from .database_object import DatabaseObject
+from .database_object import DatabaseObject, DatabaseObjectOwner, OwnableDatabaseObject, inject_db_cursor
 
 if TYPE_CHECKING:
   from .database import Database
-
-
-def load_inline_yaml(val: str) -> dict:
-  # Try to interpret the string as a Path
-  args_file = Path(val)
-  if args_file.is_file():
-    return yaml.safe_load(args_file.read_text())
-  # Interpret the string as inline YAML
-  return yaml.safe_load(val)
 
 
 def strip_serialized_secrets(serialized: dict) -> dict:
@@ -48,12 +40,15 @@ def strip_serialized_secrets(serialized: dict) -> dict:
 
 
 def strip_serialized_fields(serialized: dict, replacements: dict) -> dict:
-  # Remove all secrets
+  # Remove some fields or replace them with another value
   def _strip(tgt: dict) -> dict:
     updated = {}
     for k, v in tgt.items():
       if k in replacements:
-        v = replacements[k]
+        if callable(replacements[k]):
+          v = replacements[k](v)
+        else:
+          v = replacements[k]
       elif isinstance(v, dict):
         v = _strip(v)
       elif isinstance(v, list) and v and isinstance(v[0], dict):
@@ -66,45 +61,85 @@ def strip_serialized_fields(serialized: dict, replacements: dict) -> dict:
 
 
 
-# class DictView(Mapping):
-#   def __init__(self, contents: dict, filter: Callable[[object], bool]) -> None:
-#     self._contents = contents
-#     self._filter = filter
-#     super().__init__()
+def strip_tuples(serialized: dict) -> dict:
+  def _strip(tgt: dict) -> dict:
+    updated = {}
+    for k, v in list(tgt.items()):
+      if isinstance(v, dict):
+        updated[k] = _strip(v)
+      elif isinstance(v, tuple):
+        updated[k] = list(v)
+      else:
+        updated[k] = v
+    return updated
+  return _strip(serialized)
 
 
-#   def __getitem__(self, key: object) -> object:
-#     if not self._filter(key):
-#       raise KeyError(key)
-#     return self._contents.__getitem__(key)
+def _log_secret_val(obj: "Versioned", val: object, desc: "Versioned.PropertyDescriptor|None"=None) -> object:
+  if Logger.DEBUG or (desc is None or not desc.secret):
+    return val
+  return obj.OMITTED
 
 
-#   def keys(self) -> KeysView:
-#     return (k for k in self.keys() if self._filter(k))
+def disabled_if_readonly(wrapped):
+  @wraps(wrapped)
+  def _wrapped(self, *a, **kw):
+    if self.readonly:
+      raise TypeError("cannot invoke method on readonly object", self.__class__, wrapped.__name__)
+    return wrapped(self, *a, **kw)
+  return _wrapped
 
 
-#   def values(self) -> ValuesView:
-#     return (v for _, v in self.items())
+
+def noop_if_readonly(retval: object|None=None):
+  def _noop_if_readonly(wrapped):
+    @wraps(wrapped)
+    def _wrapped(self: "Versioned", *a, **kw):
+      if self.readonly:
+        self.log.debug("OP DISABLED {}", wrapped.__name__)
+        if callable(retval):
+          return retval()
+        else:
+          return retval
+      return wrapped(self, *a, **kw)
+    return _wrapped
+  return _noop_if_readonly
 
 
-#   def items(self) -> ItemsView:
-#     return (t for t in self.items() if self._filter(t[0]))
+def dispatch_if_readonly(other: str|Callable):
+  if callable(other):
+    dispatch = lambda self, *a, **kw: other(self, *a, **kw)
+  else:
+    dispatch = lambda self, *a, **kw: getattr(self, other)(*a, **kw)
+  def _dispatch_if_readonly(wrapped):
+    @wraps(wrapped)
+    def _wrapped(self: "Versioned", *a, **kw):
+      if self.readonly:
+        self.log.debug("OP DISABLED {} -> {}", wrapped.__name__, other)
+        return dispatch(self, *a, **kw)
+      return wrapped(self, *a, **kw)
+    return _wrapped
+  return _dispatch_if_readonly
 
 
 class Versioned(DatabaseObject):
   class PropertyDescriptor:
     PREFIX_PREV = "__prevprop__"
 
-    def __init__(self, schema: "Versioned.Schema", name: str) -> None:
+    def __init__(self, schema: "Versioned.Schema", name: str, cls_attr: Callable[["Versioned"], object]|None=None) -> None:
       self.schema = schema
       self.name = name
+      if cls_attr is not None and callable(cls_attr):
+        self._get_cls_attr = lambda self: cls_attr(self)
+      else:
+        self._get_cls_attr = None
       self.attr_default = f"INITIAL_{self.name.upper()}"
       self.attr_prepare = f"prepare_{self.name}"
       self.attr_prev = f"{self.PREFIX_PREV}{self.name}"
       self.attr_storage = f"_{self.name}"
       self.prepare_fn = getattr(self.schema.cls, self.attr_prepare, None)
       self.has_default = hasattr(self.schema.cls, self.attr_default)
-      self.is_nested_id = self.schema.nested and self.name == "id"
+      self.group = self.schema.property_groups.get(self.name, frozenset())
 
 
     def __str__(self) -> str:
@@ -138,6 +173,11 @@ class Versioned(DatabaseObject):
     def reserved(self) -> bool:
       return self.name in self.schema.reserved_properties
   
+
+    @cached_property
+    def track_changes(self) -> bool:
+      return not self.reserved
+
   
     @cached_property
     def secret(self) -> bool:
@@ -165,55 +205,54 @@ class Versioned(DatabaseObject):
 
 
     @cached_property
-    def __versioned_property(self) -> bool:
-      return self.name in Versioned.PROPERTIES
+    def json(self) -> bool:
+      return self.name in self.schema.json_properties
 
 
-    def get(self, obj: "Versioned") -> object:
-      if self.is_nested_id:
-        return obj.parent.id
-      else:
-        return getattr(obj, self.attr_storage, None)
+    def get(self, obj: "Versioned") -> object | None:
+      if self._get_cls_attr:
+        return self._get_cls_attr(obj)
+      return getattr(obj, self.attr_storage, None)
 
 
     def set(self, obj: "Versioned", val: object) -> None:
+      # if obj.readonly:
+      #   raise TypeError("object is readonly", obj.__class__)
+
       if self.prepare_fn:
+        set_val = val
         val = self.prepare_fn(obj, val)
         if val is None:
+          obj.log.tracedbg("SET {} prevented by prepare(): {}", self.name, set_val)
           return
+
       current = getattr(obj, self.attr_storage)
+      readonly = self.readonly or obj.readonly
       # Allow "read-only" attribute to be set only once
-      if current != val and self.readonly and current is not None:
+      if (not self.reserved
+          and obj.loaded
+          and readonly
+          and current != val):
         raise RuntimeError("attribute is read-only", self.schema.cls.__qualname__, self.name)
 
-      if current != val and (not self.readonly or current is None):
+      if isinstance(current, Versioned) and isinstance(val, dict):
+        current.configure(**val)
+        if current.dirty:
+          obj.log.debug("CONFIGURED {} = {}", self.name, _log_secret_val(obj, getattr(obj, self.name), self))
+          obj.updated_property(self.name)
+      elif current != val:
         setattr(obj, self.attr_storage, val)
-        logger = (lambda *a, **kw: None) if self.reserved else log.activity
-        logger("[{}] SET  {}.{} = {}", obj.__class__.__qualname__, obj.id or "<new>", self.name, val if (not self.secret or DEBUG) else "<secret>")
         # if not self.reserved and obj.loaded:
         if obj.loaded:
           setattr(obj, self.attr_prev, current)
-        self.updated_property(obj)
+        if not self.reserved:
+          obj.log.debug("SET {} = {}", self.name, _log_secret_val(obj, getattr(obj, self.name), self))
+          obj.updated_property(self.name)
       else:
-        log.debug("[{}] SAME  {}.{} = {}", obj.__class__.__qualname__, obj.id or "<new>", self.name, val if (not self.secret or DEBUG) else "<secret>")
+        obj.log.tracedbg("NOT SET {} (unchanged): {} == {}", self.name, val, current)
 
-
-    def updated_property(self, obj: "Versioned") -> None:
-      if self.eq:
-        obj.__update_hash__()
-      if self.cached:
-        obj.__dict__.pop(self.name, None)
-
-      # if self.str:
-      #   obj.__update_str_repr__()
-
-      # if self.reserved or self.__versioned_property:
-      #   return
-
-      # obj.generation_ts = Timestamp.now().format()
-      # obj._updated.add(self.name)
-      # obj.saved = False
-      # log.debug("[{}] UPDATED  {}.{}", obj.__class__.__qualname__, obj.id or "<new>", self.name)
+      # else:
+      #   obj.log.trace("SAME {} = {}", self.name, _log_secret_val(obj, val, self))
 
 
     def init(self, obj: "Versioned", init_val: object|None=None) -> None:
@@ -231,10 +270,8 @@ class Versioned(DatabaseObject):
 
       if init_val is not None:
         setattr(obj, self.name, init_val)
-        # log_debug("[{}] INIT {}.{} = {}", self.__class__.__qualname__, self.id or "<new>", prop, init_val)
-      else:
-        log_debug("[{}] DEF  {}.{} = {}", obj.__class__.__qualname__, obj.id or "<new>", self.name,
-          getattr(obj, self.attr_storage) if not self.secret or DEBUG else "<secret>")
+      
+      obj.log.trace("DEF {} = {}", self.name, _log_secret_val(obj, getattr(obj, self.attr_storage), self))
 
 
     def prev(self, obj: "Versioned") -> object|None:
@@ -253,7 +290,8 @@ class Versioned(DatabaseObject):
       self.cls = cls
       self.descriptors: list[Versioned.PropertyDescriptor] = []
       for prop in self.defined_properties:
-        desc = Versioned.PropertyDescriptor(self, prop)
+        cls_attr = getattr(self.cls, prop, None)
+        desc = Versioned.PropertyDescriptor(self, prop, cls_attr)
         setattr(self.cls, prop, desc)
         self.descriptors.append(desc)
 
@@ -265,6 +303,8 @@ class Versioned(DatabaseObject):
     def init(self, obj: "Versioned", initial_values: dict|None=None):
       initial_values = initial_values or {}
       assert(obj.__class__ == self.cls)
+      if self.transient and obj.parent is None:
+        raise ValueError("transient object requires a parent", obj)
       for prop in self.descriptors:
         init_val = initial_values.get(prop.name)
         prop.init(obj, init_val)
@@ -316,24 +356,39 @@ class Versioned(DatabaseObject):
 
 
     @cached_property
-    def nested(self) -> bool:
-      return self.cls != Versioned and self.cls.DB_TABLE is None
+    def ownable(self) -> bool:
+      return isinstance(self.cls, OwnableDatabaseObject)
+
+
+    @cached_property
+    def owner(self) -> bool:
+      return isinstance(self.cls, DatabaseObjectOwner)
+
+
+    @cached_property
+    def transient(self) -> bool:
+      return self.cls.transient_object()
 
 
     @cached_property
     def defined_properties(self) -> tuple[str]:
-      initial = []
-      if self.nested:
-        initial.append("parent")
-      return tuple(self._mro_yield_attr("PROPERTIES", initial_values=initial))
+      return tuple(self._mro_yield_attr("PROPERTIES"))
 
 
     @cached_property
     def serialized_properties(self) -> tuple[str]:
       volatile = set(self.volatile_properties)
       return tuple(self._mro_yield_attr("SERIALIZED_PROPERTIES",
-        initial_values=set(self.defined_properties),
+        initial_values={
+          *self.defined_properties,
+          # *(["owner_id"] if self.transient else []),
+        },
         filter_value=lambda v: v not in volatile))
+
+
+    @cached_property
+    def json_properties(self) -> frozenset[str]:
+      return frozenset(self._mro_yield_attr("JSON_PROPERTIES"))
 
 
     @cached_property
@@ -343,10 +398,7 @@ class Versioned(DatabaseObject):
 
     @cached_property
     def required_properties(self) -> frozenset[str]:
-      initial = []
-      if self.nested:
-        initial.append("parent")
-      return frozenset(self._mro_yield_attr("REQ_PROPERTIES", initial_values=initial))
+      return frozenset(self._mro_yield_attr("REQ_PROPERTIES"))
 
 
     @cached_property
@@ -366,20 +418,35 @@ class Versioned(DatabaseObject):
 
     @cached_property
     def readonly_properties(self) -> frozenset[str]:
-      initial = []
-      if self.nested:
-        initial.append("id")
-      return frozenset(self._mro_yield_attr("RO_PROPERTIES", initial_values=initial))
+      return frozenset(self._mro_yield_attr("RO_PROPERTIES"))
 
 
     @cached_property
     def eq_properties(self) -> frozenset[str]:
-      return frozenset(self.cls.EQ_PROPERTIES)
+      props = self.cls.EQ_PROPERTIES
+      if not props:
+        props = self.default_eq_properties
+      return frozenset(props)
 
 
     @cached_property
     def str_properties(self) -> frozenset[str]:
-      return frozenset(self.cls.STR_PROPERTIES)
+      props = self.cls.STR_PROPERTIES
+      if not props:
+        props = self.default_str_properties
+      return frozenset(props)
+
+
+    @cached_property
+    def default_eq_properties(self) -> frozenset[str]:
+      return frozenset(["db", "object_id", "init_ts", "generation_ts"])
+
+
+    @cached_property
+    def default_str_properties(self) -> frozenset[str]:
+      if self.transient:
+        return frozenset(["parent_str_id"])
+      return frozenset(["id"])
 
 
     @cached_property
@@ -389,101 +456,9 @@ class Versioned(DatabaseObject):
         value_to_yield=lambda v: tuple(v[0], frozenset(v[1]))))
 
 
-    # def _define_properties(self) -> None:
-    #   def _define_property(prop: str) -> None:
-    #     attr_default = f"INITIAL_{prop.upper()}"
-    #     attr_val = f"_{prop}"
-    #     attr_prepare = f"prepare_{prop}"
-    #     attr_prev = f"{cls.PREFIX_PREV}{prop}"
-    #     attr_storage = f"_{prop}"
-    #     attr_init = f"{cls.PREFIX_INIT}{prop}"
-    #     prepare_fn = getattr(cls, attr_prepare, None)
-    #     required = k in required_properties
-    #     reserved = k in reserved_properties
-    #     secret = k in secret_properties
-    #     has_default = hasattr(cls, attr_default)
-    #     attr_init_fn = None
-    #     attr_property_fn = None
-
-    #     if nested and prop == "id":
-    #       @property
-    #       def _parent_id(self) -> int | None:
-    #         return self.parent.id
-    #       attr_property_fn = _parent_id
-    #       attr_init_fn = None
-    #     else:
-    #       @property
-    #       def _getter(self) -> object:
-    #         return getattr(self, attr_val, None)
-
-    #       @_getter.setter
-    #       def _setter(self, val: object) -> None:
-    #         if prepare_fn:
-    #           val = prepare_fn(self, val)
-    #           if val is None:
-    #             return
-    #         current = getattr(self, attr_storage)
-    #         if current != val:
-    #           setattr(self, attr_storage, val)
-    #           logger = (lambda *a, **kw: None) if reserved else log.activity
-    #           logger("[{}] SET  {}.{} = {}", self.__class__.__qualname__, self.id or "<new>", prop, val if (not secret or DEBUG) else "<secret>")
-    #           if not reserved and self.loaded:
-    #             setattr(self, attr_prev, current)
-    #             self.updated_property(prop)
-    #         else:
-    #           log.debug("[{}] SAME  {}.{} = {}", self.__class__.__qualname__, self.id or "<new>", prop, val if (not secret or DEBUG) else "<secret>")
-
-
-    #       def _init(self, init_val: object | None) -> None:
-    #         if has_default:
-    #           def_val = getattr(self, attr_default)
-    #           if callable(def_val):
-    #             def_val = def_val()
-    #         else:
-    #           def_val = None
-
-    #         setattr(self, attr_val, def_val)
-
-    #         if required and getattr(self, prop) is None and init_val is None:
-    #           raise ValueError("missing required property", self.__class__.__qualname__, prop)
-
-    #         if init_val is not None:
-    #           setattr(self, prop, init_val)
-    #           # log_debug("[{}] INIT {}.{} = {}", self.__class__.__qualname__, self.id or "<new>", prop, init_val)
-    #         else:
-    #           log_debug("[{}] DEF  {}.{} = {}", self.__class__.__qualname__, self.id or "<new>", prop,
-    #             getattr(self, attr_val) if not secret or DEBUG else "<secret>")
-          
-    #       attr_property_fn = _setter
-    #       attr_init_fn = _init
-
-    #     setattr(cls, prop, attr_property_fn)
-    #     setattr(cls, attr_init, attr_init_fn)
-
-    #   # properties = []
-    #   # for tgt_cls in cls.mro():
-    #   #   for prop in getattr(tgt_cls, "PROPERTIES", []):
-    #   #     if prop in properties:
-    #   #       continue
-    #   #     properties.append(prop)
-
-    #   properties = list(cls.defined_properties())
-    #   required_properties = set(cls.required_properties())
-    #   reserved_properties = set(cls.reserved_properties())
-    #   secret_properties = set(cls.secret_properties())
-
-    #   nested = cls != Versioned and cls.DB_TABLE is None
-
-    #   for k in properties:
-    #     _define_property(k)
-
-    #   cls.__secret_properties = secret_properties
-    #   cls.__reserved_properties = reserved_properties
-    #   cls.__property_groups = cls.property_groups()
-    #   cls.__cached_properties = set(cls.cached_properties())
-    #   cls.__ro_properties = set(cls.readonly_properties())
-    #   cls.__eq_properties = cls.eq_properties()
-    #   cls.__str_properties = cls.str_properties()
+    @cached_property
+    def db_table_properties(self) -> frozenset[str]:
+      return frozenset(self._mro_yield_attr("DB_TABLE_PROPERTIES"))
 
 
   SCHEMA = None
@@ -507,35 +482,37 @@ class Versioned(DatabaseObject):
   ]
 
   PROPERTIES = [
-    "db",
-    "id",
+    "readonly",
     "generation_ts",
     "init_ts",
   ]
   RESERVED_PROPERTIES = [
     *PROPERTIES,
     "parent",
+    "db",
   ]
   SECRET_PROPERTIES = []
-  REQ_PROPERTIES = [
-    "db",
-  ]
-  STR_PROPERTIES = [
-    "db",
-    "id",
-  ]
-  EQ_PROPERTIES = [
-    "id",
-  ]
+  REQ_PROPERTIES = []
+  STR_PROPERTIES = []
+  EQ_PROPERTIES = []
   SERIALIZED_PROPERTIES = []
+  JSON_PROPERTIES = [
+    "object_id",
+    "owner_id",
+    "parent_id",
+  ]
   VOLATILE_PROPERTIES = [
-    "db",
-    "parent",
+    # "init_ts",
+    # "generation_ts",
+    "readonly",
   ]
   PROPERTY_GROUPS = {}
-  CACHED_PROPERTIES = []
+  CACHED_PROPERTIES = [
+    "log",
+  ]
   RO_PROPERTIES = []
 
+  INITIAL_READONLY = False
   INITIAL_INIT_TS = lambda self: Timestamp.now()
   INITIAL_GENERATION_TS = lambda self: Timestamp.now()
 
@@ -545,20 +522,23 @@ class Versioned(DatabaseObject):
     "init_ts",
   ]
 
-  def __init__(self, **properties) -> None:
-    self._updated = set()
-    self._loaded = False
-    self._saved = False
+  def __init__(self, db: "Database", id: "object|None"=None, parent: "Versioned|None"=None, **properties) -> None:
+    super().__init__(db=db, id=id, parent=parent)
+    self._readonly = False
     self.SCHEMA.init(self, properties)
-    super().__init__()
     self.__update_str_repr__()
     self.__update_hash__()
-    if self.id is None:
-      self.validate_new()
 
 
-  def validate_new(self) -> None:
+  def validate(self) -> None:
     pass
+
+
+  # @cached_property
+  # def log(self) -> UvnLogger:
+  #   raise RuntimeError("wtf")
+  #   # return self.__class__.sublogger(str(self.id) if self.id is not None else "<new>")
+  #   return self.__class__.sublogger(self.__str_repr)
 
 
   @classmethod
@@ -566,13 +546,46 @@ class Versioned(DatabaseObject):
     if hasattr(val, "serialize") and callable(val.serialize):
       val = val.serialize(public=public)
     if public and isinstance(val, dict):
-      val = strip_serialized_secrets(val)  
-    return yaml.safe_dump(val)
+      val = strip_serialized_secrets(val)
+    if isinstance(val, tuple):
+      val = list(val)
+    elif isinstance(val, set):
+      val = sorted(val)
+    elif isinstance(val, dict):
+      val = strip_tuples(val)
+    return yaml.dump(val)
 
 
   @classmethod
   def yaml_load(cls, val: str) -> object:
     return yaml.safe_load(val)
+
+
+  @classmethod
+  def json_dump(cls, val: object, public: bool=False) -> str:
+    if hasattr(val, "serialize") and callable(val.serialize):
+      val = val.serialize(public=public)
+    if public and isinstance(val, dict):
+      val = strip_serialized_secrets(val)
+    return json.dumps(val)
+
+
+  @classmethod
+  def json_load(cls, val: str) -> object:
+    return json.loads(val)
+
+
+  @classmethod
+  def yaml_load_inline(cls, val: str | Path) -> dict:
+    # Try to interpret the string as a Path
+    yml_val = val
+    args_file = Path(val)
+    if args_file.is_file():
+      yml_val = args_file.read_text()
+    # Interpret the string as inline YAML
+    if not isinstance(yml_val, str):
+      raise ValueError("failed to load yaml", val)
+    return cls.yaml_load(yml_val)
 
 
   def __str__(self) -> str:
@@ -602,10 +615,21 @@ class Versioned(DatabaseObject):
 
 
   def __update_str_repr__(self) -> None:
-    fields = ', '.join(map(str, (getattr(self, p) for p in sorted(self.SCHEMA.str_properties))))
-    cls_name = self.__class__.__qualname__
-    dirty_str = "*" if self.dirty else ""
+    props = sorted(self.SCHEMA.str_properties)
+    fields = []
+    for p in props:
+      v = getattr(self, p)
+      if v is None:
+        v = "null"
+      fields.append(v)
+    fields = ', '.join(map(str, fields))
+    cls_name = self.log.camelcase_to_kebabcase(self.__class__.__qualname__)
+    dirty_str = ("*" if self.dirty else "") if not self.SCHEMA.transient else ""
     self.__str_repr = f"{cls_name}({fields}){dirty_str}"
+    if self.log is None:
+      self.log = Logger.sublogger(self.__str_repr)
+    else:
+      self.log.context = self.__str_repr
 
 
   def prepare_db(self, val: "Database | None") -> "Database":
@@ -619,7 +643,7 @@ class Versioned(DatabaseObject):
     return prepare_timestamp(self.db, val)
 
 
-  def serialize_generation_ts(self, val: Timestamp) -> str:
+  def serialize_generation_ts(self, val: Timestamp, public: bool=False) -> str:
     return serialize_timestamp(val)
 
 
@@ -627,19 +651,28 @@ class Versioned(DatabaseObject):
     return prepare_timestamp(self.db, val)
 
 
-  def serialize_init_ts(self, val: Timestamp) -> str:
+  def serialize_init_ts(self, val: Timestamp, public: bool=False) -> str:
     return serialize_timestamp(val)
 
 
-  @property
-  def changed_properties(self) -> set[str]:
-    return self._updated
+
+  # @property
+  # def readonly(self) -> bool:
+  #   return self._readonly
+
+
+  # @readonly.setter
+  # def readonly(self, val: bool) -> None:
+  #   self._readonly = val
+  #   if val:
+  #     raise RuntimeError("waeaads")
+
 
 
   @property
   def changed_values(self) -> dict:
     """Return and reset the object's 'changed' flag."""
-    changed = len(self._updated) > 0
+    changed = len(self.changed_properties) > 0
     if not changed:
       return {}
     prev_values = {}
@@ -649,21 +682,16 @@ class Versioned(DatabaseObject):
 
 
   def clear_changed(self, properties: Iterable[str]|None=None) -> None:
+    super().clear_changed(properties)
     if properties is None:
-      self._updated.clear()
       for desc in self.SCHEMA.descriptors:
         desc.clear_prev(self)
     else:
       for prop in properties:
-        try:
-          self._updated.remove(prop)
-        except KeyError:
-          pass
         desc = self.SCHEMA.descriptor(prop)
         if desc:
           desc.clear_prev(self)
     self.__update_str_repr__()
-
 
 
   def updated_property(self, attr: str) -> None:
@@ -673,70 +701,58 @@ class Versioned(DatabaseObject):
 
     # Check if we have a descriptor for the attribute
     desc = self.SCHEMA.descriptor(attr)
-    if desc:
-      desc.updated_property(self)
+    if (desc and desc.eq) or attr in self.SCHEMA.eq_properties:
+      self.__update_hash__()
+    cached = (desc and desc.cached) or attr in self.SCHEMA.cached_properties
+    if cached:
+      self.__dict__.pop(attr, None)
     # Check if the property is a group
-    elif attr in self.SCHEMA.property_groups:
-      for v in self.SCHEMA.property_groups.get(attr, []):
+    group = desc.group if desc else self.SCHEMA.property_groups.get(attr)
+    if group:
+      for v in group:
         self.updated_property(v)
 
-    if desc is None or not desc.reserved:
+    if (desc is None or desc.track_changes) or self.track_changes:
       self.generation_ts = Timestamp.now().format()
-      self._updated.add(attr)
+      self.changed_properties.add(attr)
       self.saved = False
-      log.debug("[{}] UPDATED  {}.{}", self.__class__.__qualname__, self.id or "<new>", attr)
+      self.log.trace("UPDATED {}", attr)
 
 
-  @property
-  def loaded(self) -> bool:
-    return self._loaded
-  
-
-  @loaded.setter
-  def loaded(self, val: bool) -> None:
-    self._loaded = val
-    if val:
-      log_debug("[{}] LOAD {} ({})", self.__class__.__qualname__, self.id or "<new>", self.generation_ts)
+  def reset_cached_properties(self) -> None:
+    super().reset_cached_properties()
+    for cached in self.SCHEMA.cached_properties:
+      self.updated_property(cached)
 
 
-  @property
-  def saved(self) -> bool:
-    return self._saved
-  
-
-  @saved.setter
-  def saved(self, val: bool) -> None:
-    self._saved = val
-    self.__update_str_repr__()
-    # if val:
-    #   log.activity("[{}] SAVED {} ({})", self.__class__.__qualname__, self.id or "<new>", self.generation_ts)
+  def updated_property_groups(self) -> None:
+    for group in self.SCHEMA.property_groups:
+      self.updated_property(group)
 
 
-  @property
-  def dirty(self) -> bool:
-    if self.DB_TABLE:
-      return not self.saved
-    else:
-      return len(self.changed_properties) > 0
-
-
-  def save(self, cursor: "Database.Cursor|None"=None, create: bool=False) -> None:
-    if not self.DB_TABLE_PROPERTIES:
+  def save(self, cursor: "Database.Cursor|None"=None, create: bool=False, public: bool=False) -> None:
+    if not self.SCHEMA.db_table_properties:
       return
     
-    def _dump_field(val):
-      if isinstance(val, self.db.DB_TYPES):
+    def _dump_field(prop, val, desc):
+      if val == self.OMITTED:
+        return None
+      elif isinstance(val, self.db.DB_TYPES):
         return val
+      elif ((desc is not None and desc.json)
+            or (desc is None and prop in self.SCHEMA.json_properties)):
+        return self.json_dump(val)
       else:
         return self.yaml_dump(val)
-    
-    serialized = self.serialize(defined_only=True)
+
+    serialized = self.serialize(public=public)
     fields = {
-      prop: _dump_field(ser_val)
-      for prop in self.DB_TABLE_PROPERTIES
+      prop: _dump_field(prop, ser_val, desc)
+      for prop in self.SCHEMA.db_table_properties
         for ser_val in [serialized.get(prop)]
+          for desc in [self.SCHEMA.descriptor(prop)]
     }
-    table = self.db.object_table(self, required=False)
+    table = self.db.SCHEMA.lookup_table_by_object(self, required=False)
     if table and fields:
       self.db.create_or_update(self,
         fields=fields,
@@ -745,40 +761,16 @@ class Versioned(DatabaseObject):
         table=table)
 
 
-  @classmethod
-  def load(cls, db: "Database", serialized: dict) -> "Versioned":
-    log_debug("[{}] DSER {}", cls.__qualname__, serialized)
-    loaded = db.deserialize(cls, serialized)
-    return loaded
-
-
-  @classmethod
-  def generate(cls, db: "Database", **properties) -> dict:
-    return {}
-
-
-  @classmethod
-  def new(cls, db: "Database", **properties) -> "Versioned":
-    return db.deserialize(cls, {
-      **properties,
-      **cls.generate(db, **properties)
-    })
-
-
-
-  def serialize(self, public: bool=False, defined_only: bool=False) -> dict:
+  def serialize(self, public: bool=False) -> dict:
     serialized = {}
-    if defined_only:
-      props = self.SCHEMA.defined_properties
-    else:
-      props = self.SCHEMA.serialized_properties
+    props = self.SCHEMA.serialized_properties
     for k in props:
       serializer = getattr(self, f"serialize_{k}", None)
       val = getattr(self, k)
       if k in self.SCHEMA.secret_properties and public:
-        val = "<secret>"
+        val = self.OMITTED
       elif serializer:
-        val = serializer(val)
+        val = serializer(val, public=public)
       elif hasattr(val, "serialize"):
         val = val.serialize(public=public)
       elif isinstance(val, Enum):
@@ -794,8 +786,10 @@ class Versioned(DatabaseObject):
             )):
         if hasattr(val, "values"):
           val = val.values()
-        val = [v.serialize() for v in sorted(val, key=lambda v: v.id)]
+        val = [v.serialize(public=public) for v in sorted(val, key=lambda v: v.object_id)]
       if val is not None:
+        if isinstance(val, tuple):
+          val = list(val)
         serialized[k] = val
     return serialized
 
@@ -810,22 +804,30 @@ class Versioned(DatabaseObject):
         deserialized[k] = val
     return {"db": db, **deserialized}
 
+
   @property
   def nested(self) -> "Generator[Versioned, None, None]":
     for i in []:
       yield i
 
 
-  def collect_changes(self) -> list[tuple["Versioned", dict]]:
-    collected = []
-    remaining = [self]
+  @property
+  def track_changes(self) -> bool:
+    return self.loaded or self.SCHEMA.transient
+
+
+  def collect_changes(self) -> Generator[tuple["Versioned", dict], None, None]:
+    for o in self.collect_nested(dirty=True):
+      prev = o.changed_values
+      yield (o, prev)
+
+
+  def collect_nested(self, dirty: bool=False) -> Generator["Versioned", None, None]:
+    remaining = [self] if not dirty or self.dirty else []
     while remaining:
       o = remaining.pop(0)
-      remaining.extend(n for n in o.nested)
-      if o.dirty:
-        prev = o.changed_values
-        collected.append((o, prev))
-    return collected
+      remaining.extend(n for n in o.nested if not dirty or n.dirty)
+      yield o
 
 
   def configure(self, __all: bool=False, **config_args) -> None:
@@ -835,63 +837,85 @@ class Versioned(DatabaseObject):
           and v is not None
           and (__all or k not in self.SCHEMA.readonly_properties)]
     if not relevant:
-      log.debug("[{}] CONF {} nothing new in [{}]", self.__class__.__qualname__, self.id or "<new>", ", ".join(config_args.keys()))
+      self.log.debug("CONF nothing new in [{}]", ", ".join(config_args.keys()))
       return
-    log.debug("[{}] CONF {} [{}]", self.__class__.__qualname__, self.id or "<new>", ', '.join(k for k, v in relevant))
+    self.log.debug("CONF [{}]", ', '.join(k for k, v in relevant))
     for k, v in relevant:
+      s_k_configure = getattr(self, f"configure_{k}", None)
+      if callable(s_k_configure):
+        s_k_configure(v)
+        continue
       k_configure = getattr(getattr(self, k), "configure", None)
       if callable(k_configure):
         k_configure(**v)
-      else:
-        setattr(self, k, v)
+        continue
+      setattr(self, k, v)
+    self.validate()
 
 
-  # def load_child(self, cls: type, **properties) -> "Versioned":
-  #   loaded = next(self.db.load(cls, owner=self), None)
-  #   if loaded is not None:
-  #     return loaded
-  #   return self.db.new(cls, **properties)
+  @inject_db_cursor
+  def load_owned(self, cls: type, cursor: "Database.Cursor") -> "set[Versioned]":
+    return set(self.db.load(cls, owner=self, cursor=cursor))
 
 
-  def load_owned(self, cls: type) -> "set[Versioned]":
-    return set(self.db.load(cls, owner=self))
-
-
-  def new_child(self, cls: type, **properties) -> "Versioned":
-    return self.db.new(cls, **{
-      **properties,
-      "parent": self,
-    })
-
-
-  def deserialize_child(self, cls: type, val: "str | dict | Versioned | None"=None) -> "Versioned":
-    assert(issubclass(cls, Versioned))
-    val = val or {}
+  def new_child(self,
+      cls: type,
+      val: "str | dict | Versioned | None"=None,
+      owner: DatabaseObjectOwner|None=None,
+      save: bool=True) -> "Versioned":
     if isinstance(val, cls):
-      return val
+      if getattr(val, "parent", None) == self:
+        if save:
+          self.db.save(val)
+        return val
+      elif hasattr(val, "serialize") and callable(val.serialize):
+        val = val.serialize()
+      else:
+        raise NotImplementedError("cannot transfer parent", val)
+
+    val = val or {}
     if isinstance(val, str):
-      val = yaml.safe_load(val)
-    return self.db.deserialize(cls, {**val, "parent": self,})
+      val = self.yaml_load(val)
+    return self.db.new(cls, properties={
+      **val,
+      "parent": self,
+      "readonly": self.readonly,
+      "init_ts": self.init_ts,
+      "generation_ts": self.generation_ts,
+    }, owner=owner, save=save)
+
+
+  def load_child(self, cls: type, **search_args) -> "Versioned|None":
+    return next(self.load_children(cls, **search_args), None)
   
+
+  @inject_db_cursor
+  def load_children(self, cls: type, cursor: "Database.Cursor|None"=None, **search_args) -> Generator["Versioned", None, None]:
+    return self.db.load(cls, **search_args, load_args={
+      "parent": self,
+    }, cursor=cursor)
+
 
   def deserialize_collection(self,
       cls: type,
       val: str | Iterable[object],
       collection_cls: type=list,
-      load_child: Callable|None=None) -> Iterable[object]:
+      load_child: Callable|None=None,
+      force: bool=False) -> Iterable[object]:
     if not load_child:
       load_child = lambda cls, child: cls(child)
-
     if not val:
       return collection_cls()
     if isinstance(val, str):
       val = self.yaml_load(val)
     def _values():
-      if hasattr(val, "values") and callable(val.values):
+      if hasattr(val, "items") and callable(val.items):
+        return val.items()
+      elif hasattr(val, "values") and callable(val.values):
         return val.values()
       else:
         return val
-    if isinstance(val, collection_cls):
+    if not force and isinstance(val, collection_cls):
       # Check the first element in the collection and assume
       # all others are of the same type
       if isinstance(next(iter(_values()), None), cls):
@@ -904,6 +928,7 @@ class Versioned(DatabaseObject):
     # This function should be called only once for every class
     assert(cls.__dict__.get("SCHEMA") is None)
     cls.SCHEMA = Versioned.Schema(cls)
+    cls.log = Logger.sublogger(cls.__qualname__)
 
 
   def __init_subclass__(cls, *args, **kwargs) -> None:

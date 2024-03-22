@@ -20,7 +20,7 @@ import matplotlib.pyplot as plt
 import networkx
 
 from ..registry.uvn import Uvn
-from ..registry.deployment import P2PLinksMap
+from ..registry.deployment import P2pLinksMap
 from .peer import UvnPeerStatus
 
 if TYPE_CHECKING:
@@ -37,12 +37,12 @@ COLOR_OFF_EDGE = "#d91319"
 COLOR_WARN_EDGE = "#e96607"
 
 def backbone_deployment_graph(
-    uvn_id: Uvn,
-    deployment: P2PLinksMap,
+    uvn: Uvn,
+    deployment: P2pLinksMap,
     output_file: Path,
     peers: Optional[UvnPeerStatus]=None,
     local_peer_id: Optional[int]=None) -> Optional[Path]:
-  if len(uvn_id.cells) < 2:
+  if len(uvn.cells) < 2:
     # We can only generate a graph if there are two or more cells
     return None
 
@@ -63,7 +63,7 @@ def backbone_deployment_graph(
   private_off_edges = []
   private_warn_edges = []
 
-  local_cell = None if local_peer_id is None else uvn_id.cells[local_peer_id]
+  local_cell = None if local_peer_id is None else uvn.cells[local_peer_id]
 
   def _store_node_by_status(node, node_status):
     if local_cell and local_cell.name == node:
@@ -94,14 +94,14 @@ def backbone_deployment_graph(
       
 
   for peer_a_id, peer_a in sorted(deployment.peers.items(), key=lambda t: t[1]["n"]):
-    peer_a_cell = uvn_id.cells[peer_a_id]
+    peer_a_cell = uvn.cells[peer_a_id]
     if peers:
       _store_node_by_status(peer_a_cell.name, peers[peer_a_id].status)
     else:
       on_nodes.append(peer_a_cell.name)
 
     for peer_b_id, (peer_a_port_id, _, _, _) in sorted(peer_a["peers"].items(), key=lambda t: t[1][0]):
-      peer_b_cell = uvn_id.cells[peer_b_id]
+      peer_b_cell = uvn.cells[peer_b_id]
       peer_b_port_id = deployment.peers[peer_b_id]["peers"][peer_a_id][0]
 
       if peers:
@@ -188,13 +188,13 @@ def cell_agent_status_plot(
 
   # TODO(asorbini) replace this with the agent's global status
   if agent.peers.local.status == UvnPeerStatus.ONLINE:
-    online_nodes.append(agent.uvn_id.name)
+    online_nodes.append(agent.uvn.name)
   else:
-    warning_nodes.append(agent.uvn_id.name)
+    warning_nodes.append(agent.uvn.name)
 
   for peer in (p for p in agent.peers.cells):
-    cell = agent.uvn_id.cells[peer.id]
-    edge = (cell.name, agent.uvn_id.name)
+    cell = agent.uvn.cells[peer.id]
+    edge = (cell.name, agent.uvn.name)
     graph.add_edge(*edge)
     if peer.local:
       local_nodes.append(cell.name)

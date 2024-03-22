@@ -15,27 +15,52 @@
 # along with this program. If not, see <https://www.gnu.org/licenses/>.
 ###############################################################################
 from typing import TYPE_CHECKING, Iterable
+from pathlib import Path
+from functools import cached_property
 
 from .lighttpd import Lighttpd
 from ..core.time import Timestamp
 from ..core.htdigest import htdigest_generate
-from ..registry.keys_dds import CertificateSubject
+from ..registry.certificate_subject import CertificateSubject
 # from .html import index_html
 from . import html as views
+from .agent_service import AgentService
 
 if TYPE_CHECKING:
-  from .cell_agent import CellAgent
+  from .agent import Agent
 
 
-class UvnHttpd:
-  def __init__(self, agent: "CellAgent"):
-    self.agent = agent
-    self.min_update_delay = self.agent.uvn_id.settings.timing_profile.status_min_delay
-    self.root = self.agent.root / "www"
+class UvnHttpd(AgentService):
+  CLASS = "www"
+
+  @classmethod
+  def check_enabled(cls, agent: "Agent") -> bool:
+    return agent.config.enable_httpd
+
+
+  def __init__(self, **properties):
+    super().__init__(**properties)
     self.doc_root = self.root / "public"
     self._last_update_ts = None
     self._dirty = True
     self._lighttpd = None
+  
+
+  @property
+  def listen_port(self) -> int:
+    return self.agent.local_object.settings.httpd_port
+
+
+  @property
+  def min_update_delay(self) -> int:
+    return self.agent.uvn.settings.timing_profile.status_min_delay
+
+
+  @cached_property
+  def doc_root(self) -> Path:
+    doc_root = self.root / "public"
+    self.mkdir(doc_root)
+    return doc_root
 
 
   def spin_once(self) -> None:
@@ -57,15 +82,17 @@ class UvnHttpd:
     self.root.mkdir(exist_ok=True, parents=True)
     self.doc_root.mkdir(exist_ok=True, parents=True)
     
-    secret_line = htdigest_generate(user=self.agent.uvn_id.owner, realm=self.agent.uvn_id.name, password_hash=self.agent.uvn_id.master_secret)
+    # secret_line = htdigest_generate(user=self.agent.uvn.owner, realm=self.agent.uvn.name, password_hash=self.agent.uvn.master_secret)
+    secret_line = ""
+
     self._lighttpd = Lighttpd(
       root=self.root,
-      port=self.agent.cell.httpd_port,
+      port=self.listen_port,
       doc_root=self.doc_root,
       log_dir=self.agent.log_dir,
-      cert_subject=CertificateSubject(org=self.agent.uvn_id.name, cn=self.agent.cell.name),
+      cert_subject=CertificateSubject(org=self.agent.uvn.name, cn=self.agent.local_object.name),
       secret=secret_line,
-      auth_realm=self.agent.uvn_id.name,
+      auth_realm=self.agent.uvn.name,
       protected_paths=["^/particles"],
       bind_addresses=bind_addresses)
     self._lighttpd.start()

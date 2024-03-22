@@ -30,8 +30,8 @@ from ..core.log import Logger as log
 from ..registry.uvn import Uvn
 from ..registry.cell import Cell
 from ..registry.registry import Registry
-from ..registry.vpn_config import P2PLinksMap
-from ..registry.keys import KeyId
+from ..registry.vpn_config import P2pLinksMap
+from ..registry.key_id import KeyId
 from ..registry.id_db import IdentityDatabase
 
 from enum import Enum
@@ -57,7 +57,7 @@ class RegistryAgent(Agent):
       sync_mode: SyncMode|None=None) -> None:
     if not registry.deployed:
       raise ValueError("uvn not deployed", registry)
-    if not registry.uvn_id.settings.enable_root_vpn:
+    if not registry.uvn.settings.enable_root_vpn:
       raise ValueError("root vpn disabled by uvn", registry)
 
     self.registry = registry
@@ -71,7 +71,7 @@ class RegistryAgent(Agent):
     self.root_vpn = WireGuardInterface(self.registry.root_vpn_config.root_config)
 
     self._peers = UvnPeersList(
-      uvn_id=self.uvn_id,
+      uvn=self.uvn,
       registry_id=self.registry_id,
       local_peer_id=0)
     self._peers.listeners.append(self)
@@ -96,63 +96,22 @@ class RegistryAgent(Agent):
 
   @property
   def registry_id(self) -> str:
-    if self._rekeyed_registry:
-      return self._rekeyed_registry.id
+    if self.registry.rekeyed_root:
+      return self.registry.rekeyed_config_id
     return self.registry.id
 
 
   @property
-  def deployment(self) -> P2PLinksMap:
-    return self.registry.backbone_vpn_config.deployment
-
-
-  @property
-  def uvn_id(self) -> Uvn:
-    return self.registry.uvn_id
-
-
-  @property
-  def root(self) -> Path:
-    return self.registry.root
-
-
-  @property
-  def peers(self) -> UvnPeersList:
-    return self._peers
-
-
-  @property
-  def vpn_interfaces(self) -> set[WireGuardInterface]:
-    return {self.root_vpn}
-
-
-  def lookup_vpn_peer(self, vpn: WireGuardInterface, peer_id: int) -> UvnPeer:
-    if vpn == self.root_vpn:
-      return self.peers[peer_id]
-    else:
-      raise NotImplementedError()
-
-
-  @property
-  def net(self) -> AgentNetworking:
-    return self._net
-
-
-  @property
   def dds_xml_config(self) -> Tuple[str, str, dict]:
-    if not self.registry.rti_license.is_file():
-      log.error(f"RTI license file not found: {self.registry.rti_license}")
-      raise RuntimeError("RTI license file not found")
-
     initial_peers = [p.address for p in self.root_vpn.config.peers]
     initial_peers = [f"[0]@{p}" for p in initial_peers]
 
-    key_id = KeyId.from_uvn_id(self.registry.uvn_id)
+    key_id = KeyId.from_uvn(self.registry.uvn)
     Templates.generate(self.participant_xml_config, "dds/uno.xml", {
-      "uvn": self.registry.uvn_id,
+      "uvn": self.registry.uvn,
       "cell": None,
       "initial_peers": initial_peers,
-      "timing": self.registry.uvn_id.settings.timing_profile,
+      "timing": self.registry.uvn.settings.timing_profile,
       "license_file": self.registry.rti_license.read_text(),
       "ca_cert": self.id_db.backend.ca.cert,
       "perm_ca_cert": self.id_db.backend.perm_ca.cert,
@@ -160,9 +119,9 @@ class RegistryAgent(Agent):
       "key": self.id_db.backend.key(key_id),
       "governance": self.id_db.backend.governance,
       "permissions": self.id_db.backend.permissions(key_id),
-      "enable_dds_security": self.uvn_id.settings.enable_dds_security,
-      "domain": self.uvn_id.settings.dds_domain,
-      "domain_tag": self.uvn_id.name,
+      "enable_dds_security": self.uvn.settings.enable_dds_security,
+      "domain": self.uvn.settings.dds_domain,
+      "domain_tag": self.uvn.name,
     })
 
     return (self.participant_xml_config, RegistryAgent.TOPICS)
@@ -184,15 +143,15 @@ class RegistryAgent(Agent):
   def _write_uvn_info(self) -> None:
     sample = uvn_info(
       participant=self.dp,
-      uvn_id=self.uvn_id,
+      uvn=self.uvn,
       registry_id=self.registry_id)
     self.dp.writers[UvnTopic.UVN_ID].write(sample)
-    log.activity(f"[AGENT] published uvn info: {self.uvn_id.name}")
+    log.activity(f"[AGENT] published uvn info: {self.uvn.name}")
 
 
   def _write_agent_configs(self, target_cells: list[Cell]|None=None):
     cells_dir = self.registry.root / "cells"
-    for cell in self.uvn_id.cells.values():
+    for cell in self.uvn.cells.values():
       if target_cells is not None and cell not in target_cells:
         continue
       cell_package = cells_dir / f"{cell.name}.uvn-agent"
@@ -209,7 +168,7 @@ class RegistryAgent(Agent):
       
       sample = cell_agent_config(
         participant=self.dp,
-        uvn_id=self.uvn_id,
+        uvn=self.uvn,
         cell_id=cell.id,
         registry_id=self.registry_id,
         config_string=enc_config.read_text(),
@@ -224,7 +183,7 @@ class RegistryAgent(Agent):
     if not self._rekeyed_registry:
       raise RuntimeError("no rekeyed registry available")
 
-    all_cells = set(c.name for c in self.uvn_id.cells.values())
+    all_cells = set(c.name for c in self.uvn.cells.values())
     
     log.warning(f"[AGENT] pushing rekeyed configuration to {len(all_cells)} cells: {self.registry.id} → {self._rekeyed_registry.id}")
 

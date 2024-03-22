@@ -25,23 +25,25 @@ if TYPE_CHECKING:
 
 class WireGuardKeyPair(Versioned):
   PROPERTIES = [
+    "key_id",
     "public",
     "private",
     "dropped",
   ]
   REQ_PROPERTIES = [
-    "id",
-    "private",
+    "key_id",
+    # "private",
     "public",
   ]
   SECRET_PROPERTIES = [
     "private",
   ]
   STR_PROPERTIES = [
-    "id",
+    "key_id",
+    # "dropped",
   ]
   EQ_PROPERTIES = [
-    "id",
+    "key_id",
     "dropped",
   ]
   INITIAL_DROPPED = False
@@ -51,7 +53,7 @@ class WireGuardKeyPair(Versioned):
 
 
   @classmethod
-  def generate(cls, db: "Database", **properties) -> dict:
+  def generate_new(cls, db: "Database", **properties) -> dict:
     privkey, pubkey = genkeypair()
     return {
       "public": pubkey,
@@ -61,21 +63,23 @@ class WireGuardKeyPair(Versioned):
 
 class WireGuardPsk(Versioned):
   PROPERTIES = [
+    "key_id",
     "value",
     "dropped",
   ]
   REQ_PROPERTIES = [
-    "id",
+    "key_id",
     "value",
   ]
   SECRET_PROPERTIES = [
     "value",
   ]
   STR_PROPERTIES = [
-    "id",
+    "key_id",
+    # "dropped",
   ]
   EQ_PROPERTIES = [
-    "id",
+    "key_id",
     "dropped",
   ]
   INITIAL_DROPPED = False
@@ -85,5 +89,5 @@ class WireGuardPsk(Versioned):
 
 
   @classmethod
-  def generate(cls, db: "Database", **properties) -> dict:
+  def generate_new(cls, db: "Database", **properties) -> dict:
     return {"value": genkeypreshared()}

@@ -21,44 +21,41 @@ import os
 from pathlib import Path
 from enum import Enum
 
-import rti.connextdds as dds
-
 from ..core.ip import ipv4_list_routes
-from ..core.log import Logger as log
+from .agent_service import AgentService, AgentServiceListener
+
+class RoutesMonitorEvent(Enum):
+  LOCAL_ROUTES = 1
 
 
-class RoutesMonitorListener:
-  class Event(Enum):
-    LOCAL_ROUTES = 0
+class RoutesMonitorListener(AgentServiceListener):
+  EVENTS = RoutesMonitorEvent
+
 
   def on_event_local_routes(self, new_routes: set[str], gone_routes: set[str]) -> None:
     pass
 
 
-class RoutesMonitor:
+class RoutesMonitor(AgentService):
+  CLASS = "routes-monitor"
+  LISTENERS = RoutesMonitorListener
+
   def __init__(self, log_dir: Path) -> None:
-    self._log_dir = log_dir
-    self.updated_condition = dds.GuardCondition()
     self._monitor = None
     self._monitor_thread = None
     self._active = False
-    self.listeners: list[RoutesMonitorListener] = list()
+    self.listeners: list[self.LISTENERS] = list()
 
 
   @property
   def routes_file(self) -> Path:
-    return self._log_dir / "routes.local"
-
-
-  def notify(self, event: RoutesMonitorListener.Event, *args):
-    for l in self.listeners:
-      getattr(l, f"on_event_{event.name.lower()}")(*args)
+    return self.log_dir / "routes.local"
 
 
   def process_updates(self) -> None:
     new_routes, gone_routes = self.poll_routes()
     if new_routes or gone_routes:
-      self.notify(RoutesMonitorListener.Event.LOCAL_ROUTES, new_routes, gone_routes)
+      self.notify_listeners(RoutesMonitorEvent.LOCAL_ROUTES, new_routes, gone_routes)
 
 
 
@@ -111,13 +108,13 @@ class RoutesMonitor:
 
 
   def _run(self):
-    log.activity(f"[ROUTE-MONITOR] starting to monitor kernel routes")
+    self.log.activity("starting to monitor kernel routes")
     while self._active:
       try:
         route_change = self._monitor.stdout.readline()
-        log.activity(f"[ROUTE-MONITOR] detected: '{route_change}'")
+        self.log.activity("detected: '{}'", route_change.strip())
         self.updated_condition.trigger_value = True
       except Exception as e:
-        log.error(f"[ROUTE-MONITOR] error in monitor thread")
-        log.exception(e)
-    log.activity(f"[ROUTE-MONITOR] stopped")
+        self.log.error("error in monitor thread")
+        self.log.exception(e)
+    self.log.activity("stopped")

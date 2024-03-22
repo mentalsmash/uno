@@ -18,28 +18,22 @@ from typing import Callable
 import argparse
 
 from uno.agent.agent import Agent
-from uno.agent.cell_agent import CellAgent
-from uno.agent.registry_agent import RegistryAgent
-
+from uno.registry.package import Packager
 
 def agent_action(action: Callable[[argparse.Namespace, Agent], None]) -> Callable[[argparse.Namespace], None]:
   def _wrapped(args: argparse.Namespace) -> None:
-    try:
-      agent = CellAgent.load(args.root)
-    except:
-      agent = RegistryAgent.load(args.root)
+    agent = Agent.open(args.root)
     action(args, agent)
   return _wrapped;
+
+
+def agent_install(args: argparse.Namespace) -> None:
+  Packager.extract_cell_agent_package(args.package, args.root)
 
 
 @agent_action
 def agent_sync(args: argparse.Namespace, agent: Agent) -> None:
   agent.spin_until_consistent()
-
-
-@agent_action
-def agent_install(args: argparse.Namespace, agent: Agent) -> None:
-  pass
 
 
 @agent_action
@@ -49,7 +43,8 @@ def agent_update(args: argparse.Namespace, agent: Agent) -> None:
 
 @agent_action
 def agent_run(args: argparse.Namespace, agent: Agent) -> None:
-  pass
+  with agent.start():
+    agent.spin(max_spin_time=args.max_run_time)
 
 
 @agent_action

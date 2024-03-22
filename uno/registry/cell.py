@@ -19,10 +19,10 @@ from functools import cached_property
 import ipaddress
 
 from .user import User
-from ..core.log import Logger as log
 
 from .versioned import Versioned, prepare_name
-from .database_object import OwnableDatabaseObject, DatabaseObjectOwner
+from .database_object import OwnableDatabaseObject, DatabaseObjectOwner, inject_db_cursor
+from .database import Database
 from .cell_settings import CellSettings
 
 if TYPE_CHECKING:
@@ -47,15 +47,16 @@ class Cell(Versioned, OwnableDatabaseObject, DatabaseObjectOwner):
     "name",
   ]
   DB_TABLE = "cells"
-  DB_TABLE_PROPERTIES = PROPERTIES
+  DB_TABLE_PROPERTIES = [
+    *PROPERTIES,
+    "owner_id",
+  ]
   DB_OWNER = User
-  DB_OWNER_TABLE = "cells_credentials"
+  DB_OWNER_TABLE_COLUMN = "owner_id"
 
   INITIAL_EXCLUDED = False
-  def INITIAL_SETTINGS(self) -> CellSettings:
-    return self.deserialize_child(CellSettings)
-  def INITIAL_ALLOWED_LANS(self) -> set[ipaddress.IPv4Network]:
-    return set()
+  INITIAL_SETTINGS = lambda self: self.new_child(CellSettings)
+  INITIAL_ALLOWED_LANS = lambda self: set()
 
 
   @property
@@ -64,12 +65,13 @@ class Cell(Versioned, OwnableDatabaseObject, DatabaseObjectOwner):
 
 
   @cached_property
-  def uvn(self) -> "Uvn":
+  @inject_db_cursor
+  def uvn(self, cursor: Database.Cursor) -> "Uvn":
     from .uvn import Uvn
-    return next(self.db.load(Uvn, id=self.uvn_id))
+    return next(self.db.load(Uvn, id=self.uvn_id, cursor=cursor))
 
 
-  def validate_new(self) -> None:
+  def validate(self) -> None:
     self.uvn.validate_cell(self)
 
 
@@ -78,14 +80,14 @@ class Cell(Versioned, OwnableDatabaseObject, DatabaseObjectOwner):
 
 
   def prepare_settings(self, val: "str | dict | CellSettings") -> CellSettings:
-    return self.deserialize_child(CellSettings, val)
+    return self.new_child(CellSettings, val)
 
 
   def prepare_allowed_lans(self, val: "str | list[str] | set[ipaddress.IPv4Network]") -> set[ipaddress.IPv4Network]:
     return self.deserialize_collection(ipaddress.IPv4Network, val, set)
 
 
-  def serialize_allowed_lans(self, val: set[ipaddress.IPv4Network]) -> set[str]:
+  def serialize_allowed_lans(self, val: set[ipaddress.IPv4Network], public: bool=False) -> set[str]:
     return sorted(str(v) for v in val)
 
 

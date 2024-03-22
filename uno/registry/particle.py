@@ -14,20 +14,16 @@
 # You should have received a copy of the GNU Affero General Public License
 # along with this program. If not, see <https://www.gnu.org/licenses/>.
 ###############################################################################
-from typing import Generator, TYPE_CHECKING
-import yaml
+from typing import TYPE_CHECKING
 from functools import cached_property
 
-from .cell_settings import CellSettings
-from .cell_network import CellNetwork
 from .user import User
-from ..core.log import Logger as log
 
 from .versioned import Versioned, prepare_name
-from .database_object import OwnableDatabaseObject, DatabaseObjectOwner
+from .database_object import OwnableDatabaseObject, DatabaseObjectOwner, inject_db_cursor
+from .database import Database
 
 if TYPE_CHECKING:
-  from .database import Database
   from .uvn import Uvn
 
 
@@ -46,20 +42,24 @@ class Particle(Versioned, OwnableDatabaseObject, DatabaseObjectOwner):
     "id",
     "name",
   ]
-  DB_TABLE_PROPERTIES = PROPERTIES
+  DB_TABLE_PROPERTIES = [
+    *PROPERTIES,
+    "owner_id",
+  ]
   DB_TABLE = "particles"
   DB_OWNER = User
-  DB_OWNER_TABLE = "particles_credentials"
+  DB_OWNER_TABLE_COLUMN = "owner_id"
 
   INITIAL_EXCLUDED = False
 
   @cached_property
-  def uvn(self) -> "Uvn":
+  @inject_db_cursor
+  def uvn(self, cursor: Database.Cursor) -> "Uvn":
     from .uvn import Uvn
-    return next(self.db.load(Uvn, id=self.uvn_id))
+    return next(self.db.load(Uvn, id=self.uvn_id, cursor=cursor))
 
 
-  def validate_new(self) -> None:
+  def validate(self) -> None:
     self.uvn.validate_particle(self)
 
 

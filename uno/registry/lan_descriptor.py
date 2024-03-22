@@ -42,7 +42,7 @@ class LanDescriptor(Versioned):
 
 
   def prepare_nic(self, val: str | dict | NicDescriptor) -> NicDescriptor:
-    return self.deserialize_child(NicDescriptor, val)
+    return self.new_child(NicDescriptor, val)
 
 
   def prepare_next_hop(self, val: str | int | ipaddress.IPv4Address) -> ipaddress.IPv4Address:

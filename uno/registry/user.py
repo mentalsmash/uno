@@ -45,7 +45,6 @@ class User(Versioned, DatabaseObjectOwner):
     "realm",
   ]
   STR_PROPERTIES = [
-    "id",
     "email",
   ]
 

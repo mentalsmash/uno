@@ -19,7 +19,9 @@ import subprocess
 from pathlib import Path
 from typing import Optional, Sequence, Union
 
-from .log import Logger as log, level as log_level, verbosity, DEBUG
+from .log import Logger
+
+log = Logger.sublogger("exec")
 
 def exec_command(
     cmd_args: Sequence[Union[str, Path]],
@@ -37,8 +39,7 @@ def exec_command(
   if cwd is not None:
     run_args["cwd"] = cwd
 
-  if DEBUG:
-    log.debug(f"[exec] {' '.join(map(str, cmd_args))}")
+  log.trace(" ".join(["{}"]*len(cmd_args)), *cmd_args)
 
   if output_file is not None:
     output_file.parent.mkdir(exist_ok=True, parents=True)
@@ -49,12 +50,20 @@ def exec_command(
         **run_args)
   else:
     import sys
+    if capture_output:
+      stdout = subprocess.PIPE
+      stderr = subprocess.PIPE
+    elif log.current_level >= log.level.tracedbg:
+      stdout = sys.stdout
+      stderr = sys.stderr
+    else:
+      stdout = subprocess.DEVNULL
+      stderr = subprocess.DEVNULL
+
     result = subprocess.run(cmd_args,
-      stdout=subprocess.PIPE if capture_output else subprocess.DEVNULL if verbosity() != log_level.debug else sys.stdout,
-      stderr=subprocess.PIPE if capture_output else subprocess.DEVNULL if verbosity() != log_level.debug else sys.stderr,
+      stdout=stdout,
+      stderr=stderr,
       **run_args)
-  
-  # log.debug(f"[exec] result = {result.returncode}")
 
   if not noexcept and result.returncode != 0:
     cmd = ' '.join(map(str, cmd_args))

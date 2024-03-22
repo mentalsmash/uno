@@ -17,9 +17,8 @@
 import ipaddress
 
 from ..core.ip import ipv4_netmask_to_cidr
-from ..core.log import Logger as log
 
-from .deployment import DeploymentStrategyKind, P2PLinksMap
+from .deployment import DeploymentStrategyKind, P2pLinksMap
 from .versioned import Versioned, prepare_enum
 
 class VpnSettings(Versioned):
@@ -33,6 +32,7 @@ class VpnSettings(Versioned):
     "masquerade",
     "forward",
     "tunnel",
+    "keepalive"
   ]
   REQ_PROPERTIES = [
     "port",
@@ -43,13 +43,14 @@ class VpnSettings(Versioned):
   INITIAL_MASQUERADE = False
   INITIAL_FORWARD = False
   INITIAL_TUNNEL = False
+  INITIAL_KEEPALIVE = 25
 
 
   def prepare_subnet(self, val: str | int | ipaddress.IPv4Network) -> ipaddress.IPv4Network:
     return ipaddress.ip_network(val)
 
 
-  def serialize_subnet(self, val: ipaddress.IPv4Network) -> str:
+  def serialize_subnet(self, val: ipaddress.IPv4Network, public: bool=False) -> str:
     return str(val)
 
 

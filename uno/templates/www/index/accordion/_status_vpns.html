@@ -34,7 +34,7 @@
         {% with vpn_name = "Root" %}
         {% with vpn_id = "root" %}
         {% with stats = vpn_stats["interfaces"][root_vpn] %}
-        {% with peers = [uvn_id] %}
+        {% with peers = [uvn] %}
         {% include "www/_vpn_status.html" with context %}
         {% endwith %}
         {% endwith %}
@@ -49,7 +49,7 @@
         {% with vpn_name = "Particles" %}
         {% with vpn_id = "particles" %}
         {% with stats = vpn_stats["interfaces"][particles_vpn] %}
-        {% with peers = uvn_id.particles %}
+        {% with peers = uvn.particles %}
         {% include "www/_vpn_status.html" with context %}
         {% endwith %}
         {% endwith %}
@@ -65,7 +65,7 @@
         {% with vpn_name = "Backbone #" + i_str %}
         {% with vpn_id = "backbone" + i_str %}
         {% with stats = vpn_stats["interfaces"][backbone_vpn] %}
-        {% with peers = uvn_id.cells %}
+        {% with peers = uvn.cells %}
         {% include "www/_vpn_status.html" with context %}
         {% endwith %}
         {% endwith %}

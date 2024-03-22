@@ -20,6 +20,9 @@ import ipaddress
 import socket
 from .exec import exec_command
 
+from .log import Logger
+log = Logger.sublogger("net")
+
 
 def list_local_nics(interfaces=[], skip=[], include_loopback=False) -> Sequence[tuple[str, Sequence[Mapping[str, str]]]]:
     """
@@ -254,7 +257,6 @@ def ipv4_default_gateway() -> ipaddress.IPv4Address:
         try:
             gw = ipaddress.ip_address(l_split[2])
         except Exception as e:
-            from .log import Logger as log
             log.error(f"failed to parse gateway ip address: '{l_split[2]}'")
             log.exception(e)
             continue

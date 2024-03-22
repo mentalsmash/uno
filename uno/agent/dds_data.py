@@ -29,24 +29,24 @@ from ..registry.lan_descriptor import LanDescriptor
 
 def uvn_info(
     participant: DdsParticipant,
-    uvn_id: Uvn,
+    uvn: Uvn,
     registry_id: str) -> dds.DynamicData:
   sample = dds.DynamicData(participant.types[participant.TOPIC_TYPES[UvnTopic.UVN_ID]])
-  sample["name"] = uvn_id.name
+  sample["name"] = uvn.name
   sample["registry_id"] = registry_id
   return sample
 
 
 def cell_agent_config(
     participant: DdsParticipant,
-    uvn_id: Uvn,
+    uvn: Uvn,
     cell_id: int,
     registry_id: str,
     config_string: str|None=None,
     package: Path|None=None) -> dds.DynamicData:
   sample = dds.DynamicData(participant.types[participant.TOPIC_TYPES[UvnTopic.BACKBONE]])
   sample["cell.n"] = cell_id
-  sample["cell.uvn"] = uvn_id.name
+  sample["cell.uvn"] = uvn.name
   sample["registry_id"] = registry_id
   if config_string is not None:
     sample["config"] = config_string
@@ -70,7 +70,7 @@ def lan_descriptor(
 
 def cell_agent_status(
     participant: DdsParticipant,
-    uvn_id: Uvn,
+    uvn: Uvn,
     cell_id: int,
     registry_id: str,
     ts_start: Timestamp|None=None,
@@ -79,11 +79,11 @@ def cell_agent_status(
     unreachable_networks: Optional[Iterable[LanDescriptor]]=None) -> None:
   import os
 
-  cell = uvn_id.cells[cell_id]
+  cell = uvn.cells[cell_id]
   sample = dds.DynamicData(participant.types[participant.TOPIC_TYPES[UvnTopic.CELL_ID]])
   
   sample["id.n"] = cell.id
-  sample["id.uvn"] = uvn_id.name
+  sample["id.uvn"] = uvn.name
 
   sample["registry_id"] = registry_id
 

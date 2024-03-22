@@ -23,7 +23,6 @@ from .peer import UvnPeer, LanStatus
 from ..core.time import Timestamp
 from ..core.exec import exec_command
 from ..core.ip import ipv4_get_route
-from ..core.log import Logger as log
 
 from ..registry.lan_descriptor import LanDescriptor
 
@@ -33,82 +32,45 @@ if TYPE_CHECKING:
   from .agent import Agent
 
 
-class UvnPeersTester(AgentService):
+class TrigerrableAgentService(AgentService):
   PROPERTIES = [
-    "ping_len",
-    "ping_count",
+    "max_trigger_delay"
   ]
-  SERIALIZED_PROPERTIES = [
-    "max_test_delay"
-  ]
-  INITIAL_PING_LEN = 3
-  INITIAL_PING_COUNT = 3
+  INITIAL_MAX_TRIGGER_DELAY = lambda self: self.uvn.settings.timing_profile.max_service_trigger_delay
 
   def __init__(self, **properties) -> None:
     super().__init__(**properties)
-    self._peers_status = {}
     self._trigger_sem = threading.BoundedSemaphore(1)
     self._trigger_sem.acquire()
     self._state_lock = threading.Lock()
-    self._test_thread = None
+    self._service_thread = None
     self._triggered = False
     self._active = False
     self._last_trigger_ts = None
-    self.result_available_condition = dds.GuardCondition()
 
 
   @property
-  def max_test_delay(self) -> int:
-    return self.uvn.settings.timing_profile.tester_max_delay
-
-
-  @property
-  def tested_peers(self) -> Iterable[UvnPeer]:
-    return self.agent.peers.cells
-
-
-  @property
-  def max_test_delay(self) -> int:
-    if self._max_test_delay is None:
-      return self.DEFAULT_MAX_TEST_DELAY
-    return self._max_test_delay
-
-
-  @property
-  def test_delay(self) -> int:
+  def trigger_delay(self) -> int:
     if self._last_trigger_ts is None:
-      return self.max_test_delay + 1
+      return self.max_trigger_delay + 1
     return int(Timestamp.now().subtract(self._last_trigger_ts).total_seconds())
 
 
-  def find_status_by_lan(self, lan: LanDescriptor) -> bool:
-    reachable_subnets = [l.nic.subnet for l in self.agent.peers.local.reachable_networks]
-    return lan.nic.subnet in reachable_subnets
-
-
-  def find_status_by_peer(self, peer_id: int) -> Iterable[Tuple[LanDescriptor, bool]]:
-    reachable_subnets = [l.nic.subnet for l in self.agent.peers.local.reachable_networks]
-    return [
-      (l, reachable)
-        for l in self.agent.peers[peer_id].routed_networks
-          for reachable in [True if l.nic.subnet in reachable_subnets else False]
-    ]
-
 
   def trigger(self) -> None:
-    log.activity("[LAN] triggering tester...")
+    self.log.activity("triggering tester...")
     with self._state_lock:
       if self._triggered:
-        log.debug("[LAN] test already queued.")
+        self.log.debug("test already queued.")
         return
       self._triggered = True
-    log.debug("[LAN] queued new test.")
+    self.log.debug("queued new test.")
     self._trigger_sem.release()
 
 
   def run(self) -> None:
     try:
-      log.debug("[LAN] tester started")
+      self.log.debug("tester started")
       while self._active:
         self._trigger_sem.acquire(timeout=self.max_test_delay)
         with self._state_lock:
@@ -124,13 +86,13 @@ class UvnPeersTester(AgentService):
         if len(tested_peers) == 0:
           continue
 
-        log.activity(f"[LAN] testing {len(tested_peers)} peers")
+        self.log.activity(f"testing {len(tested_peers)} peers")
         reachable = []
         unreachable = []
         for peer in tested_peers:
           if not self._active:
             break
-          log.debug(f"[LAN] testing {len(peer.routed_networks)} LANs for peer {peer}")
+          self.log.debug(f"testing {len(peer.routed_networks)} LANs for peer {peer}")
           for lan in peer.routed_networks:
             # status = self[(peer, lan)]
             pinged = self._ping_test(peer, lan)
@@ -147,7 +109,7 @@ class UvnPeersTester(AgentService):
         test_end = Timestamp.now()
         test_length = int(test_end.subtract(self._last_trigger_ts).total_seconds())
         
-        log.activity(f"[LAN] test completed in {test_length} seconds")
+        self.log.activity(f"test completed in {test_length} seconds")
 
         self.agent.peers.update_peer(self.agent.peers.local,
           known_networks={
@@ -164,28 +126,15 @@ class UvnPeersTester(AgentService):
         self.result_available_condition.trigger_value = True
 
         if test_length > self.max_test_delay:
-          log.warning(f"[LAN] test took longer than configured max delay: {test_length} > {self.max_test_delay}")
+          self.log.warning(f"test took longer than configured max delay: {test_length} > {self.max_test_delay}")
     except Exception as e:
       self._active = False
-      log.error(f"[LAN] exception in tester thread:")
-      log.exception(e)
+      self.log.error(f"exception in tester thread:")
+      self.log.exception(e)
       raise e
-    log.debug("[LAN] tester stopped")
+    self.log.debug("tester stopped")
 
 
-  def _ping_test(self, peer: UvnPeer, lan: LanDescriptor) -> bool:
-    log.activity(f"[LAN] PING start: {peer}/{lan}")
-    result = exec_command(
-        ["ping",
-            "-w", str(self.DEFAULT_PING_LEN),
-            "-c", str(self.DEFAULT_PING_COUNT),
-            *(["-I", self._interface] if self._interface else []),
-            str(lan.gw)],
-        noexcept=True)
-    result = result.returncode == 0
-    log.activity(f"[LAN] PING {'OK' if result else 'FAILED'}: {peer}/{lan}")
-    return result
-  
 
   def start(self, interface: str | None = None) -> None:
     if self._test_thread is not None:

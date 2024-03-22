@@ -18,7 +18,9 @@ from typing import Sequence, Mapping, Iterable
 import rti.connextdds as dds
 from pathlib import Path
 
-from ..core.log import Logger as log
+from ..core.log import Logger
+log = Logger.sublogger("dds")
+
 from ..registry.dds import UvnTopic
 
 class DdsParticipantConfig:
@@ -82,7 +84,7 @@ class DdsParticipant:
 
 
   def start(self,config: DdsParticipantConfig) -> None:
-    log.debug("[DDS] STARTING...")
+    log.debug("STARTING...")
 
     qos_provider = dds.QosProvider(str(config.participant_xml_config))
     self.types = self._register_types(qos_provider)
@@ -106,11 +108,11 @@ class DdsParticipant:
       self._waitset += condition
       self._waitset_attached.append(condition)
     
-    log.activity("[DDS] started")
+    log.activity("started")
 
 
   def stop(self) -> None:
-    log.debug("[DDS] STOP in process...")
+    log.debug("STOP in process...")
     for condition in list(self._waitset_attached):
       if not condition:
         continue
@@ -130,7 +132,7 @@ class DdsParticipant:
     self._data_conditions = {}
     self._user_conditions = []
     self._dp = None
-    log.activity("[DDS] stopped")
+    log.activity("stopped")
 
 
   def wait(self) -> tuple[bool, Sequence[tuple[UvnTopic, dds.DataWriter]], Sequence[tuple[UvnTopic, dds.DataReader]], Sequence[tuple[UvnTopic, dds.DataReader, dds.QueryCondition]], Sequence[dds.Condition]]:

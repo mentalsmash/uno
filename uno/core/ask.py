@@ -19,7 +19,9 @@ import sys
 import os
 
 
-from .log import Logger as log
+from .log import Logger
+log = Logger.sublogger("ask")
+
 
 QUERY_ASSUME_YES = False
 def ask_assume_yes(value: bool=True):

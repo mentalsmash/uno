@@ -229,8 +229,8 @@ def _parser_args_user(parser):
     default=None)
 
 
-def _parser_args_force(parser):
-  parser.add_argument("-f", "--force",
+def _parser_args_generate(parser):
+  parser.add_argument("-g", "--generate",
     help="Force operation to regenerate files even if no changes were detected.",
     default=False,
     action="store_true")
@@ -397,7 +397,7 @@ def uno_parser(parser: argparse.ArgumentParser):
   _parser_args_registry(cmd_config_uvn)
   _parser_args_deployment(cmd_config_uvn)
   _parser_args_print(cmd_config_uvn)
-  _parser_args_force(cmd_config_uvn)
+  _parser_args_generate(cmd_config_uvn)
 
   #############################################################################
   # uno config cell ...
@@ -411,7 +411,7 @@ def uno_parser(parser: argparse.ArgumentParser):
 
   _parser_args_cell(cmd_config_cell)
   _parser_args_print(cmd_config_cell)
-  _parser_args_force(cmd_config_cell)
+  _parser_args_generate(cmd_config_cell)
 
   #############################################################################
   # uno config particle ...
@@ -425,7 +425,7 @@ def uno_parser(parser: argparse.ArgumentParser):
 
   _parser_args_particle(cmd_config_particle)
   _parser_args_print(cmd_config_particle)
-  _parser_args_force(cmd_config_particle)
+  _parser_args_generate(cmd_config_particle)
 
 
   #############################################################################
@@ -440,7 +440,7 @@ def uno_parser(parser: argparse.ArgumentParser):
 
   _parser_args_user(cmd_config_user)
   _parser_args_print(cmd_config_user)
-  _parser_args_force(cmd_config_user)
+  _parser_args_generate(cmd_config_user)
 
 
   #############################################################################

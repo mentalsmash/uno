@@ -3,7 +3,7 @@
     role="tabpanel"
     aria-labelledby="tab-config-particles"
     tabindex="0">
-  {% with particles = uvn_id.particles.values() %}
+  {% with particles = uvn.particles.values() %}
   {% with title = "Particles" %}
   {% with icon = "car-front" %}
   {% with include_config = True %}
@@ -13,7 +13,7 @@
   {% endwith %}
   {% endwith %}
 
-  {% with particles = uvn_id.excluded_particles.values() %}
+  {% with particles = uvn.excluded_particles.values() %}
   {% with title = "Banned Particles" %}
   {% with icon = "ban" %}
   {% include "www/_particles_table.html" with context %}

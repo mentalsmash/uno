@@ -15,7 +15,7 @@
 # along with this program. If not, see <https://www.gnu.org/licenses/>.
 ###############################################################################
 
-from .versioned import Versioned
+from .versioned import Versioned, prepare_enum
 from .timing_profile import TimingProfile
 from .vpn_settings import RootVpnSettings, ParticlesVpnSettings, BackboneVpnSettings
 
@@ -36,12 +36,11 @@ class UvnSettings(Versioned):
   INITIAL_ENABLE_DDS_SECURITY = False
   INITIAL_DDS_DOMAIN = 46
 
-  def INITIAL_ROOT_VPN(self):
-    return self.deserialize_child(RootVpnSettings)
-  def INITIAL_PARTICLES_VPN(self):
-    return self.deserialize_child(ParticlesVpnSettings)
-  def INITIAL_BACKBONE_VPN(self):
-    return self.deserialize_child(BackboneVpnSettings)
+  INITIAL_ROOT_VPN = lambda self: self.new_child(RootVpnSettings)
+  INITIAL_PARTICLES_VPN = lambda self: self.new_child(ParticlesVpnSettings)
+  INITIAL_BACKBONE_VPN = lambda self: self.new_child(BackboneVpnSettings)
 
+  def prepare_timing_profile(self, val: str | TimingProfile) -> TimingProfile:
+    return prepare_enum(self.db, TimingProfile, val)
 
   

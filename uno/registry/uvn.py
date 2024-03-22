@@ -21,19 +21,15 @@ import json
 import yaml
 from functools import cached_property
 
-from .deployment import P2PLinksMap
+from .deployment import P2pLinksMap
 from .uvn_settings import UvnSettings
 from .user import User
 from .cell import Cell
 from .particle import Particle
 
-from ..core.log import Logger as log
-
 from .versioned import Versioned
-from .database_object import OwnableDatabaseObject, DatabaseObjectOwner
-
-if TYPE_CHECKING:
-  from .database import Database
+from .database_object import OwnableDatabaseObject, DatabaseObjectOwner, inject_db_cursor
+from .database import Database
 
 class ClashingNetworksError(Exception):
   def __init__(self, clashes: Mapping[ipaddress.IPv4Network, set[tuple[object, ipaddress.IPv4Network]]], *args: object) -> None:
@@ -80,13 +76,24 @@ class Uvn(Versioned, OwnableDatabaseObject, DatabaseObjectOwner):
       "excluded_particles",
     ]
   }
-  DB_TABLE_PROPERTIES = PROPERTIES
+  CACHED_PROPERTIES = [
+    "all_cells",
+    "cells",
+    "exclued_cells",
+    "private_cells",
+    "all_particles",
+    "particles",
+    "excluded_particles",
+  ]
+  DB_TABLE_PROPERTIES = [
+    *PROPERTIES,
+    "owner_id",
+  ]
   DB_TABLE = "uvns"
   DB_OWNER = User
-  DB_OWNER_TABLE = "uvns_credentials"
+  DB_OWNER_TABLE_COLUMN = "owner_id"
 
-  def INITIAL_SETTINGS(self) -> UvnSettings:
-    return self.deserialize_child(UvnSettings)
+  INITIAL_SETTINGS = lambda self: self.new_child(UvnSettings)
 
   @classmethod
   def detect_network_clashes(cls,
@@ -118,11 +125,6 @@ class Uvn(Versioned, OwnableDatabaseObject, DatabaseObjectOwner):
 
 
   @cached_property
-  def owner(self) -> User | None:
-    return self.db.owner(self)
-
-
-  @cached_property
   def all_cells(self) -> Mapping[int, Cell]:
     return {
       **self.cells,
@@ -131,32 +133,38 @@ class Uvn(Versioned, OwnableDatabaseObject, DatabaseObjectOwner):
 
 
   @cached_property
-  def cells(self) -> Mapping[int, Cell]:
+  @inject_db_cursor
+  def cells(self, cursor: Database.Cursor) -> Mapping[int, Cell]:
     return {
       cell.id: cell
         for cell in self.db.load(Cell,
           where="uvn_id = ? AND excluded = ?",
-          params=(self.id, False))
+          params=(self.id, False),
+          cursor=cursor)
     }
 
 
   @cached_property
-  def excluded_cells(self) -> Mapping[int, Cell]:
+  @inject_db_cursor
+  def excluded_cells(self, cursor: Database.Cursor) -> Mapping[int, Cell]:
     return {
       cell.id: cell
         for cell in self.db.load(Cell,
           where="uvn_id = ? AND excluded = ?",
-          params=(self.id, True))
+          params=(self.id, True),
+          cursor=cursor)
     }
 
 
   @property
-  def private_cells(self) -> Mapping[int, Cell]:
+  @inject_db_cursor
+  def private_cells(self, cursor: Database.Cursor) -> Mapping[int, Cell]:
     return {
       cell.id: cell
         for cell in self.db.load(Cell,
           where="uvn_id = ? AND address IS NULL",
-          params=(self.id,))
+          params=(self.id,),
+          cursor=cursor)
     }
 
 
@@ -169,22 +177,26 @@ class Uvn(Versioned, OwnableDatabaseObject, DatabaseObjectOwner):
 
 
   @cached_property
-  def particles(self) -> Mapping[int, Particle]:
+  @inject_db_cursor
+  def particles(self, cursor: Database.Cursor) -> Mapping[int, Particle]:
     return {
       particle.id: particle
         for particle in self.db.load(Particle,
           where="uvn_id = ? AND excluded = ?",
-          params=(self.id, False))
+          params=(self.id, False),
+          cursor=cursor)
     }
 
 
   @cached_property
-  def excluded_particles(self) -> Mapping[int, Particle]:
+  @inject_db_cursor
+  def excluded_particles(self, cursor: Database.Cursor) -> Mapping[int, Particle]:
     return {
       particle.id: particle
         for particle in self.db.load(Particle,
           where="uvn_id = ? AND excluded = ?",
-          params=(self.id, True))
+          params=(self.id, True),
+          cursor=cursor)
     }
 
 
@@ -205,18 +217,19 @@ class Uvn(Versioned, OwnableDatabaseObject, DatabaseObjectOwner):
 
 
   def prepare_settings(self, val: str | dict | UvnSettings) -> UvnSettings:
-    return self.deserialize_child(UvnSettings, val)
+    return self.new_child(UvnSettings, val)
 
 
   def validate_cell(self, cell: Cell) -> None:
     # Check that the cell's networks don't clash with any other cell's
-    if cell.allowed_lans:
-      clashes = Uvn.detect_network_clashes(
-        records=(c for c in self.cells.values() if c != cell),
-        get_networks=lambda c: c.allowed_lans,
-        checked_networks=cell.allowed_lans)  
-      if clashes:
-        raise ClashingNetworksError(clashes)
+    # if cell.allowed_lans:
+    #   clashes = Uvn.detect_network_clashes(
+    #     records=(c for c in self.cells.values() if c != cell),
+    #     get_networks=lambda c: c.allowed_lans,
+    #     checked_networks=cell.allowed_lans)  
+    #   if clashes:
+    #     raise ClashingNetworksError(clashes)
+    pass
 
 
   def validate_particle(self, particle: Particle) -> None:
@@ -224,9 +237,10 @@ class Uvn(Versioned, OwnableDatabaseObject, DatabaseObjectOwner):
 
 
   def log_deployment(self,
-      deployment: P2PLinksMap,
+      deployment: P2pLinksMap,
       logger: Callable[[Cell, int, str, Cell, int, str, str], None]|None=None) -> None:
     logged = []
+    sublog = self.log.sublogger("backbone")
     def _log_deployment(
         peer_a: Cell,
         peer_a_port_i: int,
@@ -236,9 +250,15 @@ class Uvn(Versioned, OwnableDatabaseObject, DatabaseObjectOwner):
         peer_b_endpoint: str,
         arrow: str) -> None:
       if not logged or logged[-1] != peer_a:
-        log.info(f"[BACKBONE] {peer_a} →")
+        sublog.info("{} →", peer_a)
         logged.append(peer_a)
-      log.info(f"[BACKBONE]   [{peer_a_port_i}] {peer_a_endpoint} {arrow} {peer_b}[{peer_b_port_i}] {peer_b_endpoint}")
+      sublog.info("   [{}] {} {} {}[{}] {}",
+          peer_a_port_i,
+          peer_a_endpoint,
+          arrow,
+          peer_b,
+          peer_b_port_i,
+          peer_b_endpoint)
 
     if logger is None:
       logger = _log_deployment

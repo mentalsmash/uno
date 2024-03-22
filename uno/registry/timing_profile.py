@@ -99,6 +99,14 @@ class TimingProfile(Enum):
 
 
   @property
+  def max_service_trigger_delay(self) -> int:
+    if self == TimingProfile.FAST:
+      return 30
+    else:
+      return 3600 # 1h
+
+
+  @property
   def status_min_delay(self) -> int:
     if self == TimingProfile.FAST:
       return 10

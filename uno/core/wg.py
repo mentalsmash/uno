@@ -24,8 +24,9 @@ from typing import Tuple, Iterable, Optional, Mapping, Union, Sequence
 from .exec import exec_command
 from .time import Timestamp
 from .render import Templates
-from .log import Logger as log
 from .ip import ip_nic_is_up, ip_nic_exists
+from .log import Logger
+log = Logger.sublogger("wg")
 
 
 def _check_handshake_online(handshake: Timestamp) -> bool:
@@ -112,10 +113,10 @@ class WireGuardInterfaceConfig:
     self.mtu = mtu
 
 
-  def serialize(self) -> dict:
+  def serialize(self, public: bool=False) -> dict:
     serialized = {
       "name": self.name,
-      "privkey": self.privkey,
+      "privkey": self.privkey if not public else None,
       "address": str(self.address),
       "netmask": self.netmask,
       "port": self.port,
@@ -165,11 +166,11 @@ class WireGuardInterfacePeerConfig:
     self.keepalive = keepalive
 
 
-  def serialize(self) -> dict:
+  def serialize(self, public: bool=False) -> dict:
     serialized = {
       "id": self.id,
       "pubkey": self.pubkey,
-      "psk": str(self.psk),
+      "psk": str(self.psk) if not public else None,
       "address": str(self.address),
       "allowed": list(self.allowed),
       "endpoint": self.endpoint,
@@ -226,10 +227,10 @@ class WireGuardConfig:
     return ("wg/wg.conf", self.serialize())
 
 
-  def serialize(self) -> dict:
+  def serialize(self, public: bool=False) -> dict:
     serialized = {
-      "intf": self.intf.serialize(),
-      "peers": [p.serialize() for p in self.peers],
+      "intf": self.intf.serialize(public=public),
+      "peers": [p.serialize(public=public) for p in self.peers],
       "generation_ts": self.generation_ts,
       "tunnel": self.tunnel,
       "tunnel_root": self.tunnel_root,
@@ -265,11 +266,17 @@ class WireGuardConfig:
 
 
 class WireGuardInterface:
-
   def __init__(self, config: WireGuardConfig):
     self.config = config
+    self.log = log.sublogger(self.config.intf.name)
     self.created = False
     self.up = False
+
+
+  def __eq__(self, other: object) -> bool:
+    if not isinstance(other, WireGuardInterface):
+      return False
+    return self.config.name == other.config.name
 
 
   def __str__(self) -> str:
@@ -303,14 +310,14 @@ class WireGuardInterface:
     # Delete interface if it already exists
     if result.returncode == 0:
       try:
-        log.debug(f"[WG] {self.config.intf.name}: making sure interface doesn't exist")
+        self.log.debug("making sure interface doesn't exist")
         exec_command(
           ["ip", "link", "delete", "dev", self.config.intf.name])
       except:
         raise WireGuardError(f"failed to delete wireguard interface: {self.config.intf.name}")
     # Create interface
     try:
-      log.debug(f"[WG] {self.config.intf.name}: creating WireGuard interface")
+      self.log.debug("creating WireGuard interface")
       exec_command(
         ["ip", "link", "add", "dev", self.config.intf.name, "type", "wireguard"])
     except:
@@ -318,27 +325,27 @@ class WireGuardInterface:
     # Set MTU
     if self.config.intf.mtu:
       try:
-        log.debug(f"[WG] {self.config.intf.name}: setting interface MTU")
+        self.log.debug("setting interface MTU")
         exec_command(
           ["ip", "link", "set", "dev", self.config.intf.name, "mtu", str(self.config.intf.mtu)])
       except:
         raise WireGuardError(f"failed to set interface MTU: {self.config.intf.name}, {self.config.intf.mtu}")
     # Mark interface as up
     self.created = True
-    log.activity(f"[WG] {self.config.intf.name}: created")
+    self.log.activity("created")
 
 
   def delete(self):
     # Remove interface with "ip link delete dev..."
     try:
-      log.debug(f"[WG] {self.config.intf.name}: deleting interface")
+      self.log.debug("deleting interface")
       exec_command(
         ["ip", "link", "delete", "dev", self.config.intf.name])
     except:
       raise WireGuardError(f"failed to delete wireguard interface: {self.config.intf.name}")
     # Mark interface as up
     self.created = False
-    log.activity(f"[WG] {self.config.intf.name}: deleted")
+    self.log.activity("deleted")
 
 
   def bring_up(self):
@@ -353,20 +360,20 @@ class WireGuardInterface:
       raise WireGuardError(f"failed to generate configuration for wireguard interface: {self.config.intf.name}")
     # Disable and reset interface
     try:
-      log.debug(f"[WG] {self.config.intf.name}: making sure interface is disabled")
+      self.log.debug("making sure interface is disabled")
       exec_command(
         ["ip", "link", "set", "down", "dev", self.config.intf.name])
     except:
       raise WireGuardError(f"failed to disable wireguard interface: {self.config.intf.name}")
     try:
-      log.debug(f"[WG] {self.config.intf.name}: resetting interface configuration")
+      self.log.debug("resetting interface configuration")
       exec_command(
         ["ip", "address", "flush", "dev", self.config.intf.name])
     except:
       raise WireGuardError(f"failed to reset wireguard interface: {self.config.intf.name}")
     # Configure interface with the expected address
     try:
-      log.debug(f"[WG] {self.config.intf.name}: creating interface with address {self.config.intf.address}/{self.config.intf.netmask}")
+      self.log.debug("creating interface with address {}/{}", self.config.intf.address, self.config.intf.netmask)
       exec_command(
         ["ip", "address", "add", "dev", self.config.intf.name,
           f"{self.config.intf.address}/{self.config.intf.netmask}"])
@@ -374,14 +381,14 @@ class WireGuardInterface:
       raise WireGuardError(f"failed to configure address on wireguard interface: {self.config.intf.name}, {self.config.intf.address}/{self.config.intf.netmask}")
     # Set wireguard configuration with "wg setconf..."
     try:
-      log.debug(f"[WG] {self.config.intf.name}: configuring WireGuard")
+      self.log.debug("configuring WireGuard")
       exec_command(
         ["wg", "setconf", self.config.intf.name, wg_config])
     except:
       raise WireGuardError(f"failed to set wireguard configuration on interface: {self.config.intf.name}")
     # Activate interface with "ip link set up dev..."
     try:
-      log.debug(f"[WG] {self.config.intf.name}: enabling interface")
+      self.log.debug("enabling interface")
       exec_command(
         ["ip", "link", "set", "up", "dev", self.config.intf.name])
     except:
@@ -392,26 +399,26 @@ class WireGuardInterface:
     #     self._allow_ip_for_peer(p, a)
     # Mark interface as up
     self.up = True
-    log.activity(f"[WG] {self.config.intf.name}: up [{self.config.intf.address}/{self.config.intf.netmask}]")
+    self.log.activity("up [{}/{}]", self.config.intf.address, self.config.intf.netmask)
 
 
   def tear_down(self):
     # Disable interface with "ip link set down dev..."
     try:
-      log.debug(f"[WG] {self.config.intf.name}: disabling interface")
+      self.log.debug("disabling interface")
       exec_command(
         ["ip", "link", "set", "down", "dev", self.config.intf.name])
     except:
       raise WireGuardError(f"failed to disable wireguard interface: {self.config.intf.name}")
     try:
-      log.debug(f"[WG] {self.config.intf.name}: resetting interface configuration")
+      self.log.debug("resetting interface configuration")
       exec_command(
         ["ip", "address", "flush", "dev", self.config.intf.name])
     except:
       raise WireGuardError(f"failed to reset wireguard interface: {self.config.intf.name}")
     # Mark interface as down
     self.up = False
-    log.activity(f"[WG] {self.config.intf.name}: down")
+    self.log.activity("down")
 
 
   def _list_peers(self) -> Iterable[str]:
@@ -509,11 +516,11 @@ class WireGuardInterface:
     # sort ips for tidyness in `wg show`'s output
     allowed_ips_str = sorted(map(str,allowed_ips))
     try:
-      log.debug(f"[WG] {self.config.intf.name}: setting allowed IPs for peer #{peer.id}")
+      self.log.debug("setting allowed IPs for peer #{}", peer.id)
       exec_command(
         ["wg", "set", self.config.intf.name,
             "peer", peer.pubkey, "allowed-ips", ",".join(allowed_ips_str)])
-      log.activity(f"[WG] {self.config.intf.name}: allowed #{peer.id} = [{', '.join(allowed_ips_str)}]")
+      self.log.activity("allowed #{} = [{}]", peer.id, ', '.join(allowed_ips_str))
     except:
       raise WireGuardError(f"failed to set allowed peers on interface: {self.config.intf.name}")
     # allowed_ips_set = self._list_allowed_ips_peer(peer)

@@ -22,6 +22,9 @@ import jinja2
 from .time import Timestamp
 import ipaddress
 
+from .log import Logger
+log = Logger.sublogger("render")
+
 
 def humanbytes(B):
   'Return the given bytes as a human friendly KB, MB, GB, or TB string'
@@ -82,7 +85,6 @@ def _filter_ip_default_route(addr: str):
     route = ipv4_get_route(ipaddress.ip_address(addr))
     return str(route)
   except Exception as e:
-    from .log import Logger as log
     log.error(f"failed to get route to address: {addr}")
     log.exception(e)
     return None
@@ -149,7 +151,7 @@ class _Templates:
     with tmp_f.open("wt") as output_stream:
       for line in self.render_lines(template, ctx):
         output_stream.write(line)
-    exec_command(["cp", "-a", tmp_f, output])
+    exec_command(["cp", "-av", tmp_f, output])
 
 
 Templates = _Templates()

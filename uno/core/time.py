@@ -34,6 +34,10 @@ class Timestamp:
     return self._ts.timetz() == other._ts.timetz()
 
 
+  def __hash__(self) -> int:
+    return hash(self._ts)
+
+
   def subtract(self, ts: Union["Timestamp", int]) -> timedelta:
     return self._ts - ts._ts
 

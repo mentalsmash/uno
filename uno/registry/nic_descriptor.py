@@ -15,7 +15,7 @@
 # along with this program. If not, see <https://www.gnu.org/licenses/>.
 ###############################################################################
 import ipaddress
-from typing import Sequence
+from typing import Sequence, TYPE_CHECKING
 from .versioned import Versioned
 
 from ..core.ip import (
@@ -23,6 +23,9 @@ from ..core.ip import (
   list_local_nics,
   ipv4_nic_network,
 )
+
+if TYPE_CHECKING:
+  from .database import Database
 
 class NicDescriptor(Versioned):
   PROPERTIES = [
@@ -61,17 +64,18 @@ class NicDescriptor(Versioned):
 
 
   @classmethod
-  def list_local_networks(self, *args, **kwargs) -> "Sequence[NicDescriptor]":
+  def list_local_networks(cls, parent: "Versioned", *args, **kwargs) -> "Sequence[NicDescriptor]":
     """
     Return a list generator of all IPv4 networks associated with local nics.
     The list contains dict() elements describing each network
     """
     roaming = kwargs.get("roaming")
     return [
-      NicDescriptor(
-        name=nic,
-        address=ipaddress.IPv4Address(nic_addr["addr"]),
-        subnet=subnet)
+      parent.new_child(NicDescriptor, {
+        "name": nic,
+        "address": ipaddress.IPv4Address(nic_addr["addr"]),
+        "subnet": subnet
+      })
       for nic, nic_addrs in list_local_nics(*args, **kwargs)
         for nic_addr in nic_addrs
           for subnet in [ipv4_nic_network(

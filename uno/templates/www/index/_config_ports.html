@@ -33,7 +33,7 @@
             {%- if peer.cell and peer.cell.address -%}
             {{peer.cell.address}}
             {%- elif peer.registry -%}
-            {{uvn_id.address}}
+            {{uvn.address}}
             {%- else -%}
             N/A
             {%- endif -%}
@@ -41,17 +41,17 @@
           <td>
             {% if peer.cell %}
             {% if peer.cell.address %}
-              {{uvn_id.settings.root_vpn.peer_port}}
+              {{uvn.settings.root_vpn.peer_port}}
   
-              {{uvn_id.settings.particles_vpn.port}}
+              {{uvn.settings.particles_vpn.port}}
             {% endif %}
   
             {% set peer_bbone = deployment.peers[peer.id]["peers"] | length %}
             {% for n in range(peer_bbone) %}
-              {{uvn_id.settings.backbone_vpn.port + n}}
+              {{uvn.settings.backbone_vpn.port + n}}
             {% endfor %}
             {% elif peer.registry %}
-            {{uvn_id.settings.root_vpn.port}}
+            {{uvn.settings.root_vpn.port}}
             {% endif %}
           </td>
         </tr>

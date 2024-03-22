@@ -16,7 +16,6 @@
 ###############################################################################
 import threading
 
-from .log import Logger as log
 
 class MonitorThread(threading.Thread):
   def __init__(self, name, min_wait=0):
@@ -44,23 +43,17 @@ class MonitorThread(threading.Thread):
   def run(self):
     complete = False
     while not complete and not self._exit:
-      # log.activity(f"MONITOR {self} waiting")
       self._sem_run.acquire()
-      # log.activity(f"MONITOR {self} up")
       if self._exit:
-        # log.activity(f"MONITOR {self} exiting...")
         continue
 
-      # log.activity(f"MONITOR {self} checking run")
       run = False
       with self._lock:
         run = self._queued
         if run:
           self._queued = False
       if run:
-        # log.activity(f"MONITOR {self} do monitor ")
         self._do_monitor()
-      # log.activity(f"MONITOR {self} checking done run")
       if self._min_wait:
         complete = self._sem_exit.acquire(timeout=self._min_wait)
       else:

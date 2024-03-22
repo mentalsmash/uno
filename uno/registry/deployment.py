@@ -16,17 +16,15 @@
 ###############################################################################
 from functools import partial
 import random
-from typing import Tuple, Callable, Sequence, Optional, Iterable
+from typing import Callable, Sequence, Iterable
 from enum import Enum
 
 import ipaddress
 
 from ..core.paired_map import PairedValuesMap
-from ..core.time import Timestamp
-from ..core.log import Logger as log
 from ..registry.versioned import Versioned
 
-class P2PLinkAllocationMap(PairedValuesMap):
+class P2pLinkAllocationMap(PairedValuesMap):
   def __init__(self,subnet: ipaddress.IPv4Network) -> None:
     self.subnet = subnet
     self._next_ip = self.subnet.network_address + 2
@@ -38,7 +36,7 @@ class P2PLinkAllocationMap(PairedValuesMap):
     self._next_ip += 1
     return result
 
-  def generate_val(self, peer_a: int, peer_b: int) -> Tuple[Tuple[ipaddress.IPv4Address, ipaddress.IPv4Address], ipaddress.IPv4Network]:
+  def generate_val(self, peer_a: int, peer_b: int) -> tuple[tuple[ipaddress.IPv4Address, ipaddress.IPv4Address], ipaddress.IPv4Network]:
     peer_a_ip = self._allocate_ip()
     peer_b_ip = self._allocate_ip()
     peer_a_net = ipaddress.ip_network(f"{peer_a_ip}/31")
@@ -49,11 +47,14 @@ class P2PLinkAllocationMap(PairedValuesMap):
     return ((peer_a_ip, peer_b_ip), peer_a_net)
 
 
-class P2PLinksMap(Versioned):
+class P2pLinksMap(Versioned):
   PROPERTIES = [
     "peers",
   ]
   REQ_PROPERTIES = [
+    "peers",
+  ]
+  RO_PROPERTIES = [
     "peers",
   ]
 
@@ -73,7 +74,7 @@ class P2PLinksMap(Versioned):
     }
 
 
-  def serialize_peers(self, val: dict) -> dict:
+  def serialize_peers(self, val: dict, public: bool=False) -> dict:
     return {
       peer_a_id: {
         "n": peer_a["n"],
@@ -125,6 +126,12 @@ class DeploymentStrategy(Versioned):
   REQ_PROPERTIES = [
     "peers",
   ]
+  RO_PROPERTIES = [
+    "peers",
+    "args",
+    "private_peers",
+    "public_peers",
+  ]
   INITIAL_ARGS = lambda self: {}
   INITIAL_PRIVATE_PEERS = lambda self: set()
   INITIAL_PUBLIC_PEERS = lambda self: self.peers - self.private_peers
@@ -137,7 +144,7 @@ class DeploymentStrategy(Versioned):
     return set(val)
 
 
-  def validate_new(self) -> None:
+  def validate(self) -> None:
     if not self.ALLOW_PRIVATE_PEERS and self.private_peers:
       raise RuntimeError("strategy requires all peers to be public",
         self.KIND.name, {"private": self.private_peers, "public": self.public_peers})
@@ -147,11 +154,11 @@ class DeploymentStrategy(Versioned):
     return self.KIND.name
 
 
-  def _generate_deployment(self)  -> Tuple[Sequence[int], Callable[[int], int], Sequence[Callable[[int], int]]]:
+  def _generate_deployment(self)  -> tuple[Sequence[int], Callable[[int], int], Sequence[Callable[[int], int]]]:
     raise NotImplementedError()
 
 
-  def deploy(self, network_map: P2PLinkAllocationMap) -> P2PLinksMap:
+  def deploy(self, network_map: P2pLinkAllocationMap) -> P2pLinksMap:
     deployed_peers, deployed_peers_count, deployed_peers_connections = (
       self._generate_deployment() if len(self.public_peers) > 0 else
       self.EMPTY_DEPLOYMENT
@@ -173,20 +180,21 @@ class DeploymentStrategy(Versioned):
         },
       } for n, peer_a in enumerate(deployed_peers)
     }
-    return self.new_child(P2PLinksMap, peers=peers_map)
+    return self.new_child(P2pLinksMap, {"peers": peers_map})
 
 
 class StaticDeploymentStrategy(DeploymentStrategy):
   PROPERTIES = ["static_deployment"]
+  # RO_PROPERTIES = ["static_deployment"]
 
   INITIAL_STATIC_DEPLOYMENT = lambda self: tuple(
     (p, tuple(peers))
       for p, peers in self.args.get("peers_map", []))
 
 
-  def _generate_deployment(self)  -> Tuple[Sequence[int], Callable[[int], int], Sequence[Callable[[int], int]]]:
+  def _generate_deployment(self)  -> tuple[Sequence[int], Callable[[int], int], Sequence[Callable[[int], int]]]:
     if not self.static_deployment:
-      log.warning("[STATIC-STRATEGY] no configuration specified, the deployment will be empty.")
+      self.log.warning("no configuration specified, the deployment will be empty.")
       return self.EMPTY_DEPLOYMENT
 
     peer_ids = [id for id, _ in self.static_deployment]
@@ -199,18 +207,21 @@ class StaticDeploymentStrategy(DeploymentStrategy):
     max_peers_count = max(peers_counts or [0])
 
     def _mk_peer_generator(peer_b_i: int):
-      def _peer_generator(peer_a_i: int) -> Optional[int]:
+      def _peer_generator(peer_a_i: int) -> int|None:
         try:
           res = self.static_deployment[peer_a_i]
         except IndexError:
-          log.warning(f"[STATIC-STRATEGY] unknown peer ({peer_a_i}) detected for link: {peer_a_i} → {peer_b_i}")
+          self.log.warning("unknown peer ({}) detected for link: {} → {}",
+            peer_a_i,
+            peer_a_i,
+            peer_b_i)
           return None
         peer_id, static_peers = res
         res = static_peers[peer_b_i]
         try:
           return peer_ids.index(res)
         except ValueError:
-          log.warning(f"[STATIC-STRATEGY] unknown peer ({peer_b_i})")
+          self.log.warning("unknown peer ({})", peer_b_i)
       return _peer_generator
 
     peer_generators = [
@@ -248,7 +259,7 @@ class CrossedDeploymentStrategy(StaticDeploymentStrategy):
       return peer_i - offset
 
 
-  def _generate_deployment_all_public(self, public_peers: Iterable[int])  -> Tuple[Sequence[int], Callable[[int], int], Sequence[Callable[[int], int]]]:
+  def _generate_deployment_all_public(self, public_peers: Iterable[int])  -> tuple[Sequence[int], Callable[[int], int], Sequence[Callable[[int], int]]]:
     # assert(not self.private_peers)
     peer_count = len(public_peers)
 
@@ -276,7 +287,7 @@ class CrossedDeploymentStrategy(StaticDeploymentStrategy):
     ])
 
 
-  def _generate_deployment(self)  -> Tuple[Sequence[int], Callable[[int], int], Sequence[Callable[[int], int]]]:
+  def _generate_deployment(self)  -> tuple[Sequence[int], Callable[[int], int], Sequence[Callable[[int], int]]]:
     if len(self.public_peers) > 1:
       public_peers_id, pub_peers_peers_count, pub_peers_peer_generators = self._generate_deployment_all_public(self.public_peers)
       if not self.private_peers:
@@ -346,7 +357,7 @@ class CircularDeploymentStrategy(CrossedDeploymentStrategy):
   KIND = DeploymentStrategyKind.CIRCULAR
   ALLOW_PRIVATE_PEERS = True
 
-  def _generate_deployment_all_public(self, public_peers: Iterable[int])  -> Tuple[Sequence[int], Callable[[int], int], Sequence[Callable[[int], int]]]:
+  def _generate_deployment_all_public(self, public_peers: Iterable[int])  -> tuple[Sequence[int], Callable[[int], int], Sequence[Callable[[int], int]]]:
     # assert(not self.private_peers)
     peer_count = len(public_peers)
 
@@ -380,7 +391,7 @@ class RandomDeploymentGraph:
       min_peer_edges: int,
       ok_peer_edges: int,
       max_peer_edges: int,
-      private_peers: Optional[Iterable[int]]=None) -> None:
+      private_peers: Iterable[int]|None=None) -> None:
     self.min_peer_edges = min_peer_edges
     self.ok_peer_edges = ok_peer_edges
     self.max_peer_edges = max_peer_edges
@@ -422,12 +433,12 @@ class RandomDeploymentGraph:
     visited = set()
     edges = list()
 
-    def _pick_random(peers: Optional[Iterable[int]]) -> Tuple[int, bool]:
+    def _pick_random(peers: Iterable[int]|None) -> tuple[int, bool]:
       peer = random.sample(list(peers), 1).pop()
       peer_public = peer in self.public_peers
       return peer, peer_public
 
-    def _pick_random_neighbor(current_public: bool=False) -> Tuple[int, bool]:
+    def _pick_random_neighbor(current_public: bool=False) -> tuple[int, bool]:
       # if not current_public:
       #   neighbors = self.public_peers - visited
       # else:
@@ -488,19 +499,19 @@ class RandomDeploymentGraph:
 
         if test_partial():
           return
-        log.error("[RND-STRATEGY] Failed to generate a backbone deployment with the 'random' strategy.")
-        log.error("[RND-STRATEGY] You can try to run this command again, and it is possible that the generation will succeeed.")
-        log.error("[RND-STRATEGY] If it continues to fail, adjust the min/ok/max parameters.")
-        log.error("[RND-STRATEGY] In the worst case, you might have to define the deployment manually using the 'static' strategy.")
+        self.log.error("Failed to generate a backbone deployment with the 'random' strategy.")
+        self.log.error("You can try to run this command again, and it is possible that the generation will succeeed.")
+        self.log.error("If it continues to fail, adjust the min/ok/max parameters.")
+        self.log.error("In the worst case, you might have to define the deployment manually using the 'static' strategy.")
         import pprint
-        log.warning(f"[RND-STRATEGY] Allocated peer links: {pprint.pformat(self.peer_edges)}")
-        log.warning(f"[RND-STRATEGY] {pprint.pformat(self.peer_edges)}")
-        log.warning(f"[RND-STRATEGY] - min: {self.min_peer_edges}, ok: {self.ok_peer_edges}, max: {self.max_peer_edges}")
-        log.warning(f"[RND-STRATEGY] - public peers [{len(self.public_peers)}] = {self.public_peers}")
-        log.warning(f"[RND-STRATEGY] - private peers [{len(self.private_peers)}] = {self.private_peers}")
-        log.warning(f"[RND-STRATEGY] - min peers [{len(self.min_peers)}] = {self.min_peers}")
-        log.warning(f"[RND-STRATEGY] - ok peers [{len(self.ok_peers)}] = {self.ok_peers}")
-        log.warning(f"[RND-STRATEGY] - max peers [{len(self.full_peers)}] = {self.full_peers}")
+        self.log.warning("Allocated peer links: {}", pprint.pformat(self.peer_edges))
+        self.log.warning("{}", pprint.pformat(self.peer_edges))
+        self.log.warning("- min: {}, ok: {}, max: {}", self.min_peer_edges, self.ok_peer_edges, self.max_peer_edges)
+        self.log.warning("- public peers [{}] = {}", len(self.public_peers), self.public_peers)
+        self.log.warning("- private peers [{}] = {}", len(self.private_peers), self.private_peers)
+        self.log.warning("- min peers [{}] = {}", len(self.min_peers), self.min_peers)
+        self.log.warning("- ok peers [{}] = {}", len(self.ok_peers), self.ok_peers)
+        self.log.warning("- max peers [{}] = {}", len(self.full_peers), self.full_peers)
         raise RuntimeError("failed to generate requested edges")
       finally:
         if validate:
@@ -545,7 +556,7 @@ class RandomDeploymentStrategy(StaticDeploymentStrategy):
     self.max_peer_edges = max_peers
 
 
-  def _generate_deployment(self)  -> Tuple[Sequence[int], Callable[[int], int], Sequence[Callable[[int], int]]]:
+  def _generate_deployment(self)  -> tuple[Sequence[int], Callable[[int], int], Sequence[Callable[[int], int]]]:
     graph = RandomDeploymentGraph(
       peers=self.peers,
       min_peer_edges=self.min_peer_edges,
@@ -565,7 +576,7 @@ class FullMeshDeploymentStrategy(StaticDeploymentStrategy):
   KIND  = DeploymentStrategyKind.FULL_MESH
 
 
-  def _generate_deployment(self)  -> Tuple[Sequence[int], Callable[[int], int], Sequence[Callable[[int], int]]]:
+  def _generate_deployment(self)  -> tuple[Sequence[int], Callable[[int], int], Sequence[Callable[[int], int]]]:
     graph = {
       a: [
         b

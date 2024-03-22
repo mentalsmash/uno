@@ -54,6 +54,10 @@ def cli_parser_args_common(parser: argparse._SubParsersAction|argparse.ArgumentP
     action="count",
     default=0,
     help="Increase output verbosity. Repeat for increased verbosity.")
+  parser.add_argument("-q", "--quiet",
+    action="count",
+    default=False,
+    help="Suppress all logger output.")
   opts = parser.add_argument_group("User Interaction Options")
   opts.add_argument("-y", "--yes",
     help="Do not prompt the user with questions, and always assume "
@@ -91,7 +95,13 @@ def cli_command_main(define_parser: Callable[[argparse._SubParsersAction], None]
   if cmd is None:
     raise RuntimeError("no command specified")
 
-  if args.verbose >= 2:
+  if args.quiet:
+    set_verbosity(log_level.quiet)
+  elif args.verbose >= 4:
+    set_verbosity(log_level.tracedbg)
+  elif args.verbose >= 3:
+    set_verbosity(log_level.trace)
+  elif args.verbose >= 2:
     set_verbosity(log_level.debug)
   elif args.verbose >= 1:
     set_verbosity(log_level.activity)
