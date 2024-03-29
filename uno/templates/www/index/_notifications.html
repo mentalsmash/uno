@@ -1,8 +1,10 @@
 {%if not peers.status_fully_routed_uvn %}
-{% if peers.local.reachable_networks and peers.local.unreachable_networks %}
+{%- set reachable = peers.local.reachable_networks | list -%}
+{%- set unreachable = peers.local.unreachable_networks | list -%}
+{% if reachable and unreachable %}
 <div class="alert alert-warning" role="alert">
-  {{peers.local.unreachable_networks|length}} network{%if peers.local.unreachable_networks|length != 1%}s are{%else%} is{%endif%} unreachable:
-  {%for lan in peers.local.unreachable_networks %}{{lan.nic.subnet.network_address}}/{{lan.nic.netmask}}{%if not loop.last%}, {%endif%}{%endfor%}
+  {{unreachable|length}} network{%if unreachable|length != 1%}s are{%else%} is{%endif%} unreachable:
+  {%for lan in unreachable %}{{lan.nic.subnet.network_address}}/{{lan.nic.netmask}}{%if not loop.last%}, {%endif%}{%endfor%}
 </div>
 {% else %}
 <div class="alert alert-warning" role="alert">

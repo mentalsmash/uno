@@ -1,4 +1,4 @@
-{%- if not peer.id -%}
+{%- if not peer.cell and not peer.particle -%}
 {%-  set pill_status = "primary" -%}
 {%- elif peer.registry_id == registry_id -%}
 {%-  set pill_status = "success" -%}

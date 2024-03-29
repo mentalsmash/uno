@@ -30,9 +30,14 @@ def _print_result(args: argparse.Namespace, result: Versioned) -> None:
 def registry_action(action: Callable[[argparse.Namespace, Registry], None]) -> Callable[[argparse.Namespace], None]:
   def _wrapped(args: argparse.Namespace) -> None:
     registry = Registry.open(args.root)
-    generate = action(args, registry)
-    if generate:
-      changed = registry.generate_artifacts(force=getattr(args, "generate", False))
+    # generate = action(args, registry)
+    action(args, registry)
+    
+    if registry.dirty:
+      # changed = registry.generate_artifacts(force=getattr(args, "generate", False))
+      changed = registry.generate_artifacts()
+    else:
+      registry.log.info("unchanged")
   return _wrapped;
 
 
@@ -51,6 +56,7 @@ def registry_config_uvn(args: argparse.Namespace, registry: Registry) -> bool:
     owner = registry.load_user(args.owner)
     registry.uvn.set_ownership(owner)
   registry.configure(**args.config_registry(args))
+  # registry.db.save(registry)
   _print_result(args, registry)
   return registry.dirty
 
@@ -177,8 +183,9 @@ def registry_unban_user(args: argparse.Namespace, registry: Registry) -> bool:
 
 @registry_action
 def registry_redeploy(args: argparse.Namespace, registry: Registry) -> bool:
-  registry.redeploy(
-    backbone_vpn_settings=args.config_registry(args)["uvn"]["settings"]["backbone_vpn"])
+  registry.uvn.settings.deployment.configure(**args.config_registry(args)["uvn"]["settings"]["deployment"])
+  registry.redeploy()
+  registry.backbone_vpn_keymat.drop_keys(delete=True)
   return True
 
 

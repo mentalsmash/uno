@@ -17,13 +17,18 @@
 from typing import Callable
 import argparse
 
-from uno.agent.agent import Agent
+from uno.agent.agent import Agent, AgentReload
 from uno.registry.package import Packager
 
 def agent_action(action: Callable[[argparse.Namespace, Agent], None]) -> Callable[[argparse.Namespace], None]:
   def _wrapped(args: argparse.Namespace) -> None:
     agent = Agent.open(args.root)
-    action(args, agent)
+    while True:
+      try:
+        action(args, agent)
+        break
+      except AgentReload as e:
+        agent = Agent.reload(agent, e.agent)
   return _wrapped;
 
 
@@ -33,7 +38,9 @@ def agent_install(args: argparse.Namespace) -> None:
 
 @agent_action
 def agent_sync(args: argparse.Namespace, agent: Agent) -> None:
-  agent.spin_until_consistent()
+  agent.spin_until_consistent(
+    max_spin_time=args.max_run_time,
+    config_only=args.consistent_config)
 
 
 @agent_action
@@ -43,8 +50,9 @@ def agent_update(args: argparse.Namespace, agent: Agent) -> None:
 
 @agent_action
 def agent_run(args: argparse.Namespace, agent: Agent) -> None:
-  with agent.start():
-    agent.spin(max_spin_time=args.max_run_time)
+  agent.log.info("starting to spin...")
+  agent.spin()
+  agent.log.info("stopped")
 
 
 @agent_action

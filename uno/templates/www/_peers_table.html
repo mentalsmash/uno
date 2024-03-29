@@ -58,7 +58,7 @@
           </td>
           <td>
             {% if peer.cell %}
-            {% set backbone_peers = deployment.get_peers(peer.id) -%}
+            {% set backbone_peers = deployment.get_peers(peer.owner.id) -%}
             {% for peer_id in backbone_peers -%}
             {%- set bb_peer = peers[peer_id] -%}
             {%- with peer = bb_peer -%}
@@ -74,10 +74,10 @@
             {% if not peers_tester %}
             N/A
             {%else%}
-            {%- for lan, lan_status in peer.id |  find_lan_status_by_peer(peers_tester) %}
+            {%- for lan, lan_status in peer.owner.id |  find_lan_status_by_peer(peers_tester) %}
             {%-   include "www/_lan_pill.html" with context %}
             {%- else -%}
-            {% if peer.status.name == "DECLARED" or not peer.id %}
+            {% if peer.status.name == "DECLARED" or not peer.owner.id %}
             N/A
             {% else %}
             None

@@ -39,7 +39,7 @@ class Particle(Versioned, OwnableDatabaseObject, DatabaseObjectOwner):
   ]
   REQ_PROPERTIES = RO_PROPERTIES
   STR_PROPERTIES = [
-    "id",
+    # "id",
     "name",
   ]
   DB_TABLE_PROPERTIES = [
@@ -47,6 +47,7 @@ class Particle(Versioned, OwnableDatabaseObject, DatabaseObjectOwner):
     "owner_id",
   ]
   DB_TABLE = "particles"
+  # DB_ID_POOL = "uvns"
   DB_OWNER = User
   DB_OWNER_TABLE_COLUMN = "owner_id"
 
@@ -59,8 +60,8 @@ class Particle(Versioned, OwnableDatabaseObject, DatabaseObjectOwner):
     return next(self.db.load(Uvn, id=self.uvn_id, cursor=cursor))
 
 
-  def validate(self) -> None:
-    self.uvn.validate_particle(self)
+  # def validate(self) -> None:
+  #   self.uvn.validate_particle(self)
 
 
   def prepare_name(self, val: str) -> None:

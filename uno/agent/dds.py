@@ -18,26 +18,17 @@ from typing import Sequence, Mapping, Iterable
 import rti.connextdds as dds
 from pathlib import Path
 
+from .agent_service import AgentService, StopAgentServiceError
+
 from ..core.log import Logger
 log = Logger.sublogger("dds")
 
 from ..registry.dds import UvnTopic
 
-class DdsParticipantConfig:
+
+class DdsParticipant(AgentService):
   PARTICIPANT_PROFILE = "UnoParticipants::UvnAgent"
 
-  def __init__(self,
-      participant_xml_config: Path,
-      writers: Iterable[UvnTopic] | None = None,
-      readers: Mapping[UvnTopic, dict] | None = None,
-      user_conditions: Iterable[dds.GuardCondition] | None = None) -> None:
-    self.participant_xml_config = participant_xml_config
-    self.writers = list(writers or [])
-    self.readers = dict(readers or {})
-    self.user_conditions = list(user_conditions or [])
-
-
-class DdsParticipant:
   WRITER_NAMES = {
     UvnTopic.UVN_ID: "Publisher::UvnInfoWriter",
     UvnTopic.CELL_ID: "Publisher::CellInfoWriter",
@@ -68,7 +59,7 @@ class DdsParticipant:
     "uno::IpAddress",
   }
 
-  def __init__(self) -> None:
+  def __init__(self, **properties) -> None:
     self._qos_provider = None
     self._dp = None
     self._waitset = None
@@ -81,24 +72,24 @@ class DdsParticipant:
     self._data_conditions = {}
     self.exit_condition = dds.GuardCondition()
     self._user_conditions = []
+    super().__init__(**properties)
 
 
-  def start(self,config: DdsParticipantConfig) -> None:
-    log.debug("STARTING...")
+  def _start(self) -> None:
+    # HACK set NDDSHOME so that the Connext Python API finds the license file
+    import os
+    os.environ["NDDSHOME"] = str(self.root)
 
-    qos_provider = dds.QosProvider(str(config.participant_xml_config))
+    qos_provider = dds.QosProvider(str(self.agent.participant_xml_config))
     self.types = self._register_types(qos_provider)
-
-    self._dp = qos_provider.create_participant_from_config(DdsParticipantConfig.PARTICIPANT_PROFILE)
-
-    self.writers, self._writer_conditions = self._create_writers(self._dp, config.writers)
-
-    self._readers, self._reader_conditions, self._data_conditions = self._create_readers(self._dp, config.readers)
-
-    self._user_conditions = config.user_conditions
-
+    self._dp = qos_provider.create_participant_from_config(self.PARTICIPANT_PROFILE)
+    (self.writers,
+     self._writer_conditions) = self._create_writers(self._dp, self.agent.dds_topics["writers"])
+    (self._readers,
+     self._reader_conditions,
+     self._data_conditions) = self._create_readers(self._dp, self.agent.dds_topics["readers"])
+    self._user_conditions = [svc.updated_condition for svc in self.agent.services]
     self._waitset = dds.WaitSet()
-
     for condition in (
         self.exit_condition,
         *self._writer_conditions.values(),
@@ -107,22 +98,31 @@ class DdsParticipant:
         *self._user_conditions):
       self._waitset += condition
       self._waitset_attached.append(condition)
-    
-    log.activity("started")
 
-
-  def stop(self) -> None:
-    log.debug("STOP in process...")
+  def _stop(self, assert_stopped: bool) -> None:
+    errors = []
     for condition in list(self._waitset_attached):
       if not condition:
         continue
-      self._waitset -= condition
-      self._waitset_attached.remove(condition)
+      try:
+        self._waitset -= condition
+        self._waitset_attached.remove(condition)
+      except Exception as e:
+        if not assert_stopped:
+          raise
+        self.log.error("failed to detach DDS condition: {}", condition)
+        self.log.exception(e)
+        errors.append(e)
     self._waitset_attached = []
-
     if self._dp:
-      self._dp.close()
-
+      try:
+        self._dp.close()
+      except Exception as e:
+        if not assert_stopped:
+          raise
+        self.log.error("failed to stop DDS participan: {}", self._dp)
+        self.log.exception(e)
+        errors.append(e)
     self._waitset = None
     self.writers = {}
     self._writer_conditions = {}
@@ -132,7 +132,8 @@ class DdsParticipant:
     self._data_conditions = {}
     self._user_conditions = []
     self._dp = None
-    log.activity("stopped")
+    if errors:
+      raise StopAgentServiceError(errors)
 
 
   def wait(self) -> tuple[bool, Sequence[tuple[UvnTopic, dds.DataWriter]], Sequence[tuple[UvnTopic, dds.DataReader]], Sequence[tuple[UvnTopic, dds.DataReader, dds.QueryCondition]], Sequence[dds.Condition]]:
@@ -162,10 +163,12 @@ class DdsParticipant:
       for topic, cond in self._data_conditions.items()
         if cond in active_conditions
     ]
-    active_user = [
-      cond for cond in self._user_conditions
-        if cond in active_conditions
-    ]
+    active_user = []
+    for cond in self._user_conditions:
+      if cond not in active_conditions:
+        continue
+      cond.trigger_value = False
+      active_user.append(cond)
 
     return (False, active_writers, active_readers, active_data, active_user)
 

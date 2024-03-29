@@ -21,7 +21,7 @@ from functools import cached_property
 from ..core.paired_map import PairedValuesMap
 
 from .wg_key import WireGuardKeyPair, WireGuardPsk
-from .versioned import Versioned, disabled_if_readonly, noop_if_readonly, dispatch_if_readonly
+from .versioned import Versioned, disabled_if, error_if, static_if, dispatch_if
 from .database_object import inject_db_cursor
 
 if TYPE_CHECKING:
@@ -38,6 +38,10 @@ class VpnKeysMap(Versioned, PairedValuesMap):
     "prefer_dropped",
     "dropped",
     "deleted",
+  ]
+  EQ_PROPERTIES = [
+    "prefix",
+    "prefer_dropped",
   ]
   REQ_PROPERTIES = [
     "prefix",
@@ -107,7 +111,7 @@ class VpnKeysMap(Versioned, PairedValuesMap):
     return loaded
 
 
-  @dispatch_if_readonly("_ro_assert_pair")
+  @dispatch_if("readonly", "_ro_assert_pair")
   def assert_pair(self,
       peer_a: int,
       peer_b: int,
@@ -135,9 +139,12 @@ class VpnKeysMap(Versioned, PairedValuesMap):
     for pair, key in self.items():
       for key in self.iterate_keys(pair, key):
         yield key
-    for pair, keys in self.dropped.items():
-      for key in self.iterate_keys(pair, keys):
-        yield key
+    # for pair, keys in self.dropped.items():
+    #   for key in self.iterate_keys(pair, keys):
+    #     yield key
+    # for pair, keys in self.deleted.items():
+    #   for key in self.iterate_keys(pair, keys):
+    #     yield key
 
 
   def key_id(self, pair: tuple, extra: str|None=None) -> str:
@@ -147,6 +154,9 @@ class VpnKeysMap(Versioned, PairedValuesMap):
   def save(self, cursor: "Database.Cursor | None" = None, create: bool = False, public: bool=False) -> None:
     # Changed keys were already returned by a "collect_changes()"
     # so clear the state
+    for pair, keys in self.dropped.items():
+      for key in self.iterate_keys(pair, keys):
+        self.db.save(key, cursor=cursor)
     self.dropped.clear()
     # Save remaining changes to this object (noop, other than resetting status flags)
     for pair, keys in self.deleted.items():
@@ -156,10 +166,12 @@ class VpnKeysMap(Versioned, PairedValuesMap):
     super().save(cursor=cursor, create=create, public=public)
 
 
-  @disabled_if_readonly
+  @error_if("readonly")
   def _drop_pair(self, pair: tuple, keys: object, delete: bool=False) -> None:
     for key in self.iterate_keys(pair, keys):
       key.dropped = True
+      # if delete:
+      #   key.disposed = True
     if delete and pair not in self.deleted:
       self.deleted[pair] = keys
       self.updated_property("deleted")
@@ -168,7 +180,7 @@ class VpnKeysMap(Versioned, PairedValuesMap):
       self.updated_property("dropped")
 
 
-  @noop_if_readonly(lambda: {})
+  @static_if("readonly", dict)
   def purge_peer(self, peer: int, delete: bool=False) -> dict[tuple, object]:
     purged = super().purge_peer(peer)
     s_purged = set()
@@ -197,7 +209,7 @@ class VpnKeysMap(Versioned, PairedValuesMap):
       cls=self.KEYS)
 
 
-  @noop_if_readonly(0)
+  @static_if("readonly", 0)
   def drop_keys(self, delete: bool=False, cursor: "Database.Cursor|None"=None) -> int:
     count = 0
     for pair in list(self):
@@ -268,7 +280,7 @@ class PresharedKeysMap(VpnKeysMap):
     return self.new_child(self.KEYS, serialized_key)
 
 
-  @disabled_if_readonly
+  @error_if("readonly")
   def generate_val(self, peer_a: int, peer_b: int) -> WireGuardPsk:
     pair = self.pair_key(peer_a, peer_b)
     self.log.activity("generated psk: {}", pair)
@@ -298,7 +310,7 @@ class PairedVpnKeysMap(VpnKeysMap):
       yield k
 
 
-  @disabled_if_readonly
+  @error_if("readonly")
   def generate_val(self, peer_a: int, peer_b: int) -> tuple[WireGuardKeyPair]:
     pair = self.pair_key(peer_a, peer_b)
     self.log.activity("generate keys: {}", pair)
@@ -327,6 +339,11 @@ class CentralizedVpnKeyMaterial(Versioned):
     "preshared_keys",
     "dropped",
     "deleted",
+  ]
+  EQ_PROPERTIES = [
+    "prefix",
+    # "peer_ids",
+    "prefer_dropped",
   ]
   REQ_PROPERTIES = [
     "prefix",
@@ -403,7 +420,7 @@ class CentralizedVpnKeyMaterial(Versioned):
     
 
 
-  @disabled_if_readonly
+  @error_if("readonly")
   def _drop_key(self, key: WireGuardKeyPair, delete: bool=False) -> None:
     key.dropped = True
     if delete and key not in self.deleted:
@@ -414,9 +431,9 @@ class CentralizedVpnKeyMaterial(Versioned):
       self.updated_property("dropped")
 
 
-  @noop_if_readonly(None)
+  @disabled_if("readonly")
   def assert_keys(self) -> None:
-    self.log.debug("asserting keys for {} peers", len(self.peer_ids))
+    self.log.trace("asserting keys for {} peers", len(self.peer_ids))
     if self.root_key is None:
       self.root_key = self.new_child(WireGuardKeyPair, {"key_id": f"{self.prefix}:root"})
       self.log.activity("generated root key: {}", self.root_key)
@@ -429,7 +446,7 @@ class CentralizedVpnKeyMaterial(Versioned):
       self.preshared_keys.assert_pair(0, peer_id)
 
 
-  @noop_if_readonly(tuple())
+  @static_if("readonly", tuple)
   def purge_gone_peers(self, peer_ids: Iterable[int], delete: bool=False) -> list[int]:
     peer_ids = set(peer_ids)
     purged = []
@@ -446,7 +463,7 @@ class CentralizedVpnKeyMaterial(Versioned):
     return purged
 
 
-  @noop_if_readonly(0)
+  @static_if("readonly", 0)
   def drop_keys(self, delete: bool=False, cursor: "Database.Cursor|None"=None) -> int:
     self.log.activity("dropping all keys")
     count = 0
@@ -514,6 +531,9 @@ class P2pVpnKeyMaterial(Versioned):
     "pair_keys",
     "preshared_keys",
   ]
+  EQ_PROPERTIES = [
+    "prefix",
+  ]
   STR_PROPERTIES = [
     "prefix"
   ]
@@ -532,7 +552,7 @@ class P2pVpnKeyMaterial(Versioned):
     yield self.preshared_keys
 
 
-  @noop_if_readonly(0)
+  @static_if("readonly", 0)
   def drop_keys(self, delete: bool=False, cursor: "Database.Cursor|None"=None) -> int:
     self.log.activity("dropping all keys")
     count = 0
@@ -551,7 +571,7 @@ class P2pVpnKeyMaterial(Versioned):
     self.preshared_keys.clean_dropped_keys(cursor=cursor)
 
 
-  @dispatch_if_readonly("_ro_assert_pair")
+  @dispatch_if("readonly", "_ro_assert_pair")
   def assert_pair(self, peer_a: int, peer_b: int) -> tuple[tuple[tuple[WireGuardKeyPair], WireGuardPsk], bool]:
     keys, asserted_k = self.pair_keys.assert_pair(peer_a, peer_b)
     psk, asserted_p = self.preshared_keys.assert_pair(peer_a, peer_b)

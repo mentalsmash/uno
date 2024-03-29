@@ -241,7 +241,7 @@ test_rc_uvn_particles()
 {
     local i=1
     for n in ${TEST_NETWORKS_PRIVATE}; do
-        uvn_particle particle${i} "Particle ${n} Owner <particle@${n}>"
+        uvn_particle particle${i} "Particle ${n} Owner" "particle@${n}"
         i=$(expr ${i} + 1)
     done
 }
@@ -314,12 +314,15 @@ test_rc_docker_uvn()
 {
     for net in ${TEST_NETWORKS_PRIVATE}; do
         CELL_ID=${net} \
+        UVN_ID=babylon.internet \
         docker_container cell ${net} \
                          $(eval "echo \${IP_${net}_cell}") ${CELLS_DIR}/${net}
     done
     
     if [ -n "${TEST_ROAM}" ]; then
-        CELL_ROAMING=y CELL_ID=roam \
+        CELL_ROAMING=y \
+        CELL_ID=roam \
+        UVN_ID=babylon.internet \
         docker_container    roam        internet    ${IP_internet_roam}     ${CELLS_DIR}/roam
     fi
 

@@ -8,17 +8,18 @@ from ..registry.cell import Cell
 from ..registry.lan_descriptor import LanDescriptor
 from ..core.time import Timestamp
 from ..core.wg import WireGuardInterface
-from ..core.log import Logger
-log = Logger.sublogger("web-ui")
-from .peer import UvnPeersList
+from .uvn_peers_list import UvnPeersList
 from .tester import UvnPeersTester
 from .router import Router
 from .render import Templates
 
-if TYPE_CHECKING:
-  from .cell_agent import CellAgent
+from ..core.log import Logger
+log = Logger.sublogger("html")
 
-def index_html(agent: "CellAgent", docroot: Path) -> None:
+if TYPE_CHECKING:
+  from .agent import Agent
+
+def index_html(agent: "Agent", docroot: Path) -> None:
     _index_html(
       www_root=docroot,
       generation_ts=Timestamp.now().format(),
@@ -26,7 +27,7 @@ def index_html(agent: "CellAgent", docroot: Path) -> None:
       deployment=agent.deployment,
       ts_start=agent.init_ts,
       backbone_vpns=agent.backbone_vpns,
-      cell=agent.local_object,
+      cell=agent.owner,
       lans=agent.lans,
       particles_dir=agent.particles_dir,
       particles_vpn=agent.particles_vpn,
@@ -64,20 +65,20 @@ def _index_html(
       shutil.rmtree(particles_dir_www)
     shutil.copytree(particles_dir, particles_dir_www)
 
-  if router:
-    router.ospf_summary()
-    router.ospf_lsa()
-    router.ospf_routes()
-    ospf_dir = www_root / "ospf"
-    ospf_summary = ospf_dir / f"{router.ospf_summary_f.name}.txt"
-    ospf_lsa = ospf_dir / f"{router.ospf_lsa_f.name}.txt"
-    ospf_routes = ospf_dir / f"{router.ospf_routes_f.name}.txt"
-    if ospf_dir.is_dir():
-      shutil.rmtree(ospf_dir)
-    ospf_dir.mkdir(exist_ok=True)
-    shutil.copy2(router.ospf_summary_f, ospf_summary)
-    shutil.copy2(router.ospf_lsa_f, ospf_lsa)
-    shutil.copy2(router.ospf_routes_f, ospf_routes)
+  # if router:
+  #   router.ospf_summary()
+  #   router.ospf_lsa()
+  #   router.ospf_routes()
+  #   ospf_dir = www_root / "ospf"
+  #   ospf_summary = ospf_dir / f"{router.ospf_summary_f.name}.txt"
+  #   ospf_lsa = ospf_dir / f"{router.ospf_lsa_f.name}.txt"
+  #   ospf_routes = ospf_dir / f"{router.ospf_routes_f.name}.txt"
+  #   if ospf_dir.is_dir():
+  #     shutil.rmtree(ospf_dir)
+  #   ospf_dir.mkdir(exist_ok=True)
+  #   shutil.copy2(router.ospf_summary_f, ospf_summary)
+  #   shutil.copy2(router.ospf_lsa_f, ospf_lsa)
+  #   shutil.copy2(router.ospf_routes_f, ospf_routes)
 
   if uvn_status_plot and uvn_status_plot.is_file():
     www_status_plot = www_root / uvn_status_plot.name
@@ -98,6 +99,7 @@ def _index_html(
   online_peers = sum(1 for c in peers.online_cells)
   offline_peers = sum(1 for c in peers.cells) - online_peers
 
+
   Templates.generate(index_html, "www/index.html", {
     "cell": cell,
     "deployment": deployment,
@@ -114,9 +116,9 @@ def _index_html(
     "registry_id": peers.registry_id or "",
     "root_vpn": root_vpn,
     "router": router,
-    "ospf_summary": ospf_summary.relative_to(www_root),
-    "ospf_lsa": ospf_lsa.relative_to(www_root),
-    "ospf_routes": ospf_routes.relative_to(www_root),
+    # "ospf_summary": ospf_summary.relative_to(www_root),
+    # "ospf_lsa": ospf_lsa.relative_to(www_root),
+    # "ospf_routes": ospf_routes.relative_to(www_root),
     "ts_start": ts_start.format() if ts_start else None,
     "uvn": peers.uvn,
     "uvn_settings": yaml.safe_dump(peers.uvn.settings.serialize()),

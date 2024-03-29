@@ -14,11 +14,9 @@
 # You should have received a copy of the GNU Affero General Public License
 # along with this program. If not, see <https://www.gnu.org/licenses/>.
 ###############################################################################
-from typing import Generator, Iterable, Callable, TYPE_CHECKING
-from functools import cached_property
+from typing import Generator, Iterable, TYPE_CHECKING
 import threading
 from enum import Enum
-import ipaddress
 
 import rti.connextdds as dds
 
@@ -26,235 +24,12 @@ from ..registry.uvn import Uvn
 from ..registry.cell import Cell
 from ..registry.particle import Particle
 from ..registry.lan_descriptor import LanDescriptor
-from ..registry.versioned import Versioned, prepare_timestamp, prepare_enum, serialize_enum
-from ..registry.database import DatabaseObjectOwner, OwnableDatabaseObject
+from ..registry.versioned import Versioned
 
-from ..core.time import Timestamp
-from ..core.wg import WireGuardInterface
+from .uvn_peer import UvnPeer, VpnInterfaceStatus, UvnPeerStatus, LanStatus
 
-
-class UvnPeerStatus(Enum):
-  DECLARED = 0
-  ONLINE = 1
-  OFFLINE = 2
-
-
-class UvnPeer(Versioned, DatabaseObjectOwner, OwnableDatabaseObject):
-  PROPERTIES = [
-    "registry_id",
-    "status",
-    "routed_networks",
-    "ih",
-    "ih_dw",
-    "ts_start",
-  ]
-  VOLATILE_PROPERTIES = [
-    "ih",
-    "ih_dw",
-  ]
-  CACHED_PROPERTIES = [
-    "reachable_networks",
-    "unreachable_networks",
-    "known_networks",
-    "vpn_interfaces",
-  ]
-  EQ_PROPERTIES = [
-    "owner",
-  ]
-  STR_PROPERTIES = [
-    "owner",
-  ]
-  PROPERTY_GROUPS = {
-    "know_networks": ["reachable_networks", "unreachable_networks"],
-  }
-  INITIAL_STATUS = UvnPeerStatus.DECLARED
-  INITIAL_VPN_INTERFACES = lambda self: self.load_children(VpnInterfaceStatus, owner=self)
-  INITIAL_KNOWN_NETWORKS = lambda self: self.load_children(LanStatus, owner=self)
-  INITIAL_ROUTED_NETWORKS = lambda self: set()
-
-  DB_TABLE = "peers"
-  DB_OWNER = [Uvn, Cell, Particle]
-  DB_OWNER_TABLE_COLUMN = "owner_id"
-  DB_TABLE_PROPERTIES = [
-    "registry_id",
-    "status",
-    "ts_start",
-    "routed_networks",
-    "owner_id",
-  ]
-
-  @cached_property
-  def vpn_interfaces(self):
-    return self.load_children(VpnInterfaceStatus, owner=self)
-
-
-  @cached_property
-  def known_networks(self):
-    return self.load_children(LanStatus, owner=self)
-
-
-  def prepare_routed_networks(self, val: str|Iterable[dict|LanDescriptor]) -> set[LanDescriptor]:
-    if isinstance(val, str):
-      val = self.yaml_load(val)
-    return self.deserialize_collection(LanDescriptor, val, set, self.new_child)
-
-
-  def prepare_ts_start(self, val: int|str|Timestamp) -> None:
-    return prepare_timestamp(self.db, val)
-
-
-  def prepare_status(self, val: str|UvnPeerStatus) -> UvnPeerStatus:
-    return prepare_enum(self.db, val)
-
-
-  def configure_vpn_interfaces(self, peer_vpn_stats: dict[WireGuardInterface, dict]) -> None:
-    for intf, intf_stats in peer_vpn_stats.items():
-      intf_status = next((s for s in self.vpn_interfaces if s == intf), None)
-      if intf_status is None:
-        intf_status = self.new_child(VpnInterfaceStatus, {
-          "intf": intf,
-          **intf_stats,
-        })
-        self.vpn_interfaces.add(intf_status)
-        self.updated_property("vpn_interfaces")
-      else:
-        intf_status.configure(**intf_stats)
-
-
-  def configure_known_networks(self, known_networks: None|list[dict]) -> None:
-    for net_cfg in (known_networks or []):
-      known_net = self.new_child(LanStatus, net_cfg, save=False)
-      prev_known_net = next((n for n in self.known_networks if n == known_net), None)
-      if prev_known_net is None:
-        known_net = self.new_child(LanStatus, known_net)
-        self.known_networks.add(known_net)
-        self.updated_property("known_networks")
-      else:
-        prev_known_net.configure(net_cfg)
-        self.known_networks.add(prev_known_net)
-
-
-  @property
-  def local(self) -> bool:
-    assert(self.parent.owner is not None)
-    assert(self.owner is not None)
-    return self.parent.parent == self.owner
-
-
-  @property
-  def particle(self) -> Particle|None:
-    owner = self.owner
-    if not isinstance(owner, Particle):
-      return None
-    return self.owner
-
-
-  @property
-  def cell(self) -> Cell|None:
-    owner = self.owner
-    if not isinstance(owner, Cell):
-      return None
-    return self.owner
-
-
-  @property
-  def registry(self) -> bool:
-    owner = self.owner
-    if not isinstance(owner, Uvn):
-      return False
-    return True
-
-
-  @property
-  def uvn(self) -> Uvn:
-    if self.registry:
-      return self.owner
-    else:
-      return self.owner.uvn
-
-
-  @cached_property
-  def reachable_networks(self) -> Generator["LanStatus", None, None]:
-    for n in self.known_networks:
-      if not n.reachable:
-        continue
-      yield n
-
-
-  @cached_property
-  def unreachable_networks(self) -> Generator["LanStatus", None, None]:
-    for n in self.known_networks:
-      if n.reachable:
-        continue
-      yield n
-
-
-  def prepare_vpn_interfaces(self, vpn_stats: dict[WireGuardInterface, dict[str, object]]) -> "set[VpnInterfaceStatus]":
-    for intf, intf_stats in vpn_stats.items():
-      intf_status = next((s for s in self.vpn_interfaces if s == intf), None)
-      if intf_status is None:
-        intf_status = self.new_child(VpnInterfaceStatus, {
-          "intf": intf,
-          **intf_stats,
-        })
-        self.vpn_interfaces.add(intf_status)
-        self.updated_property("vpn_interfaces")
-      else:
-        intf_status.configure(**intf_stats)
-    return self.vpn_interfaces
-
-
-  @property
-  def nested(self) -> Generator[Versioned, None, None]:
-    for status in self.vpn_interfaces:
-      yield status
-    for net in self.known_networks:
-      yield net
-
-
-
-class VpnInterfaceStatus(Versioned, OwnableDatabaseObject):
-  DB_TABLE = "peers_vpn_status"
-  DB_OWNER = UvnPeer
-  DB_OWNER_TABLE_COLUMN = "peer"
-
-  PROPERTIES = [
-    "intf",
-    "online",
-  ]
-  REQ_PROPERTIES = [
-    "intf",
-  ]
-  EQ_PROPERTIES = [
-    "intf",
-  ]
-  INITIAL_ONLINE = False
-
-
-class LanStatus(Versioned, OwnableDatabaseObject):
-  DB_TABLE = "peers_lan_status"
-  DB_OWNER = UvnPeer
-  DB_OWNER_TABLE_COLUMN = "peer"
-
-  PROPERTIES = [
-    "lan",
-    "reachable",
-  ]
-  REQ_PROPERTIES = [
-    "lan",
-  ]
-  EQ_PROPERTIES = [
-    "lan",
-  ]
-  INITIAL_REACHABLE = False
-
-  @property
-  def local(self) -> bool:
-    return self.lan in self.owner.routed_networks
-
-  def prepare_lan(self, val: str | dict | LanDescriptor) -> LanDescriptor:
-    return self.new_child(LanDescriptor, val)
-
+if TYPE_CHECKING:
+  from .agent import Agent
 
 
 class UvnPeerListener:
@@ -319,17 +94,17 @@ class UvnPeerListener:
 
 class UvnPeersList(Versioned):
   PROPERTIES = [
-    "uvn",
-    "registry_id",
     "status_all_cell_connected",
     "status_consistent_config_uvn",
     "status_routed_networks_discovered",
     "status_fully_routed_uvn",
     "status_registry_connected",
   ]
+  EQ_PROPERTIES = [
+    "agent",
+  ]
   REQ_PROPERTIES = [
-    "uvn",
-    "registry_id",
+    "agent",
   ]
   PROPERTY_GROUPS = {
     "uvn": [
@@ -345,6 +120,14 @@ class UvnPeersList(Versioned):
       "fully_routed_cells",
     ],
   }
+  CACHED_PROPERTIES = [
+    "cells",
+    "particles",
+    "other_cells",
+    "online_cells",
+    "consistent_config_cells",
+    "fully_routed_cells",
+  ]
   INITIAL_ALL_CELL_CONNECTED = False
   INITIAL_CONSISTENT_CONFIG_UVN = False
   INITIAL_ROUTED_NETWORKS_DISCOVERED = False
@@ -358,20 +141,23 @@ class UvnPeersList(Versioned):
     self._peers = []
     self._update_lock = threading.Lock()
     super().__init__(**properties)
+    self._peers = self._assert_peers()
 
 
   def _notify(self, event: UvnPeerListener.Event, *args) -> None:
     if self.local.status != UvnPeerStatus.ONLINE:
+      self.log.error("notification disabled by !ONLINE: {}", event)
       return
     for l in self.listeners:
+      self.log.warning("notifying listener: {} -> {}", event, l)
       getattr(l, f"on_event_{event.name.lower()}")(*args)
 
 
-  def _assert_peers(self, uvn: Uvn) -> None:
+  def _assert_peers(self) -> list[UvnPeer]:
     with self._update_lock:
       peers_changed = False
       peers = []
-      for uvn_obj in (uvn, *uvn.cells.values(), *uvn.particles.values()):
+      for uvn_obj in (self.uvn, *self.uvn.cells.values(), *self.uvn.particles.values()):
         try:
           peer = self[uvn_obj]
         except KeyError:
@@ -384,60 +170,95 @@ class UvnPeersList(Versioned):
           if peer is None:
             peer = self.new_child(UvnPeer, owner=uvn_obj)
             peers_changed = True
-
         peers.append(peer)
-      self._peers = peers
+      # self._peers = peers
       if peers_changed:
         # Mark property as updated so cached properties are reset
         self.updated_property("uvn")
+    return peers
 
 
-  def prepare_uvn(self, val: Uvn) -> Uvn:
-    self._peers = self._assert_peers(val)
-    return val
+  @property
+  def agent(self) -> "Agent":
+    return self.parent
 
 
-  @cached_property
+  @property
+  def registry_id(self) -> str:
+    return self.agent.config_id
+
+
+  @property
+  def uvn(self) -> Uvn:
+    return self.agent.uvn
+
+
+  @property
   def local(self) -> UvnPeer:
-    return self[self.parent]
+    return self[self.parent.local_object]
 
 
-  @cached_property
+  @property
   def registry(self) -> UvnPeer:
     return self[self.uvn]
 
 
-  @cached_property
-  def cells(self) -> list[UvnPeer]:
-    return [p for p in self if p.cell]
+  @property
+  def cells(self) -> Generator[UvnPeer, None, None]:
+    # return [p for p in self if p.cell]
+    for p in self:
+      if not p.cell:
+        continue
+      yield p
 
 
-  @cached_property
-  def particles(self) -> list[UvnPeer]:
-    return [p for p in self if p.particle]
+  @property
+  def particles(self) -> Generator[UvnPeer, None, None]:
+    # return [p for p in self if p.particle]
+    for p in self:
+      if not p.particle:
+        continue
+      yield p
 
 
-  @cached_property
-  def other_cells(self) -> list[UvnPeer]:
-    return [p for p in self.cells if p.cell != self.parent]
+  @property
+  def other_cells(self) -> Generator[UvnPeer, None, None]:
+    # return [p for p in self.cells if p.cell != self.parent]
+    for p in self:
+      if p.cell == self.parent:
+        continue
+      yield p
 
 
-  @cached_property
-  def online_cells(self) -> list[UvnPeer]:
-    return [p for p in self.cells if p.status == UvnPeerStatus.ONLINE]
+  @property
+  def online_cells(self) -> Generator[UvnPeer, None, None]:
+    # return [p for p in self.cells if p.status == UvnPeerStatus.ONLINE]
+    for p in self.cells:
+      if p.status != UvnPeerStatus.ONLINE:
+        continue
+      yield p
 
 
-  @cached_property
-  def consistent_config_cells(self) -> list[UvnPeer]:
-    return [c for c in self.cells if c.registry_id == self.registry_id]
+  @property
+  def consistent_config_cells(self) -> Generator[UvnPeer, None, None]:
+    # return [c for c in self.cells if c.registry_id == self.registry_id]
+    for p in self:
+      if p.registry_id != self.registry_id:
+        continue
+      yield p
 
 
-  @cached_property
-  def fully_routed_cells(self) -> list[UvnPeer]:
+  @property
+  def fully_routed_cells(self) -> Generator[UvnPeer, None, None]:
     expected_subnets = {l for c in self.uvn.cells.values() for l in c.allowed_lans}
-    return [
-      c for c in self.cells if {l.lan.nic.subnet for l in c.reachable_networks} == expected_subnets
-    ]
+    # return [
+    #   c for c in self.cells if {l.lan.nic.subnet for l in c.reachable_networks} == expected_subnets
+    # ]
+    for c in self.cells:
+      c_reachable = {l.lan.nic.subnet for l in c.reachable_networks}
+      if c_reachable != expected_subnets:
+        continue
+      yield c
 
 
   def online(self, **local_peer_fields) -> None:
@@ -463,35 +284,35 @@ class UvnPeersList(Versioned):
   def update_peer(self,
       peer: UvnPeer,
       **updated_fields) -> None:
-    with self._update_lock:
-      peer.configure(**updated_fields)
-      self._process_updates()
+    return self.update_all([peer], **updated_fields)
 
 
   def update_all(self,
       peers: Iterable[UvnPeer] | None = None,
-      query: Callable[[UvnPeer], bool] | None = None,
       **updated_fields) -> None:
+    if peers is None:
+      peers = self
     with self._update_lock:
-      for peer in peers or self:
-        if query and not query(peer):
-          continue
+      for peer in peers:
         peer.configure(**updated_fields)
       self._process_updates()
 
 
-  def configure(self, **properties) -> None:
-    super().configure(**properties)
+  def configure(self, **properties) -> set[str]:
     with self._update_lock:
-      self._process_updates()
+      configured = super().configure(**properties)
+      if configured:
+          self._process_updates()
+    return configured
 
 
   def _process_updates(self) -> None:
-    changed = self.collect_changes()
+    changed = list(self.collect_changes())
     if not changed:
+      # self.log.warning("nothing changed")
       return
 
-    self.log.activity("processing {} updated objects", len(changed))
+    # self.log.warning("processing {} updated objects", len(changed))
 
     ###########################################################################
     # Check if there were updates related to VPN connections
@@ -666,40 +487,27 @@ class UvnPeersList(Versioned):
 
 
   def __getitem__(self, i: None | str | int | Uvn | Cell | Particle | dds.InstanceHandle) -> UvnPeer:
-    if isinstance(i, int):
-      if i == 0:
-        return self._peers[0]
-      try:
-        return next(p for p in self._peers[1:] if p.id == i)
-      except StopIteration:
-        raise KeyError(i) from None
-    elif isinstance(i, str):
-      try:
-        return next(p for p in self._peers if p.name == i)
-      except StopIteration:
-        raise KeyError(i) from None
-    elif isinstance(i, dds.InstanceHandle):
-      try:
-        return next(p for p in self._peers if p.ih == i)
-      except StopIteration:
-        raise KeyError(i) from None
-    elif isinstance(i, Uvn):
-      try:
-        return next(p for p in self._peers[:0] if self.uvn == i)
-      except StopIteration:
-        raise KeyError(i) from None
-    elif isinstance(i, Cell):
-      try:
-        return next(p for p in self._peers[1:] if p.cell == i)
-      except StopIteration:
-        raise KeyError(i) from None
-    elif isinstance(i, Particle):
-      try:
-        return next(p for p in self._peers[1:] if p.particle == i)
-      except StopIteration:
-        raise KeyError(i) from None
-    elif i is None:
-      return self._peers[0]
-    else:
-      raise IndexError(i)
+    try:
+      if isinstance(i, int):
+        if i == 0:
+          result = self._peers[0]
+        else:
+          result = next(p for p in self.cells if p.cell.id == i)
+      elif isinstance(i, str):
+        result = next(p for p in self._peers if p.name == i)
+      elif isinstance(i, dds.InstanceHandle):
+        result = next(p for p in self._peers if p.ih == i)
+      elif isinstance(i, Uvn):
+        result = next(p for p in self._peers[:1] if self.uvn == i)
+      elif isinstance(i, Cell):
+        result = next(p for p in self.cells if p.cell == i)
+      elif isinstance(i, Particle):
+        result = next(p for p in self.particles if p.particle == i)
+      elif i is None:
+        result = self._peers[0]
+      else:
+        raise IndexError(i)
+      return result
+    except StopIteration:
+      raise KeyError(i) from None
 

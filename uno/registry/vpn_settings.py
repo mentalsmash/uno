@@ -39,7 +39,18 @@ class VpnSettings(Versioned):
     "subnet",
     "interface",
   ]
-  INITIAL_ALLOWED_IPS = lambda self: []
+  EQ_PROPERTIES = [
+    "port",
+    "peer_port",
+    "subnet",
+    "interface",
+    "peer_mtu",
+    "masquerade",
+    "forward",
+    "tunnel",
+    "keepalive"
+  ]
+  INITIAL_ALLOWED_IPS = lambda self: set()
   INITIAL_MASQUERADE = False
   INITIAL_FORWARD = False
   INITIAL_TUNNEL = False
@@ -84,10 +95,6 @@ class ParticlesVpnSettings(VpnSettings):
 
 
 class BackboneVpnSettings(VpnSettings):
-  PROPERTIES = [
-    "deployment_strategy",
-    "deployment_strategy_args",
-  ]
   INITIAL_PORT = 63450
   INITIAL_SUBNET = ipaddress.ip_network("10.255.192.0/20")
   INITIAL_INTERFACE = "uwg-b{}"
@@ -96,17 +103,6 @@ class BackboneVpnSettings(VpnSettings):
   #   "224.0.0.6/32",
   # ]
   INITIAL_LINK_NETMASK = 31
-  INITIAL_DEPLOYMENT_STRATEGY = DeploymentStrategyKind.CROSSED
   INITIAL_PEER_MTU = 1320
   INITIAL_FORWARD = True
-
-
-  def prepare_deployment_strategy(self, val: str | DeploymentStrategyKind) -> DeploymentStrategyKind:
-    return prepare_enum(self.db, DeploymentStrategyKind, val)
-
-
-  def prepare_deployment_strategy_args(self, val: str | dict) -> dict:
-    if isinstance(val, str):
-      val = self.yaml_load(val)
-    return val
 

@@ -21,7 +21,8 @@ from ..registry.lan_descriptor import LanDescriptor
 import ipaddress
 
 if TYPE_CHECKING:
-  from .peer import UvnPeer, UvnPeersList
+  from .uvn_peers_list import UvnPeersList
+  from .uvn_peer import UvnPeer
   from .tester import UvnPeersTester
 
 

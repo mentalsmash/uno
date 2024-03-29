@@ -79,7 +79,7 @@ class Uvn(Versioned, OwnableDatabaseObject, DatabaseObjectOwner):
   CACHED_PROPERTIES = [
     "all_cells",
     "cells",
-    "exclued_cells",
+    "excluded_cells",
     "private_cells",
     "all_particles",
     "particles",
@@ -135,13 +135,14 @@ class Uvn(Versioned, OwnableDatabaseObject, DatabaseObjectOwner):
   @cached_property
   @inject_db_cursor
   def cells(self, cursor: Database.Cursor) -> Mapping[int, Cell]:
-    return {
+    cells = {
       cell.id: cell
         for cell in self.db.load(Cell,
           where="uvn_id = ? AND excluded = ?",
           params=(self.id, False),
           cursor=cursor)
     }
+    return cells
 
 
   @cached_property
@@ -217,19 +218,26 @@ class Uvn(Versioned, OwnableDatabaseObject, DatabaseObjectOwner):
 
 
   def prepare_settings(self, val: str | dict | UvnSettings) -> UvnSettings:
-    return self.new_child(UvnSettings, val)
+    settings = self.new_child(UvnSettings, val)
+    return settings
+
+
+  def validate(self) -> None:
+    for cell in self.all_cells.values():
+      self.validate_cell(cell)
+    for particle in self.all_particles.values():
+      self.validate_particle(particle)
 
 
   def validate_cell(self, cell: Cell) -> None:
     # Check that the cell's networks don't clash with any other cell's
-    # if cell.allowed_lans:
-    #   clashes = Uvn.detect_network_clashes(
-    #     records=(c for c in self.cells.values() if c != cell),
-    #     get_networks=lambda c: c.allowed_lans,
-    #     checked_networks=cell.allowed_lans)  
-    #   if clashes:
-    #     raise ClashingNetworksError(clashes)
-    pass
+    if cell.allowed_lans:
+      clashes = Uvn.detect_network_clashes(
+        records=(c for c in self.cells.values() if c != cell),
+        get_networks=lambda c: c.allowed_lans,
+        checked_networks=cell.allowed_lans)  
+      if clashes:
+        raise ClashingNetworksError(clashes)
 
 
   def validate_particle(self, particle: Particle) -> None:

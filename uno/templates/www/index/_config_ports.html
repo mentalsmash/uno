@@ -46,7 +46,7 @@
               {{uvn.settings.particles_vpn.port}}
             {% endif %}
   
-            {% set peer_bbone = deployment.peers[peer.id]["peers"] | length %}
+            {% set peer_bbone = deployment.peers[peer.owner.id]["peers"] | length %}
             {% for n in range(peer_bbone) %}
               {{uvn.settings.backbone_vpn.port + n}}
             {% endfor %}

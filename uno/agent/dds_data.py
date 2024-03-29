@@ -14,7 +14,7 @@
 # You should have received a copy of the GNU Affero General Public License
 # along with this program. If not, see <https://www.gnu.org/licenses/>.
 ###############################################################################
-from typing import Iterable, Optional
+from typing import Iterable
 from pathlib import Path
 
 import rti.connextdds as dds
@@ -42,17 +42,13 @@ def cell_agent_config(
     uvn: Uvn,
     cell_id: int,
     registry_id: str,
-    config_string: str|None=None,
-    package: Path|None=None) -> dds.DynamicData:
+    package: Path) -> dds.DynamicData:
   sample = dds.DynamicData(participant.types[participant.TOPIC_TYPES[UvnTopic.BACKBONE]])
   sample["cell.n"] = cell_id
   sample["cell.uvn"] = uvn.name
   sample["registry_id"] = registry_id
-  if config_string is not None:
-    sample["config"] = config_string
-  elif package:
-    with package.open("rb") as input:
-      sample["package"] = input.read()
+  with package.open("rb") as input:
+    sample["package"] = input.read()
   return sample
 
 
@@ -74,9 +70,9 @@ def cell_agent_status(
     cell_id: int,
     registry_id: str,
     ts_start: Timestamp|None=None,
-    lans: Optional[Iterable[LanDescriptor]]=None,
-    reachable_networks: Optional[Iterable[LanDescriptor]]=None,
-    unreachable_networks: Optional[Iterable[LanDescriptor]]=None) -> None:
+    lans: Iterable[LanDescriptor]|None=None,
+    reachable_networks: Iterable[LanDescriptor]|None=None,
+    unreachable_networks: Iterable[LanDescriptor]|None=None) -> None:
   import os
 
   cell = uvn.cells[cell_id]

@@ -97,16 +97,18 @@ def cli_command_main(define_parser: Callable[[argparse._SubParsersAction], None]
 
   if args.quiet:
     set_verbosity(log_level.quiet)
-  elif args.verbose >= 4:
+  elif args.verbose >= 5:
     set_verbosity(log_level.tracedbg)
-  elif args.verbose >= 3:
+  elif args.verbose >= 4:
     set_verbosity(log_level.trace)
-  elif args.verbose >= 2:
+  elif args.verbose >= 3:
     set_verbosity(log_level.debug)
-  elif args.verbose >= 1:
+  elif args.verbose >= 2:
     set_verbosity(log_level.activity)
-  else:
+  elif args.verbose >= 1:
     set_verbosity(log_level.info)
+  else:
+    set_verbosity(log_level.warning)
 
   yes = getattr(args, "yes", False)
   if yes:

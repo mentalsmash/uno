@@ -100,7 +100,7 @@ pip install ./uno
    uno define uvn my-uvn \
      -o "John Doe <john@example.com>" \
      -L /path/to/rti_license.dat \
-     -m mastersecret
+     -p userpassword
    ```
 
 2. Define one or more UVN "cells".
@@ -209,7 +209,7 @@ pip install ./uno
 
    The command will generate a new configuration and save it to disk.
 
-   When using the *static* strategy, the deployment configuration must be passed with argument `--deployment-strategy-args`,
+   When using the *static* strategy, the deployment configuration must be passed with argument `--strategy-args`,
    as the path to a YAML file or as an inline YAML string, e.g.:
 
    ```sh

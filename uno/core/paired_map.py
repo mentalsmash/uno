@@ -14,7 +14,7 @@
 # You should have received a copy of the GNU Affero General Public License
 # along with this program. If not, see <https://www.gnu.org/licenses/>.
 ###############################################################################
-from typing import Optional, Callable, Union, Sequence
+from typing import Callable, Union, Sequence
 
 class PairedValuesMap(dict):
   @classmethod
@@ -32,7 +32,7 @@ class PairedValuesMap(dict):
   def assert_pair(self,
       peer_a: int,
       peer_b: int,
-      val: Optional[Union[object, Callable]] = None) -> object:
+      val: object | Callable | None = None) -> object:
     k = self.pair_key(peer_a, peer_b)
     stored = self.get(k)
     generated = False

@@ -1,6 +1,6 @@
 {%- if peers.status_fully_routed_uvn %}
 {%-   set classes="bg-success text-light" %}
-{%- elif peers.local.reachable_networks | length > 0 %}
+{%- elif peers.local.reachable_networks | list | length > 0 %}
 {%-   set classes="bg-warning text-dark" %}
 {%- else %}
 {%-   set classes="bg-danger text-light" %}

@@ -25,7 +25,7 @@ import tempfile
 from ..registry.uvn import Uvn
 from ..registry.database import Database
 from ..core.wg import WireGuardConfig, WireGuardInterface
-from .peer import UvnPeersList, UvnPeer, VpnInterfaceStatus
+from .uvn_peers_list import UvnPeersList, UvnPeer, VpnInterfaceStatus
 from .tester import UvnPeersTester
 from .dds_data import cell_agent_status
 from .render import Templates
@@ -159,7 +159,7 @@ class CellAgent(Agent):
       ts_now=ts_now,
       spin_len=spin_len)
 
-    self.www.spin_once()
+    self.webui.spin_once()
 
 
   def _on_agent_config_received(self, package: bytes, config: str) -> None:
@@ -261,7 +261,7 @@ class CellAgent(Agent):
       gone_cells: set[UvnPeer]) -> None:
     super().on_event_online_cells(new_cells, gone_cells)
     self.uvn_status_plot_dirty = True
-    self.www.request_update()
+    self.webui.request_update()
 
 
   def on_event_all_cells_connected(self) -> None:
@@ -271,14 +271,14 @@ class CellAgent(Agent):
   def on_event_registry_connected(self) -> None:
     super().on_event_registry_connected()
     self.uvn_status_plot_dirty = True
-    self.www.request_update()
+    self.webui.request_update()
 
 
   def on_event_routed_networks(self, new_routed, gone_routed) -> None:
     super().on_event_routed_networks(new_routed, gone_routed)
     self.peers_tester.trigger()
     self.uvn_status_plot_dirty = True
-    self.www.request_update()
+    self.webui.request_update()
 
 
   def on_event_consistent_config_cells(self, new_consistent, gone_consistent) -> None:
@@ -293,13 +293,13 @@ class CellAgent(Agent):
     super().on_event_local_reachable_networks(new_reachable, gone_reachable)
     self._write_cell_info()
     self.uvn_status_plot_dirty = True
-    self.www.request_update()
+    self.webui.request_update()
 
 
   def on_event_reachable_networks(self, new_reachable, gone_reachable) -> None:
     super().on_event_reachable_networks(new_reachable, gone_reachable)
     self.uvn_status_plot_dirty = True
-    self.www.request_update()
+    self.webui.request_update()
 
 
   def on_event_fully_routed_uvn(self) -> None:
@@ -309,12 +309,12 @@ class CellAgent(Agent):
   def on_event_local_routes(self, new_routes: set[str], gone_routes: set[str]) -> None:
     super().on_event_local_routes(new_routes, gone_routes)
     self.peers_tester.trigger()
-    self.www.request_update()
+    self.webui.request_update()
 
 
   def on_event_vpn_connections(self, new_online: set[VpnInterfaceStatus], gone_online: set[VpnInterfaceStatus]) -> None:
     super().on_event_vpn_connections(new_online, gone_online)
-    self.www.request_update()
+    self.webui.request_update()
 
 
   def find_backbone_peer_by_address(self, addr: str | ipaddress.IPv4Address) -> Optional[UvnPeer]:

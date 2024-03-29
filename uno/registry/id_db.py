@@ -31,6 +31,9 @@ class IdentityDatabase(Versioned):
     "registry",
     "backend",
   ]
+  EQ_PROPERTIES = [
+    "registry",
+  ]
   REQ_PROPERTIES = PROPERTIES
   VOLATILE_PROPERTIES = [
     "registry",
@@ -41,11 +44,6 @@ class IdentityDatabase(Versioned):
   @property
   def uvn(self) -> Uvn:
     return self.registry.uvn
-
-
-  @property
-  def local_id(self) -> Uvn|Cell:
-    return self.registry.local_object
 
 
   @property
@@ -70,9 +68,7 @@ class IdentityDatabase(Versioned):
     self.log.debug("asserted {} keys for UVN {}", len(asserted), self.uvn)
 
 
-  def export_keys(self, output_dir: Path, target: Uvn|Cell|Particle|None=None) -> set[Path]:
-    if target is None:
-      target = self.local_id
+  def export_keys(self, output_dir: Path, target: Uvn|Cell|Particle|None) -> set[Path]:
     exported = set()
     for peer in self.peers:
       key = self.backend[peer]

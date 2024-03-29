@@ -172,12 +172,12 @@ def _parser_args_print(parser):
 
 
 def _parser_args_deployment(parser):
-  parser.add_argument("-S", "--deployment-strategy",
+  parser.add_argument("-S", "--strategy",
     help="Algorithm used to generate the UVN backbone's deployment map.",
     default=None,
     choices=[k.name.lower().replace("_", "-") for k in DeploymentStrategyKind])
 
-  parser.add_argument("-D", "--deployment-strategy-args",
+  parser.add_argument("-D", "--strategy-args",
     metavar="YAML",
     help="A YAML file or an inline string specifying custom arguments for the selected deployment strategy.",
     default=None)
@@ -263,6 +263,10 @@ def _config_args_registry(args: argparse.Namespace) -> dict:
         "enable_root_vpn": False if getattr(args, "disable_root_vpn", False) else None,
         "enable_dds_security": True if getattr(args, "enable_dds_security", False) else None,
         "dds_domain": getattr(args, "dds_domain", None),
+        "deployment": {
+          "strategy": getattr(args, "strategy", None),
+          "strategy_args": getattr(args, "strategy_args", None),
+        },
         "root_vpn": {
           "port": getattr(args, "root_vpn_pull_port", None),
           "peer_port": getattr(args, "root_vpn_push_port", None),
@@ -278,8 +282,6 @@ def _config_args_registry(args: argparse.Namespace) -> dict:
           "port": getattr(args, "backbone_vpn_port", None),
           "subnet": getattr(args, "backbone_vpn_subnet", None),
           "peer_mtu": getattr(args, "backbone_vpn_mtu", None),
-          "deployment_strategy": getattr(args, "deployment_strategy", None),
-          "deployment_strategy_args": getattr(args, "deployment_strategy_args", None),
         }
       }
     }
@@ -530,11 +532,11 @@ def uno_parser(parser: argparse.ArgumentParser):
     cmd=agent_run,
     help="Start an agent for the selected directory (either cell or registry).")
 
-  cmd_agent.add_argument("-t", "--max-run-time",
-    metavar="SECONDS",
-    help="Run the agent for the specified time instead of indefinitely.",
-    default=None,
-    type=int)
+  # cmd_agent.add_argument("-t", "--max-run-time",
+  #   metavar="SECONDS",
+  #   help="Run the agent for the specified time instead of indefinitely.",
+  #   default=None,
+  #   type=int)
 
   cmd_agent.add_argument("--systemd",
     help=argparse.SUPPRESS,

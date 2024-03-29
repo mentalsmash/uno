@@ -1,7 +1,6 @@
-from typing import Tuple
 from hashlib import sha256
 
-def _htdigest_hash(user: str, realm: str, password: str|None=None, password_hash: str|None=None) -> Tuple[str, str]:
+def _htdigest_hash(user: str, realm: str, password: str|None=None, password_hash: str|None=None) -> tuple[str, str]:
   user_hash = sha256(f"{user}:{realm}".encode("utf-8")).hexdigest()
   if password_hash is None:
     password_hash = sha256(f"{user}:{realm}:{password}".encode("utf-8")).hexdigest()

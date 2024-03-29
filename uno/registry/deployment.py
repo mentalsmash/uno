@@ -21,6 +21,8 @@ from enum import Enum
 
 import ipaddress
 
+from uno.registry.database import Database
+
 from ..core.paired_map import PairedValuesMap
 from ..registry.versioned import Versioned
 
@@ -53,6 +55,9 @@ class P2pLinksMap(Versioned):
   ]
   REQ_PROPERTIES = [
     "peers",
+  ]
+  EQ_PROPERTIES = [
+    "generation_ts",
   ]
   RO_PROPERTIES = [
     "peers",
@@ -112,29 +117,40 @@ class DeploymentStrategyKind(Enum):
 
 
 class DeploymentStrategy(Versioned):
+  KnownStrategies = {}
   EMPTY_DEPLOYMENT = ([], None, [])
   ALLOW_PRIVATE_PEERS = True
   KIND = None
 
   PROPERTIES = [
+    "uvn",
     "peers",
     "args",
     "private_peers",
-    "public_peers",
-
+    # "public_peers",
   ]
-  REQ_PROPERTIES = [
-    "peers",
+  EQ_PROPERTIES = [
+    "KIND",
   ]
-  RO_PROPERTIES = [
-    "peers",
-    "args",
-    "private_peers",
-    "public_peers",
-  ]
+  # REQ_PROPERTIES = [
+  #   "peers",
+  # ]
+  # RO_PROPERTIES = [
+  #   "peers",
+  #   "args",
+  #   "private_peers",
+  #   "public_peers",
+  # ]
   INITIAL_ARGS = lambda self: {}
+  INITIAL_PEERS = lambda self: set()
   INITIAL_PRIVATE_PEERS = lambda self: set()
-  INITIAL_PUBLIC_PEERS = lambda self: self.peers - self.private_peers
+  # INITIAL_PUBLIC_PEERS = lambda self: self.peers - self.private_peers
+
+  def __init_subclass__(cls, *args, **kwargs) -> None:
+    if cls.KIND is not None:
+      assert(DeploymentStrategy.KnownStrategies.get(cls.KIND) is None)
+      DeploymentStrategy.KnownStrategies[cls.KIND] = cls
+    return super().__init_subclass__(*args, **kwargs)
 
   def prepare_peers(self, val: list[str]) -> set[int]:
     return set(val)
@@ -154,11 +170,30 @@ class DeploymentStrategy(Versioned):
     return self.KIND.name
 
 
+  @property
+  def public_peers(self) -> set[int]:
+    return self.peers - self.private_peers
+
+
   def _generate_deployment(self)  -> tuple[Sequence[int], Callable[[int], int], Sequence[Callable[[int], int]]]:
     raise NotImplementedError()
 
 
-  def deploy(self, network_map: P2pLinkAllocationMap) -> P2pLinksMap:
+  def deploy(self,
+      peers: set[int],
+      private_peers: set[int],
+      args: dict,
+      network_map: P2pLinkAllocationMap) -> P2pLinksMap:
+    self.peers = peers
+    self.private_peers = private_peers
+    self.args = args or {}
+
+    self.log.activity("deployment strategy arguments:")
+    self.log.activity("- strategy: {}", self)
+    self.log.activity("- public peers [{}]: [{}]", len(self.public_peers), self.public_peers)
+    self.log.activity("- private peers [{}]: [{}]", len(self.private_peers), self.private_peers)
+    self.log.activity("- extra args: {}", self.args)
+
     deployed_peers, deployed_peers_count, deployed_peers_connections = (
       self._generate_deployment() if len(self.public_peers) > 0 else
       self.EMPTY_DEPLOYMENT
@@ -180,7 +215,8 @@ class DeploymentStrategy(Versioned):
         },
       } for n, peer_a in enumerate(deployed_peers)
     }
-    return self.new_child(P2pLinksMap, {"peers": peers_map})
+    res = self.new_child(P2pLinksMap, {"peers": peers_map})
+    return res
 
 
 class StaticDeploymentStrategy(DeploymentStrategy):
@@ -523,10 +559,8 @@ class RandomDeploymentGraph:
 class RandomDeploymentStrategy(StaticDeploymentStrategy):
   KIND = DeploymentStrategyKind.RANDOM
 
-  def __init__(self, **properties) -> None:
-    super().__init__(**properties)
+  def _generate_deployment(self)  -> tuple[Sequence[int], Callable[[int], int], Sequence[Callable[[int], int]]]:
     peers_count = len(self.peers)
-    
     if peers_count <= 1:
       min_peers = 0
       ok_peers = 0
@@ -555,8 +589,6 @@ class RandomDeploymentStrategy(StaticDeploymentStrategy):
     self.ok_peer_edges = ok_peers
     self.max_peer_edges = max_peers
 
-
-  def _generate_deployment(self)  -> tuple[Sequence[int], Callable[[int], int], Sequence[Callable[[int], int]]]:
     graph = RandomDeploymentGraph(
       peers=self.peers,
       min_peer_edges=self.min_peer_edges,

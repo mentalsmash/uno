@@ -18,12 +18,12 @@ from pathlib import Path
 from typing import Tuple
 
 from .dds import UvnTopic
-from .peer import UvnPeersList, UvnPeer
 from .render import Templates
 from .dds_data import uvn_info, cell_agent_config
 from .agent_net import AgentNetworking
 from .agent import Agent
-from .peer import UvnPeerStatus
+from .uvn_peers_list import UvnPeersList
+from .uvn_peer import UvnPeerStatus, UvnPeer
 from ..core.wg import WireGuardInterface
 from ..core.time import Timestamp
 from ..core.log import Logger as log

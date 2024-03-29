@@ -17,7 +17,7 @@
 import os
 import subprocess
 from pathlib import Path
-from typing import Optional, Sequence, Union
+from typing import Sequence, Union
 
 from .log import Logger
 
@@ -25,12 +25,12 @@ log = Logger.sublogger("exec")
 
 def exec_command(
     cmd_args: Sequence[Union[str, Path]],
-    fail_msg: Optional[str] = None,
+    fail_msg: str|None = None,
     root: bool = False,
     shell: bool = False,
-    cwd: Optional[Path] = None,
+    cwd: Path|None = None,
     noexcept: bool = False,
-    output_file: Optional[Path] = None,
+    output_file: Path|None = None,
     capture_output: bool=False):
   if root and os.geteuid() != 0:
     cmd_args = ["sudo", *cmd_args]
@@ -53,7 +53,7 @@ def exec_command(
     if capture_output:
       stdout = subprocess.PIPE
       stderr = subprocess.PIPE
-    elif log.current_level >= log.level.tracedbg:
+    elif log.level >= log.Level.tracedbg:
       stdout = sys.stdout
       stderr = sys.stderr
     else:

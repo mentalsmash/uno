@@ -14,44 +14,53 @@
 # You should have received a copy of the GNU Affero General Public License
 # along with this program. If not, see <https://www.gnu.org/licenses/>.
 ###############################################################################
-from typing import TYPE_CHECKING
+from typing import TYPE_CHECKING, Generator
 from pathlib import Path
 from functools import cached_property
+import contextlib
 import os
 from enum import Enum
 import rti.connextdds as dds
 
 from ..core.exec import exec_command
-from ..registry.versioned import Versioned
+from ..registry.versioned import disabled_if
+
+from .runnable import Runnable
 
 if TYPE_CHECKING:
   from .agent import Agent
 
 
+class StopAgentServiceError(Exception):
+  pass
+
 
 class AgentServiceListener:
-  EVENTS: type[Enum] = None
+  EVENT: type[Enum] = None
 
   def __init_subclass__(cls, *a, **kw) -> None:
-    if cls.EVENTS is not None:
-      assert(issubclass(cls.EVENTS, Enum))
+    if cls.EVENT is not None:
+      assert(issubclass(cls.EVENT, Enum))
     super().__init_subclass__(*a, **kw)
 
 
-class AgentService(Versioned):
-  CLASS: str = None
+class AgentService(Runnable):
   USER: tuple[str] | None = None
-  LISTENERS: type[AgentServiceListener] | None = None
+  LISTENER: type[AgentServiceListener] = None
 
-  def __init__(self, *a, **kw) -> None:
+  EQ_PROPERTIES = [
+    "svc_class"
+  ]
+
+  def __init__(self, **properties) -> None:
+    def _gchandler(cond: dds.GuardCondition) -> None:
+      self.log.warning("condition triggered")
+      self.agent.updated_services.put(self)
+    self.updated_condition_triggered = False
     self.updated_condition = dds.GuardCondition()
+    self.updated_condition.set_handler(_gchandler)
     self.listeners: list[AgentServiceListener] = list()
-    super().__init__(*a, **kw)
-
-
-  @classmethod
-  def check_enabled(cls, agent: "Agent") -> bool:
-    return True
+    super().__init__(**properties)
 
 
   @property
@@ -59,33 +68,33 @@ class AgentService(Versioned):
     return self.parent
 
 
-  @property
-  def service_user(self) -> tuple[str|None, str|None]:
-    return self.SvcUser or (None, None)
+  @cached_property
+  def service_user(self) -> tuple[str, str] | tuple[None, None]:
+    return tuple(self.USER or (None, None))
 
 
   @cached_property
   def svc_class(self) -> str:
-    if self.CLASS:
-      return self.CLASS
-    else:
-      return self.__class__.__name__.lower()
+    cls_name = self.__class__.__name__
+    cls_name = cls_name[0].lower() + cls_name[1:]
+    return self.log.camelcase_to_kebabcase(cls_name)
 
 
   @cached_property
   def root(self) -> Path:
     root = self.agent.root / self.svc_class
-    self._mkdir(root)
+    self.mkdir(root)
     return root
 
 
   @cached_property
   def log_dir(self) -> Path:
     log_dir = self.agent.log_dir / self.svc_class
-    self._mkdir(log_dir)
+    self.mkdir(log_dir)
     return log_dir
 
 
+  @disabled_if("runnable", neg=True)
   def mkdir(self, output: Path) -> None:
     if not output.is_dir():
       output.mkdir(parents=True)
@@ -94,15 +103,20 @@ class AgentService(Versioned):
         exec_command(["chown", f"{user}:{group}", output])
 
 
-  def start(self) -> None:
-    raise NotImplementedError()
-
-
-  def stop(self) -> None:
-    raise NotImplementedError()
-
-
-  def notify_listeners(self, event: Enum, *args):
+  @disabled_if("runnable", neg=True)
+  def notify_listeners(self, event: Enum | str, *args):
+    if isinstance(event, str):
+      assert(issubclass(self.LISTENER, AgentServiceListener))
+      event = self.LISTENER.EVENT[event.upper().replace("-", "_")]
     for l in self.listeners:
       getattr(l, f"on_event_{event.name.lower()}")(*args)
+
+
+  @disabled_if("runnable", neg=True)
+  def process_updates(self) -> None:
+    self._process_updates()
+
+
+  def _process_updates(self) -> None:
+    raise NotImplementedError()
 

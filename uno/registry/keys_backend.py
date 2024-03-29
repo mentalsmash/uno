@@ -34,6 +34,9 @@ class KeysBackend(Versioned):
   PROPERTIES = [
     "root",
   ]
+  EQ_PROPERTIES = [
+    "root",
+  ]
 
   REQ_PROPERTIES = [
     "root",

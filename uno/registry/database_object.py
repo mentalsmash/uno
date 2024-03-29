@@ -113,6 +113,14 @@ class DatabaseSchema:
 
 
   @classmethod
+  def lookup_id_table_by_object(cls, target: "DatabaseObject|type[DatabaseObject]", required: bool=True) -> str | None:
+    if target.DB_ID_POOL is not None:
+      return target.DB_ID_POOL
+    else:
+      return cls.lookup_table_by_object(target)
+
+
+  @classmethod
   def lookup_object_by_table(cls, table: str, required: bool=True) -> type["DatabaseObject"] | None:
     try:
       return cls._ObjectsByTable[table]
@@ -173,18 +181,18 @@ def _define_inject_cursor(wrapped, get_db: Callable[[object], "Database"]):
     drop_cursor = False
     db = get_db(self)
     if cursor is None:
-      db.log.trace("inject cursor in call to {}({}, {})",
+      db.log.tracedbg("inject cursor in call to {}({}, {})",
         wrapped.__name__,
         ", ".join(map(str, a)),
         ", ".join(f"{k}={v}" for k, v in kw.items()))
       if db._cursor is None:
-        db.log.debug("cursor CREATE")
+        db.log.tracedbg("cursor CREATE")
         db._cursor = db._db.cursor()
         drop_cursor = True
       cursor = db._cursor
     res = wrapped(self, *a, cursor=cursor, **kw)
     if drop_cursor:
-      db.log.debug("cursor DELETE")
+      db.log.tracedbg("cursor DELETE")
       db._cursor = None
     return res
   _inject_cursor.__name__ = wrapped.__name__
@@ -204,15 +212,15 @@ def _define_inject_transaction(wrapped, get_db: Callable[[object], "Database"]):
   def _inject_transaction(self, *a, cursor: "Database.Cursor|None"=None, **kw):
     db = get_db(self)
     if cursor is None:
-      db.log.debug("inject transaction in call to {}({}, {})",
+      db.log.tracedbg("inject transaction in call to {}({}, {})",
         wrapped.__name__,
         ", ".join(map(str, a)),
         ", ".join(f"{k}={v}" for k, v in kw.items()))
       def do_in_transaction(action: Callable[[], None]):
-        db.log.debug("transaction BEGIN")
+        db.log.tracedbg("transaction BEGIN")
         with db._db:
           res = action()
-        db.log.debug("transaction END")
+        db.log.tracedbg("transaction END")
         return res
     else:
       def do_in_transaction(action: Callable[[], None]):
@@ -233,6 +241,7 @@ class DatabaseObject:
   OMITTED = _OmittedValue()
   DB_SCHEMA: DatabaseSchema = DatabaseSchema
   DB_TABLE: str = None
+  DB_ID_POOL: str = None
   DB_TABLE_PROPERTIES: list[str] = []
   DB_CACHED: bool = True
 
@@ -243,8 +252,10 @@ class DatabaseObject:
     self._id = id
     self._loaded = False
     self._saved = False
+    self._disposed = False
     self._updated = set()
     super().__init__()
+    assert(self.DB_TABLE is not None or self.parent is not None)
 
 
   def __init_subclass__(cls, *a, **kw) -> None:
@@ -283,7 +294,8 @@ class DatabaseObject:
       return
 
 
-  @cached_property
+  # @cached_property
+  @property
   def object_id(self) -> tuple[str, object] | None:
     if self.transient_object():
       return self.parent.object_id if self.parent else None
@@ -292,7 +304,8 @@ class DatabaseObject:
     return (self.DB_TABLE, self.id)
 
 
-  @cached_property
+  # @cached_property
+  @property
   def parent_str_id(self) -> str | object | None:
     if self.transient_object():
       return self.parent.parent_str_id if self.parent else None
@@ -334,8 +347,31 @@ class DatabaseObject:
           pass
 
 
-  def collect_nested(self, dirty: bool=False) -> Generator["DatabaseObject", None, None]:
-    raise NotImplementedError()
+  @property
+  def nested(self) -> "Generator[DatabaseObject, None, None]":
+    for i in []:
+      yield i
+
+
+  def collect_nested(self, predicate: Callable[["DatabaseObject"], bool]|None=None) -> Generator["DatabaseObject", None, None]:
+    def _yield_nested_recur(cur: DatabaseObject) -> Generator["DatabaseObject", None, None]:
+      nested = list(cur.nested)
+      for o in nested:
+        for n in _yield_nested_recur(o):
+          yield n
+      if not predicate or predicate(cur):
+        yield cur
+    return _yield_nested_recur(self)
+
+
+  def collect_changes(self, predicate: Callable[["DatabaseObject"], bool]|None=None) -> Generator[tuple["DatabaseObject", dict], None, None]:
+    def _predicate(o: DatabaseObject) -> bool:
+      if predicate and not predicate(o):
+        return False
+      return o.dirty # and not o.SCHEMA.transient
+    for o in self.collect_nested(_predicate):
+      prev = o.changed_values
+      yield (o, prev)
 
 
   @property
@@ -350,21 +386,49 @@ class DatabaseObject:
 
   @property
   def saved(self) -> bool:
-    return self._saved
+    nested_change = next(self.collect_nested(lambda o: o is not self and not o.saved), None)
+    return self._saved and nested_change is None
   
 
   @saved.setter
   def saved(self, val: bool) -> None:
     self._saved = val
-    self.__update_str_repr__()
+    if not self.loaded:
+      # Don't propagate changes unless we were loaded
+      return
+    # Propagate "not saved" to parent
+    if not self._saved and self.parent is not None:
+      self.parent.saved = False
+    # Propagate "saved" to transient children
+    elif self._saved:
+      for n in self.nested:
+        if not n.transient_object():
+          continue
+        n.saved = True
+
+
+  @property
+  def disposed(self) -> bool:
+    return self._disposed
+  
+
+  @disposed.setter
+  def disposed(self, val: bool) -> None:
+    self._disposed = val
 
 
   @property
   def dirty(self) -> bool:
-    if self.DB_TABLE:
-      return not self.saved
-    else:
-      return len(self.changed_properties) > 0
+    # if self.DB_TABLE:
+    #   dirty = not self.saved
+    # else:
+    #   dirty = len(self.changed_properties) > 0
+    
+    # if dirty:
+    #   return dirty
+
+    # return next(self.collect_nested(lambda o: o is not self and o.dirty), None) is None
+    return not self.saved
 
 
   @property
@@ -387,7 +451,7 @@ class DatabaseObject:
     return db.deserialize(cls, {
       **properties,
       **cls.generate_new(db, **properties),
-    })
+    }, use_cache=False)
 
 
 

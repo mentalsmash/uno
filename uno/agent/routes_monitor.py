@@ -14,13 +14,14 @@
 # You should have received a copy of the GNU Affero General Public License
 # along with this program. If not, see <https://www.gnu.org/licenses/>.
 ###############################################################################
-from typing import Tuple
 import subprocess
 import threading
 import os
 from pathlib import Path
 from enum import Enum
+import signal
 
+from ..registry.cell import Cell
 from ..core.ip import ipv4_list_routes
 from .agent_service import AgentService, AgentServiceListener
 
@@ -29,34 +30,33 @@ class RoutesMonitorEvent(Enum):
 
 
 class RoutesMonitorListener(AgentServiceListener):
-  EVENTS = RoutesMonitorEvent
-
+  EVENT = RoutesMonitorEvent
 
   def on_event_local_routes(self, new_routes: set[str], gone_routes: set[str]) -> None:
     pass
 
 
 class RoutesMonitor(AgentService):
-  CLASS = "routes-monitor"
-  LISTENERS = RoutesMonitorListener
+  LISTENER = RoutesMonitorListener
 
-  def __init__(self, log_dir: Path) -> None:
+  def __init__(self, **properties) -> None:
     self._monitor = None
     self._monitor_thread = None
-    self._active = False
-    self.listeners: list[self.LISTENERS] = list()
+    super().__init__(**properties)
 
+
+  def check_runnable(self) -> bool:
+    return isinstance(self.agent.owner, Cell)
 
   @property
   def routes_file(self) -> Path:
     return self.log_dir / "routes.local"
 
 
-  def process_updates(self) -> None:
+  def _process_updates(self) -> None:
     new_routes, gone_routes = self.poll_routes()
     if new_routes or gone_routes:
-      self.notify_listeners(RoutesMonitorEvent.LOCAL_ROUTES, new_routes, gone_routes)
-
+      self.notify_listeners("local-routes", new_routes, gone_routes)
 
 
   def _read_routes(self) -> set[str]:
@@ -72,7 +72,7 @@ class RoutesMonitor(AgentService):
         output.write("\n")
 
 
-  def poll_routes(self) -> Tuple[set[str], set[str]]:
+  def poll_routes(self) -> tuple[set[str], set[str]]:
     current_routes = ipv4_list_routes()
     prev_routes = self._read_routes()
     new_routes = current_routes - prev_routes
@@ -83,7 +83,7 @@ class RoutesMonitor(AgentService):
     return (new_routes, gone_routes)
 
 
-  def start(self) -> None:
+  def _start(self) -> None:
     self.poll_routes()
     self._monitor = subprocess.Popen(["ip", "monitor", "route"],
       stdin=subprocess.DEVNULL,
@@ -91,15 +91,12 @@ class RoutesMonitor(AgentService):
       stderr=subprocess.DEVNULL,
       preexec_fn=os.setpgrp,
       text=True)
-    self._monitor_thread = threading.Thread(target=self._run)
-    self._active = True
+    self._monitor_thread = threading.Thread(target=self._monitor_thread_run)
     self._monitor_thread.start()
 
 
-  def stop(self) -> None:
-    self._active = False
+  def _stop(self, assert_stopped: bool) -> None:
     if self._monitor is not None:
-      import signal
       self._monitor.send_signal(signal.SIGINT)
       if self._monitor_thread is not None:
         self._monitor_thread.join()
@@ -107,9 +104,9 @@ class RoutesMonitor(AgentService):
       self._monitor = None
 
 
-  def _run(self):
+  def _monitor_thread_run(self):
     self.log.activity("starting to monitor kernel routes")
-    while self._active:
+    while self.started:
       try:
         route_change = self._monitor.stdout.readline()
         self.log.activity("detected: '{}'", route_change.strip())

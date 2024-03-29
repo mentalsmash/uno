@@ -14,10 +14,35 @@
 # You should have received a copy of the GNU Affero General Public License
 # along with this program. If not, see <https://www.gnu.org/licenses/>.
 ###############################################################################
-
+from typing import Generator
 from .versioned import Versioned, prepare_enum
 from .timing_profile import TimingProfile
 from .vpn_settings import RootVpnSettings, ParticlesVpnSettings, BackboneVpnSettings
+from .deployment import DeploymentStrategyKind
+
+
+class DeploymentSettings(Versioned):
+  PROPERTIES = [
+    "strategy",
+    "strategy_args",
+  ]
+  INITIAL_STRATEGY = DeploymentStrategyKind.CROSSED
+  EQ_PROPERTIES = [
+    "strategy",
+    "strategy_args",
+  ]
+
+
+  def prepare_strategy(self, val: str | DeploymentStrategyKind) -> DeploymentStrategyKind:
+    return prepare_enum(self.db, DeploymentStrategyKind, val)
+
+
+  def prepare_strategy_args(self, val: str | dict) -> dict:
+    if isinstance(val, str):
+      val = self.yaml_load(val)
+    return val
+
+
 
 class UvnSettings(Versioned):
   PROPERTIES = [
@@ -29,7 +54,9 @@ class UvnSettings(Versioned):
     "enable_root_vpn",
     "enable_dds_security",
     "dds_domain",
+    "deployment",
   ]
+  EQ_PROPERTIES = PROPERTIES
   INITIAL_TIMING_PROFILE = TimingProfile.DEFAULT
   INITIAL_ENABLE_PARTICLES_VPN = True
   INITIAL_ENABLE_ROOT_VPN = True
@@ -39,8 +66,32 @@ class UvnSettings(Versioned):
   INITIAL_ROOT_VPN = lambda self: self.new_child(RootVpnSettings)
   INITIAL_PARTICLES_VPN = lambda self: self.new_child(ParticlesVpnSettings)
   INITIAL_BACKBONE_VPN = lambda self: self.new_child(BackboneVpnSettings)
+  INITIAL_DEPLOYMENT = lambda self: self.new_child(DeploymentSettings)
 
   def prepare_timing_profile(self, val: str | TimingProfile) -> TimingProfile:
     return prepare_enum(self.db, TimingProfile, val)
 
+
+  def prepare_root_vpn(self, val: str | dict | RootVpnSettings) -> RootVpnSettings:
+    return self.new_child(RootVpnSettings, val)
+
+
+  def prepare_particles_vpn(self, val: str | dict | ParticlesVpnSettings) -> ParticlesVpnSettings:
+    return self.new_child(ParticlesVpnSettings, val)
+
+
+  def prepare_backbone_vpn(self, val: str | dict | BackboneVpnSettings) -> BackboneVpnSettings:
+    return self.new_child(BackboneVpnSettings, val)
+
+
+  def prepare_deployment(self, val: str | dict | DeploymentSettings) -> DeploymentSettings:
+    settings = self.new_child(DeploymentSettings, val)
+    return settings
+
   
+  @property
+  def nested(self) -> Generator[Versioned, None, None]:
+    yield self.root_vpn
+    yield self.particles_vpn
+    yield self.backbone_vpn
+    yield self.deployment

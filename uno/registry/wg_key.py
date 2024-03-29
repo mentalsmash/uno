@@ -49,7 +49,7 @@ class WireGuardKeyPair(Versioned):
   INITIAL_DROPPED = False
   DB_TABLE = "asymm_keys"
   DB_TABLE_PROPERTIES = PROPERTIES
-  DB_CACHED = False
+  # DB_CACHED = False
 
 
   @classmethod
@@ -85,7 +85,7 @@ class WireGuardPsk(Versioned):
   INITIAL_DROPPED = False
   DB_TABLE = "symm_keys"
   DB_TABLE_PROPERTIES = PROPERTIES
-  DB_CACHED = False
+  # DB_CACHED = False
 
 
   @classmethod

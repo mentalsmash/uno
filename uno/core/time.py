@@ -17,10 +17,8 @@
 from datetime import datetime, timezone, timedelta
 import time
 
-from typing import Union, Optional
-
 class Timestamp:
-  EPOCH = datetime.utcfromtimestamp(0)
+  # EPOCH = datetime.utcfromtimestamp(0)
   DEFAULT_FORMAT = "%Y%m%d-%H%M%S-%f"
 
 
@@ -38,11 +36,11 @@ class Timestamp:
     return hash(self._ts)
 
 
-  def subtract(self, ts: Union["Timestamp", int]) -> timedelta:
+  def subtract(self, ts: "Timestamp | int") -> timedelta:
     return self._ts - ts._ts
 
 
-  def format(self, fmt: Optional[str]=None) -> str:
+  def format(self, fmt: str | None=None) -> str:
     if fmt is None:
       fmt = self.DEFAULT_FORMAT
     return self._ts.strftime(fmt)
@@ -57,7 +55,7 @@ class Timestamp:
 
 
   @staticmethod
-  def parse(val: str|int, fmt: Optional[str] = None):
+  def parse(val: str|int, fmt: str | None = None):
     if fmt is None:
       fmt = Timestamp.DEFAULT_FORMAT
     if isinstance(val, str):
@@ -75,6 +73,10 @@ class Timestamp:
 
 
   @staticmethod
-  def unix(ts: Union[str, int]):
+  def unix(ts: str | int):
     ts = datetime.fromtimestamp(float(ts), timezone.utc)
     return Timestamp(ts)
+
+_epoch = datetime.fromtimestamp(0)
+_epoch = _epoch.replace(tzinfo=timezone.utc)
+Timestamp.EPOCH = Timestamp(_epoch)

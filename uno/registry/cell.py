@@ -43,10 +43,11 @@ class Cell(Versioned, OwnableDatabaseObject, DatabaseObjectOwner):
   ]
   REQ_PROPERTIES = RO_PROPERTIES
   STR_PROPERTIES = [
-    "id",
+    # "id",
     "name",
   ]
   DB_TABLE = "cells"
+  # DB_ID_POOL = "uvns"
   DB_TABLE_PROPERTIES = [
     *PROPERTIES,
     "owner_id",
@@ -71,8 +72,8 @@ class Cell(Versioned, OwnableDatabaseObject, DatabaseObjectOwner):
     return next(self.db.load(Uvn, id=self.uvn_id, cursor=cursor))
 
 
-  def validate(self) -> None:
-    self.uvn.validate_cell(self)
+  # def validate(self) -> None:
+  #   self.uvn.validate_cell(self)
 
 
   def prepare_name(self, val: str) -> None:

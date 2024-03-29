@@ -54,7 +54,7 @@ class Packager(Versioned):
     assert(registry.deployed)
     assert(cell.object_id is not None)
     agent_package = output_dir / f"{cell.uvn.name}__{cell.name}.uvn-agent"
-    cls.log.debug("generate cell agent package: {}", agent_package)
+    cls.log.activity("generate cell agent package: {}", agent_package)
 
     # Generate package in a temporary directory
     tmp_dir_h = tempfile.TemporaryDirectory()
@@ -73,6 +73,7 @@ class Packager(Versioned):
     id_file = tmp_dir / "id.yaml"
     id_file.write_text(registry.yaml_dump({
       "owner": cell.object_id,
+      "config_id": registry.config_id,
     }))
     package_files.append(id_file)
 
@@ -144,6 +145,7 @@ class Packager(Versioned):
       registry: "Registry",
       particle: Particle,
       output_dir: Path) -> None:
+    cls.log.activity("generate particle package: {}", particle)
     # Generate package in a temporary directory
     tmp_dir_h = tempfile.TemporaryDirectory()
     tmp_dir = Path(tmp_dir_h.name) / f"{registry.uvn.name}__{particle.name}"
@@ -152,6 +154,7 @@ class Packager(Versioned):
 
     for cell_id, cell_particles_vpn_config in registry.vpn_config.particles_vpns.items():
       cell = registry.uvn.cells[cell_id]
+      cls.log.activity("export particle configuration: {}, {}", particle, cell)
       particle_vpn_config = cell_particles_vpn_config.peer_config(particle.id)
       cls.write_particle_configuration(
         particle=particle,

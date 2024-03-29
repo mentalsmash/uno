@@ -14,17 +14,17 @@
 # You should have received a copy of the GNU Affero General Public License
 # along with this program. If not, see <https://www.gnu.org/licenses/>.
 ###############################################################################
-from typing import Optional, TYPE_CHECKING
+from typing import TYPE_CHECKING
 from pathlib import Path
 import matplotlib.pyplot as plt
 import networkx
 
 from ..registry.uvn import Uvn
 from ..registry.deployment import P2pLinksMap
-from .peer import UvnPeerStatus
+from .uvn_peer import UvnPeerStatus, UvnPeer
 
 if TYPE_CHECKING:
-  from .cell_agent import CellAgent
+  from .agent import Agent
 
 
 COLOR_ON_NODE = "#89f881"
@@ -40,8 +40,8 @@ def backbone_deployment_graph(
     uvn: Uvn,
     deployment: P2pLinksMap,
     output_file: Path,
-    peers: Optional[UvnPeerStatus]=None,
-    local_peer_id: Optional[int]=None) -> Optional[Path]:
+    peers: UvnPeerStatus|None=None,
+    local_peer: UvnPeer|None=None) -> Path|None:
   if len(uvn.cells) < 2:
     # We can only generate a graph if there are two or more cells
     return None
@@ -63,10 +63,8 @@ def backbone_deployment_graph(
   private_off_edges = []
   private_warn_edges = []
 
-  local_cell = None if local_peer_id is None else uvn.cells[local_peer_id]
-
   def _store_node_by_status(node, node_status):
-    if local_cell and local_cell.name == node:
+    if local_peer.cell and local_peer.cell.name == node:
       local_nodes.append(node)
     elif node_status == UvnPeerStatus.ONLINE:
       on_nodes.append(node)
@@ -172,9 +170,9 @@ def backbone_deployment_graph(
 
 
 def cell_agent_status_plot(
-    agent: "CellAgent",
+    agent: "Agent",
     output_file: Path,
-    seed: Optional[int]=None) -> None:
+    seed: int|None=None) -> None:
   graph = networkx.Graph()
 
   local_nodes = []
@@ -193,26 +191,25 @@ def cell_agent_status_plot(
     warning_nodes.append(agent.uvn.name)
 
   for peer in (p for p in agent.peers.cells):
-    cell = agent.uvn.cells[peer.id]
-    edge = (cell.name, agent.uvn.name)
+    edge = (peer.cell.name, agent.uvn.name)
     graph.add_edge(*edge)
     if peer.local:
-      local_nodes.append(cell.name)
+      local_nodes.append(peer.cell.name)
     if peer.status == UvnPeerStatus.OFFLINE:
       if not peer.local:
-        offline_nodes.append(cell.name)
+        offline_nodes.append(peer.cell.name)
       offline_edges.append(edge)
     elif peer.status == UvnPeerStatus.ONLINE:
       if not peer.local:
-        online_nodes.append(cell.name)
+        online_nodes.append(peer.cell.name)
       online_edges.append(edge)
     else:
       if not peer.local:
-        warning_nodes.append(cell.name)
+        warning_nodes.append(peer.cell.name)
       warning_edges.append(edge)
 
     for routed_lan in peer.routed_networks:
-      edge_nic = (cell.name, str(routed_lan.nic.subnet))
+      edge_nic = (peer.cell.name, str(routed_lan.nic.subnet))
       graph.add_edge(*edge_nic)
 
       lan_status = agent.peers_tester.find_status_by_lan(routed_lan)

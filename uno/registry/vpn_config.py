@@ -23,7 +23,7 @@ from ..core.wg import (
   WireGuardInterfaceConfig,
   WireGuardInterfacePeerConfig,
 )
-from .versioned import Versioned, noop_if_readonly
+from .versioned import Versioned, disabled_if
 from .cell import Cell
 from .uvn import Uvn
 from ..core.paired_map import PairedValuesMap
@@ -40,6 +40,11 @@ class CentralizedVpnConfig(Versioned):
     "peer_ids",
     "root_endpoint",
     "peer_endpoints",
+  ]
+  EQ_PROPERTIES = [
+    "settings",
+    "keymat",
+    # "peer_ids",
   ]
   REQ_PROPERTIES = [
     "settings",
@@ -77,7 +82,7 @@ class CentralizedVpnConfig(Versioned):
     self.assert_keys()
 
 
-  @noop_if_readonly(None)
+  @disabled_if("readonly")
   def assert_keys(self) -> None:
     self.keymat.assert_keys()
     _ = self.root_config
@@ -162,6 +167,10 @@ class P2pVpnConfig(Versioned):
     "peer_ids",
     "peer_endpoints",
   ]
+  EQ_PROPERTIES = [
+    "settings",
+    "keymat",
+  ]
   REQ_PROPERTIES = [
     "settings",
     "keymat",
@@ -176,14 +185,18 @@ class P2pVpnConfig(Versioned):
     self.assert_keys()
 
 
-  @noop_if_readonly(None)
+  @disabled_if("readonly")
   def assert_keys(self) -> None:
     for peer in self.peer_ids:
       _ = self.peer_config(peer)
 
 
   def peer_config(self, peer: int) -> list[WireGuardConfig]:
-    peer_deploy_cfg = self.deployment.peers[peer]
+    peer_deploy_cfg = self.deployment.peers.get(peer)
+    if peer_deploy_cfg is None:
+      self.log.debug("peer configuration not found: {}", peer)
+      return []
+
     return [
       WireGuardConfig(
         intf=WireGuardInterfaceConfig(
@@ -221,6 +234,10 @@ class P2pVpnConfig(Versioned):
 
 
 class UvnVpnConfig(Versioned):
+  EQ_PROPERTIES = [
+    "object_id"
+  ]
+
   @classmethod
   def root_vpn_config(cls, registry: "Registry", rekeyed: bool=False) -> CentralizedVpnConfig | None:
     if not registry.uvn.settings.enable_root_vpn:
@@ -316,7 +333,7 @@ class UvnVpnConfig(Versioned):
     })
 
 
-  @noop_if_readonly(None)
+  @disabled_if("readonly")
   def assert_keys(self) -> None:
     _ = self.root_vpn
     _ = self.backbone_vpn

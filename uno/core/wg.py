@@ -18,7 +18,7 @@ import subprocess
 import ipaddress
 from tempfile import NamedTemporaryFile
 from pathlib import Path
-from typing import Tuple, Iterable, Optional, Mapping, Union, Sequence
+from typing import Iterable, Mapping, Sequence
 
 
 from .exec import exec_command
@@ -39,13 +39,13 @@ class WireGuardError(Exception):
     self.msg = msg
 
 
-def genpeermaterial() -> Tuple[str, str, str]:
+def genpeermaterial() -> tuple[str, str, str]:
   privkey, pubkey = genkeypair()
   pskey = genkeypreshared()
   return (privkey, pubkey, pskey)
 
 
-def genkeypair() -> Tuple[str, str]:
+def genkeypair() -> tuple[str, str]:
   privkey = genkeyprivate()
   pubkey = genkeypublic(privkey)
   return (privkey, pubkey)
@@ -100,9 +100,9 @@ class WireGuardInterfaceConfig:
       privkey: str,
       address: ipaddress.IPv4Address,
       netmask: int,
-      port: Optional[int]=None,
-      endpoint: Optional[str]=None,
-      mtu: Optional[int]=None) -> None:
+      port: int|None=None,
+      endpoint: str|None=None,
+      mtu: int|None=None) -> None:
     self.name = name
     self.privkey = privkey
     self.address = address
@@ -111,6 +111,16 @@ class WireGuardInterfaceConfig:
     self.port = port
     self.endpoint = endpoint
     self.mtu = mtu
+
+
+  def __eq__(self, other: object) -> bool:
+    if not isinstance(other, WireGuardInterfaceConfig):
+      return False
+    return self.name == other.name
+
+
+  def __hash__(self) -> int:
+    return hash(self.name)
 
 
   def serialize(self, public: bool=False) -> dict:
@@ -153,10 +163,10 @@ class WireGuardInterfacePeerConfig:
       id: int,
       pubkey: str,
       psk: str,
-      address: Union[str, int],
-      allowed: Optional[str]=None,
-      endpoint: Optional[str]=None,
-      keepalive: Optional[int]=None) -> None:
+      address: str | int,
+      allowed: str | None=None,
+      endpoint: str | None=None,
+      keepalive: int | None=None) -> None:
     self.id = id
     self.pubkey = pubkey
     self.psk = psk
@@ -206,7 +216,7 @@ class WireGuardConfig:
       tunnel_root: bool=False,
       masquerade: bool=False,
       forward: bool=False,
-      generation_ts: Optional[str]=None) -> None:
+      generation_ts: str | None=None) -> None:
     self.intf = intf
     self.peers = list(peers)
     self.tunnel = tunnel
@@ -219,11 +229,15 @@ class WireGuardConfig:
   def __eq__(self, other: object) -> bool:
     if not isinstance(other, WireGuardConfig):
       return False
-    return self.generation_ts == other.generation_ts
+    return self.intf == other.intf
+
+
+  def __hash__(self) -> int:
+    return hash(self.intf)
 
 
   @property
-  def template_args(self) -> Tuple[str, dict]:
+  def template_args(self) -> tuple[str, dict]:
     return ("wg/wg.conf", self.serialize())
 
 
@@ -276,7 +290,11 @@ class WireGuardInterface:
   def __eq__(self, other: object) -> bool:
     if not isinstance(other, WireGuardInterface):
       return False
-    return self.config.name == other.config.name
+    return self.config == other.config
+
+
+  def __hash__(self) -> int:
+    return hash(self.config)
 
 
   def __str__(self) -> str:
@@ -295,8 +313,10 @@ class WireGuardInterface:
 
 
   def stop(self) -> None:
-    self.tear_down()
-    self.delete()
+    if self.up:
+      self.tear_down()
+    if self.created:
+      self.delete()
     import time
     time.sleep(1)
 

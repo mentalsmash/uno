@@ -30,6 +30,7 @@ class CellSettings(Versioned, OwnableDatabaseObject):
     "httpd_port",
     "location",
   ]
+  EQ_PROPERTIES = PROPERTIES
 
   INITIAL_ENABLE_PARTICLES_VPN = True
   INITIAL_HTTPD_PORT = 443

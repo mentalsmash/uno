@@ -36,7 +36,7 @@ def locate_rti_license(search_path: Iterable[Path] | None = None) -> Path | None
   if rti_license_env:
     rti_license = Path(rti_license_env)
     if rti_license.is_file():
-      log.warning("detected RTI_LICENSE_FILE = {}", rti_license)
+      log.info("detected RTI_LICENSE_FILE = {}", rti_license)
       return rti_license
 
   default_path = [Path.cwd()]

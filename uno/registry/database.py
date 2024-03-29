@@ -94,7 +94,8 @@ class Database:
     return f"{self.__class__.__qualname__}({self.log.format_dir(self.root)})"
 
 
-  def next_id(self, table: str) -> int:
+  def next_id(self, target: DatabaseObject|type[DatabaseObject]) -> int:
+    table = self.SCHEMA.lookup_id_table_by_object(target)
     next_id = self._db.execute(
       f"SELECT next FROM next_id WHERE target = ?",
       (table,)).fetchone().next
@@ -161,26 +162,30 @@ class Database:
             owner_str(tgt))
         else:
           self.log.tracedbg("creating {}: {}", tgt.__class__.__qualname__, tgt)
-        tgt.save(cursor=cursor, create=create, public=public)
-        tgt.saved = True
-        tgt.loaded = table is not None
-        tgt.clear_changed()
 
-        if table:
-          self.log.activity("{} {}: {}{}",
-            "inserted" if create else "updated",
-            tgt.__class__.__qualname__,
-            tgt,
-            owner_str(tgt))
+        if tgt.disposed:
+          self.delete(tgt, cursor=cursor, do_in_transaction=lambda action: action())
         else:
-          self.log.trace("created {}: {}", tgt.__class__.__qualname__, tgt)
+          tgt.save(cursor=cursor, create=create, public=public)
+          tgt.clear_changed()
+          tgt.saved = True
+          tgt.loaded = table is not None
+
+          if table:
+            self.log.info("{} {}: {}{}",
+              "inserted" if create else "updated",
+              tgt.__class__.__qualname__,
+              tgt,
+              owner_str(tgt))
+          else:
+            self.log.tracedbg("created {}: {}", tgt.__class__.__qualname__, tgt)
         saved.append(tgt)
       for user, targets in (chown or {}).items():
         self._set_ownership(user, targets, current_owners=query_targets, cursor=cursor)
 
     def iter_query_targets() -> Generator[DatabaseObject, None, None]:
       for tgt in targets:
-        for tgt in tgt.collect_nested(dirty=dirty):
+        for tgt in ((t for t, _ in tgt.collect_changes()) if dirty else tgt.collect_nested()):
           tgt.validate()
           if isinstance(tgt, OwnableDatabaseObject) and tgt.id:
             owner = self.owner(tgt, cursor=cursor)
@@ -189,7 +194,7 @@ class Database:
           yield tgt, owner
 
     query_targets = dict(iter_query_targets())
-    self.log.trace("save targets: {}", query_targets)
+    self.log.tracedbg("save targets: {}", query_targets)
     do_in_transaction(do_save)
     return saved
 
@@ -206,7 +211,7 @@ class Database:
       table = self.SCHEMA.lookup_table_by_object(obj)
     if obj_id is None:
       if obj.id is None:
-        obj.id = self.next_id(table)
+        obj.id = self.next_id(obj)
       obj_id = obj.id
 
     sorted_keys = sorted(f if f != obj.OMITTED else None for f in fields if f not in ("id",))
@@ -221,7 +226,6 @@ class Database:
         f"UPDATE {table} SET " + ", ".join(f"{f} = ?" for f in sorted_keys) + " WHERE id =  ? ",
         (*sorted_values, obj_id),
       )
-
     cursor.execute(*query)
     obj.reset_cached_properties()
 
@@ -256,7 +260,7 @@ class Database:
     result = cursor.execute(query, params or [])
     if cls is not None:
       for row in result:
-        self.log.activity(f"deleted record: {'{}'}, {', '.join('{} = {}' for _ in eq_props)}",
+        self.log.debug(f"deleted record: {'{}'}, {', '.join('{} = {}' for _ in eq_props)}",
           table,
           *(f for p in eq_props for f in (p, getattr(row, p))))
 
@@ -289,11 +293,12 @@ class Database:
     properties = dict(properties or {})
     properties["db"] = self
     created = cls.new(**properties)
-    # if issubclass(cls, DatabaseObject):
-    # else:
-    #   created = self.deserialize(cls, properties)
-    #   save = False
-    self.log.debug("new {}: {}", cls.__qualname__, created)
+    logger = (
+      self.log.activity if created.DB_TABLE and created.DB_CACHED else 
+      self.log.debug if created.DB_TABLE else
+      self.log.trace
+    )
+    logger("new {}: {}", cls.__qualname__, created)
     table = self.SCHEMA.lookup_table_by_object(cls, required=False)
     chown = None
     if not table:
@@ -314,6 +319,7 @@ class Database:
       params: tuple | None = None,
       owner: DatabaseObjectOwner | None = None,
       load_args: dict[str, object] | None = None,
+      use_cache: bool = True,
       cursor: "Database.Cursor|None" = None) -> Generator[Versioned, None, None]:
 
     if cls is None:
@@ -326,7 +332,10 @@ class Database:
       table = self.SCHEMA.lookup_table_by_object(cls)
 
     cache = self._cache[table] = self._cache.get(table, {})
+    
     def _check_cache(obj_id) -> Versioned|None:
+      if not use_cache:
+        return None
       cached = cache.get(obj_id)
       if cached:
         self.log.tracedbg("cache hit {}: {}", cached.__class__.__qualname__, cached)
@@ -383,9 +392,20 @@ class Database:
       self.log.debug("no {} matched by query", cls.__qualname__)
       return
 
-    self.log.debug("load targets: {}", load_targets)
+    self.log.tracedbg("load targets: {}", load_targets)
+    def _load_obj(obj: DatabaseObject):
+      # obj.validate()
+      obj.saved = True
+      obj.loaded = True
+      # logger = (
+      #   self.log.activity if obj.DB_TABLE and obj.DB_CACHED else 
+      #   self.log.debug if obj.DB_TABLE else
+      #   self.log.trace
+      # )
+      # logger("loaded {}: {}", obj.__class__.__qualname__, obj)
     for row in load_targets:
       if isinstance(row, DatabaseObject):
+        _load_obj(row)
         yield row
         continue
       
@@ -394,11 +414,7 @@ class Database:
         serialized.update(load_args)
 
       loaded = cls.load(self, serialized)
-      loaded.validate()
-      loaded.loaded = True
-      loaded.saved = True
-      self.log.activity("loaded {}: {}{}", loaded.__class__.__qualname__, loaded,
-        "" if not isinstance(loaded, OwnableDatabaseObject) else f" (owner: {loaded.owner})")
+      _load_obj(loaded)
       yield loaded
 
 
@@ -445,39 +461,54 @@ class Database:
       for tgt in _query_targets():
         table = self.SCHEMA.lookup_table_by_object(obj)
         # cursor.execute(f"DELETE FROM {table} WHERE id = ?", [tgt.id])
+        self._cache.pop(tgt.id, None)
         self._delete(table, f"DELETE FROM {table} WHERE id = ?", [tgt.id], tgt.__class__,
           cursor=cursor)
-        self.log.activity("deleted {}: {}", tgt.__class__.__qualname__, tgt)
-        self._cache.pop(tgt.id, None)
+        self.log.info("deleted {}: {}", tgt.__class__.__qualname__, tgt)
     do_in_transaction(_delete)
 
 
-  def deserialize(self, cls: type, serialized: dict) -> object:
+  def deserialize(self, cls: type, serialized: dict, use_cache: bool=True) -> object:
     loaded = None
     table = self.SCHEMA.lookup_table_by_object(cls, required=False)
     cache = None
+    cached = None
     if table is not None:
       cache = self._cache[table] = self._cache.get(table, {})
 
-    if "id" in serialized and cache is not None:
-      loaded = cache.get(serialized["id"])
+    if "id" in serialized and cache is not None and use_cache:
+      cached = cache.get(serialized["id"])
+      loaded = cached
 
     if loaded is None:
       if issubclass(cls, DatabaseObject):
         loaded = cls(db=self, **serialized)
+        logger = (
+          self.log.activity if loaded.DB_TABLE and loaded.DB_CACHED else 
+          self.log.debug if loaded.DB_TABLE else
+          self.log.trace
+        )
+        # if loaded.id is None:
+        # else:
+        #   logger("loaded {}: {}", loaded.__class__.__qualname__, loaded)
       elif hasattr(cls, "deserialize"):
         loaded = cls.deserialize(serialized)
+        logger = self.log.tracedbg
+        # self.log.tracedbg("deserialized {}: {}", loaded.__class__.__qualname__, loaded)
       else:
         raise NotImplementedError("cannot deserialize type", cls)
-    self.log.trace("deserialized {}: {}", loaded.__class__.__qualname__, loaded)
+      logger("instance {}: {}", cls.__qualname__, loaded)
+    else:
+      self.log.tracedbg("cache hit {}: {}", loaded.__class__.__qualname__, loaded)
+
     loaded_id = getattr(loaded, "id", None)
     if (issubclass(cls, DatabaseObject)
         and cls.DB_CACHED
         and loaded_id
         and cache is not None
-        and loaded.id not in cache):
+        and cached is None):
       cache[loaded_id] = loaded
-      self.log.debug("cached {}: {}", loaded.__class__.__qualname__, loaded)
+      self.log.tracedbg("cached {}: {}", loaded.__class__.__qualname__, loaded)
 
     return loaded
 
@@ -548,10 +579,10 @@ class Database:
 
     if result:
       owner = next(self.load(owner_cls, table=table, id=owner_id))
-      self.log.debug("loaded owner of {}: {}", search_target, owner)
+      self.log.trace("loaded owner of {}: {}", search_target, owner)
       return owner
 
-    self.log.debug("no owner: {}", search_target)
+    self.log.trace("no owner: {}", search_target)
     return None
 
 
@@ -628,7 +659,7 @@ class Database:
     return result
 
 
-  def export_tables(self, target: "Database", classes: Iterable[type]) -> None:
+  def export_tables(self, target: "Database", classes: Iterable[type[DatabaseObject]]) -> None:
     exported = set()
     for exported_cls in classes:
       assert(issubclass(exported_cls, DatabaseObject))
@@ -647,9 +678,9 @@ class Database:
       def _export(table) -> None:
         if table in exported:
           return
-        self.log.activity("export table {} to {}", table, target)
+        self.log.debug("export table {} to {}", table, target)
         for row in l_cursor.execute(f"SELECT * FROM {table}"):
-          self.log.debug("export record {}: {}", table, row)
+          self.log.trace("export record {}: {}", table, row)
           t_cursor.execute(
             f"INSERT INTO {table} ({', '.join(f for f in row._fields)}) VALUES ({', '.join('?' for _ in row._fields)})",
             row)
@@ -665,3 +696,13 @@ class Database:
   def export_objects(self, target: "Database", objects: Iterable[Versioned], public: bool=False) -> None:
     target.save_all(objects, dirty=False, public=public, force_insert=True)
 
+
+  def import_tables(self, target: "Database", classes: Iterable[type[DatabaseObject]]) -> None:
+    for cls in classes:
+      for obj in target.load(cls):
+        if isinstance(obj, OwnableDatabaseObject) and obj.owner:
+          chown = {obj.owner: obj}
+        else:
+          chown = None
+        self.log.activity("importing {}: {}", cls.__name__, obj)
+        self.save(obj, chown=chown, dirty=False)

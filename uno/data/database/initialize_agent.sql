@@ -1,23 +1,27 @@
 ------------------------------------------------------------------------------
 -- agent_configs --
 -------------------------------------------------------------------------------
-CREATE TABLE agent_configs (
+CREATE TABLE agents (
   id INT PRIMARY KEY CHECK (id > 0),
   generation_ts CHAR(22) NOT NULL,
   init_ts CHAR(22) NOT NULL,
   owner_id TEXT,
-  registry_id CHAR(64) NOT NULL CHECK(length(registry_id) == 64),
+  config_id CHAR(64) NOT NULL CHECK(length(config_id) == 64),
+  started BOOL DEFAULT(FALSE) NOT NULL,
+  root TEXT,
+  uvn_backbone_plot TEXT,
+  uvn_status_plot TEXT
   -- deployment TEXT,
   -- root_vpn_config TEXT,
   -- particles_vpn_config TEXT,
   -- backbone_vpn_configs TEXT,
-  enable_systemd BOOL DEFAULT(FALSE) NOT NULL,
-  enable_router BOOL DEFAULT(FALSE) NOT NULL,
-  enable_httpd BOOL DEFAULT(FALSE) NOT NULL,
-  enable_peers_tester BOOL DEFAULT(FALSE) NOT NULL
+  -- enable_systemd BOOL DEFAULT(FALSE) NOT NULL,
+  -- enable_router BOOL DEFAULT(FALSE) NOT NULL,
+  -- enable_httpd BOOL DEFAULT(FALSE) NOT NULL,
+  -- enable_peers_tester BOOL DEFAULT(FALSE) NOT NULL
   );
 
-INSERT INTO next_id (target) VALUES ("agent_configs");
+INSERT INTO next_id (target) VALUES ("agents");
 
 -- -------------------------------------------------------------------------------
 -- -- agent_configs_uvns --
@@ -100,10 +104,16 @@ INSERT INTO next_id (target) VALUES ("peers");
 CREATE TABLE peers_vpn_status (
   id INT PRIMARY KEY CHECK (id > 0),
   generation_ts CHAR(22) NOT NULL,
+  init_ts CHAR(22) NOT NULL,
   intf CHAR(15) NOT NULL,
   online BOOL DEFAULT(FALSE) NOT NULL,
-  peer INT NOT NULL,
-  FOREIGN KEY(peer) REFERENCES peers(id));
+  last_handshake CHAR(22),
+  transfer TEXT NOT NULL,
+  endpoint TEXT NOT NULL,
+  allowed_ips TEXT NOT NULL,
+  peer INT,
+  FOREIGN KEY(peer) REFERENCES peers(id),
+  UNIQUE(intf, peer));
 
 INSERT INTO next_id (target) VALUES ("peers_vpn_status");
 
@@ -113,9 +123,11 @@ INSERT INTO next_id (target) VALUES ("peers_vpn_status");
 CREATE TABLE peers_lan_status (
   id INT PRIMARY KEY CHECK (id > 0),
   generation_ts CHAR(22) NOT NULL,
+  init_ts CHAR(22) NOT NULL,
   lan TEXT NOT NULL UNIQUE,
   reachable BOOL DEFAULT(FALSE) NOT NULL,
-  peer INT NOT NULL,
-  FOREIGN KEY(peer) REFERENCES peers(id));
+  peer INT,
+  FOREIGN KEY(peer) REFERENCES peers(id),
+  UNIQUE(lan, peer));
 
 INSERT INTO next_id (target) VALUES ("peers_lan_status");

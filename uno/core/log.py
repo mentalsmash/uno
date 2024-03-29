@@ -84,8 +84,8 @@ def context_enabled(context):
     else:
         return _LOGGER_CONTEXT.match(context) is not None
 
-def log_enabled(context, lvl):
-    if _LOGGER_LEVEL >= lvl:
+def log_enabled(local_lvl, context, lvl):
+    if local_lvl >= lvl:
         return context_enabled(context)
     return False
 
@@ -203,14 +203,15 @@ def _format_default(logger, context, lvl, fmt, *args, **kwargs):
 
 class UvnLogger:
     global_prefix = None
+    Level = level
 
     def __init__(
-        self,
-        context,
-        no_prefix=False,
-        format=_format_default,
-        emit=_emit_default,
-        parent: "UvnLogger|None"=None):
+            self,
+            context,
+            no_prefix=False,
+            format=_format_default,
+            emit=_emit_default,
+            parent: "UvnLogger|None"=None):
         if not context:
             raise LoggerError("invalid logger context")
         self.parent = parent
@@ -218,6 +219,7 @@ class UvnLogger:
         self.emit = emit
         self.no_prefix = no_prefix
         self._update_sublogger_context(context)
+        self.local_level = None
 
     @property
     def context(self) -> str:
@@ -239,17 +241,9 @@ class UvnLogger:
 
     @property
     def level(self) -> _LogLevels:
-        return level
-
-
-    @property
-    def current_level(self) -> _LogLevel:
-        return verbosity()
-
-
-    @current_level.setter
-    def current_level(self, val: _LogLevel) -> None:
-        set_verbosity(val)
+        if self.local_level is not None:
+            return self.local_level
+        return _LOGGER_LEVEL
 
 
     def _update_sublogger_context(self, context: str) -> None:
@@ -261,7 +255,7 @@ class UvnLogger:
 
 
     def _log(self, lvl, *args, **kwargs):
-        if not log_enabled(self.context, lvl):
+        if not log_enabled(self.level, self.context, lvl):
             return
         if len(args) == 1:
             line = self.format(self, self.context, lvl, "{}", *args, **kwargs)
@@ -276,7 +270,6 @@ class UvnLogger:
             self.emit(self, self.context, lvl, line, **kwargs)
 
     def exception(self, e):
-        # if log_enabled(self.context, level.debug):
         traceback.print_exc()
         self.error("[exception] {}", e)
     

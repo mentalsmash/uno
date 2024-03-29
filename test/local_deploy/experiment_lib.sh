@@ -144,7 +144,7 @@ docker_container()
     (
         extra_args="
             $([ -z "${CELL_ID}" ] || printf -- "-e CELL=${CELL_ID}") \
-            $([ -z "${CELL_ID}" ] || printf -- "-v ${UVN_DIR}/cells/${CELL_ID}.uvn-agent:/package.uvn-agent" ) \
+            $([ -z "${CELL_ID}" ] || printf -- "-v ${UVN_DIR}/cells/${UVN_ID}__${CELL_ID}.uvn-agent:/package.uvn-agent" ) \
             $([ -z "${UNO_DIR}" ] || printf -- "-v ${UNO_DIR}:/uno") \
             $([ -z "${host_uvn}" ] || printf -- "-v ${host_uvn}:/uvn") \
             $([ -z "${host_uvn}" ] || printf -- "-w /uvn") \
@@ -271,7 +271,7 @@ uvn_create()
             -o "${uvn_admin_name} <${uvn_admin}>" \
             -r ${UVN_DIR} \
             $([ -z "${UVN_TIMING_FAST}" ] || printf -- "--timing-profile fast" ) \
-            $([ -z "${UVN_SECRET}" ] || printf -- "-m ${UVN_SECRET}" ) \
+            $([ -z "${UVN_SECRET}" ] || printf -- "-p ${UVN_SECRET}" ) \
             --yes \
             ${UVN_EXTRA_ARGS}
     )
@@ -294,8 +294,9 @@ uvn_attach()
             $([ -n "${CELL_ROAMING}" -o -z "${cell_subnet}" ] || printf -- "-N ${cell_subnet}")
         "
         set -x
+        ${UNO} define user ${cell_admin} --name "${cell_admin_name}" -p ${UVN_SECRET}
         ${UNO} define cell ${cell_name} \
-            -o "${cell_admin_name} <${cell_admin}>" \
+            -o ${cell_admin} \
             ${extra_args} \
             --yes \
             ${UVN_EXTRA_ARGS}
@@ -306,13 +307,15 @@ uvn_attach()
 uvn_particle()
 {
     local particle_name="${1}" \
-          particle_contact="${2}"
+          particle_owner_name="${2}" \
+          particle_owner_email=${3}
 
     (
         cd ${UVN_DIR}
         set -x
+        ${UNO} define user ${particle_owner_email} --name "${particle_owner_name}" -p ${UVN_SECRET}
         ${UNO} define particle ${particle_name} \
-            -o "${particle_contact}" \
+            -o ${particle_owner_email} \
             --yes \
             ${UVN_EXTRA_ARGS}
     )

@@ -15,11 +15,12 @@
 # along with this program. If not, see <https://www.gnu.org/licenses/>.
 ###############################################################################
 from pathlib import Path
-from typing import TYPE_CHECKING, Iterable, Tuple
+from typing import TYPE_CHECKING, Iterable
 
 from .render import Templates
 from ..core.wg import WireGuardInterface
 from ..core.exec import exec_command
+from ..registry.cell import Cell
 from .agent_service import AgentService
 
 if TYPE_CHECKING:
@@ -32,14 +33,11 @@ class Router(AgentService):
   FRR_CONF = "/etc/frr/frr.conf"
 
 
-  @classmethod
-  def check_enabled(cls, agent: "Agent") -> bool:
-    # Cannot enable router without root_vpn interface (needed by config)
-    return agent.config.enable_router and agent.root_vpn is not None
-
+  def check_runnable(self) -> bool:
+    return isinstance(self.agent.owner, Cell)
 
   @property
-  def frr_config(self) -> Tuple[str, dict]:
+  def frr_config(self) -> tuple[str, dict]:
     def _frr_serialize_vpn(vpn: WireGuardInterface) -> dict:
       return {
         "name": vpn.config.intf.name,
@@ -55,10 +53,10 @@ class Router(AgentService):
     #########################################################################
     static_routes = []
     ctx = {
-      "bgp_as": self.agent.local_object.id,
+      "bgp_as": self.agent.owner.id,
       "timing": self.agent.uvn.settings.timing_profile,
       "message_digest_key": f"{self.agent.uvn.name}-{self.agent.deployment.generation_ts}",
-      "hostname": self.agent.local_object.address,
+      "hostname": self.agent.owner.address,
       "root": _frr_serialize_vpn(self.agent.root_vpn),
       "backbone": [
         _frr_serialize_vpn(v) for v in self.agent.backbone_vpns
@@ -85,30 +83,17 @@ class Router(AgentService):
     return ("router/frr.bgp.conf", ctx)
 
 
-  def start(self) -> None:
-    self.log.debug("starting frrouting...")
-    
-    # Make sure log directory exists and is writable
-    # TODO(asorbini) fix these ugly permissions
-    # self.log_dir.mkdir(parents=True, exist_ok=True)
-    # self.log_dir.chmod(0o777)
-
+  def _start(self) -> None:
     # Generate and install frr.conf
     Templates.generate(self.FRR_CONF, *self.frr_config)
-    
     # Make sure the required frr daemons are enabled
-    exec_command(["sed", "-i", "-r", r"s/^(zebra|ospfd|bgpd)=no$/\1=yes/g", "/etc/frr/daemons"])
-
+    exec_command(["sed", "-i", "-r", r"s/^(zebra|bgpd)=no$/\1=yes/g", "/etc/frr/daemons"])
     # (Re)start frr
     exec_command(["service", "frr", "restart"])
 
-    self.log.activity("started")
 
-
-  def stop(self) -> None:
-    self.log.debug("stopping frrouting...")
+  def _stop(self, assert_stopped: bool) -> None:
     exec_command(["service", "frr", "stop"])
-    self.log.activity("stopped")
 
 
   def vtysh(self, cmd: Iterable[str|Path], output_file: Path|None=None) -> str|None:
