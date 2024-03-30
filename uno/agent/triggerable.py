@@ -43,7 +43,7 @@ class Triggerrable:
     return int(Timestamp.now().subtract(self._last_trigger_ts).total_seconds())
 
 
-  def trigger_service(self) -> None:
+  def trigger(self) -> None:
     self.log.debug("triggering")
     with self._state_lock:
       if self._triggered:
@@ -86,7 +86,7 @@ class Triggerrable:
     self.log.debug("service stopped")
 
 
-  def start_service(self) -> None:
+  def start_trigger_thread(self) -> None:
     if self._service_thread is not None:
       return
     self._service_active = True
@@ -94,12 +94,12 @@ class Triggerrable:
     self._service_thread.start()
 
 
-  def stop_service(self) -> None:
+  def stop_trigger_thread(self) -> None:
     if self._service_thread is None:
       return
     try:
       self._service_active = False
-      self.trigger_service()
+      self.trigger()
       self._service_thread.join()
     finally:
       self._service_thread = None

@@ -14,7 +14,7 @@
 # You should have received a copy of the GNU Affero General Public License
 # along with this program. If not, see <https://www.gnu.org/licenses/>.
 ###############################################################################
-from typing import TYPE_CHECKING, Generator
+from typing import TYPE_CHECKING, Generator, Iterable
 from pathlib import Path
 from functools import cached_property
 import contextlib
@@ -22,10 +22,12 @@ import os
 from enum import Enum
 import rti.connextdds as dds
 
-from ..core.exec import exec_command
-from ..registry.versioned import disabled_if
+from ..core.exec import exec_command, shell_which
+from ..registry.versioned import disabled_if, error_if
 
+from .render import Templates
 from .runnable import Runnable
+from .agent_static_service import AgentStaticService
 
 if TYPE_CHECKING:
   from .agent import Agent
@@ -49,8 +51,11 @@ class AgentService(Runnable):
   LISTENER: type[AgentServiceListener] = None
 
   EQ_PROPERTIES = [
-    "svc_class"
+    "svc_class",
+    "parent",
   ]
+
+  STATIC_SERVICE = None
 
   def __init__(self, **properties) -> None:
     self.updated_condition_triggered = False
@@ -115,4 +120,52 @@ class AgentService(Runnable):
 
   def _process_updates(self) -> None:
     raise NotImplementedError()
+
+
+  @cached_property
+  def static(self) -> AgentStaticService | None:
+    if self.STATIC_SERVICE is None:
+      return None
+    return self.new_child(AgentStaticService, {
+      "name": self.STATIC_SERVICE,
+    })
+
+
+  @disabled_if("runnable", neg=True)
+  def start(self) -> None:
+    if self.static is not None and self.static.current_marker is not None:
+      self.static.check_marker_compatible()
+      self.log.warning("taking over systemd unit")
+      return
+    super().start()
+    if self.static:
+      self.static.write_marker()
+
+
+  def stop(self, assert_stopped: bool=False) -> None:
+    try:
+      super().stop(assert_stopped=assert_stopped)
+    finally:
+      if self.static:
+        self.static.delete_marker()
+
+
+  @error_if("static", neg=True)
+  @disabled_if("runnable", neg=True)
+  def start_static(self) -> None:
+    self._start_static()
+    self.static.write_marker()
+    self.log.info("systemd unit started")
+
+
+  @error_if("static", neg=True)
+  def stop_static(self) -> None:
+    self.stop(assert_stopped=True)
+    self.log.info("systemd unit stopped")
+
+
+  def _start_static(self) -> None:
+    raise NotImplementedError()
+
+
 

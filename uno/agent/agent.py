@@ -23,6 +23,8 @@ from enum import Enum
 import os
 import tempfile
 import shutil
+import signal
+import time
 import queue
 
 import ipaddress
@@ -69,6 +71,8 @@ from .webui import WebUi
 from .routes_monitor import RoutesMonitor, RoutesMonitorListener
 from .agent_service import AgentService
 from .runnable import Runnable
+from .systemd_service import SystemdService
+from .agent_static_service import AgentStaticService
 
 
 class AgentReload(Exception):
@@ -100,7 +104,7 @@ class Agent(AgentConfig, Runnable, UvnPeerListener, RoutesMonitorListener, Ownab
     IMMEDIATE = 0
     CONNECTED = 1
 
-  PID_FILE = Path("/run/uno/uvn-agent.pid")
+  PID_FILE = Path("/run/uno/uno-agent.pid")
 
   PROPERTIES = [
     "config_id",
@@ -137,7 +141,7 @@ class Agent(AgentConfig, Runnable, UvnPeerListener, RoutesMonitorListener, Ownab
   UNREACHABLE_NETWORKS_TABLE_FILENAME = "networks.unreachable"
 
   @classmethod
-  def open(cls, root: Path|None=None, registry: Registry|None=None) -> None:
+  def open(cls, root: Path|None=None, registry: Registry|None=None) -> "Agent":
     if registry is None:
       registry = Registry.open(root, readonly=True)
     owner, config_id = registry.local_id
@@ -471,6 +475,39 @@ class Agent(AgentConfig, Runnable, UvnPeerListener, RoutesMonitorListener, Ownab
 
 
   @property
+  def iter_static_services(self) -> Generator[AgentStaticService, None, None]:
+    prev_svc = None
+    for svc in self.services:
+      if svc.static is None:
+        continue
+      if prev_svc is not None:
+        svc.static.previous_service = prev_svc
+      prev_svc = svc.static
+      yield svc.static
+    agent_svc = self.static
+    agent_svc.previous_service = prev_svc
+    yield agent_svc
+
+
+  @cached_property
+  def static_services(self) -> list[AgentStaticService]:
+    return list(self.iter_static_services)
+
+
+
+  @cached_property
+  def active_static_services(self) -> list[AgentStaticService]:
+    return [svc for svc in self.static_services if svc.current_marker is not None]
+
+
+  @cached_property
+  def static(self) -> AgentStaticService:
+    return self.new_child(AgentStaticService, {
+      "name": "agent",
+    })
+
+
+  @property
   def running_contexts(self) -> Generator[ContextManager, None, None]:
     yield self._pid_file()
     for svc in self.services:
@@ -554,9 +591,12 @@ class Agent(AgentConfig, Runnable, UvnPeerListener, RoutesMonitorListener, Ownab
     cls.log.activity("PID file [{}]: {}", pid, cls.PID_FILE)
 
 
-
   @contextlib.contextmanager
   def _pid_file(self) -> Generator["Agent", None, None]:
+    external_process = self.external_agent_process()
+    if external_process is not None:
+      self.log.error("another instance of uno agent is already running on this host: {}", external_process)
+      raise RuntimeError("agent already running on host", external_process)
     self.write_pid_file()
     try:
       yield self
@@ -1028,7 +1068,7 @@ class Agent(AgentConfig, Runnable, UvnPeerListener, RoutesMonitorListener, Ownab
     # Update UI
     self.webui.request_update()
     # Trigger peers tester
-    self.peers_tester.trigger_service()
+    self.peers_tester.trigger()
 
 
   def on_event_all_cells_connected(self) -> None:
@@ -1078,7 +1118,7 @@ class Agent(AgentConfig, Runnable, UvnPeerListener, RoutesMonitorListener, Ownab
     # Update UI
     self.webui.request_update()
     # Trigger peers tester
-    self.peers_tester.trigger_service()
+    self.peers_tester.trigger()
 
 
   def on_event_routed_networks_discovered(self) -> None:
@@ -1156,7 +1196,7 @@ class Agent(AgentConfig, Runnable, UvnPeerListener, RoutesMonitorListener, Ownab
     # Update UI
     self.webui.request_update()
     # Trigger peers tester
-    self.peers_tester.trigger_service()
+    self.peers_tester.trigger()
 
 
   def on_event_fully_routed_uvn(self) -> None:
@@ -1180,7 +1220,7 @@ class Agent(AgentConfig, Runnable, UvnPeerListener, RoutesMonitorListener, Ownab
     for r in gone_routes:
       self.log.warning("route DEL: {}", r)
     # Trigger peers tester
-    self.peers_tester.trigger_service()
+    self.peers_tester.trigger()
     # Update UI
     self.webui.request_update()
 
@@ -1336,5 +1376,36 @@ class Agent(AgentConfig, Runnable, UvnPeerListener, RoutesMonitorListener, Ownab
     exec_command(["rm", "-rf", id_db_dir])
 
     self.log.debug("bootstrap completed: {}@{} [{}]", self.owner, self.uvn, self.root)
+
+
+  def service_up(self, service: str) -> None:
+    if service != "agent":
+      raise NotImplementedError()
+    self.enable_systemd = True
+    self.spin()
+
+
+  def service_down(self, service: str) -> None:
+    if service != "agent":
+      raise NotImplementedError()
+    external_agent = self.external_agent_process()
+    if external_agent is None:
+      self.log.warning("no agent detected")
+      return
+    try:
+      max_wait = 30
+      ts_start = Timestamp.now()
+      os.kill(external_agent, signal.SIGINT)
+      while True:
+        external_agent = self.external_agent_process()
+        if external_agent is None:
+          break
+        if Timestamp.now().subtract(ts_start).total_seconds() >= max_wait:
+          raise RuntimeError(f"the agent failed to exit in {max_wait} seconds")
+        time.sleep(1)
+    except Exception as e:
+      raise RuntimeError("failed to terminate agent process: {}", external_agent)
+
+    
 
 

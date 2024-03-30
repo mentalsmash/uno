@@ -72,11 +72,11 @@ class UvnPeersTester(AgentService, Triggerrable):
 
 
   def _start(self) -> None:
-    self.start_service()
+    self.start_trigger_thread()
 
 
   def _stop(self, assert_stopped: bool=False) -> None:
-    self.stop_service()
+    self.stop_trigger_thread()
 
 
   def _handle_trigger(self) -> None:

@@ -1,0 +1,13 @@
+[Unit]
+Description=uno agent
+After=uno-net.service
+BindsTo={{prev_rc}}
+
+[Service]
+Type=notify
+ExecStart={{uno_bin}} agent --systemd  -r {{root}} -vv
+KillSignal=SIGINT
+PIDFile={{pid_file}}
+
+[Install]
+WantedBy=multi-user.target

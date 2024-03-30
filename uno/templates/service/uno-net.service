@@ -1,0 +1,14 @@
+[Unit]
+Description=uno network connection
+Before=uno-agent.service
+After=docker.service
+Wants=docker.service
+
+[Service]
+Type=oneshot
+ExecStart={{uno_bin}} net up -r {{root}} -vv
+RemainAfterExit=true
+ExecStop={{uno_bin}} net down -r {{root}} -vv
+
+[Install]
+WantedBy=multi-user.target

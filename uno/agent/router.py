@@ -22,6 +22,7 @@ from ..core.wg import WireGuardInterface
 from ..core.exec import exec_command
 from ..registry.cell import Cell
 from .agent_service import AgentService
+from .agent_service import AgentStaticService
 
 if TYPE_CHECKING:
   from .agent import Agent
@@ -32,9 +33,12 @@ class Router(AgentService):
   
   FRR_CONF = "/etc/frr/frr.conf"
 
+  STATIC_SERVICE = "router"
+
 
   def check_runnable(self) -> bool:
     return isinstance(self.agent.owner, Cell)
+
 
   @property
   def frr_config(self) -> tuple[str, dict]:
@@ -81,6 +85,10 @@ class Router(AgentService):
       "log_dir": self.log_dir,
     }
     return ("router/frr.bgp.conf", ctx)
+
+
+  def _start_static(self) -> None:
+    self._start()
 
 
   def _start(self) -> None:

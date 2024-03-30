@@ -127,8 +127,8 @@ def disabled_if(
 
 
 
-def error_if(condition: str|Predicate):
-  return disabled_if(condition, error=True)
+def error_if(condition: str|Predicate, neg: bool=False):
+  return disabled_if(condition, error=True, neg=neg)
 
 
 def static_if(condition: str|Predicate, retval: object | type | Callable[[], object]):

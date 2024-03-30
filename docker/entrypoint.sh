@@ -35,9 +35,9 @@ sync)
 net)
   # Use static configuration to start the agent
   cd ${UVN_DIR}
-  uvn-net start
+  uno service up router
   bash
-  uvn-net stop
+  uno service stop router
   exit
   ;;
 "__default__")

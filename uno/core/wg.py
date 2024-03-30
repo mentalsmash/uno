@@ -312,14 +312,14 @@ class WireGuardInterface:
     time.sleep(1)
 
 
-  def stop(self) -> None:
-    if self.up:
-      self.tear_down()
-    if self.created:
-      self.delete()
+  def stop(self, assert_stopped: bool=False) -> None:
+    errors = []
+    if self.up or assert_stopped:
+      self.tear_down(ignore_errors=assert_stopped)
+    if self.created or assert_stopped:
+      self.delete(ignore_errors=assert_stopped)
     import time
     time.sleep(1)
-
 
 
   def create(self):
@@ -355,14 +355,17 @@ class WireGuardInterface:
     self.log.activity("created")
 
 
-  def delete(self):
+  def delete(self, ignore_errors: bool=False):
     # Remove interface with "ip link delete dev..."
     try:
       self.log.debug("deleting interface")
       exec_command(
         ["ip", "link", "delete", "dev", self.config.intf.name])
-    except:
-      raise WireGuardError(f"failed to delete wireguard interface: {self.config.intf.name}")
+    except Exception as e:
+      if not ignore_errors:
+        raise WireGuardError(f"failed to delete wireguard interface: {self.config.intf.name}")
+      else:
+        log.warning("failed to delete wireguard interface {}: {}", self.config.intf.name, e)
     # Mark interface as up
     self.created = False
     self.log.activity("deleted")
@@ -422,20 +425,26 @@ class WireGuardInterface:
     self.log.activity("up [{}/{}]", self.config.intf.address, self.config.intf.netmask)
 
 
-  def tear_down(self):
+  def tear_down(self, ignore_errors: bool=False):
     # Disable interface with "ip link set down dev..."
     try:
       self.log.debug("disabling interface")
       exec_command(
         ["ip", "link", "set", "down", "dev", self.config.intf.name])
-    except:
-      raise WireGuardError(f"failed to disable wireguard interface: {self.config.intf.name}")
+    except Exception as e:
+      if not ignore_errors:
+        raise WireGuardError(f"failed to disable wireguard interface: {self.config.intf.name}")
+      else:
+        log.warning("failed to disabled wireguard interface {}: {}", self.config.intf.name, e)
     try:
       self.log.debug("resetting interface configuration")
       exec_command(
         ["ip", "address", "flush", "dev", self.config.intf.name])
-    except:
-      raise WireGuardError(f"failed to reset wireguard interface: {self.config.intf.name}")
+    except Exception as e:
+      if not ignore_errors:
+        raise WireGuardError(f"failed to reset wireguard interface: {self.config.intf.name}")
+      else:
+        log.warning("failed to reset wireguard interface {}: {}", self.config.intf.name, e)
     # Mark interface as down
     self.up = False
     self.log.activity("down")

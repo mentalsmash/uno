@@ -273,6 +273,7 @@ uvn_create()
             $([ -z "${UVN_TIMING_FAST}" ] || printf -- "--timing-profile fast" ) \
             $([ -z "${UVN_SECRET}" ] || printf -- "-p ${UVN_SECRET}" ) \
             --yes \
+            ${VERBOSE} \
             ${UVN_EXTRA_ARGS}
     )
     log_info "[created] UVN: ${uvn_address}"
@@ -294,11 +295,12 @@ uvn_attach()
             $([ -n "${CELL_ROAMING}" -o -z "${cell_subnet}" ] || printf -- "-N ${cell_subnet}")
         "
         set -x
-        ${UNO} define user ${cell_admin} --name "${cell_admin_name}" -p ${UVN_SECRET}
+        ${UNO} define user ${cell_admin} --name "${cell_admin_name}" -p ${UVN_SECRET} ${VERBOSE}
         ${UNO} define cell ${cell_name} \
             -o ${cell_admin} \
             ${extra_args} \
             --yes \
+            ${VERBOSE} \
             ${UVN_EXTRA_ARGS}
     )
     log_info "[created] UVN cell: ${cell_name}"
@@ -313,10 +315,11 @@ uvn_particle()
     (
         cd ${UVN_DIR}
         set -x
-        ${UNO} define user ${particle_owner_email} --name "${particle_owner_name}" -p ${UVN_SECRET}
+        ${UNO} define user ${particle_owner_email} --name "${particle_owner_name}" -p ${UVN_SECRET} ${VERBOSE}
         ${UNO} define particle ${particle_name} \
             -o ${particle_owner_email} \
             --yes \
+            ${VERBOSE} \
             ${UVN_EXTRA_ARGS}
     )
     log_info "[created] UVN particle: ${particle_name}"
@@ -349,6 +352,7 @@ uvn_deploy()
         ${UNO} redeploy \
             $([ -z "${UVN_STRATEGY}" ] || printf -- "-S ${UVN_STRATEGY}") \
             --yes \
+            ${VERBOSE} \
             ${UVN_EXTRA_ARGS}
     )
 }
@@ -361,6 +365,7 @@ uvn_install()
     
     ${UNO} install \
         -r "${CELLS_DIR}/${cell_name}" \
+        ${VERBOSE} \
         "${UVN_DIR}/cells/${cell_name}.uvn-agent"
 
     # ${UVN} install \

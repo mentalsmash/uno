@@ -50,6 +50,8 @@ from .cmd_agent import (
   agent_run,
   agent_service_install,
   agent_service_remove,
+  agent_service_down,
+  agent_service_up,
   agent_install,
   agent_update,
 )
@@ -524,6 +526,35 @@ def uno_parser(parser: argparse.ArgumentParser):
   cmd_service_disable = cli_command(grp_service, "remove",
     cmd=agent_service_remove,
     help="Disable the uvn-net and uvn-agent systemd services. Stop them if they are active.")
+
+
+  #############################################################################
+  # uno service up ...
+  #############################################################################
+  cmd_service_up = cli_command(grp_service, "up",
+    cmd=agent_service_up,
+    help="Start agent services as Systemd units.")
+
+
+  cmd_service_up.add_argument("service",
+    nargs="*",
+    # default=[],
+    help="Services to start.")
+
+
+  #############################################################################
+  # uno service down ...
+  #############################################################################
+  cmd_service_down = cli_command(grp_service, "down",
+    cmd=agent_service_down,
+    help="Stop agent services run as Systemd units.")
+
+
+  cmd_service_down.add_argument("service",
+    nargs="*",
+    # default=[],
+    help="Services to stop.")
+
 
   #############################################################################
   # uno agent ..

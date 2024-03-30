@@ -14,16 +14,25 @@
 # You should have received a copy of the GNU Affero General Public License
 # along with this program. If not, see <https://www.gnu.org/licenses/>.
 ###############################################################################
+from pathlib import Path
+from functools import cached_property
+from typing import Generator
 
 from ..core.exec import exec_command
 from ..core.wg import WireGuardInterface
-from .agent_service import AgentService, StopAgentServiceError
+from .agent_service import AgentService, StopAgentServiceError, AgentStaticService
 
 
 class UvnNet(AgentService):
+  STATIC_SERVICE = "net"
+
   def __init__(self, **properties) -> None:
     super().__init__(**properties)
     self._iptables_rules = {}
+
+
+  def _start_static(self) -> None:
+    self._start()
 
 
   def _start(self) -> None:
@@ -49,13 +58,13 @@ class UvnNet(AgentService):
     errors = []
     for vpn in self.agent.vpn_interfaces:
       try:
-        vpn.stop()
+        vpn.stop(assert_stopped=assert_stopped)
       except Exception as e:
         if not assert_stopped:
           raise
-        self.log.error("failed to stop VPN interface: {}", vpn)
-        self.log.exception(e)
-        errors.append(e)
+        self.log.warning("failed to stop VPN interface: {}", vpn)
+        # self.log.exception(e)
+        # errors.append(e)
     for rule_id, rules in list(self._iptables_rules.items()):
       for rule in reversed(rules or []):
         try:

@@ -23,6 +23,13 @@ from .log import Logger
 
 log = Logger.sublogger("exec")
 
+def shell_which(command: str) -> Path | None:
+  cmd_path = exec_command([f"which {command} || true"], shell=True, capture_output=True).stdout.decode().strip()
+  if not cmd_path:
+    return None
+  return Path(cmd_path)
+
+
 def exec_command(
     cmd_args: Sequence[Union[str, Path]],
     fail_msg: str|None = None,
