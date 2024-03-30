@@ -46,6 +46,12 @@ class NicDescriptor(Versioned):
     "subnet",
   ]
 
+  STR_PROPERTIES = [
+    "name",
+    "address",
+    "netmask",
+  ]
+
   SERIALIZED_PROPERTIES = [
     "netmask",
   ]
@@ -54,8 +60,16 @@ class NicDescriptor(Versioned):
     return ipaddress.ip_address(val)
 
 
+  def serialize_address(self, val: ipaddress.IPv4Address, public: bool=False) -> str:
+    return str(val)
+
+
   def prepare_subnet(self, val: str | int | ipaddress.IPv4Network) -> ipaddress.IPv4Network:
     return ipaddress.ip_network(val)
+
+
+  def serialize_subnet(self, val: ipaddress.IPv4Network, public: bool=False) -> str:
+    return str(val)
 
 
   @property

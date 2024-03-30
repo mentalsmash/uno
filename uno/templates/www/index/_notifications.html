@@ -4,7 +4,7 @@
 {% if reachable and unreachable %}
 <div class="alert alert-warning" role="alert">
   {{unreachable|length}} network{%if unreachable|length != 1%}s are{%else%} is{%endif%} unreachable:
-  {%for lan in unreachable %}{{lan.nic.subnet.network_address}}/{{lan.nic.netmask}}{%if not loop.last%}, {%endif%}{%endfor%}
+  {%for status in unreachable %}{{status.lan.nic.subnet.network_address}}/{{status.lan.nic.netmask}}{%if not loop.last%}, {%endif%}{%endfor%}
 </div>
 {% else %}
 <div class="alert alert-warning" role="alert">

@@ -147,9 +147,9 @@ class Registry(Versioned):
     # db.save_all([owner, uvn], chown={owner: [uvn]})
     registry = db.new(Registry, {
       "uvn_id": uvn.id,
-      **registry_config,
+      # **registry_config,
     }, save=False)
-    # registry.configure(**registry_config)
+    registry.configure(**registry_config)
 
     # Make sure we have an RTI license, since we're gonna need it later.
     if not registry.rti_license.is_file():
@@ -323,7 +323,6 @@ class Registry(Versioned):
     return self.deployment is not None
 
 
-  # @cached_property
   def generate_config_id(self) -> str:
     h = hashlib.sha256()
     h.update(self.generation_ts.format().encode())
@@ -335,7 +334,7 @@ class Registry(Versioned):
   def drop_rekeyed(self) -> None:
     self.root_vpn_keymat.clean_dropped_keys()
     self.rekeyed_root_config_id = None
-    self.reset_cached_properties()
+    # self.reset_cached_properties()
 
 
   def configure(self, **config_args) -> set[str]:
@@ -363,7 +362,7 @@ class Registry(Versioned):
 
     self.uvn.updated_property("cell_properties")
     self.updated_property("cells")
-    self.log.info("new cell added to uvn {}: {}", self.uvn, cell)
+    self.log.info("new cell added to {}: {}", self.uvn, cell)
     return cell
 
 
@@ -380,13 +379,13 @@ class Registry(Versioned):
 
   @error_if("readonly")
   def delete_cell(self, cell: Cell) -> None:
-    ask_yes_no(f"delete cell {cell.name} from uvn {self.uvn.name}?")
+    ask_yes_no(f"delete cell {cell.name} from {self.uvn}?")
     self.particles_vpn_keymats[cell.id].drop_keys(delete=True)
     del self.particles_vpn_keymats[cell.id]
     self.db.delete(cell)
     self.uvn.updated_property("cell_properties")
     self.updated_property("cells")
-    self.log.info("cell deleted from uvn {}: {}", self.uvn, cell)
+    self.log.info("cell deleted from {}: {}", self.uvn, cell)
 
 
   @inject_db_cursor
@@ -421,11 +420,11 @@ class Registry(Versioned):
 
   @error_if("readonly")
   def delete_particle(self, particle: Particle) -> None:
-    ask_yes_no(f"delete particle {particle.name} from uvn {self.uvn.name}?")
+    ask_yes_no(f"delete particle {particle.name} from {self.uvn}?")
     self.db.delete(particle)
     self.uvn.updated_property("particle_properties")
     self.updated_property("particles")
-    self.log.info("particle deleted from uvn {}: {}", self.uvn, particle)
+    self.log.info("particle deleted from {}: {}", self.uvn, particle)
 
 
   @inject_db_cursor
@@ -441,7 +440,7 @@ class Registry(Versioned):
       **user_args,
     })
     self.updated_property("users")
-    self.log.info("new user added to uvn {}: {}", self.uvn, user)
+    self.log.info("new user added to {}: {}", self.uvn, user)
     return user
 
 
@@ -472,7 +471,7 @@ class Registry(Versioned):
 
     self.db.delete(user)
     self.updated_property("users")
-    self.log.info("user deleted from uvn {}: {}", self.uvn, user)
+    self.log.info("user deleted from {}: {}", self.uvn, user)
 
 
   @error_if("readonly")
@@ -558,7 +557,7 @@ class Registry(Versioned):
 
 
   def drop_particles_vpn_keymats(self) -> None:
-    ask_yes_no(f"drop and regenerate all keys for all particle vpns in uvn {self.uvn.name}?")
+    ask_yes_no(f"drop and regenerate all keys for all particle vpns in {self.uvn}?")
     self.log.warning("dropping all keys for Particle VPNs")
     for keymat in self.particles_vpn_keymats.values():
       keymat.drop_keys(delete=True)
@@ -567,7 +566,7 @@ class Registry(Versioned):
 
 
   def drop_root_vpn_keymat(self) -> None:
-    ask_yes_no(f"drop and regenerate all keys for the root vpn of uvn {self.uvn.name}?")
+    ask_yes_no(f"drop and regenerate all keys for the root vpn of {self.uvn}?")
     self.log.warning("dropping existing keys for Root VPN")
     if self.rekeyed_root_config_id is None:
       self.rekeyed_root_config_id = self.config_id
@@ -677,7 +676,7 @@ class Registry(Versioned):
 
 
   def rekey_uvn(self) -> None:
-    ask_yes_no(f"drop and regenerate all vpn keys for uvn {self.uvn.name}?")
+    ask_yes_no(f"drop and regenerate all vpn keys for {self.uvn}?")
     if self.rekeyed_root_config_id is None:
       self.rekeyed_root_config_id = self.config_id
     self.root_vpn_keymat.drop_keys(delete=False)
@@ -689,9 +688,9 @@ class Registry(Versioned):
   def rekey_particle(self, particle: Particle, cells: Iterable[Cell]|None=None):
     if not cells:
       cells = list(self.uvn.cells.values())
-      ask_yes_no(f"drop and regenerate vpn keys for particle {particle.name} of uvn {self.uvn.name} for cells {', '.join(c.name for c in cells)}?")
+      ask_yes_no(f"drop and regenerate vpn keys for {particle} of {self.uvn} for cells {', '.join(c.name for c in cells)}?")
     else:
-      ask_yes_no(f"drop and regenerate all vpn keys for particle {particle.name} of uvn {self.uvn.name}?")
+      ask_yes_no(f"drop and regenerate all vpn keys for {particle} of {self.uvn}?")
     
     particles = list(p for p in self.uvn.all_particles if p != particle)
     for cell in cells:
@@ -704,9 +703,9 @@ class Registry(Versioned):
       raise RuntimeError("nothing to rekey")
 
     if root_vpn:
-      ask_yes_no(f"drop and regenerate root vpn keys for cell {cell.name} of uvn {self.uvn.name}?")
+      ask_yes_no(f"drop and regenerate root vpn keys for {cell} of {self.uvn}?")
     if particles_vpn:
-      ask_yes_no(f"drop and regenerate all particle vpn keys for cell {cell.name} of uvn {self.uvn.name}?")
+      ask_yes_no(f"drop and regenerate all particle vpn keys for {cell} of {self.uvn}?")
 
     cells = list(c for c in self.uvn.cells.values() if c != cell)
     if root_vpn:

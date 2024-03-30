@@ -53,12 +53,8 @@ class AgentService(Runnable):
   ]
 
   def __init__(self, **properties) -> None:
-    def _gchandler(cond: dds.GuardCondition) -> None:
-      self.log.warning("condition triggered")
-      self.agent.updated_services.put(self)
     self.updated_condition_triggered = False
     self.updated_condition = dds.GuardCondition()
-    self.updated_condition.set_handler(_gchandler)
     self.listeners: list[AgentServiceListener] = list()
     super().__init__(**properties)
 

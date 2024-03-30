@@ -62,7 +62,7 @@ class Triggerrable:
         with self._state_lock:
           triggered = self._triggered
           self._triggered = False
-        triggered = triggered or self.test_delay >= self.max_trigger_delay
+        triggered = triggered or self.trigger_delay >= self.max_trigger_delay
         if not self._service_active or not triggered:
           continue
 

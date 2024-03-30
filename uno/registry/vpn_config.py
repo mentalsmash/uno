@@ -247,7 +247,9 @@ class UvnVpnConfig(Versioned):
 
     # Check that the UVN has an address if any cell is private
     if not rekeyed and not registry.uvn.supports_reconfiguration:
-      cls.log.warning("the UVN requires a registry address to support reconfiguration of private cells.")
+      cls.log.warning("the UVN requires a registry address to support reconfiguration of private cells:")
+      cls.log.warning("- private cells: {}", list(registry.uvn.private_cells.values()))
+      cls.log.warning("- uvn address: {}", registry.uvn.address)
 
     cells = sorted(registry.uvn.all_cells.values(), key=lambda v: v.id)
 

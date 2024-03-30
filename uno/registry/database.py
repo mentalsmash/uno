@@ -53,6 +53,24 @@ def namedtuple_factory(cursor, row):
 
 
 
+def _get_sqlite3_thread_safety():
+    # Mape value from SQLite's THREADSAFE to Python's DBAPI 2.0
+    # threadsafety attribute.
+    sqlite_threadsafe2python_dbapi = {0: 0, 2: 1, 1: 3}
+    conn = sqlite3.connect(":memory:")
+    threadsafety = conn.execute(
+        """
+select * from pragma_compile_options
+where compile_options like 'THREADSAFE=%'
+"""
+    ).fetchone()[0]
+    conn.close()
+
+    threadsafety_value = int(threadsafety.split("=")[1])
+
+    return sqlite_threadsafe2python_dbapi[threadsafety_value]
+
+
 class Database:
   Cursor = sqlite3.Cursor
 
@@ -62,9 +80,12 @@ class Database:
 
   SCHEMA = DatabaseSchema
 
+  THREAD_SAFE = _get_sqlite3_thread_safety()
+
   def __init__(self,
       root: Path,
       create: bool=False) -> None:
+    assert(self.THREAD_SAFE)
     self.root = root.resolve()
     self.log = Logger.sublogger(f"db<{Logger.format_dir(self.root)}>")
     self._cursor = None
@@ -78,7 +99,8 @@ class Database:
     self._db = sqlite3.connect(
       self.db_file,
       isolation_level="DEFERRED",
-      detect_types=sqlite3.PARSE_DECLTYPES)
+      detect_types=sqlite3.PARSE_DECLTYPES,
+      check_same_thread=False)
     self._db.row_factory = namedtuple_factory
     def _tracer(query) -> None:
       self.log.tracedbg("exec SQL:\n{}", query)
@@ -155,7 +177,7 @@ class Database:
         table = self.SCHEMA.lookup_table_by_object(tgt, required=False)
         create = table and (not tgt.loaded or force_insert)
         if table:
-          self.log.debug("{} {}: {}{}",
+          self.log.tracedbg("{} {}: {}{}",
             "inserting new" if create else "saving",
             tgt.__class__.__qualname__,
             tgt,
@@ -172,7 +194,7 @@ class Database:
           tgt.loaded = table is not None
 
           if table:
-            self.log.info("{} {}: {}{}",
+            self.log.tracedbg("{} {}: {}{}",
               "inserted" if create else "updated",
               tgt.__class__.__qualname__,
               tgt,
@@ -256,7 +278,7 @@ class Database:
       assert(issubclass(cls, Versioned))
       eq_props = sorted(cls.SCHEMA.eq_properties)
       query = f"{query} RETURNING {', '.join(eq_props)}"
-    self.log.debug("delete {} query: {} values {}", "rows" if cls is None else cls.__qualname__, query, params)
+    self.log.trace("delete {} query: {} values {}", "rows" if cls is None else cls.__qualname__, query, params)
     result = cursor.execute(query, params or [])
     if cls is not None:
       for row in result:
@@ -292,13 +314,14 @@ class Database:
     assert(issubclass(cls, DatabaseObject))
     properties = dict(properties or {})
     properties["db"] = self
+    properties["owner"] = owner
     created = cls.new(**properties)
-    logger = (
-      self.log.activity if created.DB_TABLE and created.DB_CACHED else 
-      self.log.debug if created.DB_TABLE else
-      self.log.trace
-    )
-    logger("new {}: {}", cls.__qualname__, created)
+    # logger = (
+    #   self.log.activity if created.DB_TABLE and created.DB_CACHED else 
+    #   self.log.debug if created.DB_TABLE else
+    #   self.log.trace
+    # )
+    self.log.trace("new {}: {}", cls.__qualname__, created)
     table = self.SCHEMA.lookup_table_by_object(cls, required=False)
     chown = None
     if not table:
@@ -353,7 +376,7 @@ class Database:
           f"SELECT * FROM {table} WHERE id = ?",
           (id,)
         )
-        self.log.debug("load {} by id: {}", cls.__qualname__, id)
+        self.log.tracedbg("load {} by id: {}", cls.__qualname__, id)
         for row in cursor.execute(*query):
           yield row
 
@@ -363,14 +386,14 @@ class Database:
           f"SELECT * FROM {table} WHERE {where}",
           params
         )
-        self.log.debug("load {} by query: {} PARAMS {}", cls.__qualname__, where, params)
+        self.log.tracedbg("load {} by query: {} PARAMS {}", cls.__qualname__, where, params)
         for row in cursor.execute(*query):
           yield row
 
       # Load objects owned by the specified owner. If a where clause is specified,
       # Return only those objects matching the clause.
       elif owner is not None:
-        self.log.debug("load {} by owner: {}", cls.__qualname__, owner)
+        self.log.tracedbg("load {} by owner: {}", cls.__qualname__, owner)
         owner_table, owner_col, owned_col = self.SCHEMA.lookup_owner_table_by_object(cls, owner_cls=owner.__class__)
         if where is None:
           owned = cursor.execute(f"SELECT {owned_col} FROM {owner_table} WHERE {owner_col} = ?", (json.dumps(owner.object_id), )).fetchone()
@@ -389,7 +412,7 @@ class Database:
 
     load_targets = list(_load_targets())
     if not load_targets:
-      self.log.debug("no {} matched by query", cls.__qualname__)
+      self.log.tracedbg("no {} matched by query", cls.__qualname__)
       return
 
     self.log.tracedbg("load targets: {}", load_targets)
@@ -410,6 +433,9 @@ class Database:
         continue
       
       serialized = row._asdict()
+      # if issubclass(cls, OwnableDatabaseObject) and owner is None:
+      #   owner = self.owner(cls, target_id=serialized["id"], cursor=cursor)
+      serialized["owner"] = owner
       if load_args:
         serialized.update(load_args)
 
@@ -488,13 +514,9 @@ class Database:
           self.log.debug if loaded.DB_TABLE else
           self.log.trace
         )
-        # if loaded.id is None:
-        # else:
-        #   logger("loaded {}: {}", loaded.__class__.__qualname__, loaded)
       elif hasattr(cls, "deserialize"):
         loaded = cls.deserialize(serialized)
         logger = self.log.tracedbg
-        # self.log.tracedbg("deserialized {}: {}", loaded.__class__.__qualname__, loaded)
       else:
         raise NotImplementedError("cannot deserialize type", cls)
       logger("instance {}: {}", cls.__qualname__, loaded)
@@ -545,7 +567,7 @@ class Database:
       target_id = target.id
       search_target = (target,)
     else:
-      if not isinstance(target, type[OwnableDatabaseObject]):
+      if not isinstance(target, type):
         raise ValueError("target id can only be specified when searching by type")
       search_target = (target, target_id)
 
@@ -647,12 +669,15 @@ class Database:
             (Versioned.json_dump(owner.object_id), target.id),
             cursor)
 
+
       target.reset_cached_properties()
+      target.__dict__.pop("owner", None)
+      target.__dict__.pop("owner_id", None)
 
       if owned:
-        self.log.activity("owner {}: {} -> {}", target, current_owner, owner)
+        self.log.debug("owner {}: {} -> {}", target, current_owner, owner)
       else:
-        self.log.activity("owner {}: {} -> none", target, owner)
+        self.log.debug("owner {}: {} -> none", target, owner)
       
       result[target] = True
 

@@ -245,7 +245,11 @@ class DatabaseObject:
   DB_TABLE_PROPERTIES: list[str] = []
   DB_CACHED: bool = True
 
-  def __init__(self, db: "Database", id: object|None=None, parent: "DatabaseObject|None"=None) -> None:
+  def __init__(self,
+      db: "Database",
+      id: object|None=None,
+      parent: "DatabaseObject|None"=None,
+      **properties) -> None:
     self._db = db
     assert(issubclass(self.db.SCHEMA, self.DB_SCHEMA))
     self._parent = parent
@@ -278,7 +282,6 @@ class DatabaseObject:
     if self._id is not None and self._id != val:
       raise ValueError("cannot change already set id", self)
     self._id = val
-    self.reset_cached_properties()
 
 
   @property
@@ -294,8 +297,7 @@ class DatabaseObject:
       return
 
 
-  # @cached_property
-  @property
+  @cached_property
   def object_id(self) -> tuple[str, object] | None:
     if self.transient_object():
       return self.parent.object_id if self.parent else None
@@ -304,13 +306,10 @@ class DatabaseObject:
     return (self.DB_TABLE, self.id)
 
 
-  # @cached_property
-  @property
+  @cached_property
   def parent_str_id(self) -> str | object | None:
     if self.transient_object():
       return self.parent.parent_str_id if self.parent else None
-    # if self.id is None:
-    #   return None
     return str(self)
 
 
@@ -326,6 +325,7 @@ class DatabaseObject:
 
   def reset_cached_properties(self) -> None:
     self.__dict__.pop("object_id", None)
+    self.__dict__.pop("parent_str_id", None)
 
 
   def save(self, cursor: "Database.Cursor|None"=None, create: bool=False, public: bool=False) -> None:
@@ -372,6 +372,11 @@ class DatabaseObject:
     for o in self.collect_nested(_predicate):
       prev = o.changed_values
       yield (o, prev)
+
+
+  @property
+  def changed_values(self) -> dict:
+    raise NotImplementedError()
 
 
   @property
@@ -461,11 +466,21 @@ class OwnableDatabaseObject(DatabaseObject):
   DB_OWNER_TABLE_COLUMN: str|None = None
 
   SERIALIZED_PROPERTIES = ["owner_id"]
-  CACHED_PROPERTIES = [
-    "owner",
-    "owner_id",
-  ]
-  VOLATILE_PROPERTIES = ["owner"]
+  # CACHED_PROPERTIES = [
+  #   "owner",
+  #   "owner_id",
+  # ]
+  # VOLATILE_PROPERTIES = ["owner"]
+
+
+  def __init__(self,
+      db: "Database",
+      id: object|None=None,
+      parent: "DatabaseObject|None"=None,
+      owner: "DatabaseObjectOwner|None"=None,
+      **properties) -> None:
+    self._owner = owner
+    super().__init__(db=db, id=id, parent=parent, **properties)
 
 
   def __init_subclass__(cls, *a, **kw) -> None:
@@ -481,6 +496,8 @@ class OwnableDatabaseObject(DatabaseObject):
   @cached_property
   @inject_db_cursor
   def owner(self, cursor: "Database.Cursor") -> "DatabaseObjectOwner | None":
+    if self._owner is not None:
+      return self._owner
     if self.id is None:
       return None
     return self.db.owner(self, cursor=cursor)
@@ -501,8 +518,8 @@ class OwnableDatabaseObject(DatabaseObject):
 
   def reset_cached_properties(self) -> None:
     super().reset_cached_properties()
-    self.__dict__.pop("owner", None)
-    self.__dict__.pop("owner_id", None)
+    # self.__dict__.pop("owner", None)
+    # self.__dict__.pop("owner_id", None)
 
 
   def set_ownership(self, owner: "DatabaseObjectOwner"):

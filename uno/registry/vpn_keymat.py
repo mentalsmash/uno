@@ -52,9 +52,6 @@ class VpnKeysMap(Versioned, PairedValuesMap):
   SERIALIZED_PROPERTIES = [
     "content",
   ]
-  CACHED_PROPERTIES = [
-    "content",
-  ]
   VOLATILE_PROPERTIES = [
     "deleted",
     "dropped",

@@ -58,12 +58,12 @@ class UvnPeersTester(AgentService, Triggerrable):
 
 
   def find_status_by_lan(self, lan: LanDescriptor) -> bool:
-    reachable_subnets = [l.nic.subnet for l in self.agent.peers.local.reachable_networks]
+    reachable_subnets = [status.lan.nic.subnet for status in self.agent.peers.local.reachable_networks]
     return lan.nic.subnet in reachable_subnets
 
 
   def find_status_by_peer(self, peer_id: int) -> Iterable[tuple[LanDescriptor, bool]]:
-    reachable_subnets = [l.nic.subnet for l in self.agent.peers.local.reachable_networks]
+    reachable_subnets = [status.lan.nic.subnet for status in self.agent.peers.local.reachable_networks]
     return [
       (l, reachable)
         for l in self.agent.peers[peer_id].routed_networks
@@ -101,26 +101,26 @@ class UvnPeersTester(AgentService, Triggerrable):
         else:
           unreachable.append((peer, lan))
 
+    known_networks = [
+      *({
+        "lan": l,
+        "reachable": True,
+      } for p, l in reachable),
+      *({
+        "lan": l,
+        "reachable": False,
+      } for p, l in unreachable),
+    ]
     self.agent.peers.update_peer(self.agent.peers.local,
-      known_networks={
-        *(self.agent.peers.local.new_child(LanStatus, {
-          "lan": l,
-          "reachable": True,
-        }, save=False) for p, l in reachable),
-        *(self.agent.peers.local.new_child(LanStatus, {
-          "lan": l,
-          "reachable": False,
-        }, save=False) for p, l in unreachable),
-      })
+      known_networks=known_networks)
 
 
   def _ping_test(self, peer: UvnPeer, lan: LanDescriptor) -> bool:
     log.activity(f"[LAN] PING start: {peer}/{lan}")
     result = exec_command(
         ["ping",
-            "-w", str(self.DEFAULT_PING_LEN),
-            "-c", str(self.DEFAULT_PING_COUNT),
-            *(["-I", self._interface] if self._interface else []),
+            "-w", str(self.ping_len),
+            "-c", str(self.ping_count),
             str(lan.gw)],
         noexcept=True)
     result = result.returncode == 0

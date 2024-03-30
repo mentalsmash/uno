@@ -14,11 +14,9 @@
 # You should have received a copy of the GNU Affero General Public License
 # along with this program. If not, see <https://www.gnu.org/licenses/>.
 ###############################################################################
-from typing import Iterable, Callable, TYPE_CHECKING, Generator
+from typing import Iterable, Callable, Generator
 from collections.abc import Mapping
 import ipaddress
-import json
-import yaml
 from functools import cached_property
 
 from .deployment import P2pLinksMap

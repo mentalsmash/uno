@@ -29,9 +29,9 @@ from .log import Logger
 log = Logger.sublogger("wg")
 
 
-def _check_handshake_online(handshake: Timestamp) -> bool:
+def _check_handshake_online(handshake: Timestamp, validity_period: int=150) -> bool:
   handshake_age = Timestamp.now().subtract(handshake)
-  return handshake_age.total_seconds() <= 130
+  return handshake_age.total_seconds() <= validity_period
 
 
 class WireGuardError(Exception):

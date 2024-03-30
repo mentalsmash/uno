@@ -42,6 +42,7 @@ class RoutesMonitor(AgentService):
   def __init__(self, **properties) -> None:
     self._monitor = None
     self._monitor_thread = None
+    self._monitor_thread_active = False
     super().__init__(**properties)
 
 
@@ -92,11 +93,15 @@ class RoutesMonitor(AgentService):
       preexec_fn=os.setpgrp,
       text=True)
     self._monitor_thread = threading.Thread(target=self._monitor_thread_run)
+    self._monitor_thread_active = True
     self._monitor_thread.start()
+    import time
+    time.sleep(2)
 
 
   def _stop(self, assert_stopped: bool) -> None:
     if self._monitor is not None:
+      self._monitor_thread_active = False
       self._monitor.send_signal(signal.SIGINT)
       if self._monitor_thread is not None:
         self._monitor_thread.join()
@@ -106,10 +111,11 @@ class RoutesMonitor(AgentService):
 
   def _monitor_thread_run(self):
     self.log.activity("starting to monitor kernel routes")
-    while self.started:
+    while self._monitor_thread_active:
       try:
+        self.log.debug("reading next...")
         route_change = self._monitor.stdout.readline()
-        self.log.activity("detected: '{}'", route_change.strip())
+        self.log.debug("detected: '{}'", route_change.strip())
         self.updated_condition.trigger_value = True
       except Exception as e:
         self.log.error("error in monitor thread")

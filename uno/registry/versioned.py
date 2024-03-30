@@ -270,7 +270,7 @@ class PropertyDescriptor:
     if isinstance(current, Versioned) and isinstance(val, dict):
       configured = current.configure(**val)
       if self.name in configured:
-        obj.log.debug("CONFIGURED {} = {}", self.name, _log_secret_val(obj, getattr(obj, self.name), self))
+        # obj.log.debug("CONFIGURED {} = {}", self.name, _log_secret_val(obj, getattr(obj, self.name), self))
         obj.updated_property(self.name, changed_value=True)
     elif current != val:
       setattr(obj, self.attr_storage, val)
@@ -278,8 +278,8 @@ class PropertyDescriptor:
         setattr(obj, self.attr_prev, current)
 
       if not self.reserved:
-        logger = obj.log.debug if obj.DB_TABLE else obj.log.trace
-        logger("SET {} = {}", self.name, _log_secret_val(obj, getattr(obj, self.name), self))
+        # logger = obj.log.debug if obj.DB_TABLE else obj.log.trace
+        # logger("SET {} = {}", self.name, _log_secret_val(obj, getattr(obj, self.name), self))
         if current is not None:
           obj.updated_property(self.name, changed_value=True)
         else:
@@ -469,11 +469,11 @@ class Schema:
 
 
   @cached_property
-  def str_properties(self) -> frozenset[str]:
+  def str_properties(self) -> list[str]:
     props = self.cls.STR_PROPERTIES
     if not props:
       props = self.default_str_properties
-    return frozenset(props)
+    return sorted(set(props))
 
 
   @cached_property
@@ -487,7 +487,7 @@ class Schema:
   @cached_property
   def default_str_properties(self) -> frozenset[str]:
     if self.transient:
-      return frozenset(["parent_str_id"])
+      return frozenset(["parent"])
     return frozenset(["id"])
 
 
@@ -552,13 +552,7 @@ class Versioned(DatabaseObject):
     "readonly",
   ]
   PROPERTY_GROUPS = {}
-  CACHED_PROPERTIES = [
-    # "log",
-    "owner",
-    "owner_id",
-    "object_id",
-    "parent_str_id",
-  ]
+  CACHED_PROPERTIES = []
   RO_PROPERTIES = []
 
   INITIAL_READONLY = False
@@ -571,8 +565,12 @@ class Versioned(DatabaseObject):
     "init_ts",
   ]
 
-  def __init__(self, db: "Database", id: "object|None"=None, parent: "Versioned|None"=None, **properties) -> None:
-    super().__init__(db=db, id=id, parent=parent)
+  def __init__(self,
+      db: "Database",
+      id: "object|None"=None,
+      parent: "Versioned|None"=None,
+      **properties) -> None:
+    super().__init__(db=db, id=id, parent=parent, **properties)
     self._initialized = False
     self.__update_str_repr__()
     self.SCHEMA.init(self, properties)
@@ -670,18 +668,16 @@ class Versioned(DatabaseObject):
 
 
   def __update_str_repr__(self) -> None:
-    cls_name = Logger.camelcase_to_kebabcase(self.__class__.__qualname__)
-    props = sorted(self.SCHEMA.str_properties)
+    # props = sorted(self.SCHEMA.str_properties)
     fields = []
-    for p in props:
+    for p in self.SCHEMA.str_properties:
       v = getattr(self, p, None)
       if v is None:
         v = "null"
       fields.append(v)
     fields = ', '.join(map(str, fields))
-    # dirty_str = ("*" if self.dirty else "") if not self.SCHEMA.transient else ""
-    dirty_str = ""
-    self.__str_repr = f"{cls_name}({fields}){dirty_str}"
+    # # dirty_str = ("*" if self.dirty else "") if not self.SCHEMA.transient else ""
+    self.__str_repr = f"{self.__class__.ClassName}({fields})"
     if self._initialized:
       self.log.context = self.__str_repr
     else:
@@ -711,28 +707,15 @@ class Versioned(DatabaseObject):
     return serialize_timestamp(val)
 
 
-
-  # @property
-  # def readonly(self) -> bool:
-  #   return self._readonly
-
-
-  # @readonly.setter
-  # def readonly(self, val: bool) -> None:
-  #   self._readonly = val
-  #   if val:
-  #     raise RuntimeError("waeaads")
-
-
-
   @property
   def changed_values(self) -> dict:
-    """Return and reset the object's 'changed' flag."""
-    changed = len(self.changed_properties) > 0
-    if not changed:
+    if len(self.changed_properties) == 0:
       return {}
     prev_values = {}
     for desc in self.SCHEMA.descriptors:
+      prev = desc.prev(self)
+      if prev is None:
+        continue
       prev_values[desc.name] = desc.prev(self)
     return prev_values
 
@@ -751,19 +734,21 @@ class Versioned(DatabaseObject):
 
 
   def updated_property(self, attr: str, changed_value: bool=False) -> None:
-    # Always regenerate str represenation,
-    # easier than trying to do it only when needed
-    self.__update_str_repr__()
+    # # Always regenerate str represenation,
+    # # easier than trying to do it only when needed
+    # self.__update_str_repr__()
 
     # Check if we have a descriptor for the attribute
     desc = self.SCHEMA.descriptor(attr)
-    if (desc and desc.eq) or attr in self.SCHEMA.eq_properties:
+    if desc is None and attr in self.SCHEMA.eq_properties:
       self.__update_hash__()
+    if desc is None and attr in self.SCHEMA.str_properties:
+      self.__update_str_repr__()
     
-    cached = (desc and desc.cached) or attr in self.SCHEMA.cached_properties
-    if cached:
-      self.__dict__.pop(attr, None)
-      return 
+    # cached = (desc and desc.cached) or attr in self.SCHEMA.cached_properties
+    # if cached:
+    #   self.__dict__.pop(attr, None)
+    #   return 
     
     # Check if the property is a group
     group = desc.group if desc else self.SCHEMA.property_groups.get(attr)
@@ -775,7 +760,7 @@ class Versioned(DatabaseObject):
     if not self._initialized or (desc is not None and desc.reserved) or attr in self.SCHEMA.reserved_properties:
       return
 
-    self.generation_ts = Timestamp.now().format()
+    # self.generation_ts = Timestamp.now().format()
     self.changed_properties.add(attr)
     self.saved = False
     self.log.tracedbg("UPDATED {}", attr)
@@ -784,7 +769,10 @@ class Versioned(DatabaseObject):
   def reset_cached_properties(self) -> None:
     super().reset_cached_properties()
     for cached in self.SCHEMA.cached_properties:
-      self.updated_property(cached)
+      # self.updated_property(cached)
+      self.__dict__.pop(cached, None)
+    self.__update_str_repr__()
+    self.__update_hash__()
 
 
   def save(self, cursor: "Database.Cursor|None"=None, create: bool=False, public: bool=False) -> None:
@@ -804,6 +792,7 @@ class Versioned(DatabaseObject):
       else:
         return self.yaml_dump(val)
 
+    self.generation_ts = Timestamp.now().format()
     serialized = self.serialize(public=public)
     fields = {
       prop: _dump_field(prop, ser_val, desc)
@@ -902,7 +891,7 @@ class Versioned(DatabaseObject):
       if k in self.changed_properties:
         configured.add(k)
     self.validate()
-    # self.log.trace("CONF result dirty={}", self.dirty)
+    # self.log.debug("CONF result dirty={}", self.dirty)
     return configured
 
 
@@ -982,6 +971,7 @@ class Versioned(DatabaseObject):
     assert(cls.__dict__.get("SCHEMA") is None)
     cls.SCHEMA = Schema(cls)
     cls.log = Logger.sublogger(cls.__qualname__)
+    cls.ClassName = Logger.camelcase_to_kebabcase(cls.__qualname__)
 
 
   def __init_subclass__(cls, *args, **kwargs) -> None:

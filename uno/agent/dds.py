@@ -88,7 +88,10 @@ class DdsParticipant(AgentService):
     (self._readers,
      self._reader_conditions,
      self._data_conditions) = self._create_readers(self._dp, self.agent.dds_topics["readers"])
-    self._user_conditions = [svc.updated_condition for svc in self.agent.services]
+    self._user_conditions = [
+      *(svc.updated_condition for svc in self.agent.services),
+      # self.agent.peers_tester.result_available_condition,
+    ]
     self._waitset = dds.WaitSet()
     for condition in (
         self.exit_condition,

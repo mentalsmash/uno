@@ -36,9 +36,18 @@ class LanDescriptor(Versioned):
     "gw",
   ]
 
+  STR_PROPERTIES = [
+    "nic",
+    "gw",
+  ]
+
 
   def prepare_gw(self, val: str | int | ipaddress.IPv4Address) -> ipaddress.IPv4Address:
     return ipaddress.ip_address(val)
+
+
+  def serialize_gw(self, val: ipaddress.IPv4Address, public: bool=False) -> str:
+    return str(val)
 
 
   def prepare_nic(self, val: str | dict | NicDescriptor) -> NicDescriptor:
@@ -47,4 +56,10 @@ class LanDescriptor(Versioned):
 
   def prepare_next_hop(self, val: str | int | ipaddress.IPv4Address) -> ipaddress.IPv4Address:
     return ipaddress.ip_address(val)
+
+
+  def serialize_next_hop(self, val: ipaddress.IPv4Address | None, public: bool=False) -> str | None:
+    if val is None:
+      return val
+    return str(val)
 

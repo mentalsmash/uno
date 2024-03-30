@@ -15,7 +15,7 @@ class AgentConfig(Versioned, OwnableDatabaseObject):
     "config_id"
   ]
   STR_PROPERTIES = [
-    "owner_id",
+    "owner",
     "config_id",
   ]
   DB_TABLE = "agents"

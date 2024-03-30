@@ -9,7 +9,7 @@ from ..registry.lan_descriptor import LanDescriptor
 from ..core.time import Timestamp
 from ..core.wg import WireGuardInterface
 from .uvn_peers_list import UvnPeersList
-from .tester import UvnPeersTester
+from .uvn_peers_tester import UvnPeersTester
 from .router import Router
 from .render import Templates
 
@@ -56,7 +56,7 @@ def _index_html(
     uvn_status_plot: Path|None=None,
     uvn_backbone_plot: Path|None=None,
     vpn_stats: dict|None=None) -> None:
-  log.debug("regenerating agent status...")
+  log.trace("regenerating agent status...")
 
   # Copy particle configurations if they exist
   if particles_dir and particles_dir.is_dir():

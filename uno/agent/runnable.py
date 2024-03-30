@@ -42,8 +42,10 @@ class Runnable(Versioned):
 
   def __exit__(self, exc_type, exc_val, exc_tb):
     self.log.debug("stopping...")
-    self.started = False
-    self.stop(assert_stopped=exc_type is not None)
+    try:
+      self.stop(assert_stopped=exc_type is not None)
+    finally:
+      self.started = False
     self.log.activity("stopped.")
 
 

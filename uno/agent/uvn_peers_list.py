@@ -94,7 +94,7 @@ class UvnPeerListener:
 
 class UvnPeersList(Versioned):
   PROPERTIES = [
-    "status_all_cell_connected",
+    "status_all_cells_connected",
     "status_consistent_config_uvn",
     "status_routed_networks_discovered",
     "status_fully_routed_uvn",
@@ -106,33 +106,11 @@ class UvnPeersList(Versioned):
   REQ_PROPERTIES = [
     "agent",
   ]
-  PROPERTY_GROUPS = {
-    "uvn": [
-      "local",
-      "cells",
-      "registry",
-      "particles",
-    ],
-    "cells": [
-      "other_cells",
-      "online_cells",
-      "consistent_config_cells",
-      "fully_routed_cells",
-    ],
-  }
-  CACHED_PROPERTIES = [
-    "cells",
-    "particles",
-    "other_cells",
-    "online_cells",
-    "consistent_config_cells",
-    "fully_routed_cells",
-  ]
-  INITIAL_ALL_CELL_CONNECTED = False
-  INITIAL_CONSISTENT_CONFIG_UVN = False
-  INITIAL_ROUTED_NETWORKS_DISCOVERED = False
-  INITIAL_FULLY_ROUTED_UVN = False
-  INITIAL_REGISTRY_CONNECTED = False
+  INITIAL_STATUS_ALL_CELLS_CONNECTED = False
+  INITIAL_STATUS_CONSISTENT_CONFIG_UVN = False
+  INITIAL_STATUS_ROUTED_NETWORKS_DISCOVERED = False
+  INITIAL_STATUS_FULLY_ROUTED_UVN = False
+  INITIAL_STATUS_REGISTRY_CONNECTED = False
 
 
   def __init__(self, **properties) -> None:
@@ -142,14 +120,22 @@ class UvnPeersList(Versioned):
     self._update_lock = threading.Lock()
     super().__init__(**properties)
     self._peers = self._assert_peers()
+    assert(self.local.local)
+    assert(len(list(p for p in self if p.local)) == 1)
+
+
+  @property
+  def nested(self) -> Generator[Versioned, None, None]:
+    for peer in self:
+      yield peer
 
 
   def _notify(self, event: UvnPeerListener.Event, *args) -> None:
     if self.local.status != UvnPeerStatus.ONLINE:
-      self.log.error("notification disabled by !ONLINE: {}", event)
+      self.log.trace("notification disabled by !ONLINE: {}", event)
       return
     for l in self.listeners:
-      self.log.warning("notifying listener: {} -> {}", event, l)
+      self.log.trace("notifying listener: {} -> {}", event, l)
       getattr(l, f"on_event_{event.name.lower()}")(*args)
 
 
@@ -312,7 +298,8 @@ class UvnPeersList(Versioned):
       # self.log.warning("nothing changed")
       return
 
-    # self.log.warning("processing {} updated objects", len(changed))
+    # self.log.warning("processing {} updated objects:", len(changed))
+    # self.log.warning("changed: {}", changed)
 
     ###########################################################################
     # Check if there were updates related to VPN connections
@@ -353,9 +340,9 @@ class UvnPeersList(Versioned):
       # Check if all agents are online
       #########################################################################
       self.updated_property("online_cells")
-      all_cell_connected = sum(1 for c in self.online_cells) == len(self.uvn.cells)
-      if all_cell_connected != self.status_all_cell_connected:
-        self.status_all_cell_connected = all_cell_connected
+      all_cells_connected = sum(1 for c in self.online_cells) == len(self.uvn.cells)
+      if all_cells_connected != self.status_all_cells_connected:
+        self.status_all_cells_connected = all_cells_connected
         self._notify(UvnPeerListener.Event.ALL_CELLS_CONNECTED)
 
     ###########################################################################
@@ -435,41 +422,53 @@ class UvnPeersList(Versioned):
         self._notify(UvnPeerListener.Event.CONSISTENT_CONFIG_UVN)
 
     ###########################################################################
-    # Check if any agent has changed their reachable/unreachable networks
+    # Check if any agent has changed their reachable networks
     ###########################################################################
     changed_reachable = {
       c: prev_vals["reachable"]
         for c, prev_vals in changed
           if isinstance(c, LanStatus) and "reachable" in prev_vals
     }
-    local_changed_reachable = {lan for lan in changed_reachable if lan.owner == self.local}
+    local_changed_reachable = {status for status in changed_reachable if status.owner.local}
     if local_changed_reachable:
       ###########################################################################
-      # Check if the local agent's reachable/unreachable networks changed
+      # Check if the local agent's reachable networks changed
       ###########################################################################
       # prev_reachable = changed_reachable[self.local]
-      prev_reachable = {lan for lan in local_changed_reachable if changed_reachable[lan]}
-      current_reachable = {lan for lan in self.local.reachable_networks}
+      prev_reachable = {status for status in local_changed_reachable if changed_reachable[status]}
+      current_reachable = set(self.local.reachable_networks)
       gone_reachable = prev_reachable - current_reachable
       new_reachable = current_reachable - prev_reachable
       self._notify(UvnPeerListener.Event.LOCAL_REACHABLE_NETWORKS, new_reachable, gone_reachable)
 
-    ###########################################################################
-    # Check if the other agents' reachable/unreachable networks changed
-    ###########################################################################
-    prev_reachable = {n for n, reachable in changed_reachable.items() if n.owner != self.local and reachable}
-    current_reachable = {n for p in self if not p.local for n in p.known_networks if n.reachable}
-    gone_reachable = prev_reachable - current_reachable
-    new_reachable = current_reachable - prev_reachable
-    if gone_reachable or new_reachable:
-      self._notify(UvnPeerListener.Event.REACHABLE_NETWORKS, new_reachable, gone_reachable)
+    remote_changed_reachable = {status for status in changed_reachable if not status.owner.local}
+    if remote_changed_reachable:
+      ###########################################################################
+      # Check if the other agents' reachable networks changed
+      ###########################################################################
+      prev_reachable = {status for status in remote_changed_reachable if changed_reachable[status]}
+      current_reachable = {status for p in self if not p.local for status in p.reachable_networks}
+      gone_reachable = prev_reachable - current_reachable
+      new_reachable = current_reachable - prev_reachable
+      if gone_reachable or new_reachable:
+        self._notify(UvnPeerListener.Event.REACHABLE_NETWORKS, new_reachable, gone_reachable)
 
     if changed_reachable:
       ###########################################################################
       # Check if all networks are reachable from everywhere
       ###########################################################################
-      self.updated_property("fully_routed_cells")
       fully_routed_uvn = sum(1 for c in self.fully_routed_cells) == len(self.uvn.cells)
+      # fully_routed = set(self.fully_routed_cells)
+      # fully_routed_uvn = len(fully_routed) == len(self.uvn.cells)
+      # not_fully_routed = set(self.cells) - fully_routed
+      # if not_fully_routed:
+      #   self.log.error("not yet fully routed: {}", not_fully_routed)
+      #   for p in not_fully_routed:
+      #     self.log.error("- {} ->", p)
+      #     reachable = list(p.reachable_networks)
+      #     unreachable = list(p.unreachable_networks)
+      #     self.log.error("-    r[{}] = {}", len(reachable), reachable)
+      #     self.log.error("-   ur[{}] = {}", len(unreachable), unreachable)
       if fully_routed_uvn != self.status_fully_routed_uvn:
         self.status_fully_routed_uvn = fully_routed_uvn
         self._notify(UvnPeerListener.Event.FULLY_ROUTED_UVN)

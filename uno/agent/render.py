@@ -23,7 +23,7 @@ import ipaddress
 if TYPE_CHECKING:
   from .uvn_peers_list import UvnPeersList
   from .uvn_peer import UvnPeer
-  from .tester import UvnPeersTester
+  from .uvn_peers_tester import UvnPeersTester
 
 
 def _filter_find_lan_status_by_peer(peer_id: int, peers_tester: "UvnPeersTester") -> list[tuple[LanDescriptor, bool]]:
