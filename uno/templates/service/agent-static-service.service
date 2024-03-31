@@ -9,6 +9,7 @@ Wants=docker.service
 [Service]
 {% if name == "agent" %}
 Type=notify
+NotifyAccess=all
 KillSignal=SIGINT
 PIDFile={{pid_file}}
 {% else %}

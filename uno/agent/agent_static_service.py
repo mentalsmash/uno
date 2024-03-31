@@ -35,6 +35,15 @@ if TYPE_CHECKING:
 
 
 class AgentStaticService(SystemdService):
+  # PROPERTIES = [
+  #   "uno_bin",
+  #   "service_file_name",
+  #   "root",
+  # ]
+  STR_PROPERTIES = [
+    "name",
+  ]
+
   def __init__(self, **properties) -> None:
     super().__init__(**properties)
     self.previous_service: AgentStaticService | None = None
@@ -47,7 +56,7 @@ class AgentStaticService(SystemdService):
     return uno_bin
 
 
-  @cached_property
+  @property
   def agent(self) -> "Agent":
     from .agent_service import AgentService
     if isinstance(self.parent, AgentService):
@@ -87,6 +96,9 @@ class AgentStaticService(SystemdService):
 
 
   def up(self) -> None:
+    if self.active:
+      self.log.warning("already active")
+      return
     from .agent_service import AgentService
     if isinstance(self.parent, AgentService):
       self.parent.start_static()

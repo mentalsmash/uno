@@ -148,7 +148,7 @@ class VpnKeysMap(Versioned, PairedValuesMap):
     return f"{self.prefix}:{json.dumps(pair)}{':'+extra if extra else ''}"
 
 
-  def save(self, cursor: "Database.Cursor | None" = None, create: bool = False, public: bool=False) -> None:
+  def save(self, cursor: "Database.Cursor | None" = None, **db_args) -> None:
     # Changed keys were already returned by a "collect_changes()"
     # so clear the state
     for pair, keys in self.dropped.items():
@@ -160,7 +160,7 @@ class VpnKeysMap(Versioned, PairedValuesMap):
       for key in self.iterate_keys(pair, keys):
         self.db.delete(key, cursor=cursor)
     # Save remaining changes to this object (noop, other than resetting status flags)
-    super().save(cursor=cursor, create=create, public=public)
+    super().save(cursor=cursor, **db_args)
 
 
   @error_if("readonly")
@@ -404,7 +404,7 @@ class CentralizedVpnKeyMaterial(Versioned):
     yield self.preshared_keys
 
 
-  def save(self, cursor: "Database.Cursor | None" = None, create: bool = False, public: bool=False) -> None:
+  def save(self, cursor: "Database.Cursor | None" = None, **db_args) -> None:
     # Changed keys were already returned by a "collect_changes()"
     # so clear the state
     self.dropped.clear()
@@ -413,7 +413,7 @@ class CentralizedVpnKeyMaterial(Versioned):
       self.db.delete(key, cursor=cursor)
     self.deleted.clear()
     # Save remaining changes to this object (noop, other than resetting status flags)
-    super().save(cursor=cursor, create=create, public=public)
+    super().save(cursor=cursor, **db_args)
     
 
 

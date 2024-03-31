@@ -52,6 +52,7 @@ from .cmd_agent import (
   agent_service_remove,
   agent_service_down,
   agent_service_up,
+  agent_service_status,
   agent_install,
   agent_update,
 )
@@ -537,9 +538,9 @@ def uno_parser(parser: argparse.ArgumentParser):
 
 
   cmd_service_up.add_argument("service",
-    nargs="*",
+    nargs="?",
     # default=[],
-    help="Services to start.")
+    help="Start all services up to the specified one.")
 
 
   #############################################################################
@@ -551,9 +552,17 @@ def uno_parser(parser: argparse.ArgumentParser):
 
 
   cmd_service_down.add_argument("service",
-    nargs="*",
+    nargs="?",
     # default=[],
-    help="Services to stop.")
+    help="Stop all services down to the specified one.")
+
+
+  #############################################################################
+  # uno service status
+  #############################################################################
+  cmd_service_statis = cli_command(grp_service, "status",
+    cmd=agent_service_status,
+    help="Check the status of the agent services run as Systemd units.")
 
 
   #############################################################################

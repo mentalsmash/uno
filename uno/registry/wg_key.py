@@ -49,6 +49,9 @@ class WireGuardKeyPair(Versioned):
   INITIAL_DROPPED = False
   DB_TABLE = "asymm_keys"
   DB_TABLE_PROPERTIES = PROPERTIES
+  DB_TABLE_KEYS: list[str] = [
+    EQ_PROPERTIES,
+  ]
   # DB_CACHED = False
 
 
@@ -85,6 +88,9 @@ class WireGuardPsk(Versioned):
   INITIAL_DROPPED = False
   DB_TABLE = "symm_keys"
   DB_TABLE_PROPERTIES = PROPERTIES
+  DB_TABLE_KEYS: list[str] = [
+    EQ_PROPERTIES,
+  ]
   # DB_CACHED = False
 
 

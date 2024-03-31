@@ -48,45 +48,52 @@ def exec_command(
 
   log.trace(" ".join(["{}"]*len(cmd_args)), *cmd_args)
 
-  if output_file is not None:
-    output_file.parent.mkdir(exist_ok=True, parents=True)
-    with output_file.open("w") as outfile:
-      result = subprocess.run(cmd_args,
-        stdout=outfile,
-        stderr=outfile,
-        **run_args)
-  else:
-    import sys
-    if capture_output:
-      stdout = subprocess.PIPE
-      stderr = subprocess.PIPE
-    elif log.level >= log.Level.tracedbg:
-      stdout = sys.stdout
-      stderr = sys.stderr
+  try:
+    if output_file is not None:
+      output_file.parent.mkdir(exist_ok=True, parents=True)
+      with output_file.open("w") as outfile:
+        result = subprocess.run(cmd_args,
+          stdout=outfile,
+          stderr=outfile,
+          check=not noexcept,
+          **run_args)
     else:
-      stdout = subprocess.DEVNULL
-      stderr = subprocess.DEVNULL
+      import sys
+      if capture_output:
+        stdout = subprocess.PIPE
+        stderr = subprocess.PIPE
+      elif log.level >= log.Level.tracedbg:
+        stdout = sys.stdout
+        stderr = sys.stderr
+      else:
+        stdout = subprocess.DEVNULL
+        stderr = subprocess.DEVNULL
 
-    result = subprocess.run(cmd_args,
-      stdout=stdout,
-      stderr=stderr,
-      **run_args)
+      result = subprocess.run(cmd_args,
+        stdout=stdout,
+        stderr=stderr,
+        check=not noexcept,
+        **run_args)
+  except subprocess.CalledProcessError as e:
+    log.command(cmd_args, e.returncode, e.stdout, e.stderr)
+    raise
 
-  if not noexcept and result.returncode != 0:
-    cmd = ' '.join(map(str, cmd_args))
-    # stdout = result.stdout.decode("utf-8") if result.stdout else "",
-    # stderr = result.stderr.decode("utf-8") if result.stderr else ""
-    # log.error(f"command failed: {cmd}")
-    # log.error("-"*20)
-    # log.error("stdout:")
-    # log.error("-"*20)
-    # log.error(stdout)
-    # log.error("-"*20)
-    # log.error("stderr:")
-    # log.error("-"*20)
-    # log.error(stderr)
-    raise RuntimeError(
-      "failed to execute command" if fail_msg is None else fail_msg,
-      cmd)
+  # if not noexcept and result.returncode != 0:
+  #   cmd = ' '.join(map(str, cmd_args))
+  #   # stdout = result.stdout.decode("utf-8") if result.stdout else "",
+  #   # stderr = result.stderr.decode("utf-8") if result.stderr else ""
+  #   # log.error(f"command failed: {cmd}")
+  #   # log.error("-"*20)
+  #   # log.error("stdout:")
+  #   # log.error("-"*20)
+  #   # log.error(stdout)
+  #   # log.error("-"*20)
+  #   # log.error("stderr:")
+  #   # log.error("-"*20)
+  #   # log.error(stderr)
+  #   log.command(cmd_args, result.returncode, result.stdout, result.stderr)
+  #   raise RuntimeError(
+  #     "failed to execute command" if fail_msg is None else fail_msg,
+  #     cmd)
 
   return result

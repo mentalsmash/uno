@@ -133,16 +133,26 @@ class AgentService(Runnable):
 
   @disabled_if("runnable", neg=True)
   def start(self) -> None:
-    if self.static is not None and self.static.current_marker is not None:
-      self.static.check_marker_compatible()
-      self.log.warning("taking over systemd unit")
-      return
+    if self.static is not None and self.static.active:
+      return self.take_over_static()
     super().start()
     if self.static:
       self.static.write_marker()
 
 
   def stop(self, assert_stopped: bool=False) -> None:
+    delegate_static = (
+      not assert_stopped
+      and not self.agent.reloading
+      and self.static
+      and self.static.name in self.agent.initial_active_static_services
+    )
+    if delegate_static:
+      # Leave service active
+      self.log.info("returning control to systemd unit: {}", self.static)
+      self.static.write_marker()
+      return
+
     try:
       super().stop(assert_stopped=assert_stopped)
     finally:
@@ -153,6 +163,8 @@ class AgentService(Runnable):
   @error_if("static", neg=True)
   @disabled_if("runnable", neg=True)
   def start_static(self) -> None:
+    if self.static.active:
+      return self.take_over_static()
     self._start_static()
     self.static.write_marker()
     self.log.info("systemd unit started")
@@ -165,7 +177,18 @@ class AgentService(Runnable):
 
 
   def _start_static(self) -> None:
-    raise NotImplementedError()
+    self._start()
 
 
+  @error_if("static", neg=True)
+  def take_over_static(self) -> None:
+    self.static.check_marker_compatible()
+    self.log.debug("taking over systemd unit")
+    self.started = True
+    self._take_over_static()
+    self.log.warning("systemd unit already started: {}", self.static.current_marker)
+
+
+  def _take_over_static(self) -> None:
+    pass
 

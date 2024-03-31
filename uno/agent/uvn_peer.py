@@ -49,6 +49,8 @@ class UvnPeer(Versioned, DatabaseObjectOwner, OwnableDatabaseObject):
     "ih",
     "ih_dw",
     "ts_start",
+    "vpn_interfaces",
+    "known_networks",
   ]
   VOLATILE_PROPERTIES = [
     "ih",
@@ -62,6 +64,10 @@ class UvnPeer(Versioned, DatabaseObjectOwner, OwnableDatabaseObject):
   ]
   INITIAL_STATUS = UvnPeerStatus.DECLARED
   INITIAL_ROUTED_NETWORKS = lambda self: set()
+  # INITIAL_VPN_INTERFACES = lambda self: set(self.load_children(VpnInterfaceStatus, owner=self))
+  # INITIAL_KNOWN_NETWORKS = lambda self: set(self.load_children(LanStatus, owner=self))
+  INITIAL_VPN_INTERFACES = lambda self: set()
+  INITIAL_KNOWN_NETWORKS = lambda self: set()
 
   DB_TABLE = "peers"
   DB_OWNER = [Uvn, Cell, Particle]
@@ -75,9 +81,14 @@ class UvnPeer(Versioned, DatabaseObjectOwner, OwnableDatabaseObject):
   ]
 
 
-  def __init__(self, **properties) -> None:
-    super().__init__(**properties)
+  # def __init__(self, **properties) -> None:
+  #   super().__init__(**properties)
+
+
+  def load_nested(self) -> None:
     self.vpn_interfaces = set(self.load_children(VpnInterfaceStatus, owner=self))
+    # for status in self.vpn_interfaces:
+    #   status.configure(online=False)
     self.known_networks = set(self.load_children(LanStatus, owner=self))
 
 
@@ -106,37 +117,50 @@ class UvnPeer(Versioned, DatabaseObjectOwner, OwnableDatabaseObject):
 
   def configure_vpn_interfaces(self, peer_vpn_stats: dict[WireGuardInterface, dict]) -> bool:
     changed = False
+    configured = set()
     for intf, intf_stats in peer_vpn_stats.items():
       intf_status = next((s for s in self.vpn_interfaces if s.intf == intf.config.intf.name), None)
       if intf_status is None:
         intf_status = self.new_child(VpnInterfaceStatus, {
           "intf": intf.config.intf.name,
         }, owner=self)
-        self.vpn_interfaces.add(intf_status)
         changed = True
       changed_cfg = intf_status.configure(**intf_stats)
       changed = changed or len(changed_cfg) > 0
+      configured.add(intf_status)
     if changed:
       self.updated_property("vpn_interfaces")
+    previous = self.vpn_interfaces
+    self.vpn_interfaces = configured
+    gone = previous - self.vpn_interfaces
+    changed = changed or len(gone) > 0
+    for intf_status in gone:
+      self.db.delete(intf_status)
     return changed
 
 
   def configure_known_networks(self, known_networks: None|list[dict]) -> bool:
     changed = False
+    configured = set()
     for net_cfg in (known_networks or []):
-      # known_net = self.new_child(LanStatus, net_cfg, save=False)
       known_net = next((n for n in self.known_networks if n.lan == net_cfg["lan"]), None)
       init_props = ["lan"]
       cfg_args = dict(i for i in net_cfg.items() if i[0] not in init_props)
       if known_net is None:
         init_args = dict(i for i in net_cfg.items() if i[0] in init_props)
         known_net = self.new_child(LanStatus, init_args, owner=self)
-        self.known_networks.add(known_net)
         changed = True
       changed_cfg = known_net.configure(**cfg_args)
       changed = changed or len(changed_cfg) > 0
+      configured.add(known_net)
     if changed:
       self.updated_property("known_networks")
+    previous = self.known_networks
+    self.known_networks = configured
+    gone = previous - self.known_networks
+    changed = changed or len(gone) > 0
+    for known_net in gone:
+      self.db.delete(known_net)
     return changed
 
 
@@ -144,10 +168,6 @@ class UvnPeer(Versioned, DatabaseObjectOwner, OwnableDatabaseObject):
   def local(self) -> bool:
     assert(self.parent.parent is not None)
     assert(self.owner is not None)
-    # print(f"{self}.PARENT = {self.parent}")
-    # print(f"{self}.PARENT.PARENT = {self.parent.parent}")
-    # print(f"{self}.OWNER = {self.owner}")
-    # print(f"{self}.PARENT.PARENT == {self}.OWNER => {self.parent.parent == self.owner}")
     return self.parent.parent.owner == self.owner
 
 
@@ -199,14 +219,14 @@ class UvnPeer(Versioned, DatabaseObjectOwner, OwnableDatabaseObject):
       yield n
 
 
-  def prepare_vpn_interfaces(self, vpn_stats: dict[WireGuardInterface, dict[str, object]]) -> "set[VpnInterfaceStatus]":
-    self.configure_vpn_interfaces(vpn_stats)
-    return self.vpn_interfaces
+  # def prepare_vpn_interfaces(self, vpn_stats: dict[WireGuardInterface, dict[str, object]]) -> "set[VpnInterfaceStatus]":
+  #   self.configure_vpn_interfaces(vpn_stats)
+  #   return self.vpn_interfaces
 
 
-  def prepare_known_networks(self, known_networks: None|list[dict]) -> "set[LanStatus]":
-    self.configure_known_networks(known_networks)
-    return self.known_networks
+  # def prepare_known_networks(self, known_networks: None|list[dict]) -> "set[LanStatus]":
+  #   self.configure_known_networks(known_networks)
+  #   return self.known_networks
 
 
   @property
@@ -260,7 +280,6 @@ class VpnInterfaceStatus(Versioned, OwnableDatabaseObject):
   def prepare_allowed_ips(self, val: str | list[str | ipaddress.IPv4Network]) -> set[ipaddress.IPv4Network]:
     if isinstance(val, str):
       val = self.yaml_load(val)
-    # print("---- PREPARE ALLOWED IPS", repr(val))
     return prepare_collection(self.db, val, ipaddress.IPv4Network, set)
 
   def prepare_transfer(self, val: str | dict) -> dict:

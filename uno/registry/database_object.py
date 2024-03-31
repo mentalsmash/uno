@@ -58,6 +58,14 @@ class DatabaseSchema:
 
 
   @classmethod
+  def exportables(cls) -> "Generator[type[DatabaseObject], None, None]":
+    for t in cls._Objects:
+      if not t.DB_EXPORTABLE:
+        continue
+      yield t
+
+
+  @classmethod
   def ownables_types(cls) -> "set[type[OwnableDatabaseObject]]":
     return cls._Ownables
 
@@ -243,7 +251,9 @@ class DatabaseObject:
   DB_TABLE: str = None
   DB_ID_POOL: str = None
   DB_TABLE_PROPERTIES: list[str] = []
+  DB_TABLE_KEYS: list[str] = []
   DB_CACHED: bool = True
+  DB_EXPORTABLE: bool = True
 
   def __init__(self,
       db: "Database",
@@ -328,7 +338,7 @@ class DatabaseObject:
     self.__dict__.pop("parent_str_id", None)
 
 
-  def save(self, cursor: "Database.Cursor|None"=None, create: bool=False, public: bool=False) -> None:
+  def save(self, cursor: "Database.Cursor|None"=None, **db_args) -> None:
     raise NotImplementedError()
 
 

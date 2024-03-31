@@ -164,8 +164,8 @@ class Registry(Versioned):
     return registry
 
 
-  @staticmethod
-  def open(root: Path, readonly: bool=False, db: "Database|None"=None) -> "Registry":
+  @classmethod
+  def open(cls, root: Path | None = None, readonly: bool=False, db: "Database|None"=None) -> "Registry":
     if db is None:
       db = Database(root)
     return next(db.load(Registry, load_args={
@@ -173,26 +173,21 @@ class Registry(Versioned):
     }, id=1))
 
 
+  @classmethod
+  def load_local_id(cls, root: Path) -> tuple[tuple[str, object], str] | None:
+    # Read id.yaml to determine the owner
+    id_file = root / "id.yaml"
+    if not id_file.exists():
+      cls.log.debug("identity marker not found: {}", id_file)
+      return (None, None)
+    cls.log.debug("loading identity marker: {}", id_file)
+    id_cfg = cls.yaml_load(id_file.read_text())
+    return (id_cfg["owner"], id_cfg["config_id"])
+
+
   @property
   def root(self) -> Path:
     return self.db.root
-
-
-  @cached_property
-  @inject_db_cursor
-  def local_id(self, cursor: Database.Cursor) -> tuple[Uvn|Cell, str]:
-    # Read id.yaml to determine the owner
-    id_file = self.root / "id.yaml"
-    if id_file.exists():
-      self.log.debug("loading identity marker: {}", id_file)
-      id_cfg = self.yaml_load(id_file.read_text())
-      config_id = id_cfg["config_id"]
-      owner = self.db.load_object_id(id_cfg["owner"], cursor=cursor)
-    else:
-      self.log.debug("identity marker not found: {}", id_file)
-      owner = self.uvn
-      config_id = self.config_id
-    return (owner, config_id)
 
 
   @property
@@ -205,7 +200,7 @@ class Registry(Versioned):
     return self.root / "particles"
 
 
-  @property
+  @cached_property
   def id_db(self) -> IdentityDatabase:
     backend = self.new_child(DdsKeysBackend, {
       "root": self.root / "id",
@@ -624,7 +619,7 @@ class Registry(Versioned):
     def _save() -> int:
       changed_elements_vals = dict(self.collect_changes())
       _print_changes(self, changed_elements_vals)
-      self._update_config_id()
+      self.config_id = self.generate_config_id()
       self.db.save(self, dirty=not force)
       return len(changed_elements_vals)
 
@@ -654,25 +649,6 @@ class Registry(Versioned):
 
     self.log.info("updated")
     return True
-
-
-  def _update_config_id(self) -> None:
-    # for cfg in self.agent_configs.values():
-    #   self.db.delete(cfg)
-
-    self.config_id = self.generate_config_id()
-
-    # for cell in self.uvn.cells.values():
-    #   agent_cfg = self.new_child(AgentConfig, {
-    #     "config_id": self.config_id,
-    #   }, owner=cell)
-    # self.updated_property("agent_configs")
-
-
-  # def save(self, cursor: "Database.Cursor|None"=None, create: bool=False, public: bool=False) -> None:
-
-  #   super().save(cursor=cursor, create=create, public=public)
-
 
 
   def rekey_uvn(self) -> None:
@@ -748,12 +724,6 @@ class Registry(Versioned):
     
     # agent_config = self.agent_configs[cell.id]
     # self.db.export_objects(db, agent_config)
-
-
-  def import_(self, db: "Database") -> None:
-    from .wg_key import WireGuardKeyPair, WireGuardPsk
-    self.db.import_tables(db, [Uvn, Cell, Particle, User, Registry, WireGuardPsk, WireGuardKeyPair])
-
 
   # @property
   # def registry_agent_config(self) -> AgentConfig:

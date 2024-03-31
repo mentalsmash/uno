@@ -24,6 +24,11 @@ from collections import namedtuple
 import os
 from functools import cached_property
 
+import logging
+import logging.handlers
+
+
+
 
 class LoggerError(Exception):
     def __init__(self, msg):
@@ -77,6 +82,7 @@ _LOGGER_LOCK = threading.RLock()
 _LOGGER_FILE = None
 _LOGGER_PREFIX = ""
 _LOGGER_NOCOLOR = False
+_LOGGER_SYSLOG = False
 
 def context_enabled(context):
     if _LOGGER_CONTEXT is None:
@@ -96,8 +102,16 @@ def set_verbosity(lvl):
         _LOGGER_LEVEL = lvl
 
 
+def set_syslog_enabled(val: bool):
+    global _LOGGER_LOCK
+    with _LOGGER_LOCK:
+        global _LOGGER_SYSLOG
+        _LOGGER_SYSLOG = val
+
+
 def verbosity():
     return _LOGGER_LEVEL
+
 
 def set_context(context):
     global _LOGGER_LOCK
@@ -163,8 +177,10 @@ def _colorize(lvl, line):
         return line
 
 def _emit_default(logger, context, lvl, line, **kwargs):
-    file = kwargs.get("file", sys.stdout)
+    file = kwargs.get("file", sys.stderr)
     outfile = kwargs.get("outfile", None)
+    exc_info = kwargs.get("exc_info", None)
+    syslog = logger.syslog if logger.enable_syslog else None
     # serialize writing to output
     global _LOGGER_LOCK
     global _LOGGER_NOCOLOR
@@ -172,10 +188,25 @@ def _emit_default(logger, context, lvl, line, **kwargs):
         if outfile:
             print(line, file=outfile)
             outfile.flush()
-        if not _LOGGER_NOCOLOR:
-            line = _colorize(lvl, line)
-        print(line, file=file)
-        file.flush()
+        if syslog is None:
+            if not _LOGGER_NOCOLOR:
+                line = _colorize(lvl, line)
+            print(line, file=file)
+            file.flush()
+            if exc_info:
+                traceback.print_exception(*exc_info, file=file)
+        else:
+            log_fn = (
+                syslog.debug if lvl >= logger.Level.trace else
+                syslog.info if lvl >= logger.Level.info else
+                syslog.warn if lvl >= logger.Level.warning else
+                syslog.error if lvl >= logger.Level.error else
+                syslog.critical
+            )
+            log_fn(line)
+            if exc_info:
+                log_fn("exception stack trace", exc_info=exc_info)
+
 
 def _format_default(logger, context, lvl, fmt, *args, **kwargs):
     global _LOGGER_LOCK
@@ -221,6 +252,7 @@ class UvnLogger:
         self._update_sublogger_context(context)
         self.local_level = None
 
+
     @property
     def context(self) -> str:
         return self._context
@@ -240,10 +272,43 @@ class UvnLogger:
 
 
     @property
+    def enable_syslog(self) -> bool:
+        return _LOGGER_SYSLOG
+
+
+    @enable_syslog.setter
+    def enable_syslog(self, val: bool) -> None:
+        set_syslog_enabled(val)
+
+
+    @cached_property
+    def syslog(self) -> logging.Logger | None:
+        dev_log = Path('/dev/log')
+        if not dev_log.exists() or True:
+            return None
+        logger = logging.getLogger(self._context)
+        logger.setLevel(
+            logging.DEBUG if self.level >= self.Level.trace else
+            logging.INFO if self.level >= self.Level.info else
+            logging.WARNING if self.level >= self.Level.warning else
+            logging.ERROR if self.level >= self.Level.error else
+            logging.CRITICAL)
+        handler = logging.handlers.SysLogHandler(address = '/dev/log')
+        logger.addHandler(handler)
+        return logger
+
+
+
+    @property
     def level(self) -> _LogLevels:
         if self.local_level is not None:
             return self.local_level
         return _LOGGER_LEVEL
+
+
+    @level.setter
+    def level(self, val: _LogLevels) -> None:
+        set_verbosity(val)
 
 
     def _update_sublogger_context(self, context: str) -> None:
@@ -252,6 +317,8 @@ class UvnLogger:
             self._context = f"{self.parent.context}.{context}"
         else:
             self._context = context
+        # Regenerate syslog logger
+        self.__dict__.pop("syslog", None)
 
 
     def _log(self, lvl, *args, **kwargs):
@@ -270,8 +337,7 @@ class UvnLogger:
             self.emit(self, self.context, lvl, line, **kwargs)
 
     def exception(self, e):
-        traceback.print_exc()
-        self.error("[exception] {}", e)
+        self.error("[exception] {}", e, exc_info=sys.exc_info())
     
     def command(self, cmd_args, rc, stdout=None, stderr=None, display=False):
         if rc != 0:

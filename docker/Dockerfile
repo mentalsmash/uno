@@ -49,6 +49,7 @@ RUN export DEBIAN_FRONTEND="noninteractive" \
           net-tools \
           build-essential \
           cargo \
+          sqlite3 \
       ) \
     && apt-get clean
 

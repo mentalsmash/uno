@@ -286,7 +286,6 @@ class WireGuardInterface:
     self.created = False
     self.up = False
 
-
   def __eq__(self, other: object) -> bool:
     if not isinstance(other, WireGuardInterface):
       return False
@@ -305,11 +304,15 @@ class WireGuardInterface:
     return f"{self.__class__.__name__}({self.config.intf.name})"
 
 
-  def start(self) -> None:
-    self.create()
-    self.bring_up()
-    import time
-    time.sleep(1)
+  def start(self, noop: bool=False) -> None:
+    if not noop:
+      self.create()
+      self.bring_up()
+      # import time
+      # time.sleep(1)
+    else:
+      self.up = True
+      self.created = True
 
 
   def stop(self, assert_stopped: bool=False) -> None:
@@ -318,8 +321,8 @@ class WireGuardInterface:
       self.tear_down(ignore_errors=assert_stopped)
     if self.created or assert_stopped:
       self.delete(ignore_errors=assert_stopped)
-    import time
-    time.sleep(1)
+      # import time
+      # time.sleep(1)
 
 
   def create(self):
@@ -435,7 +438,7 @@ class WireGuardInterface:
       if not ignore_errors:
         raise WireGuardError(f"failed to disable wireguard interface: {self.config.intf.name}")
       else:
-        log.warning("failed to disabled wireguard interface {}: {}", self.config.intf.name, e)
+        log.warning("failed to disable wireguard interface {}: {}", self.config.intf.name, e)
     try:
       self.log.debug("resetting interface configuration")
       exec_command(

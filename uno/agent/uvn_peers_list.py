@@ -256,15 +256,15 @@ class UvnPeersList(Versioned):
   def offline(self) -> None:
     if self.local.status == UvnPeerStatus.OFFLINE:
       return
-
     self.update_all(
       status=UvnPeerStatus.OFFLINE,
-      registry_id=None,
-      routed_networks=None,
-      known_networks=None,
-      ih=None,
-      ih_dw=None,
-      ts_start=None)
+      registry_id=self.ResetValue,
+      routed_networks=[],
+      known_networks=[],
+      vpn_interfaces={},
+      ih=self.ResetValue,
+      ih_dw=self.ResetValue,
+      ts_start=self.ResetValue)
   
 
   def update_peer(self,

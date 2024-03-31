@@ -87,10 +87,6 @@ class Router(AgentService):
     return ("router/frr.bgp.conf", ctx)
 
 
-  def _start_static(self) -> None:
-    self._start()
-
-
   def _start(self) -> None:
     # Generate and install frr.conf
     Templates.generate(self.FRR_CONF, *self.frr_config)

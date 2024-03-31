@@ -97,6 +97,11 @@ class SystemdService(Versioned):
 
 
   @property
+  def active(self) -> bool:
+    return self.current_marker is not None
+
+
+  @property
   def current_marker(self) -> str | None:
     if self.marker_file.exists():
       return self.marker_file.read_text()

@@ -145,12 +145,14 @@ class Database:
       obj: DatabaseObject,
       chown: Mapping[DatabaseObjectOwner, list[OwnableDatabaseObject]]|None=None,
       public: bool=False,
+      import_record: bool=False,
       dirty: bool=True,
       force_insert: bool=False,
       cursor: "Database.Cursor | None" = None) -> list[DatabaseObject]:
     return self.save_all([obj],
       chown=chown,
       public=public,
+      import_record=import_record,
       dirty=dirty,
       force_insert=force_insert,
       cursor=cursor)
@@ -161,6 +163,7 @@ class Database:
       targets: Iterable[DatabaseObject],
       chown: Mapping[DatabaseObjectOwner, list[OwnableDatabaseObject]]|None=None,
       public: bool=False,
+      import_record: bool=False,
       dirty: bool=True,
       force_insert: bool=False,
       cursor: "Database.Cursor | None" = None,
@@ -176,38 +179,44 @@ class Database:
       for tgt, current_owner in query_targets.items():
         table = self.SCHEMA.lookup_table_by_object(tgt, required=False)
         create = table and (not tgt.loaded or force_insert)
+        logger = self.log.activity if create else self.log.tracedbg
+        logger_result = self.log.info if create else self.log.trace
         if table:
-          self.log.tracedbg("{} {}: {}{}",
+          logger("{} {}: {}{}",
             "inserting new" if create else "saving",
             tgt.__class__.__qualname__,
             tgt,
             owner_str(tgt))
         else:
-          self.log.tracedbg("creating {}: {}", tgt.__class__.__qualname__, tgt)
+          logger("creating {}: {}", tgt.__class__.__qualname__, tgt)
 
         if tgt.disposed:
           self.delete(tgt, cursor=cursor, do_in_transaction=lambda action: action())
         else:
-          tgt.save(cursor=cursor, create=create, public=public)
+          tgt.save(
+            cursor=cursor,
+            create=create,
+            import_record=import_record,
+            public=public)
           tgt.clear_changed()
           tgt.saved = True
           tgt.loaded = table is not None
 
           if table:
-            self.log.tracedbg("{} {}: {}{}",
+            logger_result("{} {}: {}{}",
               "inserted" if create else "updated",
               tgt.__class__.__qualname__,
               tgt,
               owner_str(tgt))
           else:
-            self.log.tracedbg("created {}: {}", tgt.__class__.__qualname__, tgt)
+            logger_result("created {}: {}", tgt.__class__.__qualname__, tgt)
         saved.append(tgt)
-      for user, targets in (chown or {}).items():
-        self._set_ownership(user, targets, current_owners=query_targets, cursor=cursor)
+      for owner, targets in (chown or {}).items():
+        self._set_ownership(owner, targets, current_owners=query_targets, cursor=cursor)
 
     def iter_query_targets() -> Generator[DatabaseObject, None, None]:
       for tgt in targets:
-        for tgt in ((t for t, _ in tgt.collect_changes()) if dirty else tgt.collect_nested()):
+        for tgt in ((t for t, _ in tgt.collect_changes()) if (dirty and not import_record) else tgt.collect_nested()):
           tgt.validate()
           if isinstance(tgt, OwnableDatabaseObject) and tgt.id:
             owner = self.owner(tgt, cursor=cursor)
@@ -225,31 +234,55 @@ class Database:
   def create_or_update(self,
       obj: DatabaseObject,
       fields: dict[str, object],
-      create: bool=False,
-      obj_id: int | None = None,
+      # obj_id: int | None = None,
       table: str | None = None,
-      cursor: "Database.Cursor | None" = None):
+      cursor: "Database.Cursor | None" = None,
+      **db_args):
     if table is None:
       table = self.SCHEMA.lookup_table_by_object(obj)
-    if obj_id is None:
-      if obj.id is None:
-        obj.id = self.next_id(obj)
-      obj_id = obj.id
+    # if obj_id is None:
+    #   if obj.id is None:
+    #     obj.id = self.next_id(obj)
+    #   obj_id = obj.id
 
-    sorted_keys = sorted(f if f != obj.OMITTED else None for f in fields if f not in ("id",))
+    if obj.id is None:
+      obj.id = self.next_id(obj)
+
+
+    if db_args["import_record"]:
+      if obj.DB_TABLE_KEYS:
+        # Check if records for the specified keys exist, and if so, delete them
+        for key in obj.DB_TABLE_KEYS:
+          key_fields = sorted(key)
+          key_params = [getattr(obj, f) for f in key_fields]
+          key_where = ' AND '.join(f + ' = ?' for f in key_fields)
+          deleted = self.delete_where(table, where=key_where, params=key_params, cursor=cursor)
+        create = True
+      else:
+        row = cursor.execute(f"SELECT id FROM {table} WHERE id = ?", (obj.id,)).fetchone()
+        create = row is None
+    else:
+      create = db_args["create"]
+
+    sorted_keys = sorted(f if f != obj.OMITTED else None for f in fields if f != "id")
     sorted_values = [fields[k] for k in sorted_keys]
+
     if create:
+      values = ', '.join('?' for _ in range(len(sorted_keys)+1))
+      keys = ', '.join(("id", *sorted_keys))
       query = (
-        f"INSERT INTO {table} ({', '.join(('id', *sorted_keys))}) VALUES ({', '.join('?' for _ in range(len(sorted_keys)+1))})",
-        (obj_id, *sorted_values),
+        f"INSERT INTO {table} ({keys}) VALUES ({values})",
+        (obj.id, *sorted_values),
       )
     else:
+      fields = ", ".join(f"{f} = ?" for f in sorted_keys)
       query = (
-        f"UPDATE {table} SET " + ", ".join(f"{f} = ?" for f in sorted_keys) + " WHERE id =  ? ",
-        (*sorted_values, obj_id),
+        f"UPDATE {table} SET {fields} WHERE id = ?",
+        (*sorted_values, obj.id),
       )
     cursor.execute(*query)
-    obj.reset_cached_properties()
+    if not db_args["import_record"]:
+      obj.reset_cached_properties()
 
 
   @inject_cursor
@@ -276,15 +309,17 @@ class Database:
       cursor: "Database.Cursor | None" = None) -> None:
     if cls is not None:
       assert(issubclass(cls, Versioned))
-      eq_props = sorted(cls.SCHEMA.eq_properties)
-      query = f"{query} RETURNING {', '.join(eq_props)}"
+      # eq_props = sorted(cls.SCHEMA.eq_properties)
+      # query = f"{query} RETURNING {', '.join(eq_props)}"
+      query = f"{query} RETURNING id"
     self.log.trace("delete {} query: {} values {}", "rows" if cls is None else cls.__qualname__, query, params)
     result = cursor.execute(query, params or [])
     if cls is not None:
       for row in result:
-        self.log.debug(f"deleted record: {'{}'}, {', '.join('{} = {}' for _ in eq_props)}",
-          table,
-          *(f for p in eq_props for f in (p, getattr(row, p))))
+        # self.log.debug(f"deleted record: {'{}'}, {', '.join('{} = {}' for _ in eq_props)}",
+        #   table,
+        #   *(f for p in eq_props for f in (p, getattr(row, p))))
+        self.log.debug("deleted record: {}({})", table, row.id)
 
 
   @inject_cursor
@@ -298,7 +333,7 @@ class Database:
       f"DELETE FROM {table} WHERE {where}",
       params,
     )
-    return self._delete(table, *query, cls, cursor)
+    return self._delete(table, *query, cls, cursor=cursor)
     # if cursor is None:
     #   cursor = self._db
     # cursor.execute(*query)
@@ -321,7 +356,7 @@ class Database:
     #   self.log.debug if created.DB_TABLE else
     #   self.log.trace
     # )
-    self.log.trace("new {}: {}", cls.__qualname__, created)
+    self.log.debug("new {}: {}", cls.__qualname__, created)
     table = self.SCHEMA.lookup_table_by_object(cls, required=False)
     chown = None
     if not table:
@@ -408,6 +443,9 @@ class Database:
           for owned in cursor.execute(f"SELECT id FROM {table} WHERE {where}", params):
             for is_owner in cursor.execute(f"SELECT * FROM {owner_table} WHERE {owner_col} = ? AND {owned_col} = ?", (owner.id, owned.id, )):
               yield owned
+      else:
+        for row in cursor.execute(f"SELECT * FROM {table}"):
+          yield row
 
 
     load_targets = list(_load_targets())
@@ -490,7 +528,7 @@ class Database:
         self._cache.pop(tgt.id, None)
         self._delete(table, f"DELETE FROM {table} WHERE id = ?", [tgt.id], tgt.__class__,
           cursor=cursor)
-        self.log.info("deleted {}: {}", tgt.__class__.__qualname__, tgt)
+        self.log.activity("deleted {}: {}", tgt.__class__.__qualname__, tgt)
     do_in_transaction(_delete)
 
 
@@ -667,7 +705,7 @@ class Database:
           self._delete(owner_table,
             f"DELETE FROM {owner_table} WHERE {owner_col} = ? AND {owned_col} = ?",
             (Versioned.json_dump(owner.object_id), target.id),
-            cursor)
+            cursor=cursor)
 
 
       target.reset_cached_properties()
@@ -719,15 +757,29 @@ class Database:
 
 
   def export_objects(self, target: "Database", objects: Iterable[Versioned], public: bool=False) -> None:
-    target.save_all(objects, dirty=False, public=public, force_insert=True)
+    target.save_all(objects, import_record=True, public=public, force_insert=True)
 
 
-  def import_tables(self, target: "Database", classes: Iterable[type[DatabaseObject]]) -> None:
-    for cls in classes:
+  def import_other(self, target: "Database") -> None:
+    self.log.activity("importing database: {}", target)
+    for cls in self.SCHEMA.exportables():
+      self.log.activity("importing {} objects", cls.__qualname__)
+      count = 0
       for obj in target.load(cls):
         if isinstance(obj, OwnableDatabaseObject) and obj.owner:
-          chown = {obj.owner: obj}
+          chown = {obj.owner: [obj]}
         else:
           chown = None
         self.log.activity("importing {}: {}", cls.__name__, obj)
-        self.save(obj, chown=chown, dirty=False)
+        self.save(obj, chown=chown, import_record=True)
+        count += 1
+      self.log.info("imported {} {}", count, cls.__qualname__)
+    self.log.info("imported database: {}", target)
+
+
+  # def import_object(self, obj: DatabaseObject) -> None:
+  #   self.log.activity("importing {}: {}", obj.__class__.__qualname__, obj)
+  #   table = self.SCHEMA.lookup_table_by_object(obj)
+  #   query = (
+  #     f"UPSERT "
+  #   )

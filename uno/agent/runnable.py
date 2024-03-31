@@ -41,19 +41,12 @@ class Runnable(Versioned):
 
 
   def __exit__(self, exc_type, exc_val, exc_tb):
-    self.log.debug("stopping...")
+    self.log.activity("stopping...")
     try:
-      self.stop(assert_stopped=exc_type is not None)
+      self.stop(assert_stopped=exc_type is not None and not issubclass(exc_type, KeyboardInterrupt))
     finally:
       self.started = False
     self.log.activity("stopped.")
-
-
-  @property
-  def running_contexts(self) -> Generator[ContextManager, None, None]:
-    # raise NotImplementedError()
-    for i in []:
-      yield i
 
 
   def check_runnable(self) -> bool:
@@ -86,15 +79,6 @@ class Runnable(Versioned):
     self._spin_once()
 
 
-  def spin(self,
-      until: Callable[[], bool]|None=None,
-      max_spin_time: int|None=None) -> None:
-    with contextlib.ExitStack() as stack:
-      for ctx_mgr in self.running_contexts:
-        stack.enter_context(ctx_mgr)
-      self._spin(until=until, max_spin_time=max_spin_time)
-
-
   def _stop(self, assert_stopped: bool) -> None:
     raise NotImplementedError()
 
@@ -105,10 +89,4 @@ class Runnable(Versioned):
 
   def _spin_once(self) -> None:
     pass
-
-
-  def _spin(self,
-      until: Callable[[], bool]|None=None,
-      max_spin_time: int|None=None) -> None:
-    raise NotImplementedError()
 

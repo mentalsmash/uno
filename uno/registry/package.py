@@ -105,19 +105,22 @@ class Packager(Versioned):
 
 
   @classmethod
-  def extract_cell_agent_package(cls, package: Path, agent_dir: Path) -> None:
+  def extract_cell_agent_package(cls, package: Path, agent_dir: Path, exclude: list[str] | None = None) -> None:
     # Extract package to a temporary directory
     tmp_dir_h = tempfile.TemporaryDirectory()
     tmp_dir = Path(tmp_dir_h.name)
 
     package = package.resolve()
 
-    cls.log.debug("extracting agent package contents: {}", tmp_dir)
+    cls.log.activity("extracting agent package contents: {}", tmp_dir)
+    # print("PACKAGE FILE TYPE", exec_command([f"ls -l {package}"], shell=True, capture_output=True).stdout.decode())
     exec_command(["tar", "xvJf", package], cwd=tmp_dir)
 
     agent_dir.mkdir(parents=True, exist_ok=True)
     agent_dir = agent_dir.resolve()
     agent_dir.chmod(0o755)
+
+    exclude = exclude or []
 
     for f, permissions in {
         "rti_license.dat": 0o600,
@@ -125,6 +128,8 @@ class Packager(Versioned):
         Database.DB_NAME: 0o600,
         ("id", ".id-import"): 0o700,
       }.items():
+      if f in exclude:
+        continue
       if isinstance(f, tuple):
         in_f = f[0]
         out_f = f[1]

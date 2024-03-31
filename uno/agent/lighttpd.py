@@ -139,8 +139,11 @@ class Lighttpd:
         time.sleep(1)
       if pid is None:
         raise RuntimeError("failed to detect lighttpd process")
-      log.debug("lighttpd started: pid={}", pid)
-      log.warning("listening on 0.0.0.0:{}", self.port)
+      # log.debug("lighttpd started: pid={}", pid)
+      log.info("lighttpd started ({}), listening on {} interfaces: {}",
+        pid,
+        len(self.bind_addresses),
+        ', '.join(f"{a}:{self.port}" for a in self.bind_addresses))
     except Exception as e:
       self._lighttpd_pid = None
       self._lighttpd = None

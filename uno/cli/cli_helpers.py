@@ -19,7 +19,7 @@ from typing import Callable
 import argparse
 from operator import attrgetter
 
-from uno.core.log import set_verbosity, level as log_level
+from uno.core.log import Logger, level as log_level
 from uno.core.ask import ask_assume_no, ask_assume_yes
 
 class SortingHelpFormatter(argparse.HelpFormatter):
@@ -95,20 +95,18 @@ def cli_command_main(define_parser: Callable[[argparse._SubParsersAction], None]
   if cmd is None:
     raise RuntimeError("no command specified")
 
-  if args.quiet:
-    set_verbosity(log_level.quiet)
-  elif args.verbose >= 5:
-    set_verbosity(log_level.tracedbg)
-  elif args.verbose >= 4:
-    set_verbosity(log_level.trace)
-  elif args.verbose >= 3:
-    set_verbosity(log_level.debug)
-  elif args.verbose >= 2:
-    set_verbosity(log_level.activity)
-  elif args.verbose >= 1:
-    set_verbosity(log_level.info)
-  else:
-    set_verbosity(log_level.warning)
+  Logger.level = (
+    log_level.quiet if args.quiet else
+    log_level.tracedbg if args.verbose >= 5 else
+    log_level.trace if args.verbose >= 4 else
+    log_level.debug if args.verbose >= 3 else
+    log_level.activity if args.verbose >= 2 else
+    log_level.info if args.verbose >= 1 else
+    log_level.warning
+  )
+
+  if getattr(args, "systemd", False):
+    Logger.enable_syslog = True
 
   yes = getattr(args, "yes", False)
   if yes:
@@ -122,3 +120,4 @@ def cli_command_main(define_parser: Callable[[argparse._SubParsersAction], None]
     cmd(args)
   except KeyboardInterrupt:
     pass
+

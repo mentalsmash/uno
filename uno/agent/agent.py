@@ -108,9 +108,26 @@ class Agent(AgentConfig, Runnable, UvnPeerListener, RoutesMonitorListener, Ownab
 
   PROPERTIES = [
     "config_id",
+    # "participant_xml_config",
+    # "peers",
+    # "rti_license",
+    # "dds_topics",
+    # "lans",
+    # "root_vpn",
+    # "particles_vpn",
+    # "backbone_vpns",
+    # "dp",
+    # "routes_monitor",
+    # "router",
+    # "webui",
+    # "peers_tester",
+    # "net",
+    # "static_services",
+    # "static",
     "uvn_backbone_plot_dirty",
     "uvn_status_plot_dirty",
     "enable_systemd",
+    "initial_active_static_services",
   ]
   REQ_PROPERTIES = [
     "config_id",
@@ -123,6 +140,7 @@ class Agent(AgentConfig, Runnable, UvnPeerListener, RoutesMonitorListener, Ownab
   INITIAL_ENABLE_SYSTEMD = False
   INITIAL_SYNC_MODE = SyncMode.IMMEDIATE
   INITIAL_STARTED_SERVICES = lambda self: []
+  INITIAL_INITIAL_ACTIVE_STATIC_SERVICES = lambda self: []
 
   DB_TABLE = "agents"
   DB_OWNER = [Uvn, Cell]
@@ -141,23 +159,64 @@ class Agent(AgentConfig, Runnable, UvnPeerListener, RoutesMonitorListener, Ownab
   UNREACHABLE_NETWORKS_TABLE_FILENAME = "networks.unreachable"
 
   @classmethod
-  def open(cls, root: Path|None=None, registry: Registry|None=None) -> "Agent":
-    if registry is None:
-      registry = Registry.open(root, readonly=True)
-    owner, config_id = registry.local_id
-    assert(config_id == registry.config_id)
-    agent = registry.load_child(Agent,
-      owner=owner,
-      where="config_id = ?",
-      params=(registry.config_id,))
-    if agent is None:
-      agent = registry.new_child(Agent, {
+  def open(cls,
+      root: Path | None = None,
+      **config_args) -> "Agent":
+    owner_id, config_id = Registry.load_local_id(root)
+    db = Database(root)
+    if owner_id is not None:
+      owner = db.load_object_id(owner_id)
+      agent = next(db.load(Agent,
+        owner=owner,
+        where="config_id = ?",
+        params=(config_id,)))
+      assert(agent is not None)
+      assert(agent.config_id == config_id)
+    else:
+      registry = Registry.open(root, db=db)
+      agent = db.new(Agent, {
         "config_id": registry.config_id,
-      }, owner=owner)
-    assert(agent is not None)
-    assert(agent.config_id == config_id)
+      }, owner=registry.uvn, save=False)
+      assert(agent is not None)
+      assert(agent.config_id == registry.config_id)
+    if config_args:
+      agent.configure(**config_args)
+      db.save(agent)
     cls.log.info("loaded agent for {} at {}", agent.owner, agent.config_id)
     return agent
+
+
+  @classmethod
+  def install_package(cls, package: Path, root: Path, reload: bool=False) -> "Agent":
+    excluded = [] if not reload else [Database.DB_NAME]
+    Packager.extract_cell_agent_package(package, root, exclude=excluded)
+    agent = cls._assert_agent(root)
+    id_db_dir = agent.root / ".id-import"
+    if id_db_dir.is_dir():
+      package_files = [
+        f.relative_to(id_db_dir)
+          for f in id_db_dir.glob("**/*")
+      ]
+      agent.id_db.import_keys(id_db_dir, package_files)
+      # self.net.generate_configuration()
+      exec_command(["rm", "-rf", id_db_dir])
+    cls.log.debug("bootstrap completed: {}@{} [{}]", agent.owner, agent.uvn, agent.root)
+    return agent
+
+
+  @classmethod
+  def _assert_agent(cls, root: Path) -> "Agent":
+    owner_id, config_id = Registry.load_local_id(root)
+    db = Database(root)
+    owner = db.load_object_id(owner_id)
+    agent = next(db.load(Agent,
+      owner=owner,
+      where="config_id = ?",
+      params=(config_id,)), None)
+    if agent is None:
+      agent = db.new(Agent, {"config_id": config_id}, owner=owner)
+    return agent
+
 
 
   @cell_exclusive_method
@@ -166,18 +225,51 @@ class Agent(AgentConfig, Runnable, UvnPeerListener, RoutesMonitorListener, Ownab
     # Make sure the owner is the same
     if new_agent.owner != self.owner:
       raise ValueError("invalid agent owner", new_agent.owner)
-    self.registry.import_cell_database(new_agent.db, new_agent.owner)
-    return Agent.open(self.root)
+    new_agent.log.warning("loading new configuration: {}", new_agent.registry_id)
+    # Extract all files in the package except for the database
+    cell_package = Path(new_agent._reload_package.name)
+
+    # Import database records via SQL
+    print("---- BEGIN IMPORT")
+    self.registry.db.import_other(new_agent.db)
+    print("---- DONE IMPORT")
+
+    self.install_package(cell_package, self.root, reload=True)
+    new_agent._reload_package = None
+
+    new_agent = Agent.open(self.root,
+      enable_systemd=self.enable_systemd,
+      initial_active_static_services=self.initial_active_static_services)
+    new_agent.log.warning("loaded new configuration: {}", new_agent.registry_id)
+    return new_agent
 
 
   def __init__(self, **properties) -> None:
     self._reload_agent = None
+    self._reload_package = None
+    self.reloading = False
     super().__init__(**properties)
-    self._finish_import_package()
 
-  @property
+
+  def load_nested(self) -> None:
+    self.initial_active_static_services = [s.name for s in self.active_static_services]
+
+
+  @cached_property
   def registry(self) -> Registry:
-    return self.parent
+    return Registry.open(db=self.db, readonly=True)
+
+
+  @cached_property
+  @inject_db_cursor
+  def local_id(self, cursor: Database.Cursor) -> tuple[Uvn|Cell, str]:
+    owner_id, config_id = Registry.load_local_id(self.db.root)
+    if config_id is None:
+      owner = self.uvn
+      config_id = self.config_id
+    else:
+      owner = self.db.load_object_id(owner_id, cursor=cursor)
+    return (owner, config_id)
 
 
   @property
@@ -345,7 +437,7 @@ class Agent(AgentConfig, Runnable, UvnPeerListener, RoutesMonitorListener, Ownab
       gw = ipv4_get_route(nic.subnet.network_address)
       lan = self.new_child(LanDescriptor, {"nic": nic, "gw": gw})
       lans.append(lan)
-      self.log.warning("LAN interface detected: {}", lan)
+      self.log.info("LAN interface detected: {}", lan)
     return lans
 
 
@@ -495,9 +587,12 @@ class Agent(AgentConfig, Runnable, UvnPeerListener, RoutesMonitorListener, Ownab
 
 
 
-  @cached_property
-  def active_static_services(self) -> list[AgentStaticService]:
-    return [svc for svc in self.static_services if svc.current_marker is not None]
+  @property
+  def active_static_services(self) -> Generator[AgentStaticService, None, None]:
+    for svc in self.static_services:
+      if not svc.active:
+        continue
+      yield svc
 
 
   @cached_property
@@ -505,14 +600,6 @@ class Agent(AgentConfig, Runnable, UvnPeerListener, RoutesMonitorListener, Ownab
     return self.new_child(AgentStaticService, {
       "name": "agent",
     })
-
-
-  @property
-  def running_contexts(self) -> Generator[ContextManager, None, None]:
-    yield self._pid_file()
-    for svc in self.services:
-      yield svc
-    yield self._on_started()
 
 
   def validate(self) -> None:
@@ -528,13 +615,13 @@ class Agent(AgentConfig, Runnable, UvnPeerListener, RoutesMonitorListener, Ownab
       raise RuntimeError("invalid network interfaces")
 
 
-  def __enter__(self) -> "Agent":
-    self.start(boot=True)
-    return self.agent
+  # def __enter__(self) -> "Agent":
+  #   self.start(boot=True)
+  #   return self.agent
 
 
-  def __exit__(self, exc_type, exc_val, exc_tb):
-    self.stop()
+  # def __exit__(self, exc_type, exc_val, exc_tb):
+  #   self.stop()
 
 
   @classmethod
@@ -563,7 +650,7 @@ class Agent(AgentConfig, Runnable, UvnPeerListener, RoutesMonitorListener, Ownab
     cls.log.debug("possible external agent process detected: {}", agent_pid)
     try:
       os.kill(agent_pid, 0)
-      cls.log.warning("external agent process detected: {}", agent_pid)
+      cls.log.debug("external agent process detected: {}", agent_pid)
       return agent_pid
     except OSError:
       cls.log.debug("process {} doesn't exist", agent_pid)
@@ -602,6 +689,7 @@ class Agent(AgentConfig, Runnable, UvnPeerListener, RoutesMonitorListener, Ownab
       yield self
     finally:
       self.delete_pid_file()
+      self.log.info("shutdown complete")
 
 
   @contextlib.contextmanager
@@ -620,9 +708,11 @@ class Agent(AgentConfig, Runnable, UvnPeerListener, RoutesMonitorListener, Ownab
     self._write_uvn_info()
     if self.sync_mode == Agent.SyncMode.IMMEDIATE:
       self._write_agent_configs()
+    self.log.warning("started")
     try:
       yield self
     finally:
+      self.log.warning("shutting down...")
       self.peers.offline()
 
 
@@ -688,6 +778,23 @@ class Agent(AgentConfig, Runnable, UvnPeerListener, RoutesMonitorListener, Ownab
     max_spin_time -= spin_len
     max_spin_time = max(0, max_spin_time)
     self.spin_until_consistent(max_spin_time=max_spin_time, config_only=config_only)
+
+
+  @property
+  def running_contexts(self) -> Generator[ContextManager, None, None]:
+    yield self._pid_file()
+    for svc in self.services:
+      yield svc
+    yield self._on_started()
+
+
+  def spin(self,
+      until: Callable[[], bool]|None=None,
+      max_spin_time: int|None=None) -> None:
+    with contextlib.ExitStack() as stack:
+      for ctx_mgr in self.running_contexts:
+        stack.enter_context(ctx_mgr)
+      self._spin(until=until, max_spin_time=max_spin_time)
 
 
   def _spin(self,
@@ -760,8 +867,10 @@ class Agent(AgentConfig, Runnable, UvnPeerListener, RoutesMonitorListener, Ownab
         svc.spin_once()
 
       if self._reload_agent:
+        new_agent = self._reload_agent
         self._reload_agent = None
-        raise AgentReload(self._reload_agent)
+        self.reloading = True
+        raise AgentReload(new_agent)
       
       # now = Timestamp.now()
       # if (not self.vpn_stats_update_ts
@@ -880,26 +989,37 @@ class Agent(AgentConfig, Runnable, UvnPeerListener, RoutesMonitorListener, Ownab
 
   def _on_agent_config_received(self, package: bytes) -> None:
     try:
+      print(f"WRITING {len(package)} BYTES")
       # Cache received data to file and trigger handling
       tmp_file_h = tempfile.NamedTemporaryFile()
       tmp_file = Path(tmp_file_h.name)
       with tmp_file.open("wb") as output:
         output.write(package)
+      # decoded_package_h = tempfile.NamedTemporaryFile()
+      # decoded_package = Path(decoded_package_h.name)
+
+      # # Decode package contents
+      # key = self.id_db.backend[self.owner]
+      # self.registry.id_db.backend.decrypt_file(key, tmp_file, decoded_package)
+
+      cell_package = tmp_file
+      cell_package_h = tmp_file_h
 
       tmp_dir_h = tempfile.TemporaryDirectory()
       tmp_dir = Path(tmp_dir_h.name)
 
-      self.log.activity("extracting received package: {}", tmp_file)
-      Packager.extract_cell_agent_package(tmp_file, tmp_dir)
-      updated_agent = Agent.open(tmp_dir)
+      self.log.info("extracting received package: {}", cell_package)
+      updated_agent = Agent.install_package(cell_package, tmp_dir)
+      updated_agent._reload_package = cell_package_h
     except Exception as e:
       self.log.error("failed to load updated agent")
       self.log.exception(e)
+      return
 
     if updated_agent.config_id == self.config_id:
       self.log.activity("ignoring unchanged configuration: {}", updated_agent.config_id)
       return
-
+    self.log.warning("new agent configuration available: {}", updated_agent.registry_id)
     self._reload_agent = updated_agent
 
 
@@ -1299,16 +1419,22 @@ class Agent(AgentConfig, Runnable, UvnPeerListener, RoutesMonitorListener, Ownab
       if target_cells is not None and cell not in target_cells:
         continue
       cell_package = cells_dir / f"{self.uvn.name}__{cell.name}.uvn-agent"
-      tmp_dir_h = tempfile.TemporaryDirectory()
-      enc_package = Path(tmp_dir_h.name) / f"{cell_package.name}.enc"
-      key = self.id_db.backend[cell]
-      self.registry.id_db.backend.encrypt_file(key, cell_package, enc_package)
+      # tmp_dir_h = tempfile.TemporaryDirectory()
+      # enc_package = Path(tmp_dir_h.name) / f"{cell_package.name}.enc"
+      # key = self.id_db.backend[cell]
+      # print("PACKAGE SIZE", cell, exec_command([f"ls -l {cell_package}"], shell=True, capture_output=True).stdout.decode())
+      # self.registry.id_db.backend.encrypt_file(key, cell_package, enc_package)
+      # print("ENCODED PACKAGE SIZE", cell, exec_command([f"ls -l {enc_package}"], shell=True, capture_output=True).stdout.decode())
+      # print("ENCODED PACKAGE CONTENTS", cell, exec_command([f"cat {enc_package}"], shell=True, capture_output=True).stdout.decode())
+      # dec_package = Path(tmp_dir_h.name) / f"{cell_package.name}.enc.dec"
+      # self.registry.id_db.backend.decrypt_file(key, enc_package, dec_package)
+      # print("DECODED PACKAGE SIZE", cell, exec_command([f"ls -l {dec_package}"], shell=True, capture_output=True).stdout.decode())
       sample = cell_agent_config(
         participant=self.dp,
         uvn=self.uvn,
         cell_id=cell.id,
         registry_id=self.registry_id,
-        package=enc_package)
+        package=cell_package)
       self.dp.writers[UvnTopic.BACKBONE].write(sample)
       self.log.activity("published agent configuration: {}", cell)
 
@@ -1359,43 +1485,115 @@ class Agent(AgentConfig, Runnable, UvnPeerListener, RoutesMonitorListener, Ownab
 
 
 
-  def _finish_import_package(self) -> None:
-    id_db_dir = self.root / ".id-import"
-    if not id_db_dir.is_dir():
-      return
+  def start_static_services(self, up_to: str | None = None) -> None:
+    if up_to is None:
+      up_to = self.router.static.name
+    tgt_svc = next((s for s in self.static_services if s.name == up_to), None)
+    if tgt_svc is None:
+      raise ValueError("unknown target service", up_to)
+    highest_running = next(reversed(list(self.active_static_services)), None)
+    if highest_running is not None:
+      highest_running_i = self.static_services.index(highest_running)
+      tgt_svc_i = self.static_services.index(tgt_svc)
+      if highest_running_i >= tgt_svc_i:
+        self.log.warning("service and all services below it already started: {}", tgt_svc)
+        return
+    self.log.debug("starting static services up to {}", tgt_svc)
+    started = []
+    try:
+      for svc in self.static_services:
+        svc.up()
+        started.insert(0, svc)
+        if svc == tgt_svc:
+          break
+    except:
+      # Roll back changes and tear down services started so far
+      for svc in started:
+        try:
+          svc.down()
+        except Exception as svc_e:
+          self.log.error("failed to tear down service: {}", svc.name)
+          self.log.exception(svc_e)
+      raise
 
-    # Load the imported agent
-    self.log.activity("loading imported agent")
 
-    package_files = [
-      f.relative_to(id_db_dir)
-        for f in id_db_dir.glob("**/*")
-    ]
-    self.id_db.import_keys(id_db_dir, package_files)
-    # self.net.generate_configuration()
-    exec_command(["rm", "-rf", id_db_dir])
-
-    self.log.debug("bootstrap completed: {}@{} [{}]", self.owner, self.uvn, self.root)
+  def stop_static_services(self, down_to: str | None = None, cleanup: bool=False) -> None:
+    if down_to is None:
+      down_to = self.net.static.name
+    tgt_svc = next((s for s in self.static_services if s.name == down_to), None)
+    if tgt_svc is None:
+      raise ValueError("unknown target service", down_to)
+    # highest_running = next(reversed(list(self.active_static_services)), None)
+    # if highest_running is not None:
+    #   highest_running_i = self.static_services.index(highest_running)
+    #   tgt_svc_i = self.static_services.index(tgt_svc)
+    #   if highest_running_i < tgt_svc_i:
+    #     self.log.warning("service and all services above it already stopped: {}", tgt_svc)
+    #     if not cleanup:
+    #       return
+    # if highest_running_i:
+    #   self.log.activity("stopping static services down to {}", tgt_svc)
+    # else:
+    #   self.log.warning("no services detected, performing clean up")
+    errors = []
+    for svc in reversed(self.static_services):
+      try:
+        svc.down()
+      except Exception as svc_e:
+        self.log.error("failed to tear down service: {}", svc.name)
+        self.log.exception(svc_e)
+        errors.append(svc_e)
+      if svc == tgt_svc:
+        break
+    if errors:
+      raise RuntimeError("errors while stopping services", errors)
 
 
   def service_up(self, service: str) -> None:
     if service != "agent":
       raise NotImplementedError()
-    self.enable_systemd = True
-    self.spin()
+    agent_pid = self.external_agent_process()
+    if agent_pid is not None:
+      self.log.warning("agent daemon already running: {}", agent_pid)
+      return
+    # Start agent as a separate process
+    import subprocess
+    verbosity_level = (
+      5 if self.log.level >= self.log.Level.tracedbg else
+      4 if self.log.level >= self.log.Level.trace else
+      3 if self.log.level >= self.log.Level.debug else
+      2 if self.log.level >= self.log.Level.activity else
+      1 if self.log.level >= self.log.Level.info else
+      0
+    )
+    agent_cmd = [
+      self.static.uno_bin, "agent",
+        "--systemd",
+        "-r", self.root,
+        *(["-" + ("v"*verbosity_level)] if verbosity_level > 0 else []),
+    ]
+    self.log.warning("starting agent daemon: {}", " ".join(map(str, agent_cmd)))
+    agent_process = subprocess.Popen(agent_cmd,
+      start_new_session=True,
+      stdin=subprocess.DEVNULL)
+    self.log.warning("agent daemon started: {}", agent_process.pid)
+
+    # self.enable_systemd = True
+    # self.spin()
 
 
   def service_down(self, service: str) -> None:
     if service != "agent":
       raise NotImplementedError()
-    external_agent = self.external_agent_process()
-    if external_agent is None:
+    agent_pid = self.external_agent_process()
+    if agent_pid is None:
       self.log.warning("no agent detected")
       return
     try:
       max_wait = 30
       ts_start = Timestamp.now()
-      os.kill(external_agent, signal.SIGINT)
+      self.log.warning("stopping agent daemon: {}", agent_pid)
+      os.kill(agent_pid, signal.SIGINT)
       while True:
         external_agent = self.external_agent_process()
         if external_agent is None:
@@ -1403,9 +1601,18 @@ class Agent(AgentConfig, Runnable, UvnPeerListener, RoutesMonitorListener, Ownab
         if Timestamp.now().subtract(ts_start).total_seconds() >= max_wait:
           raise RuntimeError(f"the agent failed to exit in {max_wait} seconds")
         time.sleep(1)
+      self.log.warning("agent daemon stopped: {}", agent_pid)
     except Exception as e:
-      raise RuntimeError("failed to terminate agent process: {}", external_agent)
+      raise RuntimeError("failed to terminate agent process: {}", agent_pid)
 
     
-
+  # def _restore_static_services(self, services: list[str]) -> None:
+  #   self.log.warning("restoring systemd services: {}", services)
+  #   for svc in self.static_services:
+  #     if svc.name not in services:
+  #       continue
+  #     if svc.current_marker is not None:
+  #       self.log.warning("service still active: {}", svc.name)
+  #       continue
+  #     svc.up()
 

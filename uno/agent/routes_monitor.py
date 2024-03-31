@@ -43,6 +43,7 @@ class RoutesMonitor(AgentService):
     self._monitor = None
     self._monitor_thread = None
     self._monitor_thread_active = False
+    self._monitor_thread_started = threading.Semaphore(0)
     super().__init__(**properties)
 
 
@@ -95,8 +96,9 @@ class RoutesMonitor(AgentService):
     self._monitor_thread = threading.Thread(target=self._monitor_thread_run)
     self._monitor_thread_active = True
     self._monitor_thread.start()
-    import time
-    time.sleep(2)
+    self._monitor_thread_started.acquire()
+    # import time
+    # time.sleep(2)
 
 
   def _stop(self, assert_stopped: bool) -> None:
@@ -111,6 +113,7 @@ class RoutesMonitor(AgentService):
 
   def _monitor_thread_run(self):
     self.log.activity("starting to monitor kernel routes")
+    self._monitor_thread_started.release()
     while self._monitor_thread_active:
       try:
         self.log.debug("reading next...")

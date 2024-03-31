@@ -31,14 +31,15 @@ class UvnNet(AgentService):
     self._iptables_rules = {}
 
 
-  def _start_static(self) -> None:
-    self._start()
+  def _take_over_static(self) -> None:
+    self._start(noop=True)
 
 
-  def _start(self) -> None:
-    exec_command(["echo", "1", ">", "/proc/sys/net/ipv4/ip_forward"],
-      shell=True,
-      fail_msg="failed to enable ipv4 forwarding")
+  def _start(self, noop: bool=False) -> None:
+    if not noop:
+      exec_command(["echo", "1", ">", "/proc/sys/net/ipv4/ip_forward"],
+        shell=True,
+        fail_msg="failed to enable ipv4 forwarding")
 
     self._iptables_install("tcp_pmtu", [
       "-A", "FORWARD",
@@ -46,12 +47,12 @@ class UvnNet(AgentService):
       "--tcp-flags", "SYN,RST", "SYN",
       "-j", "TCPMSS",
       "--clamp-mss-to-pmtu"
-    ])
+    ], noop=noop)
 
     for vpn in self.agent.vpn_interfaces:
-      vpn.start()
+      vpn.start(noop=noop)
       if vpn.config.masquerade:
-        self._vpn_masquerade(vpn)
+        self._vpn_masquerade(vpn, noop=noop)
 
 
   def _stop(self, assert_stopped: bool) -> None:
@@ -81,13 +82,13 @@ class UvnNet(AgentService):
       raise StopAgentServiceError(errors)
 
 
-  def _vpn_masquerade(self, vpn: WireGuardInterface) -> None:
+  def _vpn_masquerade(self, vpn: WireGuardInterface, noop: bool=False) -> None:
     self._iptables_install(vpn.config.intf.name, [
       "-t", "nat",
       "-A", "POSTROUTING",
       "-o", str(vpn.config.intf.subnet),
       "-j", "MASQUERADE",
-    ])
+    ], noop=noop)
     for nic in (
         *(l.nic.name for l in sorted(self.agent.lans, key=lambda l: l.nic.name)),
         *(v.config.intf.name for v in sorted(self.agent.vpn_interfaces, key=lambda l: l.config.intf.name) if v != vpn)):
@@ -97,12 +98,14 @@ class UvnNet(AgentService):
         "-s", str(vpn.config.intf.subnet),
         "-o", nic,
         "-j", "MASQUERADE",
-      ])
-    self.log.debug("NAT ENABLED for VPN interface: {}", vpn)
+      ], noop=noop)
+    if not noop:
+      self.log.debug("NAT ENABLED for VPN interface: {}", vpn)
 
 
-  def _iptables_install(self, rule_id: str, rule: list[str]):
-    exec_command(["iptables", *rule])
+  def _iptables_install(self, rule_id: str, rule: list[str], noop: bool=False):
+    if not noop:
+      exec_command(["iptables", *rule])
     rules = self._iptables_rules[rule_id] = self._iptables_rules.get(rule_id, [])
     rules.append(rule)
 

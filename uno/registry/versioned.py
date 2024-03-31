@@ -274,19 +274,21 @@ class PropertyDescriptor:
         obj.updated_property(self.name, changed_value=True)
     elif current != val:
       setattr(obj, self.attr_storage, val)
-      if obj.loaded:
-        setattr(obj, self.attr_prev, current)
+      if not self.reserved and current is not None:
+        if obj.loaded:
+          setattr(obj, self.attr_prev, current)
+        obj.updated_property(self.name, changed_value=True)
 
-      if not self.reserved:
-        # logger = obj.log.debug if obj.DB_TABLE else obj.log.trace
-        # logger("SET {} = {}", self.name, _log_secret_val(obj, getattr(obj, self.name), self))
-        if current is not None:
-          obj.updated_property(self.name, changed_value=True)
-        else:
-          if self.eq:
-            obj.__update_hash__()
-          if self.str:
-            obj.__update_str_repr__()
+      # if not self.reserved:
+      #   # logger = obj.log.debug if obj.DB_TABLE else obj.log.trace
+      #   # logger("SET {} = {}", self.name, _log_secret_val(obj, getattr(obj, self.name), self))
+      #   if current is not None:
+      #     obj.updated_property(self.name, changed_value=True)
+      #   else:
+      #     if self.eq:
+      #       obj.__update_hash__()
+      #     if self.str:
+      #       obj.__update_str_repr__()
     # else:
     #   obj.log.tracedbg("NOT SET {} (unchanged): {} == {}", self.name, val, current)
 
@@ -565,6 +567,8 @@ class Versioned(DatabaseObject):
     "init_ts",
   ]
 
+  ResetValue = object()
+
   def __init__(self,
       db: "Database",
       id: "object|None"=None,
@@ -573,16 +577,23 @@ class Versioned(DatabaseObject):
     super().__init__(db=db, id=id, parent=parent, **properties)
     self._initialized = False
     self.__update_str_repr__()
+    self.log = Logger.sublogger(self.__str_repr)
     self.SCHEMA.init(self, properties)
-    self._initialized = True
     self.__update_str_repr__()
     self.__update_hash__()
+    self.log.context = self.__str_repr
+    self.load_nested()
+    self._initialized = True
     
     # print(self.__class__.__qualname__, "transient", self.SCHEMA)
     assert(not self.SCHEMA.transient or self.parent is not None)
 
 
   def validate(self) -> None:
+    pass
+
+
+  def load_nested(self) -> None:
     pass
 
 
@@ -775,7 +786,7 @@ class Versioned(DatabaseObject):
     self.__update_hash__()
 
 
-  def save(self, cursor: "Database.Cursor|None"=None, create: bool=False, public: bool=False) -> None:
+  def save(self, cursor: "Database.Cursor|None"=None, **db_args) -> None:
     if not self.SCHEMA.db_table_properties:
       return
     
@@ -793,7 +804,7 @@ class Versioned(DatabaseObject):
         return self.yaml_dump(val)
 
     self.generation_ts = Timestamp.now().format()
-    serialized = self.serialize(public=public)
+    serialized = self.serialize(public=db_args["public"])
     fields = {
       prop: _dump_field(prop, ser_val, desc)
       for prop in self.SCHEMA.db_table_properties
@@ -804,9 +815,9 @@ class Versioned(DatabaseObject):
     if table and fields:
       self.db.create_or_update(self,
         fields=fields,
-        create=create,
         cursor=cursor,
-        table=table)
+        table=table,
+        **db_args)
 
 
   def serialize(self, public: bool=False) -> dict:
@@ -868,8 +879,15 @@ class Versioned(DatabaseObject):
     if not relevant:
       # self.log.trace("CONF nothing new in [{}]", ", ".join(config_args.keys()))
       return configured
-    # self.log.trace("CONF PROPS [{}]", ', '.join(k for k, v in relevant))
+    # self.log.activity("CONF PROPS [{}]", ', '.join(k for k, v in relevant))
     for k, v in relevant:
+      if v is self.ResetValue:
+        desc = self.SCHEMA.descriptor(k)
+        if desc is None:
+          setattr(self, k, None)
+        else:
+          desc.init(self)
+        continue
       s_k_configure = getattr(self, f"configure_{k}", None)
       if callable(s_k_configure):
         # self.log.debug("CONF ATTR {} = {}", k, v)
