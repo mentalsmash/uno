@@ -49,13 +49,13 @@ class PairedValuesMap(dict):
     return stored, generated
 
 
-  def purge_peer(self, peer: int) -> dict:
+  def purge_peer(self, peer: int) -> dict[tuple[int, int], object]:
     purged = {}
     for peer_a, peer_b in list(self):
       if peer != peer_a and peer != peer_b:
         continue
-      k = (peer_a, peer_b)
-      purged = self[k]
+      k = self.pair_key(peer_a, peer_b)
+      purged[k] = self[k]
       del self[k]
     return purged
 

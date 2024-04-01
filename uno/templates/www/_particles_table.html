@@ -29,7 +29,7 @@
         {% if include_config %}
         <td>
           {% if particles_vpn %}
-          <a href="particles/{{particle.name}}_{{cell.name}}.png">
+          <a href="particles/{{uvn.name}}__{{particle.name}}__{{cell.name}}.png">
             QR
           </a>
           {% else %}
@@ -38,7 +38,7 @@
         </td>
         <td>
           {% if particles_vpn %}
-          <a href="particles/{{particle.name}}_{{cell.name}}.conf">
+          <a href="particles/{{uvn.name}}__{{particle.name}}__{{cell.name}}.conf">
             Text
           </a>
           {% else %}

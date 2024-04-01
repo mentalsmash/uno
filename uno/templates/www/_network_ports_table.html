@@ -29,16 +29,18 @@
         </td>
         <td>
           {% if peer.cell %}
-          {% if peer.cell.address %}
-            {{uvn.settings.root_vpn.peer_port}}
-
-            {{uvn.settings.particles_vpn.port}}
-          {% endif %}
-
-          {% set peer_bbone = deployment.peers[peer.owner.id]["peers"] | length %}
-          {% for n in range(peer_bbone) %}
-            {{uvn.settings.backbone_vpn.port + n}}
-          {% endfor %}
+            {% if uvn.settings.enable_root_vpn and peer.cell.address %}
+              {{uvn.settings.root_vpn.peer_port}}
+            {% endif %}
+            {% if peer.cell.enable_particles_vpn %}
+              {{uvn.settings.particles_vpn.port}}
+            {% endif %}
+            {% if not peer.cell.excluded %}
+              {% set peer_bbone = deployment.peers[peer.owner.id]["peers"] | length %}
+              {% for n in range(peer_bbone) %}
+                {{uvn.settings.backbone_vpn.port + n}}
+              {% endfor %}
+            {% endif %}
           {% elif peer.registry %}
           {{uvn.settings.root_vpn.port}}
           {% endif %}

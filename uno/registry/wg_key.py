@@ -40,7 +40,7 @@ class WireGuardKeyPair(Versioned):
   ]
   STR_PROPERTIES = [
     "key_id",
-    # "dropped",
+    "dropped",
   ]
   EQ_PROPERTIES = [
     "key_id",
@@ -50,9 +50,12 @@ class WireGuardKeyPair(Versioned):
   DB_TABLE = "asymm_keys"
   DB_TABLE_PROPERTIES = PROPERTIES
   DB_TABLE_KEYS: list[str] = [
-    EQ_PROPERTIES,
+    ["key_id", "dropped"],
+    ["public", "dropped"],
+    ["private", "dropped"],
   ]
-  # DB_CACHED = False
+  # Prevent dropped keys from being imported
+  DB_IMPORTABLE_WHERE = ("dropped = ?", (False,))
 
 
   @classmethod
@@ -79,7 +82,7 @@ class WireGuardPsk(Versioned):
   ]
   STR_PROPERTIES = [
     "key_id",
-    # "dropped",
+    "dropped",
   ]
   EQ_PROPERTIES = [
     "key_id",
@@ -89,9 +92,11 @@ class WireGuardPsk(Versioned):
   DB_TABLE = "symm_keys"
   DB_TABLE_PROPERTIES = PROPERTIES
   DB_TABLE_KEYS: list[str] = [
-    EQ_PROPERTIES,
+    ["key_id", "dropped"],
+    ["value", "dropped"],
   ]
-  # DB_CACHED = False
+  # Prevent dropped keys from being imported
+  DB_IMPORTABLE_WHERE = ("dropped = ?", (False,))
 
 
   @classmethod

@@ -24,5 +24,7 @@ class AgentConfig(Versioned, OwnableDatabaseObject):
   DB_TABLE_PROPERTIES = [
     "config_id",
   ]
-
+  DB_EXPORTABLE = True
+  DB_IMPORTABLE = False
+ 
 

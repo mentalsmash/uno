@@ -30,7 +30,7 @@ def agent_action(action: Callable[[argparse.Namespace, Agent], None]) -> Callabl
         action(args, agent)
         break
       except AgentReload as e:
-        agent = agent.reload(e.agent)
+        agent = agent.reload(agent=e.agent)
   return _wrapped
 
 

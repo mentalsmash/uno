@@ -18,7 +18,7 @@ from typing import TYPE_CHECKING
 from functools import cached_property
 from .versioned import Versioned
 from .database_object import DatabaseObjectOwner
-from ..core.htdigest import htdigest_generate
+from ..core.htdigest import htdigest_generate, htdigest_verify
 
 if TYPE_CHECKING:
   from .cell import Cell
@@ -29,8 +29,8 @@ class User(Versioned, DatabaseObjectOwner):
   PROPERTIES = [
     "email",
     "name",
-    "password",
     "realm",
+    "password",
     "excluded",
   ]
   INITIAL_EXCLUDED = False
@@ -81,13 +81,16 @@ class User(Versioned, DatabaseObjectOwner):
   def prepare_password(self, val: str) -> str:
     if val.startswith("htdigest:"):
       return val
-    phash = htdigest_generate(user=self.email, realm=self.realm, password=val).split(":")[2]
-    return f"htdigest:{phash}"
+    digest = htdigest_generate(user=self.email, realm=self.realm, password=val)
+    phash = digest.split(":")[2]
+    return  f"htdigest:{phash}"
 
 
   def login(self, password: str) -> bool:
-    user_password = htdigest_generate(user=self.email, realm=self.realm, password=password).split(":")[2]
-    return self.password[len("htdigest:"):] == user_password
+    # user_password = htdigest_generate(user=self.email, realm=self.realm, password=password).split(":")[2]
+    # return self.password[len("htdigest:"):] == user_password
+    digest = htdigest_generate(user=self.email, realm=self.realm, password_hash=self.password[len("htdigest:"):])
+    return htdigest_verify(digest, user=self.email, realm=self.realm, password=password)
 
 
   @cached_property

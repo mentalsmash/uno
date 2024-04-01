@@ -44,7 +44,7 @@ from .dds import locate_rti_license
 from .id_db import IdentityDatabase
 from .keys_backend_dds import DdsKeysBackend
 from .database import Database
-from .database_object import DatabaseObjectOwner, inject_db_cursor
+from .database_object import DatabaseObjectOwner, inject_db_cursor, inject_db_transaction, TransactionHandler
 from .agent_config import AgentConfig
 from .package import Packager
 
@@ -73,6 +73,7 @@ class Registry(Versioned):
     "backbone_vpn_keymat",
     # "vpn_config",
     "config_id",
+    "users",
   ]
   PROPERTY_GROUPS = {
     "users": ["config_id"],
@@ -120,6 +121,11 @@ class Registry(Versioned):
     super().__init__(**properties)
 
 
+  def load_nested(self) -> None:
+    if not self.readonly:
+      self.readonly = not isinstance(self.local_id[0], Uvn)
+
+
   @classmethod
   def create(cls,
       name: str,
@@ -149,7 +155,8 @@ class Registry(Versioned):
       "uvn_id": uvn.id,
       # **registry_config,
     }, save=False)
-    registry.configure(**registry_config)
+    if registry_config:
+      registry.configure(**registry_config)
 
     # Make sure we have an RTI license, since we're gonna need it later.
     if not registry.rti_license.is_file():
@@ -185,6 +192,18 @@ class Registry(Versioned):
     return (id_cfg["owner"], id_cfg["config_id"])
 
 
+  @cached_property
+  @inject_db_cursor
+  def local_id(self, cursor: Database.Cursor) -> tuple[Uvn|Cell, str]:
+    owner_id, config_id = self.load_local_id(self.root)
+    if config_id is None:
+      owner = self.uvn
+      config_id = self.config_id
+    else:
+      owner = self.db.load_object_id(owner_id, cursor=cursor)
+    return (owner, config_id)
+
+
   @property
   def root(self) -> Path:
     return self.db.root
@@ -212,7 +231,8 @@ class Registry(Versioned):
     })
 
 
-  @cached_property
+  # @cached_property
+  @property
   def vpn_config(self) -> UvnVpnConfig:
     return self.new_child(UvnVpnConfig)
 
@@ -373,14 +393,19 @@ class Registry(Versioned):
 
 
   @error_if("readonly")
-  def delete_cell(self, cell: Cell) -> None:
-    ask_yes_no(f"delete cell {cell.name} from {self.uvn}?")
-    self.particles_vpn_keymats[cell.id].drop_keys(delete=True)
-    del self.particles_vpn_keymats[cell.id]
-    self.db.delete(cell)
-    self.uvn.updated_property("cell_properties")
-    self.updated_property("cells")
-    self.log.info("cell deleted from {}: {}", self.uvn, cell)
+  @inject_db_transaction
+  def delete_cell(self,
+      cell: Cell,
+      cursor: "Database.Cursor | None" = None,
+      do_in_transaction: TransactionHandler | None=None) -> None:
+    def _delete():
+      ask_yes_no(f"delete cell {cell.name} from {self.uvn}?")
+      self.rekey_cell(cell, deleted=True, cursor=cursor)
+      self.db.delete(cell, cursor=cursor)
+      self.uvn.updated_property("cell_properties")
+      self.updated_property("cells")
+      self.log.info("cell deleted from {}: {}", self.uvn, cell)
+    return do_in_transaction(_delete)
 
 
   @inject_db_cursor
@@ -414,12 +439,19 @@ class Registry(Versioned):
 
 
   @error_if("readonly")
-  def delete_particle(self, particle: Particle) -> None:
+  @inject_db_transaction
+  def delete_particle(self,
+      particle: Particle,
+      cursor: "Database.Cursor | None" = None,
+      do_in_transaction: TransactionHandler | None=None) -> None:
     ask_yes_no(f"delete particle {particle.name} from {self.uvn}?")
-    self.db.delete(particle)
-    self.uvn.updated_property("particle_properties")
-    self.updated_property("particles")
-    self.log.info("particle deleted from {}: {}", self.uvn, particle)
+    def _delete():
+      self.rekey_particle(particle, deleted=True, cursor=cursor)
+      self.db.delete(particle, cursor=cursor)
+      self.uvn.updated_property("particle_properties")
+      self.updated_property("particles")
+      self.log.info("particle deleted from {}: {}", self.uvn, particle)
+    return do_in_transaction(_delete)
 
 
   @inject_db_cursor
@@ -446,84 +478,112 @@ class Registry(Versioned):
       self.updated_property("users")
     # self.db.save(user)
 
-  @error_if("readonly")
-  def delete_user(self, user: User) -> None:
-    if self.uvn in user.owned_uvns:
-      raise ValueError("uvn owner cannot be deleted", self.uvn, user)
-    owned_cells = [c for c in user.owned_cells if c.uvn == self.uvn]
-    owned_particles = [p for p in user.owned_particles if p.uvn == self.uvn]
-    
-    if owned_cells or owned_particles:
-      ask_yes_no(
-        f"user {user.email} owns {len(owned_cells)} cells and {len(owned_particles)}." "\n"
-        f"ownership for these elements will be transfered to {self.uvn.owner.email}." "\n"
-        f"do you want to continue with the operation?")
-    else:
-      ask_yes_no(f"delete user {user}?")
-
-    for owned in (*owned_cells, *owned_particles):
-      owned.set_ownership(self.uvn.owner)
-
-    self.db.delete(user)
-    self.updated_property("users")
-    self.log.info("user deleted from {}: {}", self.uvn, user)
-
 
   @error_if("readonly")
+  @inject_db_transaction
+  def delete_user(self,
+      user: User,
+      cursor: "Database.Cursor | None" = None,
+      do_in_transaction: TransactionHandler | None=None) -> None:
+    def _delete():
+      if self.uvn in user.owned_uvns:
+        raise ValueError("uvn owner cannot be deleted", self.uvn, user)
+      owned_cells = [c for c in user.owned_cells if c.uvn == self.uvn]
+      owned_particles = [p for p in user.owned_particles if p.uvn == self.uvn]
+      
+      if owned_cells or owned_particles:
+        ask_yes_no(
+          f"user {user.email} owns {len(owned_cells)} cells and {len(owned_particles)}." "\n"
+          f"ownership for these elements will be transfered to {self.uvn.owner.email}." "\n"
+          f"do you want to continue with the operation?")
+      else:
+        ask_yes_no(f"delete user {user}?")
+
+      for owned in (*owned_cells, *owned_particles):
+        owned.set_ownership(self.uvn.owner)
+
+      self.db.delete(user, cursor=cursor)
+      self.updated_property("users")
+      self.log.info("user deleted from {}: {}", self.uvn, user)
+
+    return do_in_transaction(_delete)
+
+
+  @error_if("readonly")
+  @inject_db_transaction
   def ban(self,
       targets: Iterable[Cell|Particle|User],
       banned: bool=False,
-      unban_owned: bool=True) -> None:
-    # Check that we are not trying to ban a uvn owner
-    uvn_owners = [t
-      for t in targets
-      if isinstance(t, User)
-        and next((o for o in t.owned if isinstance(o, Uvn)), None) is not None]
-    if uvn_owners:
-      raise ValueError("cannot ban/unban uvn owners", uvn_owners)
+      unban_owned: bool=True,
+      cursor: "Database.Cursor | None" = None,
+      do_in_transaction: TransactionHandler | None=None) -> None:
+    def _ban():
+      # Check that we are not trying to ban a uvn owner
+      uvn_owners = [t
+        for t in targets
+        if isinstance(t, User)
+          and next((o for o in t.owned if isinstance(o, Uvn)), None) is not None]
+      if uvn_owners:
+        raise ValueError("cannot ban/unban uvn owners", uvn_owners)
 
-    collected_targets = set()
-    for target in targets:
-      if (banned or unban_owned) and isinstance(target, DatabaseObjectOwner):
-        owned = [t
-          for t in self.db.owned(target)
-          if isinstance(t, (Cell, Particle))
-            and t.excluded != banned]
-      else:
-        owned = set()
-      if banned:
-        msg = f"ban {target}"
-      else:
-        msg = f"unban {target}"
-      if owned:
-        msg += f" and {len(owned)} owned objects ({', '.join(map(str, owned))})"
+      collected_targets = set()
+      for target in targets:
+        if (banned or unban_owned) and isinstance(target, DatabaseObjectOwner):
+          owned = [t
+            for t in target.owned
+            if isinstance(t, (Cell, Particle))
+              and t.excluded != banned]
+        else:
+          owned = set()
+        if banned:
+          msg = f"ban {target}"
+        else:
+          msg = f"unban {target}"
+        if owned:
+          msg += f" and {len(owned)} owned objects ({', '.join(map(str, owned))})"
 
-      answer = ask_yes_no(msg)
-      if not answer:
-        continue
-      collected_targets = collected_targets.union({*owned, target})
+        answer = ask_yes_no(msg, return_answer=True)
+        if not answer:
+          continue
+        collected_targets = collected_targets.union({*owned, target})
 
-    modified_users = []
-    modified_cells = []
-    modified_particles = []
-    for target in collected_targets:
-      target.excluded = banned
-      if "excluded" not in target.changed_properties:
-        if isinstance(target, User):
-          modified_users.append(target)
-        elif isinstance(target, Cell):
-          modified_cells.append(target)
-        elif isinstance(target, Particle):
-          modified_particles.append(target)
+      modified_users = []
+      modified_cells = []
+      modified_particles = []
+      modified_other = []
+      for target in collected_targets:
+        target.excluded = banned
+        if "excluded" in target.changed_properties:
+          if isinstance(target, User):
+            modified_users.append(target)
+          elif isinstance(target, Cell):
+            modified_cells.append(target)
+          elif isinstance(target, Particle):
+            modified_particles.append(target)
+          else:
+            modified_other.append(target)
+          if banned:
+            self.log.warning("banned: {}", target)
+          else:
+            self.log.warning("unbanned: {}", target)
+        else:
+          self.log.info("already {}: {}", "banned" if banned else "unbanned", target)
 
-    if modified_cells:
-      self.uvn.updated_property("cell_properties")
-      self.updated_property("cells")
-    if modified_particles:
-      self.uvn.updated_property("particle_properties")
-      self.updated_property("particles")
-    if modified_users:
-      self.updated_property("users")
+      if modified_cells:
+        self.db.save_all(modified_cells, cursor=cursor)
+        self.uvn.updated_property("cell_properties")
+        self.updated_property("cells")
+      if modified_particles:
+        self.db.save_all(modified_particles, cursor=cursor)
+        self.uvn.updated_property("particle_properties")
+        self.updated_property("particles")
+      if modified_users:
+        self.db.save_all(modified_users, cursor=cursor)
+        self.updated_property("users")
+      if modified_other:
+        self.db.save_all(modified_other, cursor=cursor)
+    
+    return do_in_transaction(_ban)
 
 
   @property
@@ -608,6 +668,7 @@ class Registry(Versioned):
             # ", ".join(repr(o) for o in nested_changes)
             pprint.pformat(list(nested_changes))
             )
+
           # for o in nested_changes:
           #   _print_changes(o, nested_changes, depth+1)
         # _log_changed(changed_elements_vals)
@@ -641,9 +702,13 @@ class Registry(Versioned):
       self.log.info("unchanged")
       return False
 
+    if self.cells_dir.is_dir():
+      exec_command(["rm", "-rfv", self.cells_dir])
     for cell in self.uvn.cells.values():
       Packager.generate_cell_agent_package(self, cell, self.cells_dir)
 
+    if self.particles_dir.is_dir():
+      exec_command(["rm", "-rfv", self.particles_dir])
     for particle in self.uvn.particles.values():
       Packager.generate_particle_package(self, particle, self.particles_dir)
 
@@ -651,47 +716,109 @@ class Registry(Versioned):
     return True
 
 
-  def rekey_uvn(self) -> None:
-    ask_yes_no(f"drop and regenerate all vpn keys for {self.uvn}?")
-    if self.rekeyed_root_config_id is None:
-      self.rekeyed_root_config_id = self.config_id
-    self.root_vpn_keymat.drop_keys(delete=False)
-    for keymat in self.particles_vpn_keymats.values():
-      keymat.drop_keys(delete=True)
-    self.backbone_vpn_keymat.drop_keys(delete=True)
+  @cached_property
+  def rekeyed_cells(self) -> set[Cell]:
+    return {
+      next(c for c in self.uvn.cells.values() if c.id == peer)
+        for peer in self.rekeyed_root_vpn_keymat.peers_with_dropped_key
+     }
 
 
-  def rekey_particle(self, particle: Particle, cells: Iterable[Cell]|None=None):
-    if not cells:
-      cells = list(self.uvn.cells.values())
-      ask_yes_no(f"drop and regenerate vpn keys for {particle} of {self.uvn} for cells {', '.join(c.name for c in cells)}?")
-    else:
-      ask_yes_no(f"drop and regenerate all vpn keys for {particle} of {self.uvn}?")
-    
-    particles = list(p for p in self.uvn.all_particles if p != particle)
-    for cell in cells:
-      keymat = self.particles_vpn_keymats[cell.id]
-      keymat.purge_gone_peers((p.id for p in particles), delete=True)
+  @inject_db_transaction
+  def rekey_uvn(self,
+      root_vpn: bool=False,
+      particles_vpn: bool=False,
+      deleted: bool=False,
+      cursor: "Database.Cursor | None" = None,
+      do_in_transaction: TransactionHandler | None=None) -> None:
+    def _rekey():
+      if not deleted:
+        if not (root_vpn or particles_vpn):
+          raise RuntimeError("nothing to rekey")
+
+        if root_vpn:
+          ask_yes_no(f"drop and regenerate all root vpn keys for {self.uvn}?")
+        if particles_vpn:
+          ask_yes_no(f"drop and regenerate all particle vpn keys for {self.uvn}?")
+
+      if deleted or root_vpn:
+        # If we haven't a pending rekeyeing, keep track of the current
+        # configuration and assume that it is the configuration ID
+        # for the agents. On the next sync, we will push the rekeyed config
+        if not deleted and self.rekeyed_root_config_id is None:
+          self.rekeyed_root_config_id = self.config_id
+
+        # If a peer already has a dropped key in self.rekeyed_root_vpn_keymat
+        # then we can delete the current root vpn key
+        drop_or_delete = {
+          cell.id: already_dropped
+          for cell in self.uvn.cells.values()
+            for already_dropped in [cell in self.rekeyed_cells]
+        } if not deleted else None
+        self.root_vpn_keymat.drop_keys(delete=deleted, delete_map=drop_or_delete, cursor=cursor)
+      
+      if deleted or particles_vpn:
+        for keymat in self.particles_vpn_keymats.values():
+          keymat.drop_keys(delete=True, cursor=cursor)
+
+    return do_in_transaction(_rekey)
+
+
+  @inject_db_transaction
+  def rekey_particle(self,
+      particle: Particle,
+      cells: Iterable[Cell]|None=None,
+      deleted: bool=False,
+      cursor: "Database.Cursor | None" = None,
+      do_in_transaction: TransactionHandler | None=None):
+    def _rekey():
+      if not deleted:
+        if cells:
+          ask_yes_no(f"drop and regenerate vpn keys for {particle} of {self.uvn} for cells {', '.join(c.name for c in cells)}?")
+        else:
+          ask_yes_no(f"drop and regenerate all vpn keys for {particle} of {self.uvn}?")
+      target_cells = cells or list(self.uvn.cells.values())
+      other_particles = list(p for p in self.uvn.all_particles if p != particle)
+      for cell in target_cells:
+        keymat = self.particles_vpn_keymats[cell.id]
+        keymat.purge_gone_peers((p.id for p in other_particles), delete=True, cursor=cursor)
+    return do_in_transaction(_rekey)
   
 
-  def rekey_cell(self, cell: Cell, root_vpn: bool=False, particles_vpn: bool=False):
-    if not (root_vpn or particles_vpn):
-      raise RuntimeError("nothing to rekey")
+  @inject_db_transaction
+  def rekey_cell(self,
+      cell: Cell,
+      root_vpn: bool=False,
+      particles_vpn: bool=False,
+      deleted: bool=False,
+      cursor: "Database.Cursor | None" = None,
+      do_in_transaction: TransactionHandler | None=None):
+    def _rekey():
+      if not deleted:
+        if not (root_vpn or particles_vpn):
+          raise RuntimeError("nothing to rekey")
+        if root_vpn:
+          ask_yes_no(f"drop and regenerate root vpn keys for {cell} of {self.uvn}?")
+        if particles_vpn:
+          ask_yes_no(f"drop and regenerate all particle vpn keys for {cell} of {self.uvn}?")
+      if deleted or root_vpn:
+        self.log.warning("dropping Root VPN key for cell: {}", cell)
+        if not deleted and self.rekeyed_root_config_id is None:
+          self.rekeyed_root_config_id = self.config_id
+        # If a peer already has a dropped key in self.rekeyed_root_vpn_keymat
+        # then we can delete the current root vpn key
+        drop_or_delete = {
+          c.id: already_dropped
+          for c in self.uvn.cells.values()
+            for already_dropped in [(c == cell and deleted) or c in self.rekeyed_cells]
+        }
+        other_cells = list(c for c in self.uvn.cells.values() if c != cell)
+        self.root_vpn_keymat.purge_gone_peers((c.id for c in other_cells), delete_map=drop_or_delete, cursor=cursor)
 
-    if root_vpn:
-      ask_yes_no(f"drop and regenerate root vpn keys for {cell} of {self.uvn}?")
-    if particles_vpn:
-      ask_yes_no(f"drop and regenerate all particle vpn keys for {cell} of {self.uvn}?")
+      if deleted or particles_vpn:
+        self.particles_vpn_keymats[cell.id].drop_keys(delete=True, cursor=cursor)
 
-    cells = list(c for c in self.uvn.cells.values() if c != cell)
-    if root_vpn:
-      self.log.warning("dropping Root VPN key for cell: {}", cell)
-      if self.rekeyed_root_config_id is None:
-        self.rekeyed_root_config_id = self.config_id
-      self.root_vpn_keymat.purge_gone_peers((c.id for c in cells))
-
-    if particles_vpn:
-      self.particles_vpn_keymats[cell.id].drop_keys(delete=True)
+    return do_in_transaction(_rekey)
 
 
   @property
@@ -705,7 +832,8 @@ class Registry(Versioned):
     priv_keymat = [
       *self.root_vpn_keymat.get_peer_material(cell.id, private=True),
       *self.backbone_vpn_keymat.get_peer_material(cell.id, private=True),
-      *self.particles_vpn_keymats[cell.id].get_peer_material(0, private=True),
+      *(self.particles_vpn_keymats[cell.id].get_peer_material(0, private=True)
+          if cell.enable_particles_vpn else []),
     ]
     self.log.activity("exporting {} private keys for {}", len(priv_keymat), cell)
     for k in priv_keymat:
@@ -714,8 +842,9 @@ class Registry(Versioned):
 
     pub_keymat = [
       *self.root_vpn_keymat.get_peer_material(cell.id),
-      *self.particles_vpn_keymats[cell.id].get_peer_material(0),
       *self.backbone_vpn_keymat.get_peer_material(cell.id),
+      *(self.particles_vpn_keymats[cell.id].get_peer_material(0)
+          if cell.enable_particles_vpn else []),
     ]
     self.log.activity("exporting {} public keys for {}", len(pub_keymat), cell)
     for k in pub_keymat:

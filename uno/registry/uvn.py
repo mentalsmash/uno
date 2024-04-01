@@ -91,7 +91,12 @@ class Uvn(Versioned, OwnableDatabaseObject, DatabaseObjectOwner):
   DB_OWNER = User
   DB_OWNER_TABLE_COLUMN = "owner_id"
 
-  INITIAL_SETTINGS = lambda self: self.new_child(UvnSettings)
+  # INITIAL_SETTINGS = lambda self: self.new_child(UvnSettings)
+
+  def load_nested(self) -> None:
+    if self.settings is None:
+      self.settings = self.new_child(UvnSettings)
+
 
   @classmethod
   def detect_network_clashes(cls,
@@ -244,9 +249,11 @@ class Uvn(Versioned, OwnableDatabaseObject, DatabaseObjectOwner):
 
   def log_deployment(self,
       deployment: P2pLinksMap,
-      logger: Callable[[Cell, int, str, Cell, int, str, str], None]|None=None) -> None:
+      logger: Callable[[Cell, int, str, Cell, int, str, str], None]|None=None,
+      log_level: str = "info") -> None:
     logged = []
     sublog = self.log.sublogger("backbone")
+    sublogger = getattr(sublog, log_level)
     def _log_deployment(
         peer_a: Cell,
         peer_a_port_i: int,
@@ -256,9 +263,9 @@ class Uvn(Versioned, OwnableDatabaseObject, DatabaseObjectOwner):
         peer_b_endpoint: str,
         arrow: str) -> None:
       if not logged or logged[-1] != peer_a:
-        sublog.info("{} →", peer_a)
+        sublogger("{} →", peer_a)
         logged.append(peer_a)
-      sublog.info("   [{}] {} {} {}[{}] {}",
+      sublogger("   [{}] {} {} {}[{}] {}",
           peer_a_port_i,
           peer_a_endpoint,
           arrow,

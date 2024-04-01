@@ -76,7 +76,7 @@ from .agent_static_service import AgentStaticService
 
 
 class AgentReload(Exception):
-  def __init__(self, agent: "Agent", *args) -> None:
+  def __init__(self, agent: "Agent | None"=None, *args) -> None:
     self.agent = agent
     super().__init__(*args)
 
@@ -152,6 +152,8 @@ class Agent(AgentConfig, Runnable, UvnPeerListener, RoutesMonitorListener, Ownab
     "uvn_backbone_plot",
     "uvn_status_plot",
   ]
+  DB_EXPORTABLE = True
+  DB_IMPORTABLE = False
 
   KNOWN_NETWORKS_TABLE_FILENAME = "networks.known"
   LOCAL_NETWORKS_TABLE_FILENAME = "networks.local"
@@ -181,7 +183,8 @@ class Agent(AgentConfig, Runnable, UvnPeerListener, RoutesMonitorListener, Ownab
       assert(agent.config_id == registry.config_id)
     if config_args:
       agent.configure(**config_args)
-      db.save(agent)
+      if not isinstance(agent.owner, Uvn):
+        db.save(agent)
     cls.log.info("loaded agent for {} at {}", agent.owner, agent.config_id)
     return agent
 
@@ -219,23 +222,24 @@ class Agent(AgentConfig, Runnable, UvnPeerListener, RoutesMonitorListener, Ownab
 
 
 
-  @cell_exclusive_method
   @error_if("started")
-  def reload(self, new_agent: "Agent") -> "Agent":
-    # Make sure the owner is the same
-    if new_agent.owner != self.owner:
-      raise ValueError("invalid agent owner", new_agent.owner)
-    new_agent.log.warning("loading new configuration: {}", new_agent.registry_id)
-    # Extract all files in the package except for the database
-    cell_package = Path(new_agent._reload_package.name)
+  # Reloading of the registry agent is only supported without importing
+  # configuration from another agent
+  @error_if(lambda self, agent: isinstance(self, Uvn) and agent is not None)
+  def reload(self, agent: "Agent | None" = None) -> "Agent":
+    if agent is not None:
+      # Make sure the owner is the same
+      if agent.owner != self.owner:
+        raise ValueError("invalid agent owner", agent.owner)
+      agent.log.warning("loading new configuration: {}", agent.registry_id)
+      # Extract all files in the package except for the database
+      cell_package = Path(agent._reload_package.name)
 
-    # Import database records via SQL
-    print("---- BEGIN IMPORT")
-    self.registry.db.import_other(new_agent.db)
-    print("---- DONE IMPORT")
+      # Import database records via SQL
+      self.registry.db.import_other(agent.db)
 
-    self.install_package(cell_package, self.root, reload=True)
-    new_agent._reload_package = None
+      self.install_package(cell_package, self.root, reload=True)
+      agent._reload_package = None
 
     new_agent = Agent.open(self.root,
       enable_systemd=self.enable_systemd,
@@ -453,7 +457,10 @@ class Agent(AgentConfig, Runnable, UvnPeerListener, RoutesMonitorListener, Ownab
   def root_vpn(self) -> WireGuardInterface|None:
     vpn_config = None
     if isinstance(self.owner, Uvn):
+      # Use the older, "rekeyed", root vpn configuration if available.
+      # The agent will switch to the newer one after cells have received the update.
       if self.registry.vpn_config.rekeyed_root_vpn is not None:
+        self.log.warning("loading rekeyed root VPN configuration: {}", self.registry.rekeyed_root_config_id)
         vpn_config = self.registry.vpn_config.rekeyed_root_vpn.root_config
       else:
         vpn_config = self.registry.vpn_config.root_vpn.root_config
@@ -469,7 +476,9 @@ class Agent(AgentConfig, Runnable, UvnPeerListener, RoutesMonitorListener, Ownab
   def particles_vpn(self) -> WireGuardInterface|None:
     vpn_config = None
     if isinstance(self.owner, Cell):
-      vpn_config = self.registry.vpn_config.particles_vpn(self.owner).root_config
+      particles_vpn = self.registry.vpn_config.particles_vpn(self.owner)
+      if particles_vpn is not None:
+        vpn_config = particles_vpn.root_config
     if vpn_config is None:
       self.log.debug("particles VPN disabled")
       return None
@@ -714,6 +723,8 @@ class Agent(AgentConfig, Runnable, UvnPeerListener, RoutesMonitorListener, Ownab
     finally:
       self.log.warning("shutting down...")
       self.peers.offline()
+      # self._write_cell_info(self.peers.local)
+      # self._write_uvn_info()
 
 
   @registry_exclusive_method
@@ -723,61 +734,98 @@ class Agent(AgentConfig, Runnable, UvnPeerListener, RoutesMonitorListener, Ownab
     self.log.info("waiting until agents{} are consistent: {}",
       ' and uvn' if not config_only else '',
       self.registry_id)
-    spin_state = {"consistent_config": False}
+
     def _until_consistent() -> bool:
-      if not spin_state["consistent_config"] and self.peers.status_consistent_config_uvn:
-        self.log.info("spinning condition reached: consistent config uvn")
-        spin_state["consistent_config"] = True
-        if config_only:
-          return True
-      elif spin_state["consistent_config"] and self.peers.status_fully_routed_uvn:
-        self.log.info("spinning condition reached: fully routed uvn")
+      if config_only and self.peers.status_consistent_config_uvn:
+        self.log.warning("exit condition reached: consistent config uvn")
         return True
-    return self.spin(until=_until_consistent, max_spin_time=max_spin_time)
+      elif self.peers.status_consistent_config_uvn and self.peers.status_fully_routed_uvn:
+        self.log.warning("exit condition reached: consistent config and fully routed uvn")
+        return True
+      else:
+        self.log.debug("waiting for exit condition: consistent_config_uvn={}, fully_routed_uvn={}",
+          self.peers.status_consistent_config_uvn, self.peers.status_fully_routed_uvn)
+        return False
 
-
-  @registry_exclusive_method
-  def spin_until_rekeyed(self,
-      max_spin_time: int|None=None,
-      config_only: bool=False) -> None:
-    if not self._rekeyed_registry:
-      raise RuntimeError("no rekeyed registry available")
-
-    all_cells = set(c.name for c in self.uvn.cells.values())
-    
-    self.log.warning(
-      "pushing rekeyed configuration to {} cells: {} → {}",
-      len(all_cells), self.registry.rekeyed_root_config_id, self.registry.config_id)
-
-    state = {
-      "offline": set(),
+    rekeyed_state = {
       "stage": 0,
     }
-    def _on_condition_check() -> bool:
-      if state["stage"] == 0:
-        self.log.debug("waiting to detect all cells ONLINE")
+    def _until_rekeyed_config_pushed() -> bool:
+      if rekeyed_state["stage"] == 0:
         if self.peers.status_all_cells_connected:
-          state["stage"] = 1
-      elif state["stage"] == 1:
+          rekeyed_state["stage"] = 1
+        else:
+          self.log.debug("waiting to detect all cells ONLINE")
+      if rekeyed_state["stage"] == 1:
+        offline_cells = set(p.cell for p in self.peers.offline_cells)
+        if offline_cells == self.registry.rekeyed_cells:
+          # Drop the old key material and reload the agent
+          self.log.warning("applying rekeyed configuration: {}", self.registry.config_id)
+          self.registry.drop_rekeyed()
+          self.db.save(self.registry)
+          raise AgentReload()
         self.log.debug(
-          "waiting to detect all cells OFFLINE {}/{} {}",
-          len(state['offline']), len(all_cells), state['offline'])
-        for p in (p for p in self.peers.cells if p.status == UvnPeerStatus.OFFLINE):
-          state["offline"].add(p.name)
-        if state["offline"] == all_cells:
-          return True
+          "waiting for rekeyed cells to go OFFLINE {}/{}: {} != {}",
+          len(offline_cells),
+          len(self.registry.rekeyed_cells),
+          offline_cells,
+          self.registry.rekeyed_cells)
       return False
-    spin_start = Timestamp.now()
 
-    self.spin(until=_on_condition_check, max_spin_time=max_spin_time)
+    if self.registry.rekeyed_root_config_id is not None:
+      assert(len(self.registry.rekeyed_cells) > 0)
+      self.log.warning(
+        "pushing rekeyed configuration to {}/{} cells: {} → {}",
+        len(self.registry.rekeyed_cells), len(self.registry.uvn.cells), self.registry.rekeyed_root_config_id, self.registry.config_id)
+      condition = _until_rekeyed_config_pushed
+    else:
+      condition = _until_consistent
 
-    self.log.warning("applying rekeyed configuration: {}", self.registry.config_id)
-    self.registry.drop_rekeyed()
+    return self.spin(until=condition, max_spin_time=max_spin_time)
 
-    spin_len = Timestamp.now().subtract(spin_start).total_seconds()
-    max_spin_time -= spin_len
-    max_spin_time = max(0, max_spin_time)
-    self.spin_until_consistent(max_spin_time=max_spin_time, config_only=config_only)
+
+  # @registry_exclusive_method
+  # def spin_until_rekeyed(self,
+  #     max_spin_time: int|None=None,
+  #     config_only: bool=False) -> None:
+  #   if not self._rekeyed_registry:
+  #     raise RuntimeError("no rekeyed registry available")
+
+  #   all_cells = set(c.name for c in self.uvn.cells.values())
+    
+  #   self.log.warning(
+  #     "pushing rekeyed configuration to {} cells: {} → {}",
+  #     len(all_cells), self.registry.rekeyed_root_config_id, self.registry.config_id)
+
+  #   state = {
+  #     "offline": set(),
+  #     "stage": 0,
+  #   }
+  #   def _on_condition_check() -> bool:
+  #     if state["stage"] == 0:
+  #       self.log.debug("waiting to detect all cells ONLINE")
+  #       if self.peers.status_all_cells_connected:
+  #         state["stage"] = 1
+  #     elif state["stage"] == 1:
+  #       self.log.debug(
+  #         "waiting to detect all cells OFFLINE {}/{} {}",
+  #         len(state['offline']), len(all_cells), state['offline'])
+  #       for p in (p for p in self.peers.cells if p.status == UvnPeerStatus.OFFLINE):
+  #         state["offline"].add(p.name)
+  #       if state["offline"] == all_cells:
+  #         return True
+  #     return False
+  #   spin_start = Timestamp.now()
+
+  #   self.spin(until=_on_condition_check, max_spin_time=max_spin_time)
+
+  #   self.log.warning("applying rekeyed configuration: {}", self.registry.config_id)
+  #   self.registry.drop_rekeyed()
+
+  #   spin_len = Timestamp.now().subtract(spin_start).total_seconds()
+  #   max_spin_time -= spin_len
+  #   max_spin_time = max(0, max_spin_time)
+  #   self.spin_until_consistent(max_spin_time=max_spin_time, config_only=config_only)
 
 
   @property
@@ -989,7 +1037,6 @@ class Agent(AgentConfig, Runnable, UvnPeerListener, RoutesMonitorListener, Ownab
 
   def _on_agent_config_received(self, package: bytes) -> None:
     try:
-      print(f"WRITING {len(package)} BYTES")
       # Cache received data to file and trigger handling
       tmp_file_h = tempfile.NamedTemporaryFile()
       tmp_file = Path(tmp_file_h.name)
@@ -1153,34 +1200,11 @@ class Agent(AgentConfig, Runnable, UvnPeerListener, RoutesMonitorListener, Ownab
         status=UvnPeerStatus.ONLINE)
 
 
-  # def reload(self, updated_agent: "Agent") -> None:
-  #   was_started = self.started
-  #   if was_started:
-  #     self.log.warning("stopping services to load new configuration: {}", updated_agent.registry_id)
-  #     self._stop()
-    
-  #   self.log.activity("updating configuration to {}", updated_agent.registry_id)
-  #   self._reload(updated_agent)
-
-  #   # Copy files from the updated agent's root directory,
-  #   # then rewrite agent configuration
-  #   package_files = list(updated_agent.root.glob("*"))
-  #   if package_files:
-  #     exec_command(["cp", "-rv", *package_files, self.root])
-  #   self.save_to_disk()
-
-  #   if was_started:
-  #     self.log.activity("restarting services with new configuration: {}", self.registry_id)
-  #     self._start()
-
-  #   self.log.warning("new configuration loaded: {}", self.registry_id)
-
-
   def on_event_online_cells(self, new_cells: set[UvnPeer], gone_cells: set[UvnPeer]) -> None:
     if gone_cells:
-      self.log.warning("cells OFFLINE [{}]: {}", len(gone_cells), ', '.join(c.name for c in gone_cells))
+      self.log.warning("cells OFFLINE [{}]: {}", len(gone_cells), [c.name for c in gone_cells])
     if new_cells:
-      self.log.info("cells ONLINE [{}]: {}", len(new_cells), ', '.join(c.name for c in new_cells))
+      self.log.warning("cells ONLINE [{}]: {}", len(new_cells), [c.name for c in new_cells])
     # # trigger vpn stats update
     # self.updated_property("vpn_stats")
     # Update status plot
@@ -1191,23 +1215,38 @@ class Agent(AgentConfig, Runnable, UvnPeerListener, RoutesMonitorListener, Ownab
     self.peers_tester.trigger()
 
 
+  def on_event_online_particle(self, new_particles: set[UvnPeer], gone_particles: set[UvnPeer]) -> None:
+    if gone_particles:
+      self.log.warning("particles OFFLINE [{}]: {}", len(gone_particles), [p.name for p in gone_particles])
+    if new_particles:
+      self.log.warning("particles ONLINE [{}]: {}", len(new_particles), [p.name for p in new_particles])
+    # Update status plot
+    self.uvn_status_plot_dirty = True
+    # Update UI
+    self.webui.request_update()
+
+
   def on_event_all_cells_connected(self) -> None:
     if not self.peers.status_all_cells_connected:
-      self.log.error("lost connection with some cells")
+      offline_cells = sorted(self.peers.offline_cells, key=lambda c: c.name)
+      self.log.error("lost connection with {} cells: {}", len(offline_cells), [c.name for c in offline_cells])
       # self.on_status_all_cells_connected(False)
     else:
-      self.log.warning("all cells connected")
+      online_cells = sorted(self.peers.online_cells, key=lambda c: c.name)
+      self.log.warning("all {} cells connected: {}", len(online_cells), [c.name for c in online_cells])
     self.uvn_backbone_plot_dirty = True
     if (self.sync_mode == self.SyncMode.CONNECTED
         and self.peers.status_all_cells_connected):
       self._write_agent_configs()
+    # Update UI
+    self.webui.request_update()
 
 
   def on_event_registry_connected(self) -> None:
     if not self.peers.status_registry_connected:
-      self.log.warning("lost connection with registry")
+      self.log.warning("registry disconnected")
     else:
-      self.log.info("registry connected")
+      self.log.warning("registry connected")
     # # trigger vpn stats update
     # self.updated_property("vpn_stats")
     # Update status plot
@@ -1218,19 +1257,9 @@ class Agent(AgentConfig, Runnable, UvnPeerListener, RoutesMonitorListener, Ownab
 
   def on_event_routed_networks(self, new_routed: set[LanDescriptor], gone_routed: set[LanDescriptor]) -> None:
     if gone_routed:
-      # self.log.error("networks  DETACHED [{}]: {}",
-      #   len(gone_routed),
-      #   ', '.join(c.name + ' → ' + str(n.nic.subnet) for c, n in gone_routed))
-      self.log.warning("networks DETACHED [{}]:", len(gone_routed))
-      for peer, lan in gone_routed:
-        self.log.warning("- {} → {}", peer, lan)
+      self.log.warning("networks DETACHED [{}]: {}", len(gone_routed), sorted(f"{peer} → {lan}" for peer, lan in gone_routed))
     if new_routed:
-      # self.log.warning("networks ATTACHED [{}]: {}",
-      #   len(new_routed),
-      #   ', '.join(c.name + ' → ' + str(n.nic.subnet) for c, n in new_routed))
-      self.log.info("networks ATTACHED [{}]:", len(new_routed))
-      for peer, lan in new_routed:
-        self.log.info("- {} → {}", peer, lan)
+      self.log.info("networks ATTACHED [{}]: {}", len(new_routed), sorted(f"{peer} → {lan}" for peer, lan in new_routed))
 
     self._write_known_networks_file()
     # Update status plot
@@ -1243,51 +1272,49 @@ class Agent(AgentConfig, Runnable, UvnPeerListener, RoutesMonitorListener, Ownab
 
   def on_event_routed_networks_discovered(self) -> None:
     if not self.peers.status_routed_networks_discovered:
-      self.log.warning("some networks were DETACHED from {}", self.uvn)
+      self.log.error("some networks were DETACHED from {}", self.uvn)
     else:
       routed_networks = sorted(((c, l) for c in self.peers.cells for l in c.routed_networks),
         key=lambda v: (v[0].id, v[1].nic.name, v[1].nic.subnet))
-      self.log.info("all {} networks ATTACHED to {}", len(routed_networks), self.uvn)
-      for c, l in routed_networks:
-        self.log.info("- {} → {}", c.name, l.nic.subnet)
+      self.log.warning("all {} networks ATTACHED to {}: {}", len(routed_networks), self.uvn,
+        sorted(f"{c.name} → {l.nic.subnet}" for c, l in routed_networks))
+    # Update UI
+    self.webui.request_update()
 
 
   def on_event_consistent_config_cells(self, new_consistent: set[UvnPeer], gone_consistent: set[UvnPeer]) -> None:
     if gone_consistent:
       self.log.warning("{} cells have INCONSISTENT configuration: {}",
-        len(gone_consistent),
-        ', '.join(c.name for c in gone_consistent))
+        len(gone_consistent), [c.name for c in gone_consistent])
     if new_consistent:
       self.log.info("{} cells have CONSISTENT configuration: {}",
-        len(new_consistent),
-        ', '.join(c.name for c in new_consistent))
+        len(new_consistent), [c.name for c in new_consistent])
+    # Update UI
+    self.webui.request_update()
 
 
   def on_event_consistent_config_uvn(self) -> None:
     if not self.peers.status_consistent_config_uvn:
-      self.log.warning("some cells have inconsistent configuration:")
-      for cell in (c for c in self.peers.cells if c.registry_id != self.registry_id):
-        self.log.error("- {}: {}", cell, cell.registry_id)
+      inconsistent_cells = sorted(self.peers.inconsistent_config_cells, key=lambda c: c.name)
+      self.log.error("at least {} cells have inconsistent configuration: {}", len(inconsistent_cells), inconsistent_cells)
     else:
-      self.log.info("all cells have consistent configuration: {}", self.registry_id)
-      self.uvn.log_deployment(deployment=self.deployment)
+      self.log.warning("all {} cells have consistent configuration: {}", len(self.registry.uvn.cells), self.registry_id)
+      self.uvn.log_deployment(deployment=self.deployment, log_level="warning")
+    # Update UI
+    self.webui.request_update()
 
 
   def on_event_local_reachable_networks(self, new_reachable: set[LanDescriptor], gone_reachable: set[LanDescriptor]) -> None:
+    total_routed = sum(1 for c in self.uvn.cells.values() for n in c.allowed_lans)
+
     if gone_reachable:
-      self.log.error("networks UNREACHABLE (local) [{}]: {}",
-        len(gone_reachable),
-        ', '.join(str(status.lan.nic.subnet) for status in gone_reachable))
-      # self.log.warning("networks UNREACHABLE (local) [{}]:", len(gone_reachable))
-      # for status in gone_reachable:
-      #   self.log.warning("- {} → {}", status.owner, status.lan.nic.subnet)
+      self.log.error("networks UNREACHABLE (local) [{}/{}]: {}",
+        len(gone_reachable), total_routed,
+        sorted(str(status.lan.nic.subnet) for status in gone_reachable))
     if new_reachable:
-      self.log.info("networks REACHABLE (local) [{}]: {}",
-        len(new_reachable),
-        ', '.join(str(status.lan.nic.subnet) for status in new_reachable))
-      # self.log.info("networks REACHABLE (local) [{}]:", len(new_reachable))
-      # for status in new_reachable:
-      #   self.log.info("- {} → {}", status.owner, status.lan.nic.subnet)
+      self.log.warning("networks REACHABLE (local) [{}/{}]: {}",
+        len(new_reachable), total_routed,
+        sorted(str(status.lan.nic.subnet) for status in new_reachable))
     self._write_reachable_networks_files()
     self._write_cell_info(self.peers.local)
     # Update status plot
@@ -1297,20 +1324,17 @@ class Agent(AgentConfig, Runnable, UvnPeerListener, RoutesMonitorListener, Ownab
 
 
   def on_event_reachable_networks(self, new_reachable: set[tuple[UvnPeer, LanDescriptor]], gone_reachable: set[tuple[UvnPeer, LanDescriptor]]) -> None:
+    total_routed = sum(1 for c in self.uvn.cells.values() for n in c.allowed_lans)
+    other_cells = list(self.peers.other_cells)
+    total_reachable = total_routed * len(other_cells)
     if gone_reachable:
-      self.log.error("networks UNREACHABLE (remote) [{}]: {}",
-        len(gone_reachable),
-        ', '.join(str(status.owner) + ' → ' + str(status.lan.nic.subnet) for status in gone_reachable))
-      # self.log.warning("networks UNREACHABLE (remote) [{}]:", len(gone_reachable))
-      # for status in gone_reachable:
-      #   self.log.warning("- {} → {}", status.owner, status.lan.nic.subnet)
+      self.log.error("networks UNREACHABLE (remote) [{}/{}]: {}",
+        len(gone_reachable), total_reachable,
+        sorted(f"{status.owner.name} → {status.lan.nic.subnet}" for status in gone_reachable))
     if new_reachable:
-      self.log.info("networks REACHABLE (remote) [{}]: {}",
-        len(new_reachable),
-        ', '.join(str(status.owner) + ' → ' + str(status.lan.nic.subnet) for status in new_reachable))
-      # self.log.info("networks REACHABLE (remote) [{}]:", len(new_reachable))
-      # for status in new_reachable:
-      #   self.log.info("- {} → {}", status.owner, status.lan.nic.subnet)
+      self.log.warning("networks REACHABLE (remote) [{}/{}]: {}",
+        len(new_reachable), total_reachable,
+        sorted(f"{status.owner.name} → {status.lan.nic.subnet}" for status in new_reachable))
     # Update status plot
     self.uvn_status_plot_dirty = True
     # Update UI
@@ -1322,16 +1346,15 @@ class Agent(AgentConfig, Runnable, UvnPeerListener, RoutesMonitorListener, Ownab
   def on_event_fully_routed_uvn(self) -> None:
     if not self.peers.status_fully_routed_uvn:
       self.log.error("{} is not fully routed", self.uvn)
-      # for cell in (c for c in self.peers.cells if c.unreachable_networks):
-      #   self.log.error("- {} → {}", cell, ', '.join(map(str, cell.unreachable_networks)))
     else:
       routed_networks = sorted(
         {(c, l) for c in self.peers.cells for l in c.routed_networks},
         key=lambda n: (n[0].id, n[1].nic.name, n[1].nic.subnet))
-      self.log.warning("{} networks REACHABLE from {} cells in {}:",
-        len(routed_networks), len(self.uvn.cells), self.uvn)
-      for c, l in routed_networks:
-        self.log.warning("- {} → {}", c, l.nic.subnet)
+      self.log.warning("{} networks REACHABLE from {} cells in {}: {}",
+        len(routed_networks), len(self.uvn.cells), self.uvn,
+        sorted(f"{c.name} → {l.nic.subnet}" for c, l in routed_networks))
+    # Update UI
+    self.webui.request_update()
 
 
   def on_event_local_routes(self, new_routes: set[str], gone_routes: set[str]) -> None:
@@ -1587,7 +1610,7 @@ class Agent(AgentConfig, Runnable, UvnPeerListener, RoutesMonitorListener, Ownab
       raise NotImplementedError()
     agent_pid = self.external_agent_process()
     if agent_pid is None:
-      self.log.warning("no agent detected")
+      self.log.info("no agent detected")
       return
     try:
       max_wait = 30

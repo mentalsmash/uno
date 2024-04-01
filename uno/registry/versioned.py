@@ -25,7 +25,7 @@ import json
 from ..core.time import Timestamp
 from ..core.log import Logger
 
-from .database_object import DatabaseObject, DatabaseObjectOwner, OwnableDatabaseObject, inject_db_cursor
+from .database_object import DatabaseObject, DatabaseObjectOwner, OwnableDatabaseObject, inject_db_cursor, inject_db_transaction, TransactionHandler
 
 if TYPE_CHECKING:
   from .database import Database
@@ -257,40 +257,26 @@ class PropertyDescriptor:
         and self.readonly
         and obj._initialized):
       raise RuntimeError("attribute is read-only", self.schema.cls.__qualname__, self.name)
-    # if obj.readonly:
-    #   obj.log.warning("setting attribute on readonly object: {} = {}", self.name, val)
+
     if self.prepare_fn:
-      set_val = val
       val = self.prepare_fn(obj, val)
       if val is None:
-        # obj.log.tracedbg("SET {} prevented by prepare(): {}", self.name, set_val)
         return
 
     current = getattr(obj, self.attr_storage)
+
+    updated = False
     if isinstance(current, Versioned) and isinstance(val, dict):
       configured = current.configure(**val)
-      if self.name in configured:
-        # obj.log.debug("CONFIGURED {} = {}", self.name, _log_secret_val(obj, getattr(obj, self.name), self))
-        obj.updated_property(self.name, changed_value=True)
+      updated = self.name in configured
     elif current != val:
       setattr(obj, self.attr_storage, val)
-      if not self.reserved and current is not None:
-        if obj.loaded:
-          setattr(obj, self.attr_prev, current)
-        obj.updated_property(self.name, changed_value=True)
+      setattr(obj, self.attr_prev, current)
+      updated = True
 
-      # if not self.reserved:
-      #   # logger = obj.log.debug if obj.DB_TABLE else obj.log.trace
-      #   # logger("SET {} = {}", self.name, _log_secret_val(obj, getattr(obj, self.name), self))
-      #   if current is not None:
-      #     obj.updated_property(self.name, changed_value=True)
-      #   else:
-      #     if self.eq:
-      #       obj.__update_hash__()
-      #     if self.str:
-      #       obj.__update_str_repr__()
-    # else:
-    #   obj.log.tracedbg("NOT SET {} (unchanged): {} == {}", self.name, val, current)
+    if updated:
+      obj.updated_property(self.name, changed_value=True)
+
 
 
   def init(self, obj: "Versioned", init_val: object|None=None) -> None:
@@ -312,8 +298,8 @@ class PropertyDescriptor:
     # obj.log.tracedbg("DEF {} = {}", self.name, _log_secret_val(obj, getattr(obj, self.attr_storage), self))
 
 
-  def prev(self, obj: "Versioned") -> object|None:
-    return getattr(obj, self.attr_prev, None)
+  def prev(self, obj: "Versioned") -> tuple[bool, object|None]:
+    return (hasattr(obj, self.attr_prev), getattr(obj, self.attr_prev, None))
 
 
   def clear_prev(self, obj: "Versioned") -> object|None:
@@ -691,8 +677,8 @@ class Versioned(DatabaseObject):
     self.__str_repr = f"{self.__class__.ClassName}({fields})"
     if self._initialized:
       self.log.context = self.__str_repr
-    else:
-      self.log = Logger.sublogger(self.__str_repr)
+    # else:
+    #   self.log = Logger.sublogger(self.__str_repr)
 
 
   def prepare_db(self, val: "Database | None") -> "Database":
@@ -724,10 +710,12 @@ class Versioned(DatabaseObject):
       return {}
     prev_values = {}
     for desc in self.SCHEMA.descriptors:
-      prev = desc.prev(self)
-      if prev is None:
+      valid, prev = desc.prev(self)
+      if not valid:
         continue
-      prev_values[desc.name] = desc.prev(self)
+      # if prev is None:
+      #   continue
+      prev_values[desc.name] = prev
     return prev_values
 
 
@@ -745,21 +733,23 @@ class Versioned(DatabaseObject):
 
 
   def updated_property(self, attr: str, changed_value: bool=False) -> None:
-    # # Always regenerate str represenation,
-    # # easier than trying to do it only when needed
-    # self.__update_str_repr__()
+    # Do nothing if not initialized
+    if not self._initialized :
+      return
 
     # Check if we have a descriptor for the attribute
     desc = self.SCHEMA.descriptor(attr)
-    if desc is None and attr in self.SCHEMA.eq_properties:
+
+    # Do nothing if "reserved" property
+    reserved = (desc is not None and desc.reserved) or attr in self.SCHEMA.reserved_properties
+    if reserved:
+      return
+
+    # Update hash and str representation if needed
+    if attr in self.SCHEMA.eq_properties:
       self.__update_hash__()
-    if desc is None and attr in self.SCHEMA.str_properties:
+    if attr in self.SCHEMA.str_properties:
       self.__update_str_repr__()
-    
-    # cached = (desc and desc.cached) or attr in self.SCHEMA.cached_properties
-    # if cached:
-    #   self.__dict__.pop(attr, None)
-    #   return 
     
     # Check if the property is a group
     group = desc.group if desc else self.SCHEMA.property_groups.get(attr)
@@ -767,20 +757,19 @@ class Versioned(DatabaseObject):
       for v in group:
         self.updated_property(v, changed_value=False)
       return
-    
-    if not self._initialized or (desc is not None and desc.reserved) or attr in self.SCHEMA.reserved_properties:
-      return
+
+    if desc is not None and desc.cached or attr in self.SCHEMA.cached_properties:
+      self.__dict__.pop(attr, None)
 
     # self.generation_ts = Timestamp.now().format()
     self.changed_properties.add(attr)
     self.saved = False
-    self.log.tracedbg("UPDATED {}", attr)
+    self.log.debug("UPDATED {}", attr)
 
 
   def reset_cached_properties(self) -> None:
     super().reset_cached_properties()
     for cached in self.SCHEMA.cached_properties:
-      # self.updated_property(cached)
       self.__dict__.pop(cached, None)
     self.__update_str_repr__()
     self.__update_hash__()
@@ -909,7 +898,7 @@ class Versioned(DatabaseObject):
       if k in self.changed_properties:
         configured.add(k)
     self.validate()
-    # self.log.debug("CONF result dirty={}", self.dirty)
+    self.log.tracedbg("CONF result dirty={}, properties={}", self.dirty, self.changed_properties)
     return configured
 
 
@@ -918,31 +907,39 @@ class Versioned(DatabaseObject):
     return set(self.db.load(cls, owner=self, cursor=cursor))
 
 
+  @inject_db_transaction
   def new_child(self,
       cls: type["Versioned"],
       val: "str | dict | Versioned | None"=None,
       owner: DatabaseObjectOwner|None=None,
-      save: bool=True) -> "Versioned":
+      save: bool=True,
+      cursor: "Database.Cursor | None" = None,
+      do_in_transaction: TransactionHandler | None=None) -> "Versioned":
     assert(issubclass(cls, Versioned))
-    if isinstance(val, cls):
-      if getattr(val, "parent", None) == self:
-        if save:
-          self.db.save(val)
-        return val
-      else:
-        val = val.serialize()
 
-    val = val or {}
-    if isinstance(val, str):
-      val = self.yaml_load(val)
+    def _new():
+      properties = val
+      if isinstance(val, cls):
+        parent = getattr(val, "parent", None)
+        if parent == self:
+          if save:
+            self.db.save(val, cursor=cursor)
+          return properties
+        else:
+          properties = val.serialize()
+      properties = properties or {}
+      if isinstance(properties, str):
+        properties = self.yaml_load(properties)
 
-    return self.db.new(cls, properties={
-      **val,
-      "parent": self,
-      "readonly": self.readonly,
-      "init_ts": self.init_ts,
-      "generation_ts": self.generation_ts,
-    }, owner=owner, save=save)
+      return self.db.new(cls, properties={
+        **properties,
+        "parent": self,
+        "readonly": self.readonly,
+        "init_ts": self.init_ts,
+        "generation_ts": self.generation_ts,
+      }, owner=owner, save=save, cursor=cursor)
+
+    return do_in_transaction(_new)
 
 
   def load_child(self, cls: type, **search_args) -> "Versioned|None":

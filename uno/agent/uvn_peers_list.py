@@ -17,6 +17,7 @@
 from typing import Generator, Iterable, TYPE_CHECKING
 import threading
 from enum import Enum
+from itertools import chain
 
 import rti.connextdds as dds
 
@@ -35,19 +36,24 @@ if TYPE_CHECKING:
 class UvnPeerListener:
   class Event(Enum):
     ONLINE_CELLS = 0
-    ALL_CELLS_CONNECTED = 1
-    REGISTRY_CONNECTED = 2
-    ROUTED_NETWORKS = 3
-    ROUTED_NETWORKS_DISCOVERED = 4
-    CONSISTENT_CONFIG_CELLS = 5
-    CONSISTENT_CONFIG_UVN = 6
-    LOCAL_REACHABLE_NETWORKS = 7
-    REACHABLE_NETWORKS = 8
-    FULLY_ROUTED_UVN = 9
-    VPN_CONNECTIONS = 10
+    ONLINE_PARTICLES = 1
+    ALL_CELLS_CONNECTED = 2
+    REGISTRY_CONNECTED = 3
+    ROUTED_NETWORKS = 4
+    ROUTED_NETWORKS_DISCOVERED = 5
+    CONSISTENT_CONFIG_CELLS = 6
+    CONSISTENT_CONFIG_UVN = 7
+    LOCAL_REACHABLE_NETWORKS = 8
+    REACHABLE_NETWORKS = 9
+    FULLY_ROUTED_UVN = 10
+    VPN_CONNECTIONS = 11
 
 
   def on_event_online_cells(self, new_cells: set[UvnPeer], gone_cells: set[UvnPeer]) -> None:
+    pass
+
+
+  def on_event_online_particle(self, new_particles: set[UvnPeer], gone_particles: set[UvnPeer]) -> None:
     pass
 
 
@@ -119,9 +125,12 @@ class UvnPeersList(Versioned):
     self._peers = []
     self._update_lock = threading.Lock()
     super().__init__(**properties)
-    self._peers = self._assert_peers()
     assert(self.local.local)
     assert(len(list(p for p in self if p.local)) == 1)
+
+
+  def load_nested(self) -> None:
+    self._peers = self._assert_peers()
 
 
   @property
@@ -141,9 +150,8 @@ class UvnPeersList(Versioned):
 
   def _assert_peers(self) -> list[UvnPeer]:
     with self._update_lock:
-      peers_changed = False
       peers = []
-      for uvn_obj in (self.uvn, *self.uvn.cells.values(), *self.uvn.particles.values()):
+      for uvn_obj in (self.uvn, *self.uvn.all_cells.values(), *self.uvn.all_particles.values()):
         try:
           peer = self[uvn_obj]
         except KeyError:
@@ -155,12 +163,19 @@ class UvnPeersList(Versioned):
           peer = self.load_child(UvnPeer, owner=uvn_obj)
           if peer is None:
             peer = self.new_child(UvnPeer, owner=uvn_obj)
-            peers_changed = True
+            # peers_changed = True
+          else:
+            # Make sure peer properties are reset
+            peer.configure(
+              status=UvnPeerStatus.DECLARED,
+              registry_id=self.ResetValue,
+              routed_networks=[],
+              known_networks=[],
+              vpn_interfaces={},
+              ih=self.ResetValue,
+              ih_dw=self.ResetValue,
+              ts_start=self.ResetValue)
         peers.append(peer)
-      # self._peers = peers
-      if peers_changed:
-        # Mark property as updated so cached properties are reset
-        self.updated_property("uvn")
     return peers
 
 
@@ -193,7 +208,16 @@ class UvnPeersList(Versioned):
   def cells(self) -> Generator[UvnPeer, None, None]:
     # return [p for p in self if p.cell]
     for p in self:
-      if not p.cell:
+      if not p.cell or p.cell.excluded:
+        continue
+      yield p
+
+
+  @property
+  def excluded_cells(self) -> Generator[UvnPeer, None, None]:
+    # return [p for p in self if p.cell]
+    for p in self:
+      if not p.cell or not p.cell.excluded:
         continue
       yield p
 
@@ -202,7 +226,16 @@ class UvnPeersList(Versioned):
   def particles(self) -> Generator[UvnPeer, None, None]:
     # return [p for p in self if p.particle]
     for p in self:
-      if not p.particle:
+      if not p.particle or p.particle.excluded:
+        continue
+      yield p
+
+
+  @property
+  def excluded_particles(self) -> Generator[UvnPeer, None, None]:
+    # return [p for p in self if p.particle]
+    for p in self:
+      if not p.particle or not p.particle.excluded:
         continue
       yield p
 
@@ -210,8 +243,8 @@ class UvnPeersList(Versioned):
   @property
   def other_cells(self) -> Generator[UvnPeer, None, None]:
     # return [p for p in self.cells if p.cell != self.parent]
-    for p in self:
-      if p.cell == self.parent:
+    for p in self.cells:
+      if p.cell == self.local.cell:
         continue
       yield p
 
@@ -226,10 +259,53 @@ class UvnPeersList(Versioned):
 
 
   @property
+  def offline_cells(self) -> Generator[UvnPeer, None, None]:
+    # return [p for p in self.cells if p.status == UvnPeerStatus.ONLINE]
+    for p in self.cells:
+      if p.status != UvnPeerStatus.OFFLINE:
+        continue
+      yield p
+
+
+  @property
+  def unseen_cells(self) -> Generator[UvnPeer, None, None]:
+    for p in self.cells:
+      if p.status != UvnPeerStatus.DECLARED:
+        continue
+      yield p
+
+
+  @property
+  def online_particles(self) -> Generator[UvnPeer, None, None]:
+    for p in self.particles:
+      if p.status != UvnPeerStatus.ONLINE:
+        continue
+      yield p
+
+
+  @property
+  def offline_particles(self) -> Generator[UvnPeer, None, None]:
+    # return [p for p in self.cells if p.status == UvnPeerStatus.ONLINE]
+    for p in self.particles:
+      if p.status == UvnPeerStatus.ONLINE:
+        continue
+      yield p
+
+
+  @property
   def consistent_config_cells(self) -> Generator[UvnPeer, None, None]:
     # return [c for c in self.cells if c.registry_id == self.registry_id]
-    for p in self:
+    for p in self.cells:
       if p.registry_id != self.registry_id:
+        continue
+      yield p
+
+
+  @property
+  def inconsistent_config_cells(self) -> Generator[UvnPeer, None, None]:
+    # return [c for c in self.cells if c.registry_id == self.registry_id]
+    for p in self.cells:
+      if p.registry_id == self.registry_id:
         continue
       yield p
 
@@ -237,12 +313,16 @@ class UvnPeersList(Versioned):
   @property
   def fully_routed_cells(self) -> Generator[UvnPeer, None, None]:
     expected_subnets = {l for c in self.uvn.cells.values() for l in c.allowed_lans}
-    # return [
-    #   c for c in self.cells if {l.lan.nic.subnet for l in c.reachable_networks} == expected_subnets
-    # ]
+    if not expected_subnets:
+      return
+
     for c in self.cells:
       c_reachable = {l.lan.nic.subnet for l in c.reachable_networks}
-      if c_reachable != expected_subnets:
+      if (expected_subnets
+          and (
+            len(c_reachable) < len(expected_subnets)
+            or (expected_subnets & c_reachable) != expected_subnets
+          )):
         continue
       yield c
 
@@ -339,11 +419,31 @@ class UvnPeersList(Versioned):
       #########################################################################
       # Check if all agents are online
       #########################################################################
-      self.updated_property("online_cells")
+      # self.updated_property("online_cells")
       all_cells_connected = sum(1 for c in self.online_cells) == len(self.uvn.cells)
       if all_cells_connected != self.status_all_cells_connected:
         self.status_all_cells_connected = all_cells_connected
         self._notify(UvnPeerListener.Event.ALL_CELLS_CONNECTED)
+
+    ###########################################################################
+    # Check status of particle agents (online/offline)
+    ###########################################################################
+    gone_particles = {
+      c
+      for c, prev_vals in changed
+        if isinstance(c, UvnPeer) and c.particle
+          and "status" in prev_vals
+          and c.status == UvnPeerStatus.OFFLINE
+    }
+    new_particles = {
+      c
+      for c, prev_vals in changed
+        if isinstance(c, UvnPeer) and c.particle
+          and "status" in prev_vals
+          and c.status == UvnPeerStatus.ONLINE
+    }
+    if gone_particles or new_particles:
+      self._notify(UvnPeerListener.Event.ONLINE_PARTICLES, new_particles, gone_particles)
 
     ###########################################################################
     # Check status of registry agent (online/offline)
@@ -415,7 +515,9 @@ class UvnPeersList(Versioned):
       ###########################################################################
       # Check if all agents have the same configuration id as ours
       ###########################################################################
-      self.updated_property("consistent_config_cells")
+      # self.updated_property("consistent_config_cells")
+      # consistent_cells = list(self.consistent_config_cells)
+      # inconsistent_cells = list(self.inconsistent_config_cells)
       consistent_config_uvn = sum(1 for c in self.consistent_config_cells) == len(self.uvn.cells)
       if consistent_config_uvn != self.status_consistent_config_uvn:
         self.status_consistent_config_uvn = consistent_config_uvn
@@ -458,6 +560,7 @@ class UvnPeersList(Versioned):
       # Check if all networks are reachable from everywhere
       ###########################################################################
       fully_routed_uvn = sum(1 for c in self.fully_routed_cells) == len(self.uvn.cells)
+
       # fully_routed = set(self.fully_routed_cells)
       # fully_routed_uvn = len(fully_routed) == len(self.uvn.cells)
       # not_fully_routed = set(self.cells) - fully_routed
@@ -491,17 +594,17 @@ class UvnPeersList(Versioned):
         if i == 0:
           result = self._peers[0]
         else:
-          result = next(p for p in self.cells if p.cell.id == i)
+          result = next(p for p in self if p.cell and p.cell.id == i)
       elif isinstance(i, str):
-        result = next(p for p in self._peers if p.name == i)
+        result = next(p for p in self if p.name == i)
       elif isinstance(i, dds.InstanceHandle):
-        result = next(p for p in self._peers if p.ih == i)
+        result = next(p for p in self if p.ih == i)
       elif isinstance(i, Uvn):
         result = next(p for p in self._peers[:1] if self.uvn == i)
       elif isinstance(i, Cell):
-        result = next(p for p in self.cells if p.cell == i)
+        result = next(p for p in self if p.cell == i)
       elif isinstance(i, Particle):
-        result = next(p for p in self.particles if p.particle == i)
+        result = next(p for p in self if p.particle == i)
       elif i is None:
         result = self._peers[0]
       else:

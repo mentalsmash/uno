@@ -255,8 +255,24 @@ def _parser_args_sync(parser):
     type=int)
 
 
-def _config_args_registry(args: argparse.Namespace) -> dict:
-  return {
+def _empty_config(parsed_values: dict) -> bool:
+  def _check_recur(cur: dict | list) -> None:
+    if isinstance(cur, dict):
+      values = cur.values()
+    else:
+      values = cur
+    for v in values:
+      if isinstance(v, (dict, list)):
+        return _check_recur(v)
+      elif v is not None:
+        # Found a non-null value
+        return False
+    return True
+
+
+
+def _config_args_registry(args: argparse.Namespace) -> dict | None:
+  result = {
     "rti_license": getattr(args, "rti_license", None),
     "uvn": {
       "address": getattr(args, "address", None),
@@ -289,15 +305,19 @@ def _config_args_registry(args: argparse.Namespace) -> dict:
       }
     }
   }
+  if _empty_config(result):
+    return None
+  else:
+    return result
 
 
-def _config_args_cell(args: argparse.Namespace) -> dict:
+def _config_args_cell(args: argparse.Namespace) -> dict | None:
   allowed_lans = getattr(args, "network", [])
   if getattr(args, "delete_networks", False):
     allowed_lans = []
   elif not allowed_lans:
     allowed_lans = None
-  return {
+  result = {
     "address": getattr(args, "address", None),
     "settings": {
       "enable_particles_vpn": False if getattr(args, "disable_particles_vpn", False) else None,
@@ -306,19 +326,25 @@ def _config_args_cell(args: argparse.Namespace) -> dict:
     },
     "allowed_lans": allowed_lans,
   }
+  if _empty_config(result):
+    return None
+  else:
+    return result
 
 
-def _config_args_particle(args: argparse.Namespace) -> dict:
-  return {
-    # Nothing configurable on a particle for now
-  }
+def _config_args_particle(args: argparse.Namespace) -> dict | None:
+  return None
 
 
-def _config_args_user(args: argparse.Namespace) -> dict:
-  return {
+def _config_args_user(args: argparse.Namespace) -> dict | None:
+  result = {
     "password": getattr(args, "password", None),
     "name": getattr(args, "name", None),
   }
+  if _empty_config(result):
+    return None
+  else:
+    return result
 
 
 def uno_parser(parser: argparse.ArgumentParser):

@@ -22,7 +22,7 @@ from ..core.paired_map import PairedValuesMap
 
 from .wg_key import WireGuardKeyPair, WireGuardPsk
 from .versioned import Versioned, disabled_if, error_if, static_if, dispatch_if
-from .database_object import inject_db_cursor
+from .database_object import inject_db_cursor, inject_db_transaction, TransactionHandler
 
 if TYPE_CHECKING:
   from .database import Database
@@ -178,25 +178,34 @@ class VpnKeysMap(Versioned, PairedValuesMap):
 
 
   @static_if("readonly", dict)
-  def purge_peer(self, peer: int, delete: bool=False) -> dict[tuple, object]:
+  @inject_db_cursor
+  def purge_peer(self,
+      peer: int,
+      delete: bool=False,
+      delete_map: dict | None = None,
+      cursor: "Database.Cursor|None"=None) -> dict[tuple, object]:
     purged = super().purge_peer(peer)
-    s_purged = set()
-    for pair, keys in purged:
-      self._drop_pair(pair, keys, delete=delete)
-      s_purged.add(pair)
-    if delete:
-      total = self.deleted
-    else:
-      total = self.dropped
-    if s_purged:
-      self.log.activity("peer {} {}: {}",
-        peer,
-        "deleted" if delete else "dropped",
-        ', '.join(map(str, sorted(total))))
+    deleted = set()
+    dropped = set()
+    delete_map = delete_map or {}
+    for pair, keys in purged.items():
+      delete_pair = delete or delete_map.get(pair[0], False) or delete_map.get(pair[1], False)
+      self._drop_pair(pair, keys, delete=delete_pair)
+      if delete_pair:
+        deleted.add((pair, keys))
+      else:
+        dropped.add((pair, keys))
+    if dropped:
+      self.log.activity("dropped {} paired keys for peer {}: {}", len(dropped), peer, dropped)
+    if deleted:
+      self.log.activity("deleted {} paired keys for peer {}: {}", len(deleted), peer, deleted)
+      self.db.save(self, cursor=cursor)
+    if dropped or deleted:
       self.updated_property("content")
     return purged
 
 
+  @inject_db_cursor
   def clean_dropped_keys(self, cursor: "Database.Cursor|None"=None) -> None:
     self.db.delete_where(
       table=self.KEYS.DB_TABLE,
@@ -207,17 +216,28 @@ class VpnKeysMap(Versioned, PairedValuesMap):
 
 
   @static_if("readonly", 0)
-  def drop_keys(self, delete: bool=False, cursor: "Database.Cursor|None"=None) -> int:
-    count = 0
+  @inject_db_cursor
+  def drop_keys(self,
+      delete: bool=False,
+      delete_map: dict | None = None,
+      cursor: "Database.Cursor|None"=None) -> int:
+    deleted = set()
+    dropped = set()
+    delete_map = delete_map or {}
     for pair in list(self):
-      self._drop_pair(pair, self[pair], delete=delete)
-      count += 1
+      delete_pair = delete or delete_map.get(pair[0], False) or delete_map.get(pair[1], False)
+      self._drop_pair(pair, self[pair], delete=delete_pair)
+      if delete_pair:
+        deleted.add(pair)
+      else:
+        dropped.add(pair)
     self.clear()
-    if count:
+    if deleted:
+      self.db.save(self, cursor=cursor)
+    if deleted or dropped:
       self.updated_property("content")
-    if delete:
-      self.db.save(self)
-    self.log.activity("dropped all ({}) keys", count)
+    count = len(deleted) + len(dropped)
+    self.log.activity("dropped all ({}) keys (deleted={}, dropped={})", count, deleted, dropped)
     return count
 
 
@@ -358,14 +378,21 @@ class CentralizedVpnKeyMaterial(Versioned):
   INITIAL_PREFER_DROPPED = False
   INITIAL_DROPPED = lambda self: set()
   INITIAL_DELETED = lambda self: set()
+
   @inject_db_cursor
-  def INITIAL_ROOT_KEY(self, cursor: "Database.Cursor") -> WireGuardKeyPair | None:
-    return next(self.db.load(WireGuardKeyPair,
-      where="key_id = ?",
-      params=(f"{self.prefix}:root",),
-      cursor=cursor), None)
+  def load_root_key(self, cursor: "Database.Cursor") -> WireGuardKeyPair | None:
+    def _load_key(dropped: bool) -> WireGuardKeyPair | None:
+      return next(self.db.load(WireGuardKeyPair,
+        where="key_id = ? and dropped = ?",
+        params=(f"{self.prefix}:root", dropped),
+        cursor=cursor), None)
+    loaded = None if not self.prefer_dropped else _load_key(True)
+    if loaded is None:
+      loaded = _load_key(False)
+    return loaded
+
   @inject_db_cursor
-  def INITIAL_PEER_KEYS(self, cursor: "Database.Cursor") -> dict[int, WireGuardKeyPair]:
+  def load_peer_keys(self, cursor: "Database.Cursor") -> dict[int, WireGuardKeyPair]:
     prefix = f"{self.prefix}:peer:"
     def _load_keys(dropped: bool) -> dict:
       return {
@@ -385,12 +412,20 @@ class CentralizedVpnKeyMaterial(Versioned):
     else:
       loaded = _load_keys(False)
     return loaded
-  def INITIAL_PRESHARED_KEYS(self) -> PresharedKeysMap:
+
+  def load_preshared_keys(self) -> PresharedKeysMap:
     return self.new_child(PresharedKeysMap, {
       "prefix": f"{self.prefix}:psks",
       "prefer_dropped": self.prefer_dropped,
       "readonly": self.readonly,
     })
+
+
+  @inject_db_cursor
+  def load_nested(self, cursor: "Database.Cursor") -> None:
+    self.root_key = self.load_root_key(cursor=cursor)
+    self.peer_keys = self.load_peer_keys(cursor=cursor)
+    self.preshared_keys = self.load_preshared_keys()
 
 
   @property
@@ -415,6 +450,10 @@ class CentralizedVpnKeyMaterial(Versioned):
     # Save remaining changes to this object (noop, other than resetting status flags)
     super().save(cursor=cursor, **db_args)
     
+
+  @property
+  def peers_with_dropped_key(self) -> set[int]:
+    return set(k for k, v in self.peer_keys.items() if v is not None and v.dropped)
 
 
   @error_if("readonly")
@@ -444,42 +483,71 @@ class CentralizedVpnKeyMaterial(Versioned):
 
 
   @static_if("readonly", tuple)
-  def purge_gone_peers(self, peer_ids: Iterable[int], delete: bool=False) -> list[int]:
+  @inject_db_cursor
+  def purge_gone_peers(self,
+      peer_ids: Iterable[int],
+      delete: bool=False,
+      delete_map: dict | None = None,
+      cursor: "Database.Cursor|None"=None) -> list[int]:
     peer_ids = set(peer_ids)
-    purged = []
+    delete_map = delete_map or {}
+    dropped = set()
+    deleted = set()
     for peer_id in list(self.peer_keys):
       if peer_id not in peer_ids:
         self.log.activity("purging gone peer: {}", peer_id)
-        self._drop_key(self.peer_keys[peer_id], delete=delete)
+        delete_key = delete or delete_map.get(peer_id, False)
+        self._drop_key(self.peer_keys[peer_id], delete=delete_key)
         del self.peer_keys[peer_id]
-        self.preshared_keys.purge_peer(peer_id, delete)
-        purged.append(peer_id)
-    if delete:
+        self.preshared_keys.purge_peer(peer_id, delete=delete, delete_map=delete_map, cursor=cursor)
+        if delete_key:
+          deleted.add(peer_id)
+        else:
+          dropped.add(peer_id)
+    if deleted:
       # Immediately drop keys from database by saving the object
-      self.db.save(self)
-    return purged
+      self.db.save(self, cursor=cursor)
+    return [*deleted, *dropped]
 
 
   @static_if("readonly", 0)
-  def drop_keys(self, delete: bool=False, cursor: "Database.Cursor|None"=None) -> int:
+  @inject_db_cursor
+  # TODO(asorbini) inject transaction?
+  def drop_keys(self,
+      delete: bool=False,
+      delete_map: dict | None = None,
+      cursor: "Database.Cursor|None"=None) -> int:
     self.log.activity("dropping all keys")
-    count = 0
+    delete_map = delete_map or {}
+    dropped = set()
+    deleted = set()
     if self.root_key:
-      self._drop_key(self.root_key, delete=delete)
+      delete_key = delete or delete_map.get(0, False)
+      self._drop_key(self.root_key, delete=delete_key)
       self.root_key = None
-      count += 1
-    for key in self.peer_keys.values():
-      self._drop_key(key, delete=delete)
-      count += 1
+      if delete_key:
+        deleted.add(0)
+      else:
+        dropped.add(0)
+    for peer_id, key in self.peer_keys.items():
+      delete_key = delete or delete_map.get(peer_id, False)
+      self._drop_key(key, delete=delete_key)
+      if delete_key:
+        deleted.add(peer_id)
+      else:
+        dropped.add(peer_id)
     self.peer_keys = {}
-    count += self.preshared_keys.drop_keys(delete=delete, cursor=cursor)
-    if delete:
-      # Immediately drop keys from database by saving the object
-      self.db.save(self)
-    self.log.activity("dropped all ({}) keys", count)
-    return count
+    count = len(deleted) + len(dropped)
+    count_preshared = self.preshared_keys.drop_keys(delete=delete, delete_map=delete_map, cursor=cursor)
+    if deleted:
+      # Immediately drop deleted keys from database by saving the object
+      self.db.save(self, cursor=cursor)
+    self.log.activity("dropped all ({} + {}) keys (deleted={}, dropped={})", count, count_preshared, deleted, dropped)
+    return count + count_preshared
 
 
+  @inject_db_cursor
+  # TODO(asorbini) inject transaction?
   def clean_dropped_keys(self, cursor: "Database.Cursor|None"=None) -> None:
     self.db.delete_where(
       table=WireGuardKeyPair.DB_TABLE,
@@ -535,12 +603,23 @@ class P2pVpnKeyMaterial(Versioned):
     "prefix"
   ]
 
-  INITIAL_PAIR_KEYS = lambda self: self.new_child(PairedVpnKeysMap, {
-    "prefix": f"{self.prefix}:pair",
-  })
-  INITIAL_PRESHARED_KEYS = lambda self: self.new_child(PresharedKeysMap, {
-    "prefix": f"{self.prefix}:psks",
-  })
+  # INITIAL_PAIR_KEYS = lambda self: self.new_child(PairedVpnKeysMap, {
+  #   "prefix": f"{self.prefix}:pair",
+  # })
+  # INITIAL_PRESHARED_KEYS = lambda self: self.new_child(PresharedKeysMap, {
+  #   "prefix": f"{self.prefix}:psks",
+  # })
+
+
+  def load_nested(self) -> None:
+    if self.pair_keys is None:
+      self.pair_keys = self.new_child(PairedVpnKeysMap, {
+        "prefix": f"{self.prefix}:pair",
+      })
+    if self.preshared_keys is None:
+      self.preshared_keys = self.new_child(PresharedKeysMap, {
+        "prefix": f"{self.prefix}:psks",
+      })
 
   
   @property

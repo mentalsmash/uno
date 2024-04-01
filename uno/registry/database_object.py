@@ -66,6 +66,15 @@ class DatabaseSchema:
 
 
   @classmethod
+  def importables(cls) -> "Generator[type[DatabaseObject], None, None]":
+    for t in cls._Objects:
+      if not t.DB_IMPORTABLE:
+        continue
+      yield t
+
+
+
+  @classmethod
   def ownables_types(cls) -> "set[type[OwnableDatabaseObject]]":
     return cls._Ownables
 
@@ -215,7 +224,7 @@ def inject_db_cursor(wrapped):
   return _define_inject_cursor(wrapped, get_db=lambda o: o.db)
 
 
-def _define_inject_transaction(wrapped, get_db: Callable[[object], "Database"]):
+def _define_inject_transaction(wrapped, get_db: Callable[[object], "Database"], inject_cursor: Callable[[Callable], Callable]):
   @wraps(wrapped)
   def _inject_transaction(self, *a, cursor: "Database.Cursor|None"=None, **kw):
     db = get_db(self)
@@ -238,11 +247,11 @@ def _define_inject_transaction(wrapped, get_db: Callable[[object], "Database"]):
 
 
 def inject_transaction(wrapped):
-  return _define_inject_transaction(wrapped, get_db=lambda o: o)
+  return _define_inject_transaction(wrapped, get_db=lambda o: o, inject_cursor=inject_cursor)
 
 
 def inject_db_transaction(wrapped):
-  return _define_inject_transaction(wrapped, get_db=lambda o: o.db)
+  return _define_inject_transaction(wrapped, get_db=lambda o: o.db, inject_cursor=inject_db_cursor)
 
 
 class DatabaseObject:
@@ -254,6 +263,8 @@ class DatabaseObject:
   DB_TABLE_KEYS: list[str] = []
   DB_CACHED: bool = True
   DB_EXPORTABLE: bool = True
+  DB_IMPORTABLE: bool = True
+  DB_IMPORTABLE_WHERE: tuple[str, tuple] | None = None
 
   def __init__(self,
       db: "Database",
@@ -275,6 +286,19 @@ class DatabaseObject:
   def __init_subclass__(cls, *a, **kw) -> None:
     cls.DB_SCHEMA.register_type(cls)
     super().__init_subclass__(*a, **kw)
+
+
+  @classmethod
+  def importable_query(cls, table: str) -> tuple[str, tuple | None] | tuple[None, None]:
+    if not cls.DB_IMPORTABLE:
+      return (None, None)
+    if cls.DB_IMPORTABLE_WHERE is not None:
+      where, params = cls.DB_IMPORTABLE_WHERE
+      query = f"SELECT * FROM {table} WHERE {where}"
+    else:
+      query = f"SELECT * FROM {table}"
+      params = None
+    return (query, params)
 
 
   @property
@@ -369,14 +393,14 @@ class DatabaseObject:
       for o in nested:
         for n in _yield_nested_recur(o):
           yield n
-      if not predicate or predicate(cur):
+      if predicate is None or predicate(cur):
         yield cur
     return _yield_nested_recur(self)
 
 
   def collect_changes(self, predicate: Callable[["DatabaseObject"], bool]|None=None) -> Generator[tuple["DatabaseObject", dict], None, None]:
     def _predicate(o: DatabaseObject) -> bool:
-      if predicate and not predicate(o):
+      if predicate is not None and not predicate(o):
         return False
       return o.dirty # and not o.SCHEMA.transient
     for o in self.collect_nested(_predicate):
@@ -408,9 +432,9 @@ class DatabaseObject:
   @saved.setter
   def saved(self, val: bool) -> None:
     self._saved = val
-    if not self.loaded:
-      # Don't propagate changes unless we were loaded
-      return
+    # if not self._initialized:
+    #   # Don't propagate changes unless we're initialized
+    #   return
     # Propagate "not saved" to parent
     if not self._saved and self.parent is not None:
       self.parent.saved = False
@@ -582,8 +606,11 @@ class DatabaseObjectOwner(DatabaseObject):
 
 
   @cached_property
-  def owned(self) -> set[OwnableDatabaseObject]:
-    return set(self.db.owned(self))
+  @inject_db_cursor
+  def owned(self, cursor: "Database.Cursor | None"=None) -> set[OwnableDatabaseObject]:
+    return set(owned
+      for owned_cls in self.owned_types()
+        for owned in self.db.load(owned_cls, owner=self, cursor=cursor))
 
   
   def reset_cached_properties(self) -> None:

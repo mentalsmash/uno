@@ -141,6 +141,7 @@ class Database:
     self._db.close()
 
 
+  @inject_transaction
   def save(self,
       obj: DatabaseObject,
       chown: Mapping[DatabaseObjectOwner, list[OwnableDatabaseObject]]|None=None,
@@ -148,18 +149,39 @@ class Database:
       import_record: bool=False,
       dirty: bool=True,
       force_insert: bool=False,
-      cursor: "Database.Cursor | None" = None) -> list[DatabaseObject]:
-    return self.save_all([obj],
+      cursor: "Database.Cursor | None" = None,
+      do_in_transaction: TransactionHandler | None = None) -> list[DatabaseObject]:
+    return self._save_all([obj],
       chown=chown,
       public=public,
       import_record=import_record,
       dirty=dirty,
       force_insert=force_insert,
-      cursor=cursor)
+      cursor=cursor,
+      do_in_transaction=do_in_transaction)
 
 
   @inject_transaction
   def save_all(self,
+      targets: Iterable[DatabaseObject],
+      chown: Mapping[DatabaseObjectOwner, list[OwnableDatabaseObject]]|None=None,
+      public: bool=False,
+      import_record: bool=False,
+      dirty: bool=True,
+      force_insert: bool=False,
+      cursor: "Database.Cursor | None" = None,
+      do_in_transaction: TransactionHandler | None = None) -> list[DatabaseObject]:
+    return self._save_all(targets,
+      chown=chown,
+      public=public,
+      import_record=import_record,
+      dirty=dirty,
+      force_insert=force_insert,
+      cursor=cursor,
+      do_in_transaction=do_in_transaction)
+
+
+  def _save_all(self,
       targets: Iterable[DatabaseObject],
       chown: Mapping[DatabaseObjectOwner, list[OwnableDatabaseObject]]|None=None,
       public: bool=False,
@@ -252,11 +274,12 @@ class Database:
     if db_args["import_record"]:
       if obj.DB_TABLE_KEYS:
         # Check if records for the specified keys exist, and if so, delete them
-        for key in obj.DB_TABLE_KEYS:
-          key_fields = sorted(key)
+        for key_fields in obj.DB_TABLE_KEYS:
+          key_fields = sorted(key_fields)
           key_params = [getattr(obj, f) for f in key_fields]
           key_where = ' AND '.join(f + ' = ?' for f in key_fields)
-          deleted = self.delete_where(table, where=key_where, params=key_params, cursor=cursor)
+          self.delete_where(table, where=key_where, params=key_params, cursor=cursor)
+
         create = True
       else:
         row = cursor.execute(f"SELECT id FROM {table} WHERE id = ?", (obj.id,)).fetchone()
@@ -339,33 +362,31 @@ class Database:
     # cursor.execute(*query)
 
 
+  @inject_transaction
   def new(self,
       cls: type[DatabaseObject],
       properties: dict|None=None,
       owner: DatabaseObjectOwner|None=None,
-      save: bool=True) -> DatabaseObject:
-    # if not issubclass(cls, Versioned):
-    #   raise TypeError(cls)
-    assert(issubclass(cls, DatabaseObject))
-    properties = dict(properties or {})
-    properties["db"] = self
-    properties["owner"] = owner
-    created = cls.new(**properties)
-    # logger = (
-    #   self.log.activity if created.DB_TABLE and created.DB_CACHED else 
-    #   self.log.debug if created.DB_TABLE else
-    #   self.log.trace
-    # )
-    self.log.debug("new {}: {}", cls.__qualname__, created)
+      save: bool=True,
+      cursor: "Database.Cursor | None" = None,
+      do_in_transaction: TransactionHandler | None=None) -> DatabaseObject:
     table = self.SCHEMA.lookup_table_by_object(cls, required=False)
-    chown = None
     if not table:
       save = False
-    if save and owner is not None and isinstance(created, OwnableDatabaseObject):
-      chown = {owner: [created]}
-    if save:
-      self.save(created, chown=chown)
-    return created
+    def _new():
+      assert(issubclass(cls, DatabaseObject))
+      new_properties = dict(properties or {})
+      new_properties["db"] = self
+      new_properties["owner"] = owner
+      created = cls.new(**new_properties)
+      self.log.debug("new {}: {}", cls.__qualname__, created)
+      chown = None
+      if save and owner is not None and isinstance(created, OwnableDatabaseObject):
+        chown = {owner: [created]}
+      if save:
+        self.save(created, chown=chown, cursor=cursor)
+      return created
+    return do_in_transaction(_new)
 
 
   @inject_cursor
@@ -724,8 +745,10 @@ class Database:
 
   def export_tables(self, target: "Database", classes: Iterable[type[DatabaseObject]]) -> None:
     exported = set()
+    exportable_types = list(self.SCHEMA.exportables())
     for exported_cls in classes:
       assert(issubclass(exported_cls, DatabaseObject))
+      assert(exported_cls in exportable_types)
       table = self.SCHEMA.lookup_table_by_object(exported_cls)
       owner_tables = (
         list(t for t, _, _, in self.SCHEMA.lookup_owner_tables_by_object(exported_cls))
@@ -742,8 +765,11 @@ class Database:
         if table in exported:
           return
         self.log.debug("export table {} to {}", table, target)
-        for row in l_cursor.execute(f"SELECT * FROM {table}"):
-          self.log.trace("export record {}: {}", table, row)
+        query, params = exported_cls.importable_query(table)
+        assert(query is not None)
+        # print(f"QUERY = '{query}'; PARAMS = '{params}';")
+        for row in l_cursor.execute(query, params or tuple()):
+          self.log.debug("export record {}: {}", table, row)
           t_cursor.execute(
             f"INSERT INTO {table} ({', '.join(f for f in row._fields)}) VALUES ({', '.join('?' for _ in row._fields)})",
             row)
@@ -760,21 +786,28 @@ class Database:
     target.save_all(objects, import_record=True, public=public, force_insert=True)
 
 
-  def import_other(self, target: "Database") -> None:
-    self.log.activity("importing database: {}", target)
-    for cls in self.SCHEMA.exportables():
-      self.log.activity("importing {} objects", cls.__qualname__)
-      count = 0
-      for obj in target.load(cls):
-        if isinstance(obj, OwnableDatabaseObject) and obj.owner:
-          chown = {obj.owner: [obj]}
-        else:
-          chown = None
-        self.log.activity("importing {}: {}", cls.__name__, obj)
-        self.save(obj, chown=chown, import_record=True)
-        count += 1
-      self.log.info("imported {} {}", count, cls.__qualname__)
-    self.log.info("imported database: {}", target)
+  @inject_transaction
+  def import_other(self,
+      target: "Database",
+      cursor: "Database.Cursor|None"=None,
+      do_in_transaction: TransactionHandler | None=None) -> None:
+    def _import() -> None:
+      self.log.activity("importing database: {}", target)
+      for cls in self.SCHEMA.importables():
+        self.log.activity("importing {} objects", cls.__qualname__)
+        count = 0
+        # query, params = cls.importable_query()
+        for obj in target.load(cls, cursor=cursor):
+          if isinstance(obj, OwnableDatabaseObject) and obj.owner:
+            chown = {obj.owner: [obj]}
+          else:
+            chown = None
+          self.log.activity("importing {}: {}", cls.__name__, obj)
+          self.save(obj, chown=chown, import_record=True, cursor=cursor)
+          count += 1
+        self.log.info("imported {} {} objects", count, cls.__qualname__)
+      self.log.info("imported database: {}", target)
+    do_in_transaction(_import)
 
 
   # def import_object(self, obj: DatabaseObject) -> None:

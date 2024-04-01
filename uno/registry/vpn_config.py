@@ -284,12 +284,14 @@ class UvnVpnConfig(Versioned):
     return self.parent
 
 
-  @cached_property
+  # @cached_property
+  @property
   def root_vpn(self) -> CentralizedVpnConfig | None:
     return self.root_vpn_config(self.parent)
 
 
-  @cached_property
+  # @cached_property
+  @property
   def rekeyed_root_vpn(self) -> CentralizedVpnConfig | None:
     if self.parent.rekeyed_root_config_id:
       return self.root_vpn_config(self.parent, rekeyed=True)
@@ -299,14 +301,15 @@ class UvnVpnConfig(Versioned):
   @property
   def particles_vpns(self) -> dict[int, CentralizedVpnConfig]:
     return {
-      cell.id: self.particles_vpn(cell)
+      cell.id: particles_vpn
       for cell in self.uvn.cells.values()
+        for particles_vpn in [self.particles_vpn(cell)]
+          if particles_vpn is not None
     }
 
 
   def particles_vpn(self, cell: Cell) -> CentralizedVpnConfig | None:
-    if (not self.uvn.settings.enable_particles_vpn
-        or not cell.settings.enable_particles_vpn):
+    if not cell.enable_particles_vpn:
       return None
     return self.parent.new_child(CentralizedVpnConfig,{
       "root_endpoint": cell.address,
@@ -316,7 +319,8 @@ class UvnVpnConfig(Versioned):
     })
 
 
-  @cached_property
+  # @cached_property
+  @property
   def backbone_vpn(self) -> P2pVpnConfig | None:
     if not self.parent.deployment:
       return None

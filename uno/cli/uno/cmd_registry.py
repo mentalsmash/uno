@@ -52,18 +52,22 @@ def registry_define_uvn(args: argparse.Namespace) -> None:
 
 @registry_action
 def registry_config_uvn(args: argparse.Namespace, registry: Registry) -> bool:
+  config_registry = args.config_registry(args)
+  if not args.owner and not config_registry:
+    # Make registry readonly if no configuration arguments were passed
+    registry.readonly = True
   if args.owner:
     owner = registry.load_user(args.owner)
     registry.uvn.set_ownership(owner)
-  registry.configure(**args.config_registry(args))
-  # registry.db.save(registry)
+  if config_registry:
+    registry.configure(**config_registry)
   _print_result(args, registry)
   return registry.dirty
 
 
 @registry_action
 def registry_rekey_uvn(args: argparse.Namespace, registry: Registry) -> bool:
-  registry.rekey_uvn()
+  registry.rekey_uvn(root_vpn=args.root_vpn, particles_vpn=args.particles_vpn)
   return True
 
 
@@ -73,17 +77,22 @@ def registry_define_cell(args: argparse.Namespace, registry: Registry) -> bool:
   registry.add_cell(
     name=args.name,
     owner=owner,
-    **args.config_cell(args))
+    **(args.config_cell(args) or {}))
   return True
 
 
 @registry_action
 def registry_config_cell(args: argparse.Namespace, registry: Registry) -> bool:
   cell = registry.load_cell(args.name)
+  config_cell = args.config_cell(args)
+  if not args.owner and not config_cell:
+    # Make registry readonly if no configuration arguments were passed
+    registry.readonly = True
   if args.owner:
     owner = next(u for u in registry.users if u.email == args.owner)
     cell.set_ownership(owner)
-  registry.update_cell(cell, **args.config_cell(args))
+  if config_cell:
+    registry.update_cell(cell, **config_cell)
   _print_result(args, cell)
   return cell.dirty
 
@@ -124,17 +133,22 @@ def registry_define_particle(args: argparse.Namespace, registry: Registry) -> bo
   registry.add_particle(
     name=args.name,
     owner=owner,
-    **args.config_particle(args))
+    **(args.config_particle(args) or {}))
   return True
 
 
 @registry_action
 def registry_config_particle(args: argparse.Namespace, registry: Registry) -> bool:
   particle = registry.load_particle(args.name)
+  config_particle = args.config_particle(args)
+  if not args.owner and not config_particle:
+    # Make registry readonly if no configuration arguments were passed
+    registry.readonly = True
   if args.owner:
     owner = next(u for u in registry.users if u.email == args.owner)
     particle.set_ownership(owner)
-  registry.update_particle(particle, **args.config_particle(args))
+  if config_particle:
+    registry.update_particle(particle, **config_particle)
   _print_result(args, particle)
   return particle.dirty
 
@@ -183,7 +197,9 @@ def registry_unban_user(args: argparse.Namespace, registry: Registry) -> bool:
 
 @registry_action
 def registry_redeploy(args: argparse.Namespace, registry: Registry) -> bool:
-  registry.uvn.settings.deployment.configure(**args.config_registry(args)["uvn"]["settings"]["deployment"])
+  config_deployment = (args.config_registry(args) or {}).get("uvn", {}).get("settings", {}).get("deployment")
+  if config_deployment:
+    registry.uvn.settings.deployment.configure(**config_deployment)
   registry.redeploy()
   registry.backbone_vpn_keymat.drop_keys(delete=True)
   return True
@@ -191,14 +207,19 @@ def registry_redeploy(args: argparse.Namespace, registry: Registry) -> bool:
 
 @registry_action
 def registry_define_user(args: argparse.Namespace, registry: Registry) -> bool:
-  registry.add_user(email=args.email, **args.config_user(args))
+  registry.add_user(email=args.email, **(args.config_user(args) or {}))
   return True
 
 
 @registry_action
 def registry_config_user(args: argparse.Namespace, registry: Registry) -> bool:
   user = registry.load_user(args.email)
-  registry.update_user(user, **args.config_user(args))
+  config_user = args.config_user(args)
+  if not config_user:
+    # Make registry readonly if no configuration arguments were passed
+    registry.readonly = True
+  if config_user:
+    registry.update_user(user, **config_user)
   _print_result(args, user)
   return user.dirty
 

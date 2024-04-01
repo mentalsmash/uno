@@ -64,8 +64,6 @@ class UvnPeer(Versioned, DatabaseObjectOwner, OwnableDatabaseObject):
   ]
   INITIAL_STATUS = UvnPeerStatus.DECLARED
   INITIAL_ROUTED_NETWORKS = lambda self: set()
-  # INITIAL_VPN_INTERFACES = lambda self: set(self.load_children(VpnInterfaceStatus, owner=self))
-  # INITIAL_KNOWN_NETWORKS = lambda self: set(self.load_children(LanStatus, owner=self))
   INITIAL_VPN_INTERFACES = lambda self: set()
   INITIAL_KNOWN_NETWORKS = lambda self: set()
 
@@ -79,6 +77,8 @@ class UvnPeer(Versioned, DatabaseObjectOwner, OwnableDatabaseObject):
     "routed_networks",
     "owner_id",
   ]
+  DB_EXPORTABLE = False
+  DB_IMPORTABLE = False
 
 
   # def __init__(self, **properties) -> None:
@@ -123,7 +123,7 @@ class UvnPeer(Versioned, DatabaseObjectOwner, OwnableDatabaseObject):
       if intf_status is None:
         intf_status = self.new_child(VpnInterfaceStatus, {
           "intf": intf.config.intf.name,
-        }, owner=self)
+        }, owner=self, save=False)
         changed = True
       changed_cfg = intf_status.configure(**intf_stats)
       changed = changed or len(changed_cfg) > 0
@@ -148,7 +148,7 @@ class UvnPeer(Versioned, DatabaseObjectOwner, OwnableDatabaseObject):
       cfg_args = dict(i for i in net_cfg.items() if i[0] not in init_props)
       if known_net is None:
         init_args = dict(i for i in net_cfg.items() if i[0] in init_props)
-        known_net = self.new_child(LanStatus, init_args, owner=self)
+        known_net = self.new_child(LanStatus, init_args, owner=self, save=False)
         changed = True
       changed_cfg = known_net.configure(**cfg_args)
       changed = changed or len(changed_cfg) > 0
@@ -267,6 +267,8 @@ class VpnInterfaceStatus(Versioned, OwnableDatabaseObject):
   DB_OWNER = UvnPeer
   DB_OWNER_TABLE_COLUMN = "peer"
   DB_TABLE_PROPERTIES = PROPERTIES
+  DB_EXPORTABLE = False
+  DB_IMPORTABLE = False
 
 
   def __init__(self, **properties) -> None:
@@ -315,14 +317,6 @@ class VpnInterfaceStatus(Versioned, OwnableDatabaseObject):
 
 
 class LanStatus(Versioned, OwnableDatabaseObject):
-  DB_TABLE = "peers_lan_status"
-  DB_OWNER = UvnPeer
-  DB_OWNER_TABLE_COLUMN = "peer"
-  DB_TABLE_PROPERTIES = [
-    "lan",
-    "reachable",
-  ]
-
   PROPERTIES = [
     "lan",
     "reachable",
@@ -339,6 +333,16 @@ class LanStatus(Versioned, OwnableDatabaseObject):
     "owner",
   ]
   INITIAL_REACHABLE = False
+
+  DB_TABLE = "peers_lan_status"
+  DB_OWNER = UvnPeer
+  DB_OWNER_TABLE_COLUMN = "peer"
+  DB_TABLE_PROPERTIES = [
+    "lan",
+    "reachable",
+  ]
+  DB_EXPORTABLE = False
+  DB_IMPORTABLE = False
 
   def __init__(self, **properties) -> None:
     super().__init__(**properties)

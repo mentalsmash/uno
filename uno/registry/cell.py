@@ -56,8 +56,13 @@ class Cell(Versioned, OwnableDatabaseObject, DatabaseObjectOwner):
   DB_OWNER_TABLE_COLUMN = "owner_id"
 
   INITIAL_EXCLUDED = False
-  INITIAL_SETTINGS = lambda self: self.new_child(CellSettings)
+  # INITIAL_SETTINGS = lambda self: self.new_child(CellSettings)
   INITIAL_ALLOWED_LANS = lambda self: set()
+
+
+  def load_nested(self) -> None:
+    if self.settings is None:
+      self.settings = self.new_child(CellSettings)
 
 
   @property
@@ -70,6 +75,15 @@ class Cell(Versioned, OwnableDatabaseObject, DatabaseObjectOwner):
   def uvn(self, cursor: Database.Cursor) -> "Uvn":
     from .uvn import Uvn
     return next(self.db.load(Uvn, id=self.uvn_id, cursor=cursor))
+
+
+  @property
+  def enable_particles_vpn(self) -> bool:
+    return (
+      self.uvn.settings.enable_particles_vpn
+      and self.settings.enable_particles_vpn
+      and self.address
+    )
 
 
   # def validate(self) -> None:

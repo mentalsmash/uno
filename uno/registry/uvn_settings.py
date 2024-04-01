@@ -63,10 +63,21 @@ class UvnSettings(Versioned):
   INITIAL_ENABLE_DDS_SECURITY = False
   INITIAL_DDS_DOMAIN = 46
 
-  INITIAL_ROOT_VPN = lambda self: self.new_child(RootVpnSettings)
-  INITIAL_PARTICLES_VPN = lambda self: self.new_child(ParticlesVpnSettings)
-  INITIAL_BACKBONE_VPN = lambda self: self.new_child(BackboneVpnSettings)
-  INITIAL_DEPLOYMENT = lambda self: self.new_child(DeploymentSettings)
+  # INITIAL_ROOT_VPN = lambda self: self.new_child(RootVpnSettings)
+  # INITIAL_PARTICLES_VPN = lambda self: self.new_child(ParticlesVpnSettings)
+  # INITIAL_BACKBONE_VPN = lambda self: self.new_child(BackboneVpnSettings)
+  # INITIAL_DEPLOYMENT = lambda self: self.new_child(DeploymentSettings)
+
+  def load_nested(self) -> None:
+    if self.root_vpn is None:
+      self.root_vpn = self.new_child(RootVpnSettings)
+    if self.particles_vpn is None:
+      self.particles_vpn = self.new_child(ParticlesVpnSettings)
+    if self.backbone_vpn is None:
+      self.backbone_vpn = self.new_child(BackboneVpnSettings)
+    if self.deployment is None:
+      self.deployment = self.new_child(DeploymentSettings)
+
 
   def prepare_timing_profile(self, val: str | TimingProfile) -> TimingProfile:
     return prepare_enum(self.db, TimingProfile, val)

@@ -132,11 +132,13 @@ CREATE TABLE asymm_keys (
   key_id TEXT NOT NULL CHECK (length(id) > 0),
   generation_ts CHAR(22) NOT NULL,
   init_ts CHAR(22) NOT NULL,
-  public TEXT NOT NULL UNIQUE,
-  private TEXT UNIQUE,
+  public TEXT NOT NULL,
+  private TEXT,
   dropped BOOL DEFAULT(FALSE) NOT NULL,
   --PRIMARY KEY(id, dropped) ON CONFLICT REPLACE);
-  UNIQUE (key_id, dropped));
+  UNIQUE (key_id, dropped),
+  UNIQUE (public, dropped),
+  UNIQUE (private, dropped));
 
 
 INSERT INTO next_id (target) VALUES ("asymm_keys");
@@ -148,11 +150,12 @@ CREATE TABLE symm_keys (
   id INT PRIMARY KEY CHECK (id > 0),
   key_id TEXT NOT NULL CHECK (length(id) > 0),
   dropped BOOL DEFAULT(FALSE) NOT NULL,
-  value TEXT NOT NULL UNIQUE,
+  value TEXT NOT NULL,
   generation_ts CHAR(22) NOT NULL,
   init_ts CHAR(22) NOT NULL,
   -- PRIMARY KEY(id, dropped) ON CONFLICT REPLACE);
-  UNIQUE (key_id, dropped));
+  UNIQUE (key_id, dropped),
+  UNIQUE (value, dropped));
 
 INSERT INTO next_id (target) VALUES ("symm_keys");
 

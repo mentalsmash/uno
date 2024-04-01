@@ -132,19 +132,10 @@ class DeploymentStrategy(Versioned):
   EQ_PROPERTIES = [
     "KIND",
   ]
-  # REQ_PROPERTIES = [
-  #   "peers",
-  # ]
-  # RO_PROPERTIES = [
-  #   "peers",
-  #   "args",
-  #   "private_peers",
-  #   "public_peers",
-  # ]
   INITIAL_ARGS = lambda self: {}
   INITIAL_PEERS = lambda self: set()
   INITIAL_PRIVATE_PEERS = lambda self: set()
-  # INITIAL_PUBLIC_PEERS = lambda self: self.peers - self.private_peers
+
 
   def __init_subclass__(cls, *args, **kwargs) -> None:
     if cls.KIND is not None:
