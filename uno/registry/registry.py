@@ -333,6 +333,11 @@ class Registry(Versioned):
     }
 
 
+  @cached_property
+  def active_users(self) -> dict[int, User]:
+    return {u.id: u for u in self.users.values() if not u.excluded}
+
+
   @property
   def deployed(self) -> bool:
     return self.deployment is not None
@@ -554,6 +559,7 @@ class Registry(Versioned):
       for target in collected_targets:
         target.excluded = banned
         if "excluded" in target.changed_properties:
+          assert(target.dirty)
           if isinstance(target, User):
             modified_users.append(target)
           elif isinstance(target, Cell):
@@ -569,6 +575,15 @@ class Registry(Versioned):
         else:
           self.log.info("already {}: {}", "banned" if banned else "unbanned", target)
 
+
+      # all_modified = {
+      #   *modified_cells,
+      #   *modified_particles,
+      #   *modified_users,
+      #   *modified_other,
+      # }
+      # self.db.save_all(all_modified, cursor=cursor)
+
       if modified_cells:
         self.db.save_all(modified_cells, cursor=cursor)
         self.uvn.updated_property("cell_properties")
@@ -578,6 +593,7 @@ class Registry(Versioned):
         self.uvn.updated_property("particle_properties")
         self.updated_property("particles")
       if modified_users:
+        # print("SAVE MODIFIED USERS", modified_users)
         self.db.save_all(modified_users, cursor=cursor)
         self.updated_property("users")
       if modified_other:
@@ -601,13 +617,13 @@ class Registry(Versioned):
       network_map=P2pLinkAllocationMap(subnet=self.uvn.settings.backbone_vpn.subnet))
     self.deployment = new_deployment
     if self.deployment.peers:
-      self.log.info("UVN backbone links updated [{}]", self.deployment.generation_ts)
+      self.log.warning("UVN backbone links updated [{}]", self.deployment.generation_ts)
       self.uvn.log_deployment(self.deployment)
     elif len(self.uvn.cells) > 1:
       self.log.warning("UVN has {} cells but no backbone links!", len(self.uvn.cells))
     else:
       self.log.info("UVN has no backbone")
-    self.clear_changed(["deployment_config"])
+    # self.clear_changed(["deployment_config"])
     self.updated_property("config_id")
 
 

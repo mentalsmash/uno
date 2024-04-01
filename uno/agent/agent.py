@@ -1299,7 +1299,7 @@ class Agent(AgentConfig, Runnable, UvnPeerListener, RoutesMonitorListener, Ownab
       self.log.error("at least {} cells have inconsistent configuration: {}", len(inconsistent_cells), inconsistent_cells)
     else:
       self.log.warning("all {} cells have consistent configuration: {}", len(self.registry.uvn.cells), self.registry_id)
-      self.uvn.log_deployment(deployment=self.deployment, log_level="warning")
+      self.uvn.log_deployment(deployment=self.deployment)
     # Update UI
     self.webui.request_update()
 

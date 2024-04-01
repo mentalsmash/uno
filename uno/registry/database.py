@@ -196,13 +196,28 @@ class Database:
         return f" (owner: {tgt.owner})"
       return ""
 
-    saved = []
+    def iter_query_targets() -> Generator[DatabaseObject, None, None]:
+      for tgt in sorted(targets, key=lambda v: v.__class__.__qualname__):
+        changed = [t for t, _ in tgt.collect_changes()]
+        nested = list(tgt.collect_nested())
+        collected = changed if (dirty and not import_record) else nested
+        for tgt in collected:
+          tgt.validate()
+          if isinstance(tgt, OwnableDatabaseObject) and tgt.id:
+            owner = self.owner(tgt, cursor=cursor)
+          else:
+            owner = None
+          yield tgt, owner
+
     def do_save():
+      saved = []
+      query_targets = dict(iter_query_targets())
+      self.log.debug("save targets: {}", query_targets)
       for tgt, current_owner in query_targets.items():
         table = self.SCHEMA.lookup_table_by_object(tgt, required=False)
         create = table and (not tgt.loaded or force_insert)
-        logger = self.log.activity if create else self.log.tracedbg
-        logger_result = self.log.info if create else self.log.trace
+        logger = self.log.debug if create else self.log.trace
+        logger_result = self.log.activity if create else self.log.debug
         if table:
           logger("{} {}: {}{}",
             "inserting new" if create else "saving",
@@ -210,7 +225,7 @@ class Database:
             tgt,
             owner_str(tgt))
         else:
-          logger("creating {}: {}", tgt.__class__.__qualname__, tgt)
+          logger("saving {}: {}", tgt.__class__.__qualname__, tgt)
 
         if tgt.disposed:
           self.delete(tgt, cursor=cursor, do_in_transaction=lambda action: action())
@@ -231,25 +246,15 @@ class Database:
               tgt,
               owner_str(tgt))
           else:
-            logger_result("created {}: {}", tgt.__class__.__qualname__, tgt)
+            logger_result("saved {}: {}", tgt.__class__.__qualname__, tgt)
         saved.append(tgt)
+
       for owner, targets in (chown or {}).items():
         self._set_ownership(owner, targets, current_owners=query_targets, cursor=cursor)
 
-    def iter_query_targets() -> Generator[DatabaseObject, None, None]:
-      for tgt in targets:
-        for tgt in ((t for t, _ in tgt.collect_changes()) if (dirty and not import_record) else tgt.collect_nested()):
-          tgt.validate()
-          if isinstance(tgt, OwnableDatabaseObject) and tgt.id:
-            owner = self.owner(tgt, cursor=cursor)
-          else:
-            owner = None
-          yield tgt, owner
+      return saved
 
-    query_targets = dict(iter_query_targets())
-    self.log.tracedbg("save targets: {}", query_targets)
-    do_in_transaction(do_save)
-    return saved
+    return do_in_transaction(do_save)
 
 
   @inject_cursor
@@ -475,31 +480,22 @@ class Database:
       return
 
     self.log.tracedbg("load targets: {}", load_targets)
-    def _load_obj(obj: DatabaseObject):
-      # obj.validate()
-      obj.saved = True
-      obj.loaded = True
-      # logger = (
-      #   self.log.activity if obj.DB_TABLE and obj.DB_CACHED else 
-      #   self.log.debug if obj.DB_TABLE else
-      #   self.log.trace
-      # )
-      # logger("loaded {}: {}", obj.__class__.__qualname__, obj)
+    
     for row in load_targets:
       if isinstance(row, DatabaseObject):
-        _load_obj(row)
         yield row
         continue
       
       serialized = row._asdict()
-      # if issubclass(cls, OwnableDatabaseObject) and owner is None:
-      #   owner = self.owner(cls, target_id=serialized["id"], cursor=cursor)
       serialized["owner"] = owner
       if load_args:
         serialized.update(load_args)
 
-      loaded = cls.load(self, serialized)
-      _load_obj(loaded)
+      loaded, cached = cls.load(self, serialized)
+      if not cached:
+        loaded.saved = True
+        loaded.loaded = True
+
       yield loaded
 
 
@@ -553,7 +549,7 @@ class Database:
     do_in_transaction(_delete)
 
 
-  def deserialize(self, cls: type, serialized: dict, use_cache: bool=True) -> object:
+  def deserialize(self, cls: type, serialized: dict, use_cache: bool=True) -> tuple[object, bool]:
     loaded = None
     table = self.SCHEMA.lookup_table_by_object(cls, required=False)
     cache = None
@@ -591,25 +587,7 @@ class Database:
       cache[loaded_id] = loaded
       self.log.tracedbg("cached {}: {}", loaded.__class__.__qualname__, loaded)
 
-    return loaded
-
-
-  # @inject_cursor
-  # def owned(self,
-  #     owner: DatabaseObjectOwner,
-  #     cursor: "Database.Cursor|None"=None) -> Generator[OwnableDatabaseObject, None, None]:
-    
-
-    # def _load_owned(owned_cls: type[OwnableDatabaseObject]) -> Generator[OwnableDatabaseObject, None, None]:
-    #   if owned_cls.DB_OWNER_TABLE_COLUMN:
-    #     pass
-    #   else:
-    #     pass
-    # if owned_cls:
-    #   self.load(cls, where=f"{cls.DB_OWNER_TABLE_COLUMN} = ? adn")
-    # for owned_cls in owner.DB_OWNED:
-    #   for owned in self.load(owned_cls, owner=owner):
-    #     yield owned
+    return loaded, cached is not None
 
 
   @inject_cursor
@@ -802,7 +780,7 @@ class Database:
             chown = {obj.owner: [obj]}
           else:
             chown = None
-          self.log.activity("importing {}: {}", cls.__name__, obj)
+          self.log.activity("importing {}: {}", cls.__qualname__, obj)
           self.save(obj, chown=chown, import_record=True, cursor=cursor)
           count += 1
         self.log.info("imported {} {} objects", count, cls.__qualname__)

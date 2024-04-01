@@ -83,7 +83,7 @@ class WebUi(AgentService):
     self.doc_root.mkdir(exist_ok=True, parents=True)
     
     secrets = []
-    for user in self.agent.registry.users.values():
+    for user in self.agent.registry.active_users.values():
       secret_line = htdigest_generate(user.email, user.realm, password_hash=user.password[len("htdigest:"):])
       secrets.append(secret_line)
 

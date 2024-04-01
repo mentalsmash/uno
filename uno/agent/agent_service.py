@@ -76,7 +76,7 @@ class AgentService(Runnable):
 
   @cached_property
   def svc_class(self) -> str:
-    cls_name = self.__class__.__name__
+    cls_name = self.__class__.__qualname__
     cls_name = cls_name[0].lower() + cls_name[1:]
     return self.log.camelcase_to_kebabcase(cls_name)
 

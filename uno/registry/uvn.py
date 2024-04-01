@@ -250,7 +250,7 @@ class Uvn(Versioned, OwnableDatabaseObject, DatabaseObjectOwner):
   def log_deployment(self,
       deployment: P2pLinksMap,
       logger: Callable[[Cell, int, str, Cell, int, str, str], None]|None=None,
-      log_level: str = "info") -> None:
+      log_level: str = "warning") -> None:
     logged = []
     sublog = self.log.sublogger("backbone")
     sublogger = getattr(sublog, log_level)

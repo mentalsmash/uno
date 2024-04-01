@@ -301,7 +301,7 @@ class WireGuardInterface:
 
 
   def __repr__(self) -> str:
-    return f"{self.__class__.__name__}({self.config.intf.name})"
+    return f"{self.__class__.__qualname__}({self.config.intf.name})"
 
 
   def start(self, noop: bool=False) -> None:

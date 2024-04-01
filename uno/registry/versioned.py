@@ -61,7 +61,7 @@ def strip_serialized_fields(serialized: dict, replacements: dict) -> dict:
 
 
 
-def strip_tuples(serialized: dict) -> dict:
+def strip_unserializable(serialized: dict) -> dict:
   def _strip(tgt: dict) -> dict:
     updated = {}
     for k, v in list(tgt.items()):
@@ -69,6 +69,8 @@ def strip_tuples(serialized: dict) -> dict:
         updated[k] = _strip(v)
       elif isinstance(v, tuple):
         updated[k] = list(v)
+      elif v is Versioned.OMITTED:
+        updated[k] = None
       else:
         updated[k] = v
     return updated
@@ -406,7 +408,7 @@ class Schema:
     return tuple(self._mro_yield_attr("SERIALIZED_PROPERTIES",
       initial_values={
         *self.defined_properties,
-        # *(["owner_id"] if self.transient else []),
+        *(["id"] if not self.transient else []),
       },
       filter_value=lambda v: v not in volatile))
 
@@ -535,8 +537,6 @@ class Versioned(DatabaseObject):
     "parent_id",
   ]
   VOLATILE_PROPERTIES = [
-    # "init_ts",
-    # "generation_ts",
     "readonly",
   ]
   PROPERTY_GROUPS = {}
@@ -591,7 +591,8 @@ class Versioned(DatabaseObject):
 
 
   @classmethod
-  def yaml_dump(cls, val: object, public: bool=False) -> str:
+  def yaml_dump(cls, val: object, public: bool=False, json: bool=False) -> str:
+    import json as json_lib
     if hasattr(val, "serialize") and callable(val.serialize):
       val = val.serialize(public=public)
     if public and isinstance(val, dict):
@@ -601,8 +602,11 @@ class Versioned(DatabaseObject):
     elif isinstance(val, set):
       val = sorted(val)
     elif isinstance(val, dict):
-      val = strip_tuples(val)
-    return yaml.dump(val)
+      val = strip_unserializable(val)
+    if json:
+      return json_lib.dumps(val)
+    else:
+      return yaml.dump(val)
 
 
   @classmethod
@@ -729,7 +733,7 @@ class Versioned(DatabaseObject):
         desc = self.SCHEMA.descriptor(prop)
         if desc:
           desc.clear_prev(self)
-    self.__update_str_repr__()
+    # self.__update_str_repr__()
 
 
   def updated_property(self, attr: str, changed_value: bool=False) -> None:
@@ -1004,7 +1008,7 @@ def prepare_collection(
     collection_cls: type|None = tuple,
     mkelement: Callable[[object], object]|None=None) -> "Iterable[Versioned]":
   if elements_cls and hasattr(elements_cls, "deserialize_args"):
-    deserializer = lambda v: db.deserialize(elements_cls, v)
+    deserializer = lambda v: db.deserialize(elements_cls, v)[0]
   elif mkelement:
     deserializer = mkelement
   elif elements_cls:
@@ -1025,7 +1029,7 @@ def prepare_map(
     return map_cls(
       (d.id, d)
       for v in val
-        for d in [db.deserialize(elements_cls, v)])
+        for d in [db.deserialize(elements_cls, v)[0]])
   elif mkitem:
     return map_cls(map(mkitem, val))
   else:

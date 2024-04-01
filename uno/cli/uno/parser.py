@@ -58,6 +58,13 @@ from .cmd_agent import (
 )
 
 
+def _parser_args_config(parser: argparse._SubParsersAction):
+  parser.add_argument("-U", "--update",
+    help="Update the configuration to the specified values, otherwise print the current value.",
+    default=False,
+    action="store_true")
+
+
 def _parser_args_registry(parser: argparse._SubParsersAction,
     owner_id_required: bool=False):
   parser.add_argument("-o", "--owner",
@@ -172,6 +179,13 @@ def _parser_args_print(parser):
     default=False,
     action="store_true",
     help="Print UVN configuration to stdout.")
+  parser.add_argument("-Q", "--query",
+    default=None,
+    help="A query expression to select parts of the printed data structure.")
+  parser.add_argument("-J", "--json",
+    default=False,
+    action="store_true",
+    help="Print result in JSON format instead of YAML.")
 
 
 def _parser_args_deployment(parser):
@@ -263,12 +277,14 @@ def _empty_config(parsed_values: dict) -> bool:
       values = cur
     for v in values:
       if isinstance(v, (dict, list)):
-        return _check_recur(v)
+        empty = _check_recur(v)
+        if not empty:
+          return False
       elif v is not None:
         # Found a non-null value
         return False
     return True
-
+  return _check_recur(parsed_values)
 
 
 def _config_args_registry(args: argparse.Namespace) -> dict | None:
@@ -425,9 +441,10 @@ def uno_parser(parser: argparse.ArgumentParser):
     cmd=registry_config_uvn,
     help="Update the UVN's configuration.")
 
+  _parser_args_config(cmd_config_uvn)
+  _parser_args_print(cmd_config_uvn)
   _parser_args_registry(cmd_config_uvn)
   _parser_args_deployment(cmd_config_uvn)
-  _parser_args_print(cmd_config_uvn)
   _parser_args_generate(cmd_config_uvn)
 
   #############################################################################
@@ -440,8 +457,9 @@ def uno_parser(parser: argparse.ArgumentParser):
   cmd_config_cell.add_argument("name",
     help="The cell's unique name.")
 
-  _parser_args_cell(cmd_config_cell)
+  _parser_args_config(cmd_config_cell)
   _parser_args_print(cmd_config_cell)
+  _parser_args_cell(cmd_config_cell)
   _parser_args_generate(cmd_config_cell)
 
   #############################################################################
@@ -454,8 +472,9 @@ def uno_parser(parser: argparse.ArgumentParser):
   cmd_config_particle.add_argument("name",
     help="The particle's unique name.")
 
-  _parser_args_particle(cmd_config_particle)
+  _parser_args_config(cmd_config_particle)
   _parser_args_print(cmd_config_particle)
+  _parser_args_particle(cmd_config_particle)
   _parser_args_generate(cmd_config_particle)
 
 
@@ -469,8 +488,9 @@ def uno_parser(parser: argparse.ArgumentParser):
   cmd_config_user.add_argument("email",
     help="The user's unique email.")
 
-  _parser_args_user(cmd_config_user)
+  _parser_args_config(cmd_config_user)
   _parser_args_print(cmd_config_user)
+  _parser_args_user(cmd_config_user)
   _parser_args_generate(cmd_config_user)
 
 

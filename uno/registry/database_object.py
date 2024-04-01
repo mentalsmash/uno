@@ -212,7 +212,6 @@ def _define_inject_cursor(wrapped, get_db: Callable[[object], "Database"]):
       db.log.tracedbg("cursor DELETE")
       db._cursor = None
     return res
-  _inject_cursor.__name__ = wrapped.__name__
   return _inject_cursor
 
 
@@ -476,7 +475,7 @@ class DatabaseObject:
 
 
   @classmethod
-  def load(cls, db: "Database", serialized: dict) -> "DatabaseObject":
+  def load(cls, db: "Database", serialized: dict) -> tuple["DatabaseObject", bool]:
     return db.deserialize(cls, serialized)
 
 
@@ -487,10 +486,12 @@ class DatabaseObject:
 
   @classmethod
   def new(cls, db: "Database", **properties) -> "DatabaseObject":
-    return db.deserialize(cls, {
+    loaded, cached = db.deserialize(cls, {
       **properties,
       **cls.generate_new(db, **properties),
     }, use_cache=False)
+    assert(not cached)
+    return loaded
 
 
 
