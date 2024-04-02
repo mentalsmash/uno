@@ -6,7 +6,7 @@ LANs are interconnected by local agents deployed within them to act as gateways 
 other LANs.
 
 Agents use secure VPN links to establish a routing "backbone" where they
-carry out the [OSPF protocol](https://en.wikipedia.org/wiki/Open_Shortest_Path_First)
+carry out the [BGP protocol](https://en.wikipedia.org/wiki/Border_Gateway_Protocol)
 to find routes to every other remote LAN.
 
 VPN links are provisioned using [WireGuard](https://www.wireguard.com/), while
