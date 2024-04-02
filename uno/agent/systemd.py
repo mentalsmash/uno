@@ -23,7 +23,7 @@ log = Logger.sublogger("systemd")
 from .systemd_service import SystemdService
 
 class _Systemd:
-  SERVICE_INSTALL_PATH = Path("/etc/systemd/user")
+  SERVICE_INSTALL_PATH = Path("/etc/systemd/system")
 
   def __init__(self) -> None:
     self._systemctl = shell_which("systemctl")
