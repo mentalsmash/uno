@@ -13,7 +13,7 @@ Type=notify
 NotifyAccess=all
 KillSignal=SIGINT
 PIDFile={{pid_file}}
-ExecStart={{uno_bin}} agent -r {{root}} -vv
+ExecStart={{uno_bin}} agent --systemd -r {{root}} -vv
 {% else %}
 Type=oneshot
 RemainAfterExit=true
