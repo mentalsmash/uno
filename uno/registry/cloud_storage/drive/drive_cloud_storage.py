@@ -28,8 +28,6 @@ from functools import cached_property
 from pathlib import Path
 from uno.registry.cloud_storage import CloudStorage, CloudStorageFile, CloudStorageError
 from uno.core.exec import exec_command
-from uno.registry.database import Database
-from uno.registry.versioned import Versioned
 
 
 class GoogleDriveCloudStorage(CloudStorage):

@@ -1,5 +1,5 @@
 
-from uno.uvn.time import Timestamp
+from uno.core.time import Timestamp
 
 def test_basic():
   t = Timestamp.now()
