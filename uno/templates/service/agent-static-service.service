@@ -2,6 +2,7 @@
 Description=uno {{name}} static service
 {%- if previous_service %}
 BindsTo={{previous_service.service_file.name}}
+After={{previous_service.service_file.name}}
 {%- endif %}
 After=docker.service
 Wants=docker.service

@@ -105,8 +105,8 @@ def cli_command_main(define_parser: Callable[[argparse._SubParsersAction], None]
     log_level.warning
   )
 
-  if getattr(args, "systemd", False):
-    Logger.enable_syslog = True
+  # if getattr(args, "systemd", False):
+  #   Logger.enable_syslog = True
 
   yes = getattr(args, "yes", False)
   if yes:
