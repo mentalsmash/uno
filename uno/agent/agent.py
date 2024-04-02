@@ -98,7 +98,6 @@ def cell_exclusive_method(wrapped):
   return error_if(lambda self, *a, **kw: not isinstance(self.owner, Cell))(wrapped)
 
 
-
 class Agent(AgentConfig, Runnable, UvnPeerListener, RoutesMonitorListener, OwnableDatabaseObject, DatabaseObjectOwner):
   class SyncMode(Enum):
     IMMEDIATE = 0
@@ -726,6 +725,8 @@ class Agent(AgentConfig, Runnable, UvnPeerListener, RoutesMonitorListener, Ownab
       routed_networks=self.lans,
       ts_start=self.init_ts)
     if self.enable_systemd:
+      # Since the agent was started as a systemd unit, write static marker file
+      self.static.write_marker()
       self.log.debug("notifying systemd")
       notifier = sdnotify.SystemdNotifier()
       notifier.notify("READY=1")
@@ -1592,9 +1593,7 @@ class Agent(AgentConfig, Runnable, UvnPeerListener, RoutesMonitorListener, Ownab
       raise RuntimeError("errors while stopping services", errors)
 
 
-  def service_up(self, service: str) -> None:
-    if service != "agent":
-      raise NotImplementedError()
+  def start_static(self) -> None:
     agent_pid = self.external_agent_process()
     if agent_pid is not None:
       self.log.warning("agent daemon already running: {}", agent_pid)
@@ -1625,9 +1624,7 @@ class Agent(AgentConfig, Runnable, UvnPeerListener, RoutesMonitorListener, Ownab
     # self.spin()
 
 
-  def service_down(self, service: str) -> None:
-    if service != "agent":
-      raise NotImplementedError()
+  def stop_static(self) -> None:
     agent_pid = self.external_agent_process()
     if agent_pid is None:
       self.log.info("no agent detected")

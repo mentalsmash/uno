@@ -99,17 +99,18 @@ class AgentStaticService(SystemdService):
     if self.active:
       self.log.warning("already active")
       return
-    from .agent_service import AgentService
-    if isinstance(self.parent, AgentService):
-      self.parent.start_static()
-    else:
-      self.agent.service_up(self.name)
+    self.parent.start_static()
+    # from .agent_service import AgentService
+    # if isinstance(self.parent, AgentService):
+    # else:
+    #   self.agent.service_up(self.name)
 
 
   def down(self) -> None:
-    from .agent_service import AgentService
-    if isinstance(self.parent, AgentService):
-      self.parent.stop_static()
-    else:
-      self.agent.service_down(self.name)
+    self.parent.stop_static()
+    # from .agent_service import AgentService
+    # if isinstance(self.parent, AgentService):
+    #   self.parent.stop_static()
+    # else:
+    #   self.agent.service_down(self.name)
 
