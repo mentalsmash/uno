@@ -94,6 +94,9 @@ from the [RTI website](https://www.rti.com/free-trial).
    ```sh
    # initialize the UVN registry
    mkdir my-uvn
+
+   # WARNING: Protect access to this directory because it contains secrets.
+   chmod 700 my-uvn
    
    cd my-uvn
 
@@ -234,6 +237,9 @@ from the [RTI website](https://www.rti.com/free-trial).
 
    # Install the agent package
    sudo uno install lan-a.uvn-agent -r /opt/uvn
+
+   # WARNING: Protect access to this directory because it contains secrets.
+   sudo chmod 700 /opt/uvn
 
    # Delete the package
    rm lan-a.uvn-agent
