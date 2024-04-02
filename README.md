@@ -97,10 +97,11 @@ pip install ./uno
    
    cd my-uvn
 
+   # Create the uvn and the root user
    uno define uvn my-uvn \
      -o "John Doe <john@example.com>" \
-     -L /path/to/rti_license.dat \
-     -p userpassword
+     -p userpassword \
+     -L /path/to/rti_license.dat
    ```
 
 2. Define one or more UVN "cells".
@@ -138,13 +139,19 @@ pip install ./uno
    Cells are added with command `uno define cell`:
 
    ```sh
+   # Define a cell owned by the root user
    uno define cell lan-a \
      -a lan-a.my-organization.org \
      -N 192.168.1.0/24
 
+   # Define a cell owned by another user
+   uno define user jane@example.com \
+     -n "Jane Doe"
+     -p userpassword
+
    uno define cell lan-b \
      -a lan-b.my-organization.org \
-     -o "Jane Doe <jane@example.com" \
+     -o jane@example.com \
      -N 192.168.2.0/24
 
    # ...
@@ -170,7 +177,7 @@ pip install ./uno
    ```sh
    uno define particle john
 
-   uno define particle jane -o "Jane Doe <jane@example.com"
+   uno define particle jane -o jane@example.com
    ```
 
 4. Generate a deployment configuration for the UVN.
@@ -201,20 +208,8 @@ pip install ./uno
      public cell, and up to 2 backbone links for every private cell. The algorithm is quite naive, and
      it may fail to generate a valid graph.
 
-   The deployment configuration is generated (or updated) using command `uno redeploy`:
-
-   ```sh
-   uno redeploy
-   ```
-
-   The command will generate a new configuration and save it to disk.
-
-   When using the *static* strategy, the deployment configuration must be passed with argument `--strategy-args`,
-   as the path to a YAML file or as an inline YAML string, e.g.:
-
-   ```sh
-   uno redeploy -S static -D "{1: [2], 2: [3, 1], 3: [2, 4], 4: [3]}"
-   ```
+   The deployment configuration is generated (or updated) automatically whenever any relevant
+   configuration setting is changed. It can also be updated explicitly using command `uno redeploy`.
 
 5. Generate agent bundles and deploy them to each agent's target host.
 
@@ -262,6 +257,9 @@ pip install ./uno
    sudo uno service remove -r /opt/uvn
    ```
 
+   You can use one of the available [cloud storage plugins](#cloud-storage-plugins) to
+   share packages with your users.
+
 6. Configure port forwarding to the agents of every public cell.
 
    UVN agents use the following UDP ports:
@@ -274,3 +272,46 @@ pip install ./uno
 
 7. Configure static routes on the LAN's router to designate the agent's host
    as the gateway for other remote LANs.
+
+## Cloud Storage Plugins
+
+`uno` supports some cloud storage backends to make it easier to share packages with users securely.
+
+### Google Drive Plugin
+
+1. Follow the "Prerequisites" sections of the [OAuth 2.0 for Web Server Applications guide](https://developers.google.com/identity/protocols/oauth2/web-server).
+
+   Configured the following access scopes:
+
+   - `https://www.googleapis.com/auth/userinfo.email`
+   - `https://www.googleapis.com/auth/drive.appdata`
+   - `https://www.googleapis.com/auth/drive.file`
+
+   Download the credentials file and save it locally as `credentials.json`.
+
+2. Create a folder on your Google Drive and copy the folder id from the URL (the last part after `folders/`).
+
+3. Upload packages from the UVN registry:
+
+   ```sh
+   cd my-uvn/
+
+   uno export-cloud -s google-drive \
+     -a '{credentials_file: /path/to/credentials.json, upload_folder: "<FOLDER_ID>"}'
+   ```
+
+   The command will open a browser page to authorize the operation.
+
+   Credentials and configuration will be cached in `<uvn>/cloud/google-drive`, so you only need to pass the `--storage-args`
+   argument once per UVN directory.
+
+4. Download and extract a cell package:
+
+   ```sh
+   uno install-cloud \
+     -r my-cell \
+     -u my-uvn \
+     -c my-cell \
+     -s google-drive \
+     -a '{credentials_file: /path/to/credentials.json, upload_folder: "<FOLDER_ID>"}'
+   ```

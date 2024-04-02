@@ -887,7 +887,7 @@ class Registry(Versioned):
 
     return storage
 
-
+  
 
   def export_to_cloud(self, storage_id: str, **storage_config) -> None:
     storage = self.load_cloud_storage(storage_id, db=self.db, **storage_config)
@@ -926,9 +926,4 @@ class Registry(Versioned):
     root.mkdir(exist_ok=True, parents=True)
     exec_command(["mv", "-v", *(d.local_path for d in downloaded), root])
     return root / downloaded[0].local_path.name
-
-    
-
-
-
 
