@@ -1626,11 +1626,11 @@ class Agent(AgentConfig, Runnable, UvnPeerListener, RoutesMonitorListener, Ownab
 
 
   def stop_static(self) -> None:
-    agent_pid = self.external_agent_process()
-    if agent_pid is None:
-      self.log.info("no agent detected")
-      return
     try:
+      agent_pid = self.external_agent_process()
+      if agent_pid is None:
+        self.log.info("no agent detected")
+        return
       max_wait = 30
       ts_start = Timestamp.now()
       self.log.warning("stopping agent daemon: {}", agent_pid)
@@ -1645,6 +1645,8 @@ class Agent(AgentConfig, Runnable, UvnPeerListener, RoutesMonitorListener, Ownab
       self.log.warning("agent daemon stopped: {}", agent_pid)
     except Exception as e:
       raise RuntimeError("failed to terminate agent process: {}", agent_pid)
+    finally:
+      self.static.delete_marker()
 
     
   # def _restore_static_services(self, services: list[str]) -> None:
