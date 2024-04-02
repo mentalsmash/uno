@@ -18,7 +18,7 @@ which defines all parameters of **uno**'s *unified virtual network* (UVN).
 Agents will automatically discover local LANs by inspecting their active
 network interfaces, and they will exchange this information using
 [RTI Connext DDS](https://www.rti.com/products/connext-dds-professional).
-A valid RTI Connext DDS license must be provided, and it can be requested
+A valid RTI Connext DDS license is required to use uno, and it can be requested
 from the [RTI website](https://www.rti.com/free-trial).
 
 The following diagram shows an example of a UVN interconnecting four LANs with
