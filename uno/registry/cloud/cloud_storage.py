@@ -86,7 +86,7 @@ class CloudStorage(Versioned):
   @property
   def provider(self) -> "CloudProvider":
     from .cloud_provider import CloudProvider
-    assert(self.parent, CloudProvider)
+    assert(isinstance(self.parent, CloudProvider))
     return self.parent
 
 
