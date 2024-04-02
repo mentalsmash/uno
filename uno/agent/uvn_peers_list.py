@@ -53,7 +53,7 @@ class UvnPeerListener:
     pass
 
 
-  def on_event_online_particle(self, new_particles: set[UvnPeer], gone_particles: set[UvnPeer]) -> None:
+  def on_event_online_particles(self, new_particles: set[UvnPeer], gone_particles: set[UvnPeer]) -> None:
     pass
 
 

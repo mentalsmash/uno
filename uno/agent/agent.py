@@ -1233,7 +1233,7 @@ class Agent(AgentConfig, Runnable, UvnPeerListener, RoutesMonitorListener, Ownab
     self.peers_tester.trigger()
 
 
-  def on_event_online_particle(self, new_particles: set[UvnPeer], gone_particles: set[UvnPeer]) -> None:
+  def on_event_online_particles(self, new_particles: set[UvnPeer], gone_particles: set[UvnPeer]) -> None:
     if gone_particles:
       self.log.warning("particles OFFLINE [{}]: {}", len(gone_particles), [p.name for p in gone_particles])
     if new_particles:
