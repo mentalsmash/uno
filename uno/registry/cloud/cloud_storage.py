@@ -78,7 +78,6 @@ class CloudStorage(Versioned):
   REQ_PROPERTIES = [
     "root",
   ]
-  DB_TABLE = "cloud_storage_plugins"
 
   def prepare_root(self, val: str | Path) -> Path:
     return Path(val)
