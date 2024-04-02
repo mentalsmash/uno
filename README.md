@@ -18,8 +18,6 @@ which defines all parameters of **uno**'s *unified virtual network* (UVN).
 Agents will automatically discover local LANs by inspecting their active
 network interfaces, and they will exchange this information using
 [RTI Connext DDS](https://www.rti.com/products/connext-dds-professional).
-A valid RTI Connext DDS license is required to use uno, and it can be requested
-from the [RTI website](https://www.rti.com/free-trial).
 
 The following diagram shows an example of a UVN interconnecting four LANs with
 an agent in each LAN, and an extra, cloud-deployed, agent to provide redudant
@@ -77,8 +75,8 @@ python3 -m venv -m uno-venv
 pip install ./uno
 ```
 
-**uno**'s agents use the RTI Connext DDS Python API, which requires a valid RTI license file.
-[You can request a free evaluation license from the RTI website](https://www.rti.com/free-trial).
+A valid RTI Connext DDS license is required to use `uno`, and it can be requested
+from the [RTI website](https://www.rti.com/free-trial).
 
 ## UVN Setup
 
