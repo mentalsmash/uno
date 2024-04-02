@@ -20,6 +20,8 @@ from functools import cached_property
 import hashlib
 
 from ..core.ask import ask_yes_no
+from ..core.time import Timestamp
+from ..core.render import Templates
 
 from .uvn import Uvn
 from .cell import Cell
@@ -40,6 +42,7 @@ from .agent_config import AgentConfig
 from .package import Packager
 from .wg_key import WireGuardKeyPair, WireGuardPsk
 from .cloud import CloudProvider, CloudEmailServer, CloudStorage, CloudStorageFileType, CloudStorageFile
+
 
 from ..core.exec import exec_command
 
@@ -914,7 +917,7 @@ class Registry(Versioned):
   def export_to_cloud(self, **storage_config) -> None:
     if self.cloud_provider is None:
       raise RuntimeError("no cloud provider configured")
-    storage = self.cloud_storage.storage(**storage_config)
+    storage = self.cloud_provider.storage(**storage_config)
     archives = [
       # cell archives
       *(CloudStorageFile(
@@ -956,7 +959,8 @@ class Registry(Versioned):
   def send_email(self,
       to: str | OwnableDatabaseObject | User,
       subject: str,
-      body: str) -> None:
+      body: str,
+      sender: str | User = None) -> None:
     if isinstance(to, OwnableDatabaseObject):
       if not isinstance(to.owner, User):
         raise ValueError("unsupported email receiver", to)
@@ -965,6 +969,18 @@ class Registry(Versioned):
       to = to.email
     if self.cloud_provider is None:
       raise RuntimeError("no cloud provider configured")
+    if sender is None:
+      sender = self.uvn.owner
+    if isinstance(sender, User):
+      sender = sender.email
+    subject = f"[{self.local_id[0]}] {subject}"
+    body = Templates.render("notify/message", {
+      "body": body,
+      "sender": sender,
+      "to": to,
+      "subject": subject,
+      "generation_ts": Timestamp.now(),
+    })
     email_server = self.cloud_provider.email_server()
-    email_server.send(to=to, subject=subject, body=body)
+    email_server.send(sender=sender, to=to, subject=subject, body=body)
 

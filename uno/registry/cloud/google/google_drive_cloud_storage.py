@@ -25,6 +25,9 @@ from uno.registry.cloud import CloudStorage, CloudStorageFile, CloudStorageError
 
 
 class GoogleDriveCloudStorage(CloudStorage):
+  EQ_PROPERTIES = [
+    "parent",
+  ]
   PROPERTIES = [
     "upload_folder",
   ]

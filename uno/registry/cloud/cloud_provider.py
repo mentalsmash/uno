@@ -60,14 +60,14 @@ class CloudProvider(Versioned):
     return self.new_child(self.STORAGE, {
       "root": self.root / "storage",
       **config,
-    })
+    }, save=False)
 
 
   def email_server(self, **config) -> CloudEmailServer:
     return self.new_child(self.EMAIL_SERVER, {
       "root": self.root / "email",
       **config,
-    })
+    }, save=False)
 
 
   @classmethod

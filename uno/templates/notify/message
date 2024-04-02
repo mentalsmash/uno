@@ -1,0 +1,7 @@
+{{body}}
+
+--
+Generated on {{generation_ts | format_ts}}
+This message was sent to by <{{sender}}> using uno.
+Visit https://github.com/mentalsmash/uno to learn more about it.
+

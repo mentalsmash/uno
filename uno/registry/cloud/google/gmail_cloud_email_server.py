@@ -21,26 +21,38 @@ from functools import cached_property
 from uno.registry.cloud import CloudEmailServer, CloudEmailServerError
 
 import base64
-from email.mime.text import MIMEText
+# from email.mime.text import MIMEText
+from email.message import EmailMessage
+
 
 
 class GmailCloudEmailServer(CloudEmailServer):
+  EQ_PROPERTIES = [
+    "parent",
+  ]
+
   @cached_property
-  def __service(self) -> Resource:
+  def __service(self) -> Resource: 
     return self.provider.create_api_service("gmail", version="v1")
 
 
-  def send(self, to: str, subject: str, body: str) -> None:
+  def send(self, sender: str, to: str, subject: str, body: str) -> None:
     try:
-      message = MIMEText(body)
-      message['to'] = to
-      message['subject'] = subject
+      # message = MIMEText(body)
+      message = EmailMessage()
+      message['To'] = to
+      # TODO(asorbini) The "From" is not actually read by GMail, so the message will
+      # show up as coming from the cloud provider's user's email.
+      message['From'] = sender
+      message['Subject'] = subject
+      message.set_content(body)
+
       create_message = {'raw': base64.urlsafe_b64encode(message.as_bytes()).decode()}
-      self.log.info("sending e-mail to <{}>: {}", to, subject)
+      self.log.info("sending e-mail from <{}> to <{}>: {}", sender, to, subject)
       message = (self.__service.users().messages().send(userId="me", body=create_message).execute())
-      self.log.warning("e-mail sent to <{}>: {}", to, subject)
+      self.log.warning("e-mail sent from <{}> to <{}>: {}", sender, to, subject)
     except Exception as e:
-      self.log.error("failed to send e-mail to {}: {}", to, subject)
+      self.log.error("failed to send e-mail from <{}> to <{}>: {}", sender, to, subject)
       self.log.exception(e)
-      raise CloudEmailServerError("failed to send e-mail", to, subject)
+      raise CloudEmailServerError("failed to send e-mail", sender, to, subject)
 

@@ -364,3 +364,30 @@ def registry_export_cloud(args: argparse.Namespace, registry: Registry) -> bool:
   registry.configure(cloud_provider=args.config_registry(args)["cloud_provider"])
   registry.export_to_cloud(**(args.config_cloud_storage(args) or {}))
 
+
+@registry_action
+def registry_notify_user(args: argparse.Namespace, registry: Registry) -> None:
+  user = registry.load_user(args.email)
+  registry.configure(cloud_provider=args.config_registry(args)["cloud_provider"])
+  registry.send_email(to=user, **args.config_notify(args))
+
+
+@registry_action
+def registry_notify_cell(args: argparse.Namespace, registry: Registry) -> None:
+  cell = registry.load_cell(args.name)
+  registry.configure(cloud_provider=args.config_registry(args)["cloud_provider"])
+  registry.send_email(to=cell, **args.config_notify(args))
+
+
+@registry_action
+def registry_notify_particle(args: argparse.Namespace, registry: Registry) -> None:
+  particle = registry.load_particle(args.name)
+  registry.configure(cloud_provider=args.config_registry(args)["cloud_provider"])
+  registry.send_email(to=particle, **args.config_notify(args))
+
+
+@registry_action
+def registry_notify_uvn(args: argparse.Namespace, registry: Registry) -> None:
+  registry.configure(cloud_provider=args.config_registry(args)["cloud_provider"])
+  registry.send_email(to=registry.uvn, **args.config_notify(args))
+

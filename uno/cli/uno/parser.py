@@ -46,6 +46,10 @@ from .cmd_registry import (
   registry_ban_user,
   registry_unban_user,
   registry_export_cloud,
+  registry_notify_cell,
+  registry_notify_particle,
+  registry_notify_user,
+  registry_notify_uvn,
 )
 from .cmd_agent import (
   agent_sync,
@@ -283,6 +287,17 @@ def _parser_args_cloud_provider(parser: argparse._SubParsersAction):
     default=None)
 
 
+def _parser_notify(parser: argparse._SubParsersAction):
+  parser.add_argument("-S", "--subject",
+    help="Message subject",
+    required=True)
+
+  parser.add_argument("-B", "--body",
+    help="Message body",
+    required=True)
+
+  _parser_args_cloud_provider(parser)
+
 
 def _empty_config(parsed_values: dict) -> bool:
   def _check_recur(cur: dict | list) -> None:
@@ -307,6 +322,17 @@ def _config_cloud_provider(args: argparse.Namespace) -> dict | None:
   result = {
     "class": getattr(args, "cloud_provider", None),
     "args": _yaml_load_inline(cloud_provider_args) if cloud_provider_args else None,
+  }
+  if _empty_config(result):
+    return None
+  else:
+    return result
+
+
+def _config_notify(args: argparse.Namespace) -> dict | None:
+  result = {
+    "subject": getattr(args, "subject", None),
+    "body": getattr(args, "body", None),
   }
   if _empty_config(result):
     return None
@@ -609,7 +635,7 @@ def uno_parser(parser: argparse.ArgumentParser):
 
   _parser_args_cloud_provider(cmd_export_cloud)
 
-  cmd_install_cloud.add_argument("--cloud-storage-args",
+  cmd_export_cloud.add_argument("--cloud-storage-args",
     help="Arguments passed to the storage component of the cloud provider plugin. "
     "The value must be an inline JSON/YAML dictionary or the path of a file containing one.",
     default=None)
@@ -947,6 +973,63 @@ def uno_parser(parser: argparse.ArgumentParser):
 
 
   #############################################################################
+  # uno notify ...
+  #############################################################################
+  grp_notify = cli_command_group(subparsers, "notify",
+    title="Notification commands",
+    help="Send a message to a UVN user.")
+
+
+  #############################################################################
+  # uno notify user ...
+  #############################################################################
+  cmd_notify_user = cli_command(grp_notify, "user",
+    cmd=registry_notify_user,
+    help="Send a message to a UVN user.")
+
+  cmd_notify_user.add_argument("email",
+    help="The user's unique email.")
+
+  _parser_notify(cmd_notify_user)
+
+
+  #############################################################################
+  # uno notify cell ...
+  #############################################################################
+  cmd_notify_cell = cli_command(grp_notify, "cell",
+    cmd=registry_notify_cell,
+    help="Send a message to a UVN cell's owner.")
+
+  cmd_notify_cell.add_argument("name",
+    help="The cell's unique name.")
+
+  _parser_notify(cmd_notify_cell)
+
+
+  #############################################################################
+  # uno notify particle ...
+  #############################################################################
+  cmd_notify_particle = cli_command(grp_notify, "particle",
+    cmd=registry_notify_particle,
+    help="Send a message to a UVN particle's owner.")
+
+  cmd_notify_particle.add_argument("name",
+    help="The particle's unique name.")
+
+  _parser_notify(cmd_notify_particle)
+
+
+  #############################################################################
+  # uno notify uvn ...
+  #############################################################################
+  cmd_notify_uvn = cli_command(grp_notify, "uvn",
+    cmd=registry_notify_uvn,
+    help="Send a message to a UVN's owner.")
+
+  _parser_notify(cmd_notify_uvn)
+
+
+  #############################################################################
   # Automatic parser
   #############################################################################
   parser.set_defaults(
@@ -954,6 +1037,7 @@ def uno_parser(parser: argparse.ArgumentParser):
     config_cell=lambda self: _config_args_cell(self),
     config_particle=lambda self: _config_args_particle(self),
     config_user=lambda self: _config_args_user(self),
-    config_cloud_storage=lambda self: _config_cloud_storage(self))
+    config_cloud_storage=lambda self: _config_cloud_storage(self),
+    config_notify=lambda self: _config_notify(self))
 
 
