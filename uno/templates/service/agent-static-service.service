@@ -7,17 +7,19 @@ After=docker.service
 Wants=docker.service
 
 [Service]
+Environment="PYTHONUNBUFFERED=1"
 {% if name == "agent" %}
 Type=notify
 NotifyAccess=all
 KillSignal=SIGINT
 PIDFile={{pid_file}}
+ExecStart={{uno_bin}} agent -r {{root}} -vv
 {% else %}
 Type=oneshot
 RemainAfterExit=true
 ExecStop={{uno_bin}} service down -r {{root}} -vv {{name}}
-{% endif %}
 ExecStart={{uno_bin}} service up -r {{root}} -vv {{name}}
+{% endif %}
 
 [Install]
 WantedBy=multi-user.target
