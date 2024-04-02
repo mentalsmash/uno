@@ -20,7 +20,7 @@ from pathlib import Path
 
 from uno.registry.timing_profile import TimingProfile
 from uno.registry.deployment_strategy import DeploymentStrategyKind
-from uno.registry.cloud import CloudStorage
+from uno.registry.cloud import CloudProvider
 
 from ..cli_helpers import cli_command_group, cli_command
 from .cmd_registry import (
@@ -270,6 +270,18 @@ def _parser_args_sync(parser):
     " Default: %(default)s sec",
     default=3600,
     type=int)
+
+
+def _parser_args_cloud_provider(parser: argparse._SubParsersAction):
+  parser.add_argument("--cloud-provider",
+    help="Cloud provider plugin to use.",
+    choices=sorted(CloudProvider.Plugins.keys()),
+    required=True)
+
+  parser.add_argument("--cloud-provider-args",
+    help="Arguments passed to the cloud provider plugin. The value must be an inline JSON/YAML dictionary or the path of a file containing one.",
+    default=None)
+
 
 
 def _empty_config(parsed_values: dict) -> bool:
@@ -571,11 +583,8 @@ def uno_parser(parser: argparse.ArgumentParser):
     cmd=agent_install_cloud,
     help="Install an agent package by dowloading it from a cloud storage.")
 
-  cmd_install_cloud.add_argument("-s", "--storage",
-    help="Cloud storage plugin to use.",
-    choices=sorted(CloudStorage.RegisteredPlugins.keys()),
-    required=True)
-  
+  _parser_args_cloud_provider(cmd_install_cloud)
+
   cmd_install_cloud.add_argument("-u", "--uvn",
     help="Name of the UVN",
     required=True)
@@ -585,8 +594,9 @@ def uno_parser(parser: argparse.ArgumentParser):
     required=True)
 
 
-  cmd_install_cloud.add_argument("-a", "--storage-args",
-    help="Arguments passed to the storage plugin. Must be an inline JSON/YAML dictionary or a file containing one.",
+  cmd_install_cloud.add_argument("--cloud-storage-args",
+    help="Arguments passed to the storage component of the cloud provider plugin. "
+    "The value must be an inline JSON/YAML dictionary or the path of a file containing one.",
     default=None)
   
 
@@ -597,13 +607,11 @@ def uno_parser(parser: argparse.ArgumentParser):
     cmd=registry_export_cloud,
     help="Export the registry to cloud storage.")
 
-  cmd_export_cloud.add_argument("-s", "--storage",
-    help="Cloud storage plugin to use.",
-    choices=sorted(CloudStorage.RegisteredPlugins.keys()),
-    required=True)
+  _parser_args_cloud_provider(cmd_export_cloud)
 
-  cmd_export_cloud.add_argument("-a", "--storage-args",
-    help="Arguments passed to the storage plugin. Must be an inline JSON/YAML dictionary or a file containing one.",
+  cmd_install_cloud.add_argument("--cloud-storage-args",
+    help="Arguments passed to the storage component of the cloud provider plugin. "
+    "The value must be an inline JSON/YAML dictionary or the path of a file containing one.",
     default=None)
 
   #############################################################################

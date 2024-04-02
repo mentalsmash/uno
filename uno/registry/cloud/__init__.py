@@ -3,4 +3,5 @@ from .cloud_storage import CloudStorage, CloudStorageFile, CloudStorageFileType
 from .cloud_email_server import CloudEmailServer
 from .cloud_provider import CloudProvider
 
-from .google import GoogleDriveCloudStorage
+from .google import GoogleCloudProvider
+

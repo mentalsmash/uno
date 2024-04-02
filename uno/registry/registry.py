@@ -69,6 +69,9 @@ class Registry(Versioned):
     "config_id",
     "users",
   ]
+  VOLATILE_PROPERTIES = [
+    "cloud_provider",
+  ]
   PROPERTY_GROUPS = {
     "users": ["config_id"],
     "particles": [
@@ -103,7 +106,6 @@ class Registry(Versioned):
     "deployment",
     "rekeyed_root_config_id",
     "config_id",
-    "cloud_provider",
   ]
   DB_IMPORT_DROPS_EXISTING = True
 
@@ -317,7 +319,9 @@ class Registry(Versioned):
     }, save=False)
 
 
-  def prepare_cloud_provider(self, val: str | dict | CloudProvider) -> CloudProvider:
+  # Disable function on cells, since we are not propagating the state
+  @disabled_if(lambda self, *a, **kw: not isinstance(self.local_id[0], Uvn))
+  def prepare_cloud_provider(self, val: str | dict | CloudProvider) -> CloudProvider | None:
     if isinstance(val, CloudProvider):
       return val
     if isinstance(val, str):
