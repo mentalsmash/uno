@@ -66,6 +66,8 @@ class UvnNet(AgentService):
         self.log.warning("failed to stop VPN interface: {}", vpn)
         # self.log.exception(e)
         # errors.append(e)
+    if assert_stopped and not self._iptables_rules:
+      self._start(noop=True)
     for rule_id, rules in list(self._iptables_rules.items()):
       for rule in reversed(rules or []):
         try:
