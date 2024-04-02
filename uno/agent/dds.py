@@ -78,7 +78,7 @@ class DdsParticipant(AgentService):
   def _start(self) -> None:
     # HACK set NDDSHOME so that the Connext Python API finds the license file
     import os
-    os.environ["NDDSHOME"] = str(self.root)
+    os.environ["NDDSHOME"] = str(self.agent.root)
     self.log.activity("NDDSHOME: {}", os.environ["NDDSHOME"])
 
     qos_provider = dds.QosProvider(str(self.agent.participant_xml_config))
