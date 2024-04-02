@@ -78,7 +78,7 @@ pip install ./uno
 **uno**'s agents use the RTI Connext DDS Python API, which requires a valid RTI license file.
 [You can request a free evaluation license from the RTI website](https://www.rti.com/free-trial).
 
-## UVN Howto
+## UVN Setup
 
 1. Create a new UVN registry.
 
