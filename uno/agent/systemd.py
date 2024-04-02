@@ -53,7 +53,8 @@ class _Systemd:
       if install_svc_file.exists():
         self.stop_service(svc)
         self.disable_service(svc)
-        install_svc_file.unlink()
+        if install_svc_file.exists():
+          install_svc_file.unlink()
         log.info("deleted service: {}", install_svc_file)
 
 
