@@ -741,6 +741,7 @@ class Agent(AgentConfig, Runnable, UvnPeerListener, RoutesMonitorListener, Ownab
       yield self
     finally:
       self.log.warning("shutting down...")
+      self.static.delete_marker()
       self.peers.offline()
       # self._write_cell_info(self.peers.local)
       # self._write_uvn_info()
