@@ -232,28 +232,34 @@ pip install ./uno
    # Log into the target host.
    ssh lan-a-agent-host
 
-   # Install the agent
+   # Install the agent package
    sudo uno install lan-a.uvn-agent -r /opt/uvn
 
    # Delete the package
    rm lan-a.uvn-agent
 
-   # Enable and start the agent as a systemd service
-   sudo uno service install -r /opt/uvn -b -s -a
+   # Install the agent as a systemd unit
+   sudo uno service install -r /opt/uvn
+
+   # Enable agent at boot
+   sudo systemctl enable uno-agent
+
+   # Start agent
+   sudo systemctl start uno-agent
 
    # Check the agent service logs
-   journalctl -xue uvn-cell.service
-
-   # Check the network service logs
-   journalctl -xue uvn-net-cell.service
+   journalctl -xue uvn-agent.service
 
    # Check the agent's HTML status page
    firefox https://lan-a-agent-host
 
-   # Stop the service(s)
-   systemctl stop uvn-net-cell uvn-cell
+   # Stop all services
+   sudo systemctl stop uno-net
 
-   # Disable and delete systemd service
+   # Disable agent from boot
+   sudo systemctl disable uno-agent
+
+   # Delete systemd unit
    sudo uno service remove -r /opt/uvn
    ```
 
