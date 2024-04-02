@@ -362,5 +362,5 @@ def registry_delete_user(args: argparse.Namespace, registry: Registry) -> bool:
 @registry_action
 def registry_export_cloud(args: argparse.Namespace, registry: Registry) -> bool:
   storage_config = args.config_cloud_storage(args) or {}
-  registry.export_to_cloud(args.storage, **storage_config)
+  registry.export_to_cloud(**storage_config)
 

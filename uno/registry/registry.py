@@ -35,11 +35,11 @@ from .dds import locate_rti_license
 from .id_db import IdentityDatabase
 from .keys_backend_dds import DdsKeysBackend
 from .database import Database
-from .database_object import DatabaseObjectOwner, inject_db_cursor, inject_db_transaction, TransactionHandler
+from .database_object import DatabaseObjectOwner, OwnableDatabaseObject, inject_db_cursor, inject_db_transaction, TransactionHandler
 from .agent_config import AgentConfig
 from .package import Packager
 from .wg_key import WireGuardKeyPair, WireGuardPsk
-from .cloud_storage import CloudStorage, CloudStorageFileType, CloudStorageFile
+from .cloud import CloudProvider, CloudEmailServer, CloudStorage, CloudStorageFileType, CloudStorageFile
 
 from ..core.exec import exec_command
 
@@ -51,6 +51,7 @@ class Registry(Versioned):
     "rti_license",
     "rekeyed_root_config_id",
     "config_id",
+    "cloud_provider",
   ]
   STR_PROPERTIES = [
     "uvn_id"
@@ -102,6 +103,7 @@ class Registry(Versioned):
     "deployment",
     "rekeyed_root_config_id",
     "config_id",
+    "cloud_provider",
   ]
   DB_IMPORT_DROPS_EXISTING = True
 
@@ -304,6 +306,34 @@ class Registry(Versioned):
 
   def prepare_deployment(self, val: str | dict | P2pLinksMap) -> P2pLinksMap:
     return self.deployment_strategy.new_child(P2pLinksMap, val)
+
+
+  @classmethod
+  def load_cloud_provider(cls, svc_class: str, db: Database | None = None, **storage_config) -> CloudProvider:
+    provider_cls = CloudProvider.Plugins[svc_class]
+    return db.new(provider_cls, {
+      **storage_config,
+      "root": db.root / "cloud" / provider_cls.svc_class(),
+    }, save=False)
+
+
+  def prepare_cloud_provider(self, val: str | dict | CloudProvider) -> CloudProvider:
+    if isinstance(val, CloudProvider):
+      return val
+    if isinstance(val, str):
+      val = self.yaml_load(str)
+    provider_class = val["class"].lower()
+    provider_args = val["args"] or {}
+    return self.load_cloud_provider(provider_class, db=self.db, **provider_args)
+
+
+  def serialize_cloud_provider(self, val: CloudProvider | None) -> dict | None:
+    if val is None:
+      return None
+    return {
+      "class": val.svc_class(),
+      "args": val.serialize(),
+    }
 
 
   @cached_property
@@ -876,21 +906,11 @@ class Registry(Versioned):
     return do_in_transaction(_generate)
 
 
-  @classmethod
-  def load_cloud_storage(cls, storage_id: str, db: Database | None = None, **storage_config) -> CloudStorage:
-    storage_cls = CloudStorage.RegisteredPlugins[storage_id]
 
-    storage = db.new(storage_cls, {
-      **storage_config,
-      "root": db.root / "cloud" / storage_cls.svc_class(),
-    }, save=False)
-
-    return storage
-
-  
-
-  def export_to_cloud(self, storage_id: str, **storage_config) -> None:
-    storage = self.load_cloud_storage(storage_id, db=self.db, **storage_config)
+  def export_to_cloud(self, **storage_config) -> None:
+    if self.cloud_provider is None:
+      raise RuntimeError("no cloud provider configured")
+    storage = self.cloud_storage.storage(**storage_config)
     archives = [
       # cell archives
       *(CloudStorageFile(
@@ -911,9 +931,10 @@ class Registry(Versioned):
 
 
   @classmethod
-  def import_cell_package_from_cloud(cls, uvn: str, cell: str, root: Path, storage_id: str, **storage_config) -> Path:
+  def import_cell_package_from_cloud(cls, uvn: str, cell: str, root: Path, provider_class: str, provider_config: dict | None = None, storage_config: dict | None = None) -> Path:
     db = Database()
-    storage = cls.load_cloud_storage(storage_id, db=db, **storage_config)
+    provider = cls.load_cloud_provider(provider_class, db=db, **(provider_config or {}))
+    storage = provider.storage(**(storage_config or {}))
     cell_archive = Packager.cell_archive_file(cell_name=cell, uvn_name=uvn)
     archives = [
       CloudStorageFile(
@@ -926,4 +947,20 @@ class Registry(Versioned):
     root.mkdir(exist_ok=True, parents=True)
     exec_command(["mv", "-v", *(d.local_path for d in downloaded), root])
     return root / downloaded[0].local_path.name
+
+
+  def send_email(self,
+      to: str | OwnableDatabaseObject | User,
+      subject: str,
+      body: str) -> None:
+    if isinstance(to, OwnableDatabaseObject):
+      if not isinstance(to.owner, User):
+        raise ValueError("unsupported email receiver", to)
+      to = to.owner
+    if isinstance(to, User):
+      to = to.email
+    if self.cloud_provider is None:
+      raise RuntimeError("no cloud provider configured")
+    email_server = self.cloud_provider.email_server()
+    email_server.send(to=to, subject=subject, body=body)
 

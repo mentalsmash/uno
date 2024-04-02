@@ -20,7 +20,7 @@ from pathlib import Path
 
 from uno.registry.timing_profile import TimingProfile
 from uno.registry.deployment_strategy import DeploymentStrategyKind
-from uno.registry.cloud_storage import CloudStorage
+from uno.registry.cloud import CloudStorage
 
 from ..cli_helpers import cli_command_group, cli_command
 from .cmd_registry import (
@@ -290,9 +290,22 @@ def _empty_config(parsed_values: dict) -> bool:
   return _check_recur(parsed_values)
 
 
+def _config_cloud_provider(args: argparse.Namespace) -> dict | None:
+  cloud_provider_args = getattr(args, "cloud_provider_args", None)
+  result = {
+    "class": getattr(args, "cloud_provider", None),
+    "args": _yaml_load_inline(cloud_provider_args) if cloud_provider_args else None,
+  }
+  if _empty_config(result):
+    return None
+  else:
+    return result
+
+
 def _config_args_registry(args: argparse.Namespace) -> dict | None:
   result = {
     "rti_license": getattr(args, "rti_license", None),
+    "cloud_provider": _config_cloud_provider(args),
     "uvn": {
       "address": getattr(args, "address", None),
       "settings": {
@@ -380,7 +393,8 @@ def _yaml_load_inline(val: str | Path) -> dict:
 
 
 def _config_cloud_storage(args: argparse.Namespace) -> dict | None:
-  result = _yaml_load_inline(args.storage_args) if args.storage_args else {}
+  storage_args = getattr(args, "cloud_storage_args", None)
+  result = _yaml_load_inline(storage_args) if storage_args else {}
   if _empty_config(result):
     return None
   else:

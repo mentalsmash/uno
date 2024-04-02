@@ -60,7 +60,8 @@ CREATE TABLE registry (
   uvn_id INT NOT NULL CHECK (id > 0),
   config_id CHAR(64) NOT NULL CHECK(length(config_id) == 64),
   rekeyed_root_config_id CHAR(64) CHECK(rekeyed_root_config_id IS NULL OR length(rekeyed_root_config_id) == 64),
-  deployment TEXT);
+  deployment TEXT,
+  cloud_provider TEXT);
 
 INSERT INTO next_id (target) VALUES ("registry");
 

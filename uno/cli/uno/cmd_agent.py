@@ -40,12 +40,14 @@ def agent_install(args: argparse.Namespace) -> None:
 
 def agent_install_cloud(args: argparse.Namespace) -> None:
   storage_config = args.config_cloud_storage(args) or {}
+  provider_config = args.config_registry(args)["cloud_provider"]
   Agent.install_package_from_cloud(
     uvn=args.uvn,
     cell=args.cell,
     root=args.root,
-    storage_id=args.storage,
-    **storage_config)
+    provider_class=provider_config["class"],
+    provider_args=provider_config["args"],
+    storage_args=storage_config)
 
 
 @agent_action
