@@ -995,6 +995,7 @@ class Agent(AgentConfig, Runnable, UvnPeerListener, RoutesMonitorListener, Ownab
       "enable_dds_security": self.uvn.settings.enable_dds_security,
       "domain": self.uvn.settings.dds_domain,
       "domain_tag": self.uvn.name,
+      "rti_license": self.registry.rti_license,
     })
   
 
@@ -1032,6 +1033,7 @@ class Agent(AgentConfig, Runnable, UvnPeerListener, RoutesMonitorListener, Ownab
       "enable_dds_security": self.uvn.settings.enable_dds_security,
       "domain": self.uvn.settings.dds_domain,
       "domain_tag": self.uvn.name,
+      "rti_license": self.registry.rti_license,
     })
 
 

@@ -23,3 +23,4 @@ ExecStart={{uno_bin}} service up -r {{root}} -vv {{name}}
 
 [Install]
 WantedBy=multi-user.target
+
