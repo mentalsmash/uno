@@ -19,7 +19,8 @@ import ipaddress
 from pathlib import Path
 
 from uno.registry.timing_profile import TimingProfile
-from uno.registry.deployment import DeploymentStrategyKind
+from uno.registry.deployment_strategy import DeploymentStrategyKind
+from uno.registry.cloud_storage import CloudStorage
 
 from ..cli_helpers import cli_command_group, cli_command
 from .cmd_registry import (
@@ -44,6 +45,7 @@ from .cmd_registry import (
   registry_delete_user,
   registry_ban_user,
   registry_unban_user,
+  registry_export_cloud,
 )
 from .cmd_agent import (
   agent_sync,
@@ -54,6 +56,7 @@ from .cmd_agent import (
   agent_service_up,
   agent_service_status,
   agent_install,
+  agent_install_cloud,
   agent_update,
 )
 
@@ -363,6 +366,27 @@ def _config_args_user(args: argparse.Namespace) -> dict | None:
     return result
 
 
+def _yaml_load_inline(val: str | Path) -> dict:
+  import yaml
+  # Try to interpret the string as a Path
+  yml_val = val
+  args_file = Path(val)
+  if args_file.is_file():
+    yml_val = args_file.read_text()
+  # Interpret the string as inline YAML
+  if not isinstance(yml_val, str):
+    raise ValueError("failed to load yaml", val)
+  return yaml.safe_load(yml_val)
+
+
+def _config_cloud_storage(args: argparse.Namespace) -> dict | None:
+  result = _yaml_load_inline(args.storage_args) if args.storage_args else {}
+  if _empty_config(result):
+    return None
+  else:
+    return result
+
+
 def uno_parser(parser: argparse.ArgumentParser):
   subparsers = parser.add_subparsers(help="Top-level Commands")
 
@@ -524,6 +548,49 @@ def uno_parser(parser: argparse.ArgumentParser):
   cmd_install.add_argument("package",
     help="Package file to install.",
     type=Path)
+
+
+  #############################################################################
+  # uno install-cloud ...
+  #############################################################################
+  cmd_install_cloud = cli_command(subparsers, "install-cloud",
+    cmd=agent_install_cloud,
+    help="Install an agent package by dowloading it from a cloud storage.")
+
+  cmd_install_cloud.add_argument("-s", "--storage",
+    help="Cloud storage plugin to use.",
+    choices=sorted(CloudStorage.RegisteredPlugins.keys()),
+    required=True)
+  
+  cmd_install_cloud.add_argument("-u", "--uvn",
+    help="Name of the UVN",
+    required=True)
+
+  cmd_install_cloud.add_argument("-c", "--cell",
+    help="Name of the cell",
+    required=True)
+
+
+  cmd_install_cloud.add_argument("-a", "--storage-args",
+    help="Arguments passed to the storage plugin. Must be an inline JSON/YAML dictionary or a file containing one.",
+    default=None)
+  
+
+  #############################################################################
+  # uno export-cloud ...
+  #############################################################################
+  cmd_export_cloud = cli_command(subparsers, "export-cloud",
+    cmd=registry_export_cloud,
+    help="Export the registry to cloud storage.")
+
+  cmd_export_cloud.add_argument("-s", "--storage",
+    help="Cloud storage plugin to use.",
+    choices=sorted(CloudStorage.RegisteredPlugins.keys()),
+    required=True)
+
+  cmd_export_cloud.add_argument("-a", "--storage-args",
+    help="Arguments passed to the storage plugin. Must be an inline JSON/YAML dictionary or a file containing one.",
+    default=None)
 
   #############################################################################
   # uno update ...
@@ -864,6 +931,7 @@ def uno_parser(parser: argparse.ArgumentParser):
     config_registry=lambda self: _config_args_registry(self),
     config_cell=lambda self: _config_args_cell(self),
     config_particle=lambda self: _config_args_particle(self),
-    config_user=lambda self: _config_args_user(self))
+    config_user=lambda self: _config_args_user(self),
+    config_cloud_storage=lambda self: _config_cloud_storage(self))
 
 

@@ -325,10 +325,10 @@ class UvnVpnConfig(Versioned):
     if not self.parent.deployment:
       return None
     # Inject cell lans as allowed ips on the backbone vpn links 
-    self.uvn.settings.backbone_vpn.allowed_ips = [
+    self.uvn.settings.backbone_vpn.allowed_ips = sorted({
       *self.uvn.settings.backbone_vpn.allowed_ips,
       *[str(l) for c in self.uvn.cells.values() for l in c.allowed_lans],
-    ]
+    })
     cells = sorted(self.uvn.cells.values(), key=lambda v: v.id)
     return self.parent.new_child(P2pVpnConfig,{
       "keymat": self.parent.backbone_vpn_keymat,

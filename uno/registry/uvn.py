@@ -90,6 +90,7 @@ class Uvn(Versioned, OwnableDatabaseObject, DatabaseObjectOwner):
   DB_TABLE = "uvns"
   DB_OWNER = User
   DB_OWNER_TABLE_COLUMN = "owner_id"
+  DB_IMPORT_DROPS_EXISTING = True
 
   # INITIAL_SETTINGS = lambda self: self.new_child(UvnSettings)
 

@@ -18,7 +18,7 @@ from typing import Generator
 from .versioned import Versioned, prepare_enum
 from .timing_profile import TimingProfile
 from .vpn_settings import RootVpnSettings, ParticlesVpnSettings, BackboneVpnSettings
-from .deployment import DeploymentStrategyKind
+from .deployment_strategy import DeploymentStrategyKind
 
 
 class DeploymentSettings(Versioned):

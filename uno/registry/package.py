@@ -17,6 +17,27 @@ if TYPE_CHECKING:
   from .registry import Registry
 
 class Packager(Versioned):
+  CELL_PACKAGE_EXT = ".uvn-agent"
+  PARTICLE_PACKAGE_EXT = ".zip"
+
+
+  @classmethod
+  def cell_archive_file(cls, cell: Cell | None = None, cell_name: str | None = None, uvn_name: str | None = None) -> str:
+    cell_name = cell_name or cell.name
+    uvn_name = uvn_name or cell.uvn.name
+    return f"{uvn_name}__{cell_name}{cls.CELL_PACKAGE_EXT}"
+
+
+  @classmethod
+  def particle_archive_file(cls, particle: Particle) -> str:
+    return f"{particle.uvn.name}__{particle.name}{cls.PARTICLE_PACKAGE_EXT}"
+
+
+  @classmethod
+  def particle_cell_file(cls, particle: Particle, cell: Cell | None = None) -> str:
+    return f"{particle.uvn.name}__{particle.name}__{cell.name}"
+
+
   @classmethod
   def mkarchive(cls,
         archive: Path,
@@ -53,7 +74,8 @@ class Packager(Versioned):
     # Check that the uvn has been deployed
     assert(registry.deployed)
     assert(cell.object_id is not None)
-    agent_package = output_dir / f"{cell.uvn.name}__{cell.name}.uvn-agent"
+    archive_package_name = cls.cell_archive_file(cell)
+    agent_package = output_dir / archive_package_name
     cls.log.activity("generate cell agent package: {}", agent_package)
 
     # Generate package in a temporary directory
@@ -89,12 +111,9 @@ class Packager(Versioned):
       package_files.append(tgt)
 
     
-    # Generate agent's database
-    db = Database(tmp_dir, create=True)
-    db.initialize()
-    registry.export_cell_database(db, cell)
+    # Generate agent's database in the temporary directory
+    db = registry.generate_cell_database(cell, root=tmp_dir)
     package_files.append(db.db_file)
-
 
     # Store all files in a single archive
     cls.mkarchive(agent_package, base_dir=tmp_dir, files=package_files)
@@ -152,8 +171,10 @@ class Packager(Versioned):
       output_dir: Path) -> None:
     cls.log.activity("generate particle package: {}", particle)
     # Generate package in a temporary directory
+    particle_archive_name = cls.particle_archive_file(particle)
+
     tmp_dir_h = tempfile.TemporaryDirectory()
-    tmp_dir = Path(tmp_dir_h.name) / f"{registry.uvn.name}__{particle.name}"
+    tmp_dir = Path(tmp_dir_h.name) / Path(particle_archive_name).stem
     tmp_dir.mkdir(parents=True, exist_ok=True, mode=0o700)
     
 
@@ -175,8 +196,8 @@ class Packager(Versioned):
       "generation_ts": Timestamp.now().format(),
     })
 
-    particle_archive = output_dir / f"{tmp_dir.name}.zip"
-    cls.mkarchive(particle_archive, base_dir=tmp_dir.parent, format="zip")
+    particle_archive = output_dir / particle_archive_name
+    cls.mkarchive(particle_archive, base_dir=tmp_dir.parent, format=Path(particle_archive_name).suffix[1:])
 
     cls.log.info("particle package generated: {}", particle_archive)
 
@@ -191,7 +212,7 @@ class Packager(Versioned):
       output_dir: Path,
       output_filename: str|None=None) -> set[Path]:
     if output_filename is None:
-      output_filename = f"{particle.uvn.name}__{particle.name}__{cell.name}"
+      output_filename = cls.particle_cell_file(particle, cell)
     particle_cfg_file = output_dir / f"{output_filename}.conf"
     particle_qr_file = output_dir / f"{output_filename}.png"
     output_dir.mkdir(parents=True, exist_ok=True, mode=0o700)

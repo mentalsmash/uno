@@ -50,6 +50,7 @@ class User(Versioned, DatabaseObjectOwner):
 
   DB_TABLE = "users"
   DB_TABLE_PROPERTIES = PROPERTIES
+  DB_IMPORT_DROPS_EXISTING = True
 
 
   @classmethod

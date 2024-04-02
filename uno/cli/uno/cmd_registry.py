@@ -25,15 +25,16 @@ from uno.core.log import Logger
 
 def _get_collection_element(collection: list | dict, index_expr: str):
   import re
-  index_component_re = re.compile(r"\[([^\]]+)\]")
+  # index_component_re = re.compile(r"\[([^\]]+)\]")
+  # This regex can support "list" index expressions (e.g. "[[1, 2]]"), which are
+  # parsed with a trailing "]" and not starting "[", so they must be fixed
+  index_component_re = re.compile(r"\[([^\[]*)\]")
   current_target = collection
   parsed_index = ""
   try:
     for index_component in index_component_re.findall(index_expr):
-      if not parsed_index:
-        parsed_index = f"[{index_component}]"
-      else:
-        parsed_index = f"{parsed_index}[{index_component}]"
+      if not index_component:
+        raise ValueError("empty index component")
       # Try to interpret index as an int
       try:
         int_index = int(index_component)
@@ -44,29 +45,55 @@ def _get_collection_element(collection: list | dict, index_expr: str):
       # masking an exception thrown by the getter
       if int_index is not None:
         current_target = current_target[int_index]
-        continue
+      else:
+        # The index was not an integer, parse it with yaml and use the result as index
+        # If the value is a string, it will remain a string, otherwise, it might be
+        # parsed into a data structure. If the result is a string, it will be converted
+        # to a tuple, since we never use lists as dictionary keys.
+        #
+        # TODO(asorbini) loading the index via yaml is not really needed right now, and
+        # only done for future improvements. At the moment a "list" index cannot be parsed
+        # by the regex, because it would need to use syntax "[[a, b, c]]".
+        # A simple regular expression cannot do this, we would need a proper parser to
+        # matched balanced parentheses.
+        if index_component.endswith("]"):
+          assert(index_component[0] != "]")
+          index_component = "[" + index_component
 
-      # The index was not an integer, parse it with yaml and use the result as index
-      # If the value is a string, it will remain a string, otherwise, it might be
-      # parsed into a data structure. If the result is a string, it will be converted
-      # to a tuple, since we never use lists as dictionary keys.
-      value_index = yaml.safe_load(index_component)
-      if isinstance(value_index, list):
-        value_index = tuple(value_index)
-      current_target = current_target[value_index]
+        value_index = yaml.safe_load(index_component)
+        if isinstance(value_index, list):
+          value_index = tuple(value_index)
+
+        try:
+          current_target = current_target[value_index]
+        except KeyError:
+          # Try the index_component as a string as last resort
+          current_target = current_target[index_component]
+
+      if not parsed_index:
+        parsed_index = f"[{index_component}]"
+      else:
+        parsed_index = f"{parsed_index}[{index_component}]"
   except:
-    raise ValueError(f"failed to parse index expression after: '{parsed_index}'", index_expr, collection)
+    raise ValueError(f"failed to parse index expression '{index_expr}' after '{parsed_index}'", collection)
 
   if current_target is collection:
     raise ValueError("invalid index expression", index_expr)
   return current_target
 
-  # matched = index_components_re.match(index_expr)
-  # if not matched:
-  #   raise ValueError("invalid index expression", index_expr)
-  # matched.gr
 
-def _query_serialized(serialized: dict, query: str) -> object:
+def _query_serialized(serialized: object | dict, query: str) -> object:
+  """\
+Extract a value from an object by parsing a `query` expression.
+
+The `query` expression is interpreted as a sequence of dot-separated components, with
+optional index expressions. For example:
+
+- foo.bar.bar
+- foo.bar[0][1].bar[[0, 1]].bar
+
+The parser is limited, and it will ignore invalid characters between ']' and '.', and between ']' and '['.
+"""
   def _query_recur(cur: object | dict, query_component: str, remaining: list[str], fqattr: str = "") -> object:
     index_start = query_component.find("[")
     if index_start > 0:
@@ -81,8 +108,12 @@ def _query_serialized(serialized: dict, query: str) -> object:
     else:
       v = getattr(cur, attr)
 
+    if callable(v) and len(remaining) == 0:
+      v = v()
+
     if attr_index:
       v = _get_collection_element(v, attr_index)
+
     if len(remaining) == 0:
       return v
 
@@ -326,3 +357,10 @@ def registry_delete_user(args: argparse.Namespace, registry: Registry) -> bool:
   user = registry.load_user(args.email)
   registry.delete_user(user)
   return True
+
+
+@registry_action
+def registry_export_cloud(args: argparse.Namespace, registry: Registry) -> bool:
+  storage_config = args.config_cloud_storage(args) or {}
+  registry.export_to_cloud(args.storage, **storage_config)
+

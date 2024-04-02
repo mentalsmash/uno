@@ -21,6 +21,7 @@ import yaml
 import json
 from importlib.resources import files, as_file
 from functools import cached_property, wraps
+import tempfile
 
 from collections import namedtuple
 
@@ -28,6 +29,7 @@ from .versioned import Versioned
 
 from ..data import database as db_data
 from ..core.time import Timestamp
+from ..core.exec import exec_command
 from ..core.log import Logger
 
 from .database_object import (
@@ -83,9 +85,13 @@ class Database:
   THREAD_SAFE = _get_sqlite3_thread_safety()
 
   def __init__(self,
-      root: Path,
+      root: Path | None = None,
       create: bool=False) -> None:
     assert(self.THREAD_SAFE)
+    if root is None:
+      self.tmp_root = tempfile.TemporaryDirectory()
+      root = Path(self.tmp_root.name)
+      create  = True
     self.root = root.resolve()
     self.log = Logger.sublogger(f"db<{Logger.format_dir(self.root)}>")
     self._cursor = None
@@ -96,6 +102,8 @@ class Database:
         raise ValueError("not a uno directory", self.root)
       self.db_file.parent.mkdir(mode=0o700, parents=True, exist_ok=True)
       self.db_file.touch(mode=0o600)
+    elif create:
+      raise ValueError("directory already initialized", self.root)
     self._db = sqlite3.connect(
       self.db_file,
       isolation_level="DEFERRED",
@@ -105,6 +113,8 @@ class Database:
     def _tracer(query) -> None:
       self.log.tracedbg("exec SQL:\n{}", query)
     self._db.set_trace_callback(_tracer)
+    if create:
+      self.initialize()
     # sqlite3.register_adapter(Timestamp, adapt_timestamp)
     # sqlite3.register_converter("timestamp", convert_timestamp)
     # for t in [dict, list, set]:
@@ -216,8 +226,8 @@ class Database:
       for tgt, current_owner in query_targets.items():
         table = self.SCHEMA.lookup_table_by_object(tgt, required=False)
         create = table and (not tgt.loaded or force_insert)
-        logger = self.log.debug if create else self.log.trace
-        logger_result = self.log.activity if create else self.log.debug
+        logger = self.log.trace if create else self.log.tracedbg
+        logger_result = self.log.debug if create else self.log.trace
         if table:
           logger("{} {}: {}{}",
             "inserting new" if create else "saving",
@@ -365,6 +375,7 @@ class Database:
     # if cursor is None:
     #   cursor = self._db
     # cursor.execute(*query)
+
 
 
   @inject_transaction
@@ -528,20 +539,19 @@ class Database:
         else:
           yield tgt
         processed.add(tgt)
-    targets = list(_query_targets())
-    current_owners = {
-      tgt: self.owner(tgt, cursor=cursor)
-      for tgt in targets
-        if isinstance(tgt, OwnableDatabaseObject) and tgt.id
-    }
     def _delete():
+      targets = list(_query_targets())
+      current_owners = {
+        tgt: tgt.owner
+        for tgt in targets
+          if isinstance(tgt, OwnableDatabaseObject)
+      }
       for tgt, owner in current_owners.items():
         if owner is None:
           continue
         self._set_ownership(owner, [tgt], owned=False)
       for tgt in _query_targets():
         table = self.SCHEMA.lookup_table_by_object(obj)
-        # cursor.execute(f"DELETE FROM {table} WHERE id = ?", [tgt.id])
         self._cache.pop(tgt.id, None)
         self._delete(table, f"DELETE FROM {table} WHERE id = ?", [tgt.id], tgt.__class__,
           cursor=cursor)
@@ -721,44 +731,57 @@ class Database:
     return result
 
 
-  def export_tables(self, target: "Database", classes: Iterable[type[DatabaseObject]]) -> None:
-    exported = set()
-    exportable_types = list(self.SCHEMA.exportables())
-    for exported_cls in classes:
-      assert(issubclass(exported_cls, DatabaseObject))
-      assert(exported_cls in exportable_types)
-      table = self.SCHEMA.lookup_table_by_object(exported_cls)
-      owner_tables = (
-        list(t for t, _, _, in self.SCHEMA.lookup_owner_tables_by_object(exported_cls))
-        if issubclass(exported_cls, OwnableDatabaseObject) else []
-      )
-      # Read table SQL definition
-      l_cursor = self._db.cursor()
-      t_cursor = target._db.cursor()
-      # table_sql_create = l_cursor.execute(
-      #   f"SELECT sql FROM sqlite_master WHERE type = ? and name = ?",
-      #   ("table", table)).fetchone().sql
+  @inject_transaction
+  def export_tables(self,
+      target: "Database",
+      classes: Iterable[type[DatabaseObject]],
+      cursor: "Database.Cursor | None" = None,
+      do_in_transaction: TransactionHandler | None=None) -> None:
+    def _export():
+      already_exported = set()
+      
+      exportable_types = list(self.SCHEMA.exportables())
+      for exported_cls in classes:
+        assert(issubclass(exported_cls, DatabaseObject))
+        assert(exported_cls in exportable_types)
 
-      def _export(table) -> None:
-        if table in exported:
-          return
-        self.log.debug("export table {} to {}", table, target)
-        query, params = exported_cls.importable_query(table)
-        assert(query is not None)
-        # print(f"QUERY = '{query}'; PARAMS = '{params}';")
-        for row in l_cursor.execute(query, params or tuple()):
-          self.log.debug("export record {}: {}", table, row)
-          t_cursor.execute(
-            f"INSERT INTO {table} ({', '.join(f for f in row._fields)}) VALUES ({', '.join('?' for _ in row._fields)})",
-            row)
-        exported.add(table)
+        table = self.SCHEMA.lookup_table_by_object(exported_cls)
+        owner_tables = (
+          list(t for t, _, _, in self.SCHEMA.lookup_owner_tables_by_object(exported_cls))
+          if issubclass(exported_cls, OwnableDatabaseObject) else []
+        )
 
-      with target._db:
-        _export(table)
+        # Read table SQL definition
+        # l_cursor = self._db.cursor()
+        t_cursor = target._db.cursor()
+        # table_sql_create = l_cursor.execute(
+        #   f"SELECT sql FROM sqlite_master WHERE type = ? and name = ?",
+        #   ("table", table)).fetchone().sql
 
-        for owner_table in owner_tables:
-          _export(owner_table)
+        def _export_table(table) -> None:
+          if table in already_exported:
+            return
+          table_count = 0
+          self.log.debug("exporting table {} to {}", table, target)
+          query, params = exported_cls.importable_query(table)
+          assert(query is not None)
+          # print(f"QUERY = '{query}'; PARAMS = '{params}';")
+          for row in cursor.execute(query, params or tuple()):
+            self.log.debug("export record {}: {}", table, row)
+            t_cursor.execute(
+              f"INSERT INTO {table} ({', '.join(f for f in row._fields)}) VALUES ({', '.join('?' for _ in row._fields)})",
+              row)
+            table_count += 1
+          already_exported.add(table)
+          self.log.activity("exported {} records for table {} to {}", table_count, table, target)
 
+        with target._db:
+          _export_table(table)
+
+          for owner_table in owner_tables:
+            _export_table(owner_table)
+
+    return do_in_transaction(_export)
 
   def export_objects(self, target: "Database", objects: Iterable[Versioned], public: bool=False) -> None:
     target.save_all(objects, import_record=True, public=public, force_insert=True)
@@ -769,13 +792,21 @@ class Database:
       target: "Database",
       cursor: "Database.Cursor|None"=None,
       do_in_transaction: TransactionHandler | None=None) -> None:
+    # Make a backup of the current database
+    db_file_bkp = f"{self.db_file}.bkp"
+    exec_command(["cp", "-av", self.db_file, db_file_bkp])
+
     def _import() -> None:
       self.log.activity("importing database: {}", target)
       for cls in self.SCHEMA.importables():
         self.log.activity("importing {} objects", cls.__qualname__)
+        if cls.DB_IMPORT_DROPS_EXISTING:
+          self.log.debug("dropping all existing {} objects", cls.__qualname__)
+          table = self.SCHEMA.lookup_table_by_object(cls)
+          self.delete_where(table, where="id > ?", params=(0,), cls=cls)
         count = 0
         # query, params = cls.importable_query()
-        for obj in target.load(cls, cursor=cursor):
+        for obj in target.load(cls):
           if isinstance(obj, OwnableDatabaseObject) and obj.owner:
             chown = {obj.owner: [obj]}
           else:
@@ -785,7 +816,17 @@ class Database:
           count += 1
         self.log.info("imported {} {} objects", count, cls.__qualname__)
       self.log.info("imported database: {}", target)
-    do_in_transaction(_import)
+
+    try:
+      return do_in_transaction(_import)
+    except Exception as e:
+      # Restore backup
+      self.log.debug("restoring database on error: {}", e)
+      result = exec_command(["cp", "-av", db_file_bkp, self.db_file], noexcept=True)
+      if result.returncode != 0:
+        self.log.error("failed to restore database backup: {}", db_file_bkp)
+      self.log.warning("database returned to previous state on error: {}", e)
+      raise
 
 
   # def import_object(self, obj: DatabaseObject) -> None:

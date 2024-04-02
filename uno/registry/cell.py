@@ -54,6 +54,7 @@ class Cell(Versioned, OwnableDatabaseObject, DatabaseObjectOwner):
   ]
   DB_OWNER = User
   DB_OWNER_TABLE_COLUMN = "owner_id"
+  DB_IMPORT_DROPS_EXISTING = True
 
   INITIAL_EXCLUDED = False
   # INITIAL_SETTINGS = lambda self: self.new_child(CellSettings)

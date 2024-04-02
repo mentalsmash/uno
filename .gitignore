@@ -14,5 +14,6 @@ rti_license.dat
 bkp
 experiment
 experiment.log
-cell.uvn-agent
+*.uvn-agent
 uvn.networks
+uno.db

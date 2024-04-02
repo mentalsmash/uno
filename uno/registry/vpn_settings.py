@@ -18,8 +18,7 @@ import ipaddress
 
 from ..core.ip import ipv4_netmask_to_cidr
 
-from .deployment import DeploymentStrategyKind, P2pLinksMap
-from .versioned import Versioned, prepare_enum
+from .versioned import Versioned
 
 class VpnSettings(Versioned):
   PROPERTIES = [

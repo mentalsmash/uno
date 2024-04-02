@@ -27,17 +27,8 @@ from .particle import Particle
 from .user import User
 from .versioned import Versioned, disabled_if, error_if
 
-from .deployment import (
-  P2pLinksMap,
-  P2pLinkAllocationMap,
-  DeploymentStrategy,
-  DeploymentStrategyKind,
-  StaticDeploymentStrategy,
-  CrossedDeploymentStrategy,
-  CircularDeploymentStrategy,
-  RandomDeploymentStrategy,
-  FullMeshDeploymentStrategy,
-)
+from .deployment import P2pLinksMap, P2pLinkAllocationMap
+from .deployment_strategy import DeploymentStrategy
 from .vpn_keymat import CentralizedVpnKeyMaterial, P2pVpnKeyMaterial
 from .vpn_config import UvnVpnConfig
 from .dds import locate_rti_license
@@ -47,6 +38,8 @@ from .database import Database
 from .database_object import DatabaseObjectOwner, inject_db_cursor, inject_db_transaction, TransactionHandler
 from .agent_config import AgentConfig
 from .package import Packager
+from .wg_key import WireGuardKeyPair, WireGuardPsk
+from .cloud_storage import CloudStorage, CloudStorageFileType, CloudStorageFile
 
 from ..core.exec import exec_command
 
@@ -110,11 +103,7 @@ class Registry(Versioned):
     "rekeyed_root_config_id",
     "config_id",
   ]
-
-  UVN_FILENAME = "uvn.yaml"
-  CONFIG_FILENAME = "registry.yaml"
-  AGENT_PACKAGE_FILENAME = "{}.uvn-agent"
-  AGENT_CONFIG_FILENAME = "agent.yaml"
+  DB_IMPORT_DROPS_EXISTING = True
 
 
   def __init__(self, **properties) -> None:
@@ -140,7 +129,6 @@ class Registry(Versioned):
       raise RuntimeError("target directory not empty", root)
 
     db = Database(root, create=True)
-    db.initialize()
 
     owner_email, owner_name = User.parse_user_id(owner)
     owner = db.new(User, {
@@ -794,7 +782,7 @@ class Registry(Versioned):
         else:
           ask_yes_no(f"drop and regenerate all vpn keys for {particle} of {self.uvn}?")
       target_cells = cells or list(self.uvn.cells.values())
-      other_particles = list(p for p in self.uvn.all_particles if p != particle)
+      other_particles = list(p for p in self.uvn.all_particles.values() if p != particle)
       for cell in target_cells:
         keymat = self.particles_vpn_keymats[cell.id]
         keymat.purge_gone_peers((p.id for p in other_particles), delete=True, cursor=cursor)
@@ -843,78 +831,104 @@ class Registry(Versioned):
     return self.new_child(strategy_cls)
 
 
-  def export_cell_database(self, db: "Database", cell: Cell) -> None:
-    self.db.export_tables(db, [Uvn, Cell, Particle, User, Registry])
+
+  def cell_key_material(self, cell: Cell) -> tuple[list[WireGuardPsk|WireGuardKeyPair], list[WireGuardPsk|WireGuardKeyPair]]:
     priv_keymat = [
       *self.root_vpn_keymat.get_peer_material(cell.id, private=True),
       *self.backbone_vpn_keymat.get_peer_material(cell.id, private=True),
       *(self.particles_vpn_keymats[cell.id].get_peer_material(0, private=True)
           if cell.enable_particles_vpn else []),
     ]
-    self.log.activity("exporting {} private keys for {}", len(priv_keymat), cell)
-    for k in priv_keymat:
-      self.log.activity("- {}", k)
-    self.db.export_objects(db, priv_keymat)
-
     pub_keymat = [
       *self.root_vpn_keymat.get_peer_material(cell.id),
       *self.backbone_vpn_keymat.get_peer_material(cell.id),
       *(self.particles_vpn_keymats[cell.id].get_peer_material(0)
           if cell.enable_particles_vpn else []),
     ]
-    self.log.activity("exporting {} public keys for {}", len(pub_keymat), cell)
-    for k in pub_keymat:
-      self.log.activity("- {}", k)
-    self.db.export_objects(db, pub_keymat, public=True)
+    return priv_keymat, pub_keymat
+
+
+  @inject_db_transaction
+  def generate_cell_database(self,
+      cell: Cell,
+      root: Path | None = None,
+      cursor: "Database.Cursor | None" = None,
+      do_in_transaction: TransactionHandler | None=None) -> Database:
+    def _generate():
+      db = Database(root, create=True)
+      self.db.export_tables(db, [Uvn, Cell, Particle, User, Registry], cursor=cursor)
+
+      priv_keymat, pub_keymat = self.cell_key_material(cell)
+
+      if priv_keymat:
+        self.log.activity("exporting {} private keys for {}", len(priv_keymat), cell)
+        for k in priv_keymat:
+          self.log.activity("- {}", k)
+        self.db.export_objects(db, priv_keymat)
+
+      if pub_keymat:
+        self.log.activity("exporting {} public keys for {}", len(pub_keymat), cell)
+        for k in pub_keymat:
+          self.log.activity("- {}", k)
+        self.db.export_objects(db, pub_keymat, public=True)
     
-    # agent_config = self.agent_configs[cell.id]
-    # self.db.export_objects(db, agent_config)
-
-  # @property
-  # def registry_agent_config(self) -> AgentConfig:
-  #   return self.assert_agent_config(self.uvn)
+      return db
+    return do_in_transaction(_generate)
 
 
-  # @property
-  # def cell_agent_configs(self) -> set[AgentConfig]:
-  #   return {
-  #     cell.id: self.assert_agent_config(cell)
-  #       for cell in self.uvn.cells.values()
-  #   }
+  @classmethod
+  def load_cloud_storage(cls, storage_id: str, db: Database | None = None, **storage_config) -> CloudStorage:
+    storage_cls = CloudStorage.RegisteredPlugins[storage_id]
+
+    storage = db.new(storage_cls, {
+      **storage_config,
+      "root": db.root / "cloud" / storage_cls.svc_class(),
+    }, save=False)
+
+    return storage
 
 
-  # def assert_agent_config(self, owner: Uvn|Cell) -> AgentConfig:
-  #   def _assert_agent_config(owner: Uvn|Cell, init_args: dict, **search_args) -> AgentConfig:
-  #     existing = self.load_child(AgentConfig, **search_args)
-  #     if existing:
-  #       return existing
-  #     if self.readonly:
-  #       raise RuntimeError("missing agent configuration", owner)
-  #     return self.new_child(AgentConfig, {
-  #       "registry_id": self.config_id,
-  #       "deployment": self.deployment,
-  #       **init_args,
-  #     }, owner=owner)
 
-  #   if isinstance(owner, Cell):
-  #     cell = owner
-  #     return _assert_agent_config(cell, {
-  #       "root_vpn_config": self.vpn_config.root_vpn.peer_config(cell.id),
-  #       "particles_vpn_config": self.vpn_config.particles_vpn(cell),
-  #       "backbone_vpn_config": self.vpn_config.backbone_vpn.peer_config(cell.id),
-  #       "enable_router": True,
-  #       "enable_httpd": True,
-  #       "enable_peers_tester": True,
-  #     },
-  #     where="owner_id = ? AND registry_id = ?",
-  #     params=(self.json_dump(cell.object_id), self.config_id,))
-  #   else:
-  #     assert(isinstance(owner, Uvn))
-  #     return _assert_agent_config(self.uvn, {
-  #       "registry_id": self.config_id,
-  #       "deployment": self.deployment,
-  #       "root_vpn_config": self.vpn_config.root_vpn.root_config,
-  #     },
-  #     where="owner_id = ? AND registry_id = ?",
-  #     params=(self.json_dump(self.uvn.object_id), self.config_id,))
+  def export_to_cloud(self, storage_id: str, **storage_config) -> None:
+    storage = self.load_cloud_storage(storage_id, db=self.db, **storage_config)
+    archives = [
+      # cell archives
+      *(CloudStorageFile(
+        type=CloudStorageFileType.CELL_PACKAGE,
+        name=cell_archive,
+        local_path=self.cells_dir / cell_archive)
+      for cell in self.uvn.cells.values()
+        for cell_archive in [Packager.cell_archive_file(cell)]),
+      # particle archives
+      *(CloudStorageFile(
+        type=CloudStorageFileType.PARTICLE_PACKAGE,
+        name=particle_archive,
+        local_path=self.particles_dir / particle_archive)
+      for particle in self.uvn.particles.values()
+        for particle_archive in [Packager.particle_archive_file(particle)])
+    ]
+    uploaded = storage.upload(archives)
+
+
+  @classmethod
+  def import_cell_package_from_cloud(cls, uvn: str, cell: str, root: Path, storage_id: str, **storage_config) -> Path:
+    db = Database()
+    storage = cls.load_cloud_storage(storage_id, db=db, **storage_config)
+    cell_archive = Packager.cell_archive_file(cell_name=cell, uvn_name=uvn)
+    archives = [
+      CloudStorageFile(
+        type=CloudStorageFileType.CELL_PACKAGE,
+        name=cell_archive,
+        local_path=db.root / cell_archive),
+    ]
+    downloaded = storage.download(archives)
+    assert(len(downloaded) == len(archives))
+    root.mkdir(exist_ok=True, parents=True)
+    exec_command(["mv", "-v", *(d.local_path for d in downloaded), root])
+    return root / downloaded[0].local_path.name
+
+    
+
+
+
 

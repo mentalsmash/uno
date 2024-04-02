@@ -120,4 +120,9 @@ def cli_command_main(define_parser: Callable[[argparse._SubParsersAction], None]
     cmd(args)
   except KeyboardInterrupt:
     pass
+  except Exception as e:
+    Logger.error("exception detected")
+    Logger.exception(e)
+    import sys
+    sys.exit(1)
 

@@ -190,21 +190,33 @@ class Agent(AgentConfig, Runnable, UvnPeerListener, RoutesMonitorListener, Ownab
 
 
   @classmethod
-  def install_package(cls, package: Path, root: Path, reload: bool=False) -> "Agent":
-    excluded = [] if not reload else [Database.DB_NAME]
-    Packager.extract_cell_agent_package(package, root, exclude=excluded)
+  def install_package(cls, package: Path, root: Path) -> "Agent":
+    Packager.extract_cell_agent_package(package, root)
     agent = cls._assert_agent(root)
-    id_db_dir = agent.root / ".id-import"
+    agent._finish_import_id_db_keys()
+    cls.log.warning("bootstrap completed: {}@{} [{}]", agent.owner, agent.uvn, agent.root)
+    return agent
+
+
+  @classmethod
+  def install_package_from_cloud(cls, uvn: str, cell: str, root: Path, storage_id: str, **storage_config) -> "Agent":
+    import tempfile
+    tmp_dir_h = tempfile.TemporaryDirectory()
+    tmp_dir = Path(tmp_dir_h.name)
+    cell_package = Registry.import_cell_package_from_cloud(uvn=uvn, cell=cell, root=tmp_dir, storage_id=storage_id, **storage_config)
+    return cls.install_package(cell_package, root)
+
+
+  def _finish_import_id_db_keys(self) -> None:
+    id_db_dir = self.root / ".id-import"
     if id_db_dir.is_dir():
       package_files = [
         f.relative_to(id_db_dir)
           for f in id_db_dir.glob("**/*")
       ]
-      agent.id_db.import_keys(id_db_dir, package_files)
+      self.id_db.import_keys(id_db_dir, package_files)
       # self.net.generate_configuration()
       exec_command(["rm", "-rf", id_db_dir])
-    cls.log.debug("bootstrap completed: {}@{} [{}]", agent.owner, agent.uvn, agent.root)
-    return agent
 
 
   @classmethod
@@ -232,18 +244,24 @@ class Agent(AgentConfig, Runnable, UvnPeerListener, RoutesMonitorListener, Ownab
       if agent.owner != self.owner:
         raise ValueError("invalid agent owner", agent.owner)
       agent.log.warning("loading new configuration: {}", agent.registry_id)
-      # Extract all files in the package except for the database
-      cell_package = Path(agent._reload_package.name)
 
       # Import database records via SQL
       self.registry.db.import_other(agent.db)
 
-      self.install_package(cell_package, self.root, reload=True)
+      # Extract the package contents on top of the agent's root.
+      # Extract all files in the package except for the database.
+      cell_package = Path(agent._reload_package.name)
+      Packager.extract_cell_agent_package(cell_package, self.root, exclude=[Database.DB_NAME])
+      # Make sure there is a database record for the new config id
+      self._assert_agent(self.root)
+      # Drop the downloaded cell package (stored in a temp file)
       agent._reload_package = None
 
     new_agent = Agent.open(self.root,
       enable_systemd=self.enable_systemd,
       initial_active_static_services=self.initial_active_static_services)
+    if agent is not None:
+      new_agent._finish_import_id_db_keys()
     new_agent.log.warning("loaded new configuration: {}", new_agent.registry_id)
     return new_agent
 
@@ -1441,7 +1459,9 @@ class Agent(AgentConfig, Runnable, UvnPeerListener, RoutesMonitorListener, Ownab
     for cell in self.uvn.cells.values():
       if target_cells is not None and cell not in target_cells:
         continue
-      cell_package = cells_dir / f"{self.uvn.name}__{cell.name}.uvn-agent"
+      cell_package_name = Packager.cell_archive_file(cell)
+      cell_package = cells_dir / cell_package_name
+
       # tmp_dir_h = tempfile.TemporaryDirectory()
       # enc_package = Path(tmp_dir_h.name) / f"{cell_package.name}.enc"
       # key = self.id_db.backend[cell]

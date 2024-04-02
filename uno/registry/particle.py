@@ -50,6 +50,7 @@ class Particle(Versioned, OwnableDatabaseObject, DatabaseObjectOwner):
   # DB_ID_POOL = "uvns"
   DB_OWNER = User
   DB_OWNER_TABLE_COLUMN = "owner_id"
+  DB_IMPORT_DROPS_EXISTING = True
 
   INITIAL_EXCLUDED = False
 

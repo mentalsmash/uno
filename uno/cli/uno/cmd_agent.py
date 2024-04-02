@@ -38,6 +38,16 @@ def agent_install(args: argparse.Namespace) -> None:
   Agent.install_package(args.package, args.root)
 
 
+def agent_install_cloud(args: argparse.Namespace) -> None:
+  storage_config = args.config_cloud_storage(args) or {}
+  Agent.install_package_from_cloud(
+    uvn=args.uvn,
+    cell=args.cell,
+    root=args.root,
+    storage_id=args.storage,
+    **storage_config)
+
+
 @agent_action
 def agent_sync(args: argparse.Namespace, agent: Agent) -> None:
   agent.spin_until_consistent(

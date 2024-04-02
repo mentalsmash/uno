@@ -52,7 +52,7 @@ class IdentityDatabase(Versioned):
 
 
   def assert_keys(self) -> None:
-    self.log.debug("asserting keys for UVN {}", self.uvn)
+    self.log.debug("asserting keys for UVN {}: {}", self.uvn, self.peers)
     
     self.backend.root.mkdir(parents=True, exist_ok=True, mode=0o700)
     
@@ -65,6 +65,7 @@ class IdentityDatabase(Versioned):
         self.log.debug("key not found: {}", key_id)
         key = self.backend.generate_key(key_id)
         asserted[peer] = key
+
     self.log.debug("asserted {} keys for UVN {}", len(asserted), self.uvn)
 
 
@@ -84,7 +85,8 @@ class IdentityDatabase(Versioned):
 
   def import_keys(self, base_dir: Path, exported_files: set[Path]) -> Mapping[Uvn|Cell|Particle, Key]:
     exported_files = set(exported_files)
-    self.log.debug("importing keys from {} files", len(exported_files))
+    self.log.debug("importing keys from {} files for {} peers: {}",
+      len(exported_files), len(self.peers), self.peers)
     imported = {}
     for peer in self.peers:
       key_id = KeyId.from_uvn(peer)

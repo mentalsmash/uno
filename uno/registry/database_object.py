@@ -264,6 +264,7 @@ class DatabaseObject:
   DB_EXPORTABLE: bool = True
   DB_IMPORTABLE: bool = True
   DB_IMPORTABLE_WHERE: tuple[str, tuple] | None = None
+  DB_IMPORT_DROPS_EXISTING: bool = False
 
   def __init__(self,
       db: "Database",
