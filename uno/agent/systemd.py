@@ -64,18 +64,22 @@ class _Systemd:
 
   def enable_service(self, svc: SystemdService) -> None:
     self._exec("enable", svc.service_file.stem)
+    self.log.info("enabled at boot: {}", svc)
 
 
   def disable_service(self, svc: SystemdService) -> None:
     self._exec("disable", svc.service_file.stem, required=False)
+    self.log.info("disabled from boot: {}", svc)
 
 
   def start_service(self, svc: SystemdService) -> None:
     self._exec("start", svc.service_file.stem)
+    self.log.info("started: {}", svc)
 
 
   def stop_service(self, svc: SystemdService) -> None:
     self._exec("stop", svc.service_file.stem, required=False)
+    self.log.info("stopped: {}", svc)
   
 
 Systemd = _Systemd()
