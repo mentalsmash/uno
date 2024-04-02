@@ -37,7 +37,7 @@ class UvnNet(AgentService):
 
   def _start(self, noop: bool=False) -> None:
     if not noop:
-      exec_command(["echo", "1", ">", "/proc/sys/net/ipv4/ip_forward"],
+      exec_command(["echo 1 > /proc/sys/net/ipv4/ip_forward"],
         shell=True,
         fail_msg="failed to enable ipv4 forwarding")
 

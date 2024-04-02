@@ -54,7 +54,7 @@ addopts = [
 
 [tool.poetry.scripts]
 uno = 'uno.cli.uno:main'
-uvn-net = 'uno.cli.uvn_net:main'
+# uvn-net = 'uno.cli.uvn_net:main'
 
 [build-system]
 requires = ["poetry-core>=1.0.0"]
