@@ -244,26 +244,14 @@ from the [RTI website](https://www.rti.com/free-trial).
    # Delete the package
    rm lan-a.uvn-agent
 
-   # Install the agent as a systemd unit
-   sudo uno service install -r /opt/uvn
-
-   # Enable agent at boot
-   sudo systemctl enable uno-agent
-
-   # Start agent
-   sudo systemctl start uno-agent
+   # Install the agent as a systemd unit, enabled it at boot, and start it
+   sudo uno service install -r /opt/uvn -a -b -s
 
    # Check the agent service logs
-   journalctl -xue uvn-agent.service
+   journalctl -xeu uvn-agent
 
    # Check the agent's HTML status page
    firefox https://lan-a-agent-host
-
-   # Stop all services
-   sudo systemctl stop uno-net
-
-   # Disable agent from boot
-   sudo systemctl disable uno-agent
 
    # Delete systemd unit
    sudo uno service remove -r /opt/uvn
