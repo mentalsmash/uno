@@ -40,6 +40,8 @@ class CloudProvider(Versioned):
     "root",
   ]
   DB_TABLE = "cloud_plugins"
+  DB_EXPORTABLE = False
+  DB_IMPORTABLE = False
 
   def prepare_root(self, val: str | Path) -> Path:
     return Path(val)
