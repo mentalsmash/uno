@@ -25,7 +25,7 @@ from .user import User
 from .cell import Cell
 from .particle import Particle
 
-from .versioned import Versioned
+from .versioned import Versioned, prepare_name, prepare_address
 from .database_object import OwnableDatabaseObject, DatabaseObjectOwner, inject_db_cursor
 from .database import Database
 
@@ -96,7 +96,7 @@ class Uvn(Versioned, OwnableDatabaseObject, DatabaseObjectOwner):
 
   def load_nested(self) -> None:
     if self.settings is None:
-      self.settings = self.new_child(UvnSettings)
+      self.settings = self.prepare_settings({})
 
 
   @classmethod
@@ -206,13 +206,6 @@ class Uvn(Versioned, OwnableDatabaseObject, DatabaseObjectOwner):
 
 
   @property
-  def supports_reconfiguration(self) -> bool:
-    # The uvn can be dynamically reconfigured if all cells have a public address,
-    # or if the registry has a master address
-    return len(self.private_cells) == 0 or bool(self.address)
-
-
-  @property
   def nested(self) -> Generator[Versioned, None, None]:
     yield self.settings
     for c in self.all_cells.values():
@@ -222,11 +215,18 @@ class Uvn(Versioned, OwnableDatabaseObject, DatabaseObjectOwner):
 
 
   def prepare_settings(self, val: str | dict | UvnSettings) -> UvnSettings:
-    settings = self.new_child(UvnSettings, val)
-    return settings
+    return self.new_child(UvnSettings, val)
 
 
-  def validate(self) -> None:
+  def prepare_name(self, val: str) -> None:
+    return prepare_name(self.db, val)
+
+
+  def prepare_address(self, val: str | None) -> str | None:
+    return prepare_address(self.db, val)
+
+
+  def _validate(self) -> None:
     for cell in self.all_cells.values():
       self.validate_cell(cell)
     for particle in self.all_particles.values():
@@ -242,6 +242,13 @@ class Uvn(Versioned, OwnableDatabaseObject, DatabaseObjectOwner):
         checked_networks=cell.allowed_lans)  
       if clashes:
         raise ClashingNetworksError(clashes)
+    elif cell.private:
+      raise ValueError("private cells must have at least one network attached to them", cell)
+    
+    # Check that the UVN has an address if any cell is private
+    if cell.private and not self.address and self.settings.enable_root_vpn:
+      raise ValueError("private cells require a registry address to support reconfiguration. "
+        "Either make the cell public, assign a public address to the UVN, or disable the root VPN.", cell)
 
 
   def validate_particle(self, particle: Particle) -> None:
@@ -255,6 +262,7 @@ class Uvn(Versioned, OwnableDatabaseObject, DatabaseObjectOwner):
     logged = []
     sublog = self.log.sublogger("backbone")
     sublogger = getattr(sublog, log_level)
+
     def _log_deployment(
         peer_a: Cell,
         peer_a_port_i: int,
@@ -263,14 +271,15 @@ class Uvn(Versioned, OwnableDatabaseObject, DatabaseObjectOwner):
         peer_b_port_i: int,
         peer_b_endpoint: str,
         arrow: str) -> None:
-      if not logged or logged[-1] != peer_a:
-        sublogger("{} →", peer_a)
+      if not logged or peer_a not in logged:
+        sublogger("{}:", peer_a.name)
         logged.append(peer_a)
-      sublogger("   [{}] {} {} {}[{}] {}",
+
+      sublogger("  [{}] {} {} {}[{}] {}",
           peer_a_port_i,
           peer_a_endpoint,
           arrow,
-          peer_b,
+          peer_b.name,
           peer_b_port_i,
           peer_b_endpoint)
 
@@ -279,22 +288,51 @@ class Uvn(Versioned, OwnableDatabaseObject, DatabaseObjectOwner):
 
     for peer_a_id, peer_a_cfg in sorted(deployment.peers.items(), key=lambda t: t[0]):
       peer_a = self.cells[peer_a_id]
+      if peer_a.private:
+        peer_a_arrow = ""
+      else:
+        peer_a_arrow = "← "
+
       for peer_b_id, (peer_a_port_i, peer_a_addr, peer_b_addr, link_subnet) in sorted(
           peer_a_cfg["peers"].items(), key=lambda t: t[1][0]):
         peer_b = self.cells[peer_b_id]
         peer_b_port_i = deployment.peers[peer_b_id]["peers"][peer_a_id][0]
-        if not peer_a.address:
+
+        if peer_a.private:
           peer_a_endpoint = "private LAN"
         else:
-          peer_a_endpoint = f"{peer_a.address}:{self.settings.backbone_vpn.port + peer_a_port_i}"
-        if not peer_b.address:
+          peer_a_port = self.settings.backbone_vpn.port + peer_a_port_i
+          peer_a_endpoint = f"{peer_a.address}:{peer_a_port}"
+
+        if peer_b.private:
           peer_b_endpoint = "private LAN"
-          arrow = "←  "
         else:
-          peer_b_endpoint = f"{peer_b.address}:{self.settings.backbone_vpn.port + peer_b_port_i}"
-          if peer_a.address:
-            arrow = "← →"
-          else:
-            arrow = "  →"
+          peer_b_port = self.settings.backbone_vpn.port + peer_b_port_i
+          peer_b_endpoint = f"{peer_b.address}:{peer_b_port}"
+        
+        if peer_b.private:
+          peer_b_arrow = ""
+        else:
+          peer_b_arrow = "→ "
+
+        arrow = f"{peer_a_arrow}{peer_b_arrow}"
+
         logger(peer_a, peer_a_port_i, peer_a_endpoint, peer_b, peer_b_port_i, peer_b_endpoint, arrow)
+
+
+
+  def deployment_peers(self, cell: Cell, deployment: P2pLinksMap) -> list[dict]:
+    cell_cfg = deployment.peers.get(cell.id)
+    if cell_cfg is None:
+      return []
+    
+    return [
+        {
+          "cell": peer_cell,
+          "peer_port": peer_port_i,
+        }
+        for peer_id, (port_i, _, _, _) in sorted(cell_cfg["peers"].items(), key=lambda t: t[1][0])
+          for peer_port_i in [deployment.peers[peer_id]["peers"][cell.id][0]]
+            for peer_cell in [next(c for c in self.cells.values() if c.id == peer_id)]
+    ]
 

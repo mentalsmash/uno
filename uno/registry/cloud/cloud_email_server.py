@@ -34,10 +34,14 @@ class CloudEmailServer(Versioned):
   def prepare_root(self, val: str | Path) -> Path:
     return Path(val)
 
+  # def __update_str_repr__(self) -> str:
+  #   cls_name = self.log.camelcase_to_kebabcase(CloudEmailServer.__qualname__)
+  #   self._str_repr = f"{cls_name}({self.parent})"
+
   @property
   def provider(self) -> "CloudProvider":
     from .cloud_provider import CloudProvider
-    assert(self.parent, CloudProvider)
+    assert(isinstance(self.parent, CloudProvider))
     return self.parent
 
 

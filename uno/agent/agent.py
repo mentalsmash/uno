@@ -628,7 +628,7 @@ class Agent(AgentConfig, Runnable, UvnPeerListener, RoutesMonitorListener, Ownab
     })
 
 
-  def validate(self) -> None:
+  def _validate(self) -> None:
     # Check that the agent detected all of the expected networks
     allowed_lans = set(str(net) for net in self.allowed_lans)
     enabled_lans = set(str(lan.nic.subnet) for lan in self.lans)

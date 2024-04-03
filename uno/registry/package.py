@@ -22,20 +22,20 @@ class Packager(Versioned):
 
 
   @classmethod
-  def cell_archive_file(cls, cell: Cell | None = None, cell_name: str | None = None, uvn_name: str | None = None) -> str:
+  def cell_archive_file(cls, cell: Cell | None = None, cell_name: str | None = None, uvn_name: str | None = None, basename: bool=False) -> str:
     cell_name = cell_name or cell.name
     uvn_name = uvn_name or cell.uvn.name
-    return f"{uvn_name}__{cell_name}{cls.CELL_PACKAGE_EXT}"
+    return f"{uvn_name}__{cell_name}{cls.CELL_PACKAGE_EXT if not basename else ''}"
 
 
   @classmethod
-  def particle_archive_file(cls, particle: Particle) -> str:
-    return f"{particle.uvn.name}__{particle.name}{cls.PARTICLE_PACKAGE_EXT}"
+  def particle_archive_file(cls, particle: Particle, basename: bool=False) -> str:
+    return f"{particle.uvn.name}__{particle.name}{cls.PARTICLE_PACKAGE_EXT if not basename else ''}"
 
 
   @classmethod
-  def particle_cell_file(cls, particle: Particle, cell: Cell | None = None) -> str:
-    return f"{particle.uvn.name}__{particle.name}__{cell.name}"
+  def particle_cell_file(cls, particle: Particle, cell: Cell | None = None, ext: str=None) -> str:
+    return f"{particle.uvn.name}__{particle.name}__{cell.name}{ext if ext is not None else ''}"
 
 
   @classmethod
@@ -121,6 +121,82 @@ class Packager(Versioned):
     cls.log.info("cell agent package generated: {}", agent_package)
 
     return agent_package
+
+
+  @classmethod
+  def generate_cell_agent_install_guide(cls,
+      registry: "Registry",
+      cell: Cell,
+      output_dir: Path):
+    import uno
+    assert(registry.deployed)
+    assert(cell.object_id is not None)
+    # Reuse the same base file name as the cell agent archive
+    cell_package = Path(cls.cell_archive_file(cell))
+    guide_file_name = cls.cell_archive_file(cell, basename=True)
+    guide_file_name = f"{guide_file_name}.html"
+    guide_file = output_dir / guide_file_name
+    guide_file.parent.mkdir(exist_ok=True, parents=True)
+    other_cells = sorted((c for c in cell.uvn.cells.values() if c != cell), key=lambda c: c.id)
+    html_body = Templates.render("install/agent_install_guide.md", {
+      "generation_ts": Timestamp.now(),
+      "uvn": registry.uvn,
+      "cell": cell,
+      "cell_package": cell_package,
+      # Cache some frequently used variables for easier reference
+      "allowed_lans": list(cell.allowed_lans),
+      "address": cell.address,
+      "peers": [
+        {
+          "cell": peer_cell,
+          "port": registry.uvn.settings.backbone_vpn.port + i,
+          "port_i": i,
+          "peer_port": registry.uvn.settings.backbone_vpn.port + peer["peer_port"],
+          "peer_port_i": peer["peer_port"],
+          "direction":(
+            "l" if not cell.private and peer_cell.private else
+            "r" if cell.private and not peer_cell.private else
+            "lr"
+          ),
+        }
+        for i, peer in enumerate(registry.uvn.deployment_peers(cell, registry.deployment))
+          for peer_cell in [peer["cell"]]
+      ],
+      "other_cells": other_cells,
+      "remote_lans": [
+        (c, lan)
+        for c in other_cells
+          for lan in c.allowed_lans
+      ],
+      "uno_version": uno.__version__,
+      "uno_repo_url": "https://github.com/mentalsmash/uno",
+      "uno_dependencies": [
+        "psmisc",
+        "iproute2",
+        "iptables",
+        "python3-pip",
+        "wireguard-dkms",
+        "wireguard-tools",
+        "frr",
+        "iputils-ping",
+        "tar",
+        "qrencode",
+        "lighttpd",
+        "openssl",
+        "git",
+      ],
+      "deployment_host": "agent-host",
+      "deployment_user": cell.owner.guessed_username,
+    }, processors=[
+      Templates.markdown_to_html,
+    ])
+    Templates.generate(guide_file, "install/agent_install_guide.html", {
+      "cell": cell,
+      "uvn": cell.uvn,
+      "body": html_body,
+      "pygments_css": Templates.pygments_css,
+    })
+    cls.log.info("cell agent installation guide generated: {}", guide_file)
 
 
   @classmethod

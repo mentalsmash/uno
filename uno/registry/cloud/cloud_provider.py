@@ -58,6 +58,11 @@ class CloudProvider(Versioned):
     super().__init_subclass__(*a, **kw)
 
 
+  def __update_str_repr__(self) -> str:
+    cls_name = Logger.camelcase_to_kebabcase(CloudProvider.__qualname__)
+    self._str_repr = f"{cls_name}({self.svc_class()})"
+
+
   def storage(self, **config) -> CloudStorage:
     return self.new_child(self.STORAGE, {
       "root": self.root / "storage",

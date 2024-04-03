@@ -73,7 +73,8 @@ def agent_run(args: argparse.Namespace, agent: Agent) -> None:
 def agent_service_install(args: argparse.Namespace, agent: Agent) -> None:
   for svc in agent.static_services:
     Systemd.install_service(svc)
-  tgt_svc = agent.static if args.agent else agent.router.static
+  # tgt_svc = agent.static if args.agent else agent.router.static
+  tgt_svc = agent.static
   if args.boot:
     Systemd.enable_service(tgt_svc)
   if args.start:

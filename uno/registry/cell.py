@@ -20,7 +20,7 @@ import ipaddress
 
 from .user import User
 
-from .versioned import Versioned, prepare_name
+from .versioned import Versioned, prepare_name, prepare_address
 from .database_object import OwnableDatabaseObject, DatabaseObjectOwner, inject_db_cursor
 from .database import Database
 from .cell_settings import CellSettings
@@ -87,10 +87,6 @@ class Cell(Versioned, OwnableDatabaseObject, DatabaseObjectOwner):
     )
 
 
-  # def validate(self) -> None:
-  #   self.uvn.validate_cell(self)
-
-
   def prepare_name(self, val: str) -> None:
     return prepare_name(self.db, val)
 
@@ -106,4 +102,17 @@ class Cell(Versioned, OwnableDatabaseObject, DatabaseObjectOwner):
   def serialize_allowed_lans(self, val: set[ipaddress.IPv4Network], public: bool=False) -> set[str]:
     return sorted(str(v) for v in val)
 
+
+  def prepare_address(self, val: str | None) -> str | None:
+    return prepare_address(self.db, val)
+
+
+  @property
+  def private(self) -> bool:
+    return self.address is None
+
+
+  @property
+  def relay(self) -> bool:
+    return len(self.allowed_lans) == 0
 

@@ -747,6 +747,7 @@ class Registry(Versioned):
       exec_command(["rm", "-rfv", self.cells_dir])
     for cell in self.uvn.cells.values():
       Packager.generate_cell_agent_package(self, cell, self.cells_dir)
+      Packager.generate_cell_agent_install_guide(self, cell, self.cells_dir)
 
     if self.particles_dir.is_dir():
       exec_command(["rm", "-rfv", self.particles_dir])
@@ -926,6 +927,13 @@ class Registry(Versioned):
         local_path=self.cells_dir / cell_archive)
       for cell in self.uvn.cells.values()
         for cell_archive in [Packager.cell_archive_file(cell)]),
+      # cell install guides
+      *(CloudStorageFile(
+        type=CloudStorageFileType.CELL_GUIDE,
+        name=cell_guide,
+        local_path=self.cells_dir / cell_guide)
+      for cell in self.uvn.cells.values()
+        for cell_guide in [f"{Packager.cell_archive_file(cell, basename=True)}.html"]),
       # particle archives
       *(CloudStorageFile(
         type=CloudStorageFileType.PARTICLE_PACKAGE,

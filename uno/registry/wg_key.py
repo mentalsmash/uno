@@ -56,6 +56,10 @@ class WireGuardKeyPair(Versioned):
   ]
   # Prevent dropped keys from being imported
   DB_IMPORTABLE_WHERE = ("dropped = ?", (False,))
+  DB_ORDER_BY: dict[str, bool] = {
+    "key_id": True,
+    "dropped": True,
+  }
 
 
   @classmethod
@@ -97,6 +101,10 @@ class WireGuardPsk(Versioned):
   ]
   # Prevent dropped keys from being imported
   DB_IMPORTABLE_WHERE = ("dropped = ?", (False,))
+  DB_ORDER_BY: dict[str, bool] = {
+    "key_id": True,
+    "dropped": True,
+  }
 
 
   @classmethod

@@ -16,7 +16,7 @@
 ###############################################################################
 from typing import TYPE_CHECKING
 from functools import cached_property
-from .versioned import Versioned
+from .versioned import Versioned, prepare_name
 from .database_object import DatabaseObjectOwner
 from ..core.htdigest import htdigest_generate, htdigest_verify
 
@@ -46,6 +46,12 @@ class User(Versioned, DatabaseObjectOwner):
   ]
   STR_PROPERTIES = [
     "email",
+  ]
+  CACHED_PROPERTIES = [
+    "guessed_username",
+    "owned_cells",
+    "owned_particles",
+    "owned_uvns",
   ]
 
   DB_TABLE = "users"
@@ -87,6 +93,10 @@ class User(Versioned, DatabaseObjectOwner):
     return  f"htdigest:{phash}"
 
 
+  def prepare_name(self, val: str) -> None:
+    return prepare_name(self.db, val)
+
+
   def login(self, password: str) -> bool:
     # user_password = htdigest_generate(user=self.email, realm=self.realm, password=password).split(":")[2]
     # return self.password[len("htdigest:"):] == user_password
@@ -110,4 +120,9 @@ class User(Versioned, DatabaseObjectOwner):
   def owned_uvns(self) -> "set[Uvn]":
     from .uvn import Uvn
     return set(o for o in self.owned if isinstance(o, Uvn))
+
+
+  @cached_property
+  def guessed_username(self) -> str:
+    return self.email.split("@")[0]
 

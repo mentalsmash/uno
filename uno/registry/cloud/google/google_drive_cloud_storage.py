@@ -50,7 +50,7 @@ class GoogleDriveCloudStorage(CloudStorage):
     return result
 
 
-  def validate(self) -> None:
+  def _validate(self) -> None:
     if self.upload_folder is None:
       raise RuntimeError("no upload folder specified")
 
@@ -74,19 +74,31 @@ class GoogleDriveCloudStorage(CloudStorage):
     self.log.info("uploading {} files to Google Drive", len(files))
     for i, file in enumerate(files):
       try:
-        file_metadata = {
-          "name": file.name,
-          "parents": [self.upload_folder],
-        }
-        media = MediaFileUpload(file.local_path, mimetype=file.type.mimetype())
         self.log.activity("uploading [{}/{}] {}", i+1, len(files), file.local_path)
-        # pylint: disable=maybe-no-member
-        uploaded_file = (
+        media = MediaFileUpload(file.local_path, mimetype=file.type.mimetype())
+        # If a file with the same name already exists in the remote folder
+        # reuse its fileId and update its contents, otherwise create a new one
+        existing_id = self.__remote_files.get(file.name)
+        if existing_id is None:
+          file_metadata = {
+            "name": file.name,
+            "parents": [self.upload_folder],
+          }
+          # pylint: disable=maybe-no-member
+          uploaded_file = (
             self.__service.files()
             .create(body=file_metadata, media_body=media, fields="id")
             .execute()
-        )
-        file.remote_url = uploaded_file.get("id")
+          )
+          file.remote_url = uploaded_file.get("id")
+        else:
+          # file_metadata["fileId"] = existing_id
+          uploaded_file = (
+            self.__service.files()
+            .update(media_body=media, fileId=existing_id)
+            .execute()
+          )
+          file.remote_url = existing_id
         self.log.info("uploaded [{}/{}] {} -> {}", i+1, len(files), file.local_path, file.remote_url)
       except Exception as e:
         self.log.error("upload failed: {}", file.local_path)

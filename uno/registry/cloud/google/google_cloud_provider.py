@@ -77,7 +77,7 @@ class GoogleCloudProvider(CloudProvider):
     return str(val)
 
 
-  def validate(self) -> None:
+  def _validate(self) -> None:
     if not self.credentials_file.exists():
       raise RuntimeError("Google OAuth credentials file missing", self.credentials_file)
 

@@ -69,7 +69,7 @@ class DeploymentStrategy(Versioned):
     return set(val)
 
 
-  def validate(self) -> None:
+  def _validate(self) -> None:
     if not self.ALLOW_PRIVATE_PEERS and self.private_peers:
       raise RuntimeError("strategy requires all peers to be public",
         self.KIND.name, {"private": self.private_peers, "public": self.public_peers})

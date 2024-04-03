@@ -16,7 +16,9 @@
 ###############################################################################
 from typing import Generator
 from pathlib import Path
+from functools import cached_property
 
+import markdown
 import jinja2
 
 from .time import Timestamp
@@ -104,11 +106,23 @@ def _filter_format_hash(val: str) -> str:
   return val[:4] + "..." + val[-4:]
 
 
+def _filter_pluralize(number: int, singular: str = "", plural: str = "s"):
+    if number == 1:
+      return singular
+    else:
+      return plural
+
+
+from typing import Callable
+OutputProcessor = Callable[[str], str]
+
+
 class _Templates:
   def __init__(self):
     self._env = jinja2.Environment(
       loader=jinja2.PackageLoader("uno", package_path="templates"),
-      autoescape=jinja2.select_autoescape(['html', 'xml']))
+      autoescape=jinja2.select_autoescape(['html', 'xml']),
+      extensions=['jinja2.ext.i18n'])
 
     self._env.filters["time_since"] = _filter_time_since
     self._env.filters["format_ts"] = _filter_format_ts
@@ -116,6 +130,7 @@ class _Templates:
     self._env.filters["humanbytes"] = humanbytes
     self._env.filters["yaml"] = _filter_yaml
     self._env.filters["format_hash"] = _filter_format_hash
+    self._env.filters["pluralize"] = _filter_pluralize
 
 
   def registry_filters(self, **filters) -> None:
@@ -136,22 +151,60 @@ class _Templates:
     return template.generate(ctx)
 
 
-  def render(self, template: str | jinja2.Template, ctx: dict) -> str:
+  def render(self, template: str | jinja2.Template, ctx: dict, processors: list[OutputProcessor]|None=None) -> str:
     if not isinstance(template, jinja2.Template):
       template = self.template(template)
-    return template.render(ctx)
+    rendered = template.render(ctx)
+    for processor in (processors or []):
+      rendered = processor(rendered)
+    return rendered
 
 
-  def generate(self, output: Path, template: str|jinja2.Template, ctx: dict, mode: int=0o644) -> None:
+  def generate(self, output: Path, template: str|jinja2.Template, ctx: dict, mode: int=0o644, processors: list[OutputProcessor]|None=None) -> None:
     import tempfile
     from .exec import exec_command
     tmp_f_h = tempfile.NamedTemporaryFile()
     tmp_f = Path(tmp_f_h.name)
     tmp_f.chmod(mode=mode)
-    with tmp_f.open("wt") as output_stream:
-      for line in self.render_lines(template, ctx):
-        output_stream.write(line)
+    if processors is None:
+      # generate file line by line
+      with tmp_f.open("wt") as output_stream:
+        for line in self.render_lines(template, ctx):
+          output_stream.write(line)
+    else:
+      # Render file with processors
+      rendered = self.render(template, ctx, processors=processors)
+      with tmp_f.open("wt") as output_stream:
+        output_stream.write(rendered)
     exec_command(["cp", "-av", tmp_f, output])
 
 
+  def markdown_to_html(self, md_text: str) -> str:
+    # print("-"*100)
+    # print("-"*100)
+    # print(md_text)
+    # print("-"*100)
+    # print("-"*100)
+    return markdown.markdown(md_text,
+      extensions=[
+        "tables",
+        "toc",
+        "sane_lists",
+        "md_in_html",
+        "pymdownx.superfences",
+        "uno.core.pm_attr_list",
+        # "pymdownx.highlight",
+        # "fenced_code",
+        # "codehilite",
+      ])
+
+
+  @cached_property
+  def pygments_css(self) -> str:
+    from pygments.formatters import HtmlFormatter
+    return HtmlFormatter().get_style_defs('.highlight')
+
+
 Templates = _Templates()
+
+

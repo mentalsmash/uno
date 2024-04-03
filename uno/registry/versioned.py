@@ -498,7 +498,7 @@ class Versioned(DatabaseObject):
 
   # Some day we might want to create a DSL...
   RESERVED_KEYWORDS = [
-    "root",
+    # "root",
     "registry",
     "agent",
     "uvn",
@@ -563,20 +563,16 @@ class Versioned(DatabaseObject):
     super().__init__(db=db, id=id, parent=parent, **properties)
     self._initialized = False
     self.__update_str_repr__()
-    self.log = Logger.sublogger(self.__str_repr)
+    self.log = Logger.sublogger(self._str_repr)
     self.SCHEMA.init(self, properties)
     self.__update_str_repr__()
     self.__update_hash__()
-    self.log.context = self.__str_repr
+    self.log.context = self._str_repr
     self.load_nested()
     self._initialized = True
     
     # print(self.__class__.__qualname__, "transient", self.SCHEMA)
     assert(not self.SCHEMA.transient or self.parent is not None)
-
-
-  def validate(self) -> None:
-    pass
 
 
   def load_nested(self) -> None:
@@ -587,7 +583,7 @@ class Versioned(DatabaseObject):
   # def log(self) -> UvnLogger:
   #   raise RuntimeError("wtf")
   #   # return self.__class__.sublogger(str(self.id) if self.id is not None else "<new>")
-  #   return self.__class__.sublogger(self.__str_repr)
+  #   return self.__class__.sublogger(self._str_repr)
 
 
   @classmethod
@@ -642,7 +638,7 @@ class Versioned(DatabaseObject):
 
 
   def __str__(self) -> str:
-    return self.__str_repr
+    return self._str_repr
 
 
   def __repr__(self) -> str:
@@ -678,11 +674,11 @@ class Versioned(DatabaseObject):
       fields.append(v)
     fields = ', '.join(map(str, fields))
     # # dirty_str = ("*" if self.dirty else "") if not self.SCHEMA.transient else ""
-    self.__str_repr = f"{self.__class__.ClassName}({fields})"
+    self._str_repr = f"{self.__class__.ClassName}({fields})"
     if self._initialized:
-      self.log.context = self.__str_repr
+      self.log.context = self._str_repr
     # else:
-    #   self.log = Logger.sublogger(self.__str_repr)
+    #   self.log = Logger.sublogger(self._str_repr)
 
 
   def prepare_db(self, val: "Database | None") -> "Database":
@@ -1065,3 +1061,8 @@ def prepare_name(db: "Database", val: str) -> str:
     raise RuntimeError(f"'{val}' is a reserved keyword")
   return val
 
+
+def prepare_address(db: "Database", val: str | None) -> str | None:
+  if val is not None and (not isinstance(val, str) or len(val) == 0):
+    raise ValueError("invalid cell address", val)
+  return val

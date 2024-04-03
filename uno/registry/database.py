@@ -438,6 +438,10 @@ class Database:
 
 
     def _load_targets() -> Generator[tuple, None, None]:
+      order_by_clause = "" if not cls.DB_ORDER_BY else (
+        " ORDER BY " + ", ".join(f"{col} {'ASC' if asc else 'DESC'}" for col, asc in cls.DB_ORDER_BY.items())
+      )
+      
       # Load a specific object using its explicit id
       if id is not None:
         cached = _check_cache(id)
@@ -445,7 +449,7 @@ class Database:
           yield cached
           return
         query = (
-          f"SELECT * FROM {table} WHERE id = ?",
+          f"SELECT * FROM {table} WHERE id = ?{order_by_clause}",
           (id,)
         )
         self.log.tracedbg("load {} by id: {}", cls.__qualname__, id)
@@ -455,7 +459,7 @@ class Database:
       # Load objects by making a custom query on their db table
       elif where is not None:
         query = (
-          f"SELECT * FROM {table} WHERE {where}",
+          f"SELECT * FROM {table} WHERE {where}{order_by_clause}",
           params
         )
         self.log.tracedbg("load {} by query: {} PARAMS {}", cls.__qualname__, where, params)
@@ -467,21 +471,46 @@ class Database:
       elif owner is not None:
         self.log.tracedbg("load {} by owner: {}", cls.__qualname__, owner)
         owner_table, owner_col, owned_col = self.SCHEMA.lookup_owner_table_by_object(cls, owner_cls=owner.__class__)
-        if where is None:
-          owned = cursor.execute(f"SELECT {owned_col} FROM {owner_table} WHERE {owner_col} = ?", (json.dumps(owner.object_id), )).fetchone()
-          if not owned:
-            return
-          owned_id = getattr(owned, owned_col)
-          row = cursor.execute(f"SELECT * FROM {table} WHERE id = ?", (owned_id,)).fetchone()
-          if not row:
-            return
-          yield row
+
+        where_expr = "" if where is None else f" AND {where}"
+        if owner_table == table:
+          # Inline ownership, no need to join
+          query = (
+            f"SELECT * FROM {table} WHERE {owner_col} = ?{where_expr}{order_by_clause}",
+            (json.dumps(owner.object_id), *(params or []))
+          )
         else:
-          for owned in cursor.execute(f"SELECT id FROM {table} WHERE {where}", params):
-            for is_owner in cursor.execute(f"SELECT * FROM {owner_table} WHERE {owner_col} = ? AND {owned_col} = ?", (owner.id, owned.id, )):
-              yield owned
+          # External ownership table, join with object table to get fields
+          join_order_by_clause = "" if not cls.DB_ORDER_BY else (
+            " ORDER BY " + ", ".join(f"{table}.{col} {'ASC' if asc else 'DESC'}" for col, asc in cls.DB_ORDER_BY.items())
+          )
+          query = (
+            f"SELECT {table}.* FROM {table} "
+              f"INNER JOIN {owner_table} "
+                f"ON {table}.id = {owner_table}.{owned_col}"
+                  f"WHERE {owner_table}.{owner_col} = ?{where_expr}{join_order_by_clause}",
+            (json.dumps(owner.object_id), *(params or []))
+          )
+
+        for owned in cursor.execute(*query):
+          yield owned
+
+        # if where is None:
+        #   owned = cursor.execute(f"SELECT * FROM {owner_table} WHERE {owner_col} = ?{join_expr}{order_by_clause}", (json.dumps(owner.object_id), )).fetchone()
+        #   if not owned:
+        #     return
+        #   # owned_id = getattr(owned, owned_col)
+        #   # row = cursor.execute(f"SELECT * FROM {table} WHERE id = ?", (owned_id,)).fetchone()
+        #   # if not row:
+        #   #   return
+        #   # yield row
+        #   owned
+        # else:
+        #   for owned in cursor.execute(f"SELECT id FROM {table} WHERE {where}", params):
+        #     for is_owner in cursor.execute(f"SELECT * FROM {owner_table} WHERE {owner_col} = ? AND {owned_col} = ?", (owner.id, owned.id, )):
+        #       yield owned
       else:
-        for row in cursor.execute(f"SELECT * FROM {table}"):
+        for row in cursor.execute(f"SELECT * FROM {table}{order_by_clause}"):
           yield row
 
 

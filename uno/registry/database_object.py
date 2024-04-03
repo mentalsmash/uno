@@ -8,6 +8,13 @@ from collections.abc import Iterable
 if TYPE_CHECKING:
   from .database import Database
 
+
+
+class ValidationError(Exception):
+  pass
+
+
+
 class DatabaseSchema:
   _Types: "set[type[DatabaseObject]]" = set()
   _Objects: "set[type[DatabaseObject]]" = set()
@@ -265,6 +272,9 @@ class DatabaseObject:
   DB_IMPORTABLE: bool = True
   DB_IMPORTABLE_WHERE: tuple[str, tuple] | None = None
   DB_IMPORT_DROPS_EXISTING: bool = False
+  DB_ORDER_BY: dict[str, bool] = {
+    "id": True,
+  }
 
   def __init__(self,
       db: "Database",
@@ -367,7 +377,14 @@ class DatabaseObject:
 
 
   def validate(self) -> None:
-    raise NotImplementedError()
+    try:
+      self._validate()
+    except:
+      raise ValidationError(self)
+
+
+  def _validate(self) -> None:
+    pass
 
 
   def clear_changed(self, properties: Iterable[str]|None=None) -> None:

@@ -31,11 +31,15 @@ class CloudStorageError(Exception):
 class CloudStorageFileType(Enum):
   UVN_REGISTRY = 0
   CELL_PACKAGE = 1
-  PARTICLE_PACKAGE = 2
+  CELL_GUIDE = 2
+  PARTICLE_PACKAGE = 3
 
   def mimetype(self) -> str:
     if self == CloudStorageFileType.CELL_PACKAGE:
       return "application/x-xz"
+    elif self == CloudStorageFileType.CELL_GUIDE:
+      # return "text/markdown"
+      return "text/html"
     elif self == CloudStorageFileType.PARTICLE_PACKAGE:
       return "application/zip"
     else:
@@ -81,6 +85,11 @@ class CloudStorage(Versioned):
 
   def prepare_root(self, val: str | Path) -> Path:
     return Path(val)
+
+
+  # def __update_str_repr__(self) -> str:
+  #   cls_name = self.log.camelcase_to_kebabcase(CloudStorage.__qualname__)
+  #   self._str_repr = f"{cls_name}({self.parent})"
 
 
   @property

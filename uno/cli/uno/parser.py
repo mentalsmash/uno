@@ -672,10 +672,10 @@ def uno_parser(parser: argparse.ArgumentParser):
     default=False,
     action="store_true")
   
-  cmd_service_enable.add_argument("-a", "--agent",
-    help="Run the uvn-agent service instead of uvn-net.",
-    default=False,
-    action="store_true")
+  # cmd_service_enable.add_argument("-a", "--agent",
+  #   help="Run the uvn-agent service instead of uvn-net.",
+  #   default=False,
+  #   action="store_true")
 
   cmd_service_enable.add_argument("-b", "--boot",
     help="Enable the service at boot",

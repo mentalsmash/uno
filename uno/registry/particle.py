@@ -61,10 +61,6 @@ class Particle(Versioned, OwnableDatabaseObject, DatabaseObjectOwner):
     return next(self.db.load(Uvn, id=self.uvn_id, cursor=cursor))
 
 
-  # def validate(self) -> None:
-  #   self.uvn.validate_particle(self)
-
-
   def prepare_name(self, val: str) -> None:
     return prepare_name(self.db, val)
 
