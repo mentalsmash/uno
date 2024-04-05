@@ -170,6 +170,7 @@ docker_container()
             --cap-add net_admin \
             --cap-add sys_module \
             -e INIT=/experiment/init.sh \
+            -e UNO_MIDDLEWARE=${UNO_MIDDLEWARE} \
             -v ${EXPERIMENT_DIR}/${container_name}:/experiment \
             ${extra_args} \
             uno:latest \

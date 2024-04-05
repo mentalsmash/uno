@@ -22,7 +22,7 @@ import tempfile
 from .keys_backend import KeysBackend
 from .key import Key
 from .key_id import KeyId
-from .dds import UvnTopic
+from .topic import UvnTopic
 from .certificate_subject import CertificateSubject
 from .certificate_authority import CertificateAuthority
 
@@ -49,22 +49,19 @@ class DdsKeysBackend(KeysBackend):
       UvnTopic.UVN_ID,
       UvnTopic.BACKBONE,
     ],
-
-    "subscribed": {
-      UvnTopic.CELL_ID: {},
-    },
+    "subscribed": [
+      UvnTopic.CELL_ID,
+    ],
   }
-
   CELL_TOPICS = {
     "published": [
       UvnTopic.CELL_ID,
     ],
-
-    "subscribed": {
-      UvnTopic.CELL_ID: {},
-      UvnTopic.UVN_ID: {},
-      UvnTopic.BACKBONE: {},
-    }
+    "subscribed": [
+      UvnTopic.CELL_ID,
+      UvnTopic.UVN_ID,
+      UvnTopic.BACKBONE,
+    ]
   }
 
   def INITIAL_CA(self) -> CertificateAuthority:

@@ -58,28 +58,49 @@ RUN adduser --shell /bin/bash uno
 # Copy uno
 COPY . /uno-dev
 
-ARG VERSION=master
+ARG VERSION=2.1.0
 ARG DEV=
 
-ADD https://api.github.com/repos/mentalsmash/uno/commits?sha=${VERSION} /tmp/uno.commits
 RUN set -e; \
+    rti_wheel=$(find /uno-dev/ -mindepth 1 -maxdepth 1 -name "rti.connext*.whl" | head -1); \
+    if [ -e "${rti_wheel}" ]; then \
+      pip3 install ${rti_wheel}; \
+    fi; \
     if [ -n "${DEV}" ]; then \
-      wheel=$(find /uno-dev/ -mindepth 1 -maxdepth 1 -name "rti.connext*.whl" | head -1); \
-      if [ -e "${wheel}" ]; then \
-        pip3 install ${wheel}; \
-      fi; \
       cp -r /uno-dev /uno; \
     else \
-      rm -rf /uno-dev; \
       git clone https://github.com/mentalsmash/uno -b ${VERSION} /uno; \
     fi; \
     pip3 install -e /uno
+
+
+ARG PLUGINS=uno-middleware-connext@https://github.com/mentalsmash/uno-middleware-connext.git|1.1.0
+
+RUN set -e; \
+    if [ -n "${DEV}" -a -d "${DEV}/plugins" ]; then \
+      cp ${DEV}/plugins /uno-plugins; \
+    else \
+      mkdir -p /uno-plugins; \
+      for plugin in ${PLUGINS}; do \
+        plugin_name=$(echo ${plugin} | cut -d@ -f1); \
+        plugin_url=$(echo ${plugin} | cut -d@ -f2- | cut "-d|" -f1); \
+        plugin_branch=$(echo ${plugin} | cut -d@ -f2- | cut "-d|" -f2); \
+        plugin_dir=/uno-plugins/${plugin_name}; \
+        git clone ${plugin_url} -b ${plugin_branch} ${plugin_dir}; \
+        pip3 install -e ${plugin_dir}; \
+      done; \
+    fi
+
+RUN rm -rf /uno-dev
 
 # Custom entrypoint
 ENTRYPOINT [ "/uno/docker/entrypoint.sh" ]
 CMD ["__default__"]
 
 # Define volumes
+ARG UNO_MIDDLEWARE=uno_middleware_connext
+
+ENV UNO_MIDDLEWARE  "${UNO_MIDDLEWARE}"
 ENV UVN_DIR "/uvn"
 ENV UNO_DIR "/uno"
 

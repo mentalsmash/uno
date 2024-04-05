@@ -33,7 +33,6 @@ from .deployment import P2pLinksMap, P2pLinkAllocationMap
 from .deployment_strategy import DeploymentStrategy
 from .vpn_keymat import CentralizedVpnKeyMaterial, P2pVpnKeyMaterial
 from .vpn_config import UvnVpnConfig
-from .dds import locate_rti_license
 from .id_db import IdentityDatabase
 from .keys_backend_dds import DdsKeysBackend
 from .database import Database
@@ -43,8 +42,10 @@ from .package import Packager
 from .wg_key import WireGuardKeyPair, WireGuardPsk
 from .cloud import CloudProvider, CloudEmailServer, CloudStorage, CloudStorageFileType, CloudStorageFile
 
+from ..middleware import Middleware
 
 from ..core.exec import exec_command
+from ..core.wg import WireGuardConfig
 
 
 class Registry(Versioned):
@@ -152,15 +153,6 @@ class Registry(Versioned):
     }, save=False)
     if registry_config:
       registry.configure(**registry_config)
-
-    # Make sure we have an RTI license, since we're gonna need it later.
-    if not registry.rti_license.is_file():
-      rti_license = locate_rti_license(search_path=[registry.root])
-      if not rti_license or not rti_license.is_file():
-        raise RuntimeError("please specify an RTI license file")
-      else:
-        registry.rti_license = rti_license
-
     registry.generate_artifacts()
     registry.log.info("initialized UVN {}: {}", registry.uvn.name, registry.root)
     return registry
@@ -199,6 +191,11 @@ class Registry(Versioned):
     return (owner, config_id)
 
 
+  @cached_property
+  def middleware(self) -> Middleware:
+    return Middleware.load()
+
+
   @property
   def root(self) -> Path:
     return self.db.root
@@ -230,6 +227,20 @@ class Registry(Versioned):
   @property
   def vpn_config(self) -> UvnVpnConfig:
     return self.new_child(UvnVpnConfig)
+
+
+  def root_vpn_config(self, owner: Uvn|Cell) -> WireGuardConfig:
+    if isinstance(owner, Uvn):
+      # Use the older, "rekeyed", root vpn configuration if available.
+      # The agent will switch to the newer one after cells have received the update.
+      if self.vpn_config.rekeyed_root_vpn is not None:
+        self.log.warning("loading rekeyed root VPN configuration: {}", self.rekeyed_root_config_id)
+        vpn_config = self.vpn_config.rekeyed_root_vpn.root_config
+      else:
+        vpn_config = self.vpn_config.root_vpn.root_config
+    elif self.vpn_config.root_vpn is not None:
+      vpn_config = self.vpn_config.root_vpn.peer_config(owner.id)
+    return vpn_config
 
 
   @cached_property
@@ -293,20 +304,6 @@ class Registry(Versioned):
     if not val:
       raise ValueError("invalid db id", val)
     return val
-
-
-  def prepare_rti_license(self, val: str | Path) -> None:
-    if val is not None and val != self.INITIAL_RTI_LICENSE():
-      self.log.activity("caching RTI license: {} → {}", val, self.rti_license)
-      exec_command(["cp", "-v", val, self.rti_license])
-      self.rti_license.chmod(0o644)
-      # Mark object updated since we're never actually updating the property
-      self.updated_property("rti_license")
-    return None
-
-
-  def serialize_rti_license(self, val: Path, public: bool=False) -> str:
-    return str(val)
 
 
   def prepare_deployment(self, val: str | dict | P2pLinksMap) -> P2pLinksMap:

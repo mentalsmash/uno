@@ -15,11 +15,9 @@
 # along with this program. If not, see <https://www.gnu.org/licenses/>.
 ###############################################################################
 from typing import Generator, Iterable, TYPE_CHECKING
-import threading
 from enum import Enum
-from itertools import chain
 
-import rti.connextdds as dds
+from ..middleware import Handle
 
 from ..registry.uvn import Uvn
 from ..registry.cell import Cell
@@ -120,17 +118,42 @@ class UvnPeersList(Versioned):
 
 
   def __init__(self, **properties) -> None:
-    self.updated_condition = dds.GuardCondition()
     self.listeners: list[UvnPeerListener] = list()
     self._peers = []
-    self._update_lock = threading.Lock()
     super().__init__(**properties)
+    # Make sure that we have exactly one "local" peer in the list
     assert(self.local.local)
     assert(len(list(p for p in self if p.local)) == 1)
 
 
   def load_nested(self) -> None:
-    self._peers = self._assert_peers()
+    peers = []
+    for uvn_obj in (self.uvn, *self.uvn.all_cells.values(), *self.uvn.all_particles.values()):
+      try:
+        peer = self[uvn_obj]
+      except KeyError:
+        peer = None
+      except IndexError:
+        peer = None
+
+      if peer is None:
+        peer = self.load_child(UvnPeer, owner=uvn_obj)
+        if peer is None:
+          peer = self.new_child(UvnPeer, owner=uvn_obj)
+          # peers_changed = True
+        else:
+          # Make sure peer properties are reset
+          peer.configure(
+            status=UvnPeerStatus.DECLARED,
+            registry_id=self.ResetValue,
+            routed_networks=[],
+            known_networks=[],
+            vpn_interfaces={},
+            instance=self.ResetValue,
+            writer=self.ResetValue,
+            ts_start=self.ResetValue)
+      peers.append(peer)
+    self._peers = peers
 
 
   @property
@@ -146,37 +169,6 @@ class UvnPeersList(Versioned):
     for l in self.listeners:
       self.log.trace("notifying listener: {} -> {}", event, l)
       getattr(l, f"on_event_{event.name.lower()}")(*args)
-
-
-  def _assert_peers(self) -> list[UvnPeer]:
-    with self._update_lock:
-      peers = []
-      for uvn_obj in (self.uvn, *self.uvn.all_cells.values(), *self.uvn.all_particles.values()):
-        try:
-          peer = self[uvn_obj]
-        except KeyError:
-          peer = None
-        except IndexError:
-          peer = None
-
-        if peer is None:
-          peer = self.load_child(UvnPeer, owner=uvn_obj)
-          if peer is None:
-            peer = self.new_child(UvnPeer, owner=uvn_obj)
-            # peers_changed = True
-          else:
-            # Make sure peer properties are reset
-            peer.configure(
-              status=UvnPeerStatus.DECLARED,
-              registry_id=self.ResetValue,
-              routed_networks=[],
-              known_networks=[],
-              vpn_interfaces={},
-              ih=self.ResetValue,
-              ih_dw=self.ResetValue,
-              ts_start=self.ResetValue)
-        peers.append(peer)
-    return peers
 
 
   @property
@@ -342,8 +334,8 @@ class UvnPeersList(Versioned):
       routed_networks=[],
       known_networks=[],
       vpn_interfaces={},
-      ih=self.ResetValue,
-      ih_dw=self.ResetValue,
+      instance=self.ResetValue,
+      writer=self.ResetValue,
       ts_start=self.ResetValue)
   
 
@@ -358,17 +350,15 @@ class UvnPeersList(Versioned):
       **updated_fields) -> None:
     if peers is None:
       peers = self
-    with self._update_lock:
-      for peer in peers:
-        peer.configure(**updated_fields)
-      self._process_updates()
+    for peer in peers:
+      peer.configure(**updated_fields)
+    self._process_updates()
 
 
   def configure(self, **properties) -> set[str]:
-    with self._update_lock:
-      configured = super().configure(**properties)
-      if configured:
-          self._process_updates()
+    configured = super().configure(**properties)
+    if configured:
+      self._process_updates()
     return configured
 
 
@@ -575,8 +565,7 @@ class UvnPeersList(Versioned):
       if fully_routed_uvn != self.status_fully_routed_uvn:
         self.status_fully_routed_uvn = fully_routed_uvn
         self._notify(UvnPeerListener.Event.FULLY_ROUTED_UVN)
-    
-    self.updated_condition.trigger_value = True
+
     self.db.save(self)
 
 
@@ -588,7 +577,7 @@ class UvnPeersList(Versioned):
     return iter(self._peers)
 
 
-  def __getitem__(self, i: None | str | int | Uvn | Cell | Particle | dds.InstanceHandle) -> UvnPeer:
+  def __getitem__(self, i: None | str | int | Uvn | Cell | Particle | Handle) -> UvnPeer:
     try:
       if isinstance(i, int):
         if i == 0:
@@ -597,8 +586,8 @@ class UvnPeersList(Versioned):
           result = next(p for p in self if p.cell and p.cell.id == i)
       elif isinstance(i, str):
         result = next(p for p in self if p.name == i)
-      elif isinstance(i, dds.InstanceHandle):
-        result = next(p for p in self if p.ih == i)
+      elif isinstance(i, Handle):
+        result = next(p for p in self if p.instance == i)
       elif isinstance(i, Uvn):
         result = next(p for p in self._peers[:1] if self.uvn == i)
       elif isinstance(i, Cell):

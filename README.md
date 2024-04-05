@@ -15,10 +15,6 @@ the [frrouting](https://frrouting.org/) suite is used to implement IP routing.
 The configuration of each agent is automatically generated from a global manifest,
 which defines all parameters of **uno**'s *unified virtual network* (UVN).
 
-Agents will automatically discover local LANs by inspecting their active
-network interfaces, and they will exchange this information using
-[RTI Connext DDS](https://www.rti.com/products/connext-dds-professional).
-
 The following diagram shows an example of a UVN interconnecting four LANs with
 an agent in each LAN, and an extra, cloud-deployed, agent to provide redudant
 backbone links:
@@ -55,17 +51,10 @@ sudo apt install \
 ```
 
 After installing the system dependencies, you can install **uno** from
-this git repository:
+this git repository and [one of the available middlewares](#middleware-setup):
 
 ```sh
 git clone https://github.com/mentalsmash/uno
-
-# Install uno as root if you plan on running an agent on the host.
-# uno must be installed in the system packages if you plan on
-# deploying the agent as a service.
-# You can use a virtual environment if you are going to start the
-# agent manually
-sudo pip install ./uno
 
 # Alternatively, you can install uno as a regular user if you plan
 # on using the host only to manage the UVN's registry,
@@ -75,8 +64,22 @@ python3 -m venv -m uno-venv
 pip install ./uno
 ```
 
-A valid RTI Connext DDS license is required to use `uno`, and it can be requested
-from the [RTI website](https://www.rti.com/free-trial).
+## Middleware Setup
+
+`uno` supports different "middleware backends" to implement communication between agents.
+
+Select and install one of the available plugins:
+
+- "native" middleware: this middleware is included with `uno`, and it does not support deployment of agents.
+
+- [uno-middleware-connext](https://github.com/mentalsmash/uno-middleware-connext): implementation based on [RTI Connext DDS](https://www.rti.com/products/connext-dds-professional).
+
+  ```sh
+  git clone https://github.com/mentalsmash/uno-middleware-connext
+
+  . ./uno-venv/bin/activate
+  pip install ./uno-middleware-connext
+  ```
 
 ## UVN Setup
 
@@ -84,9 +87,6 @@ from the [RTI website](https://www.rti.com/free-trial).
 
    At a minimum, you must specify a name for the UVN, and the identity of the UVN's
    administrator.
-
-   An RTI license file must be specified, and it will be copied in the registry's
-   directory, so that it can be later included in agent bundles.
 
    The UVN registry must be initialized in an empty (or non-existent) directory,
    and it is created using command `uno define uvn`:
@@ -101,10 +101,11 @@ from the [RTI website](https://www.rti.com/free-trial).
    cd my-uvn
 
    # Create the uvn and the root user
-   uno define uvn my-uvn \
-     -o "John Doe <john@example.com>" \
-     -p userpassword \
-     -L /path/to/rti_license.dat
+   UNO_MIDDLEWARE=uno_middleware_connext \
+   RTI_LICENSE_FILE=/path/to/rti_license.dat \
+     uno define uvn my-uvn \
+       -o "John Doe <john@example.com>" \
+       -p userpassword
    ```
 
 2. Define one or more UVN "cells".

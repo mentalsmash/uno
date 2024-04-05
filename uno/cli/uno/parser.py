@@ -158,11 +158,11 @@ def _parser_args_registry(parser: argparse._SubParsersAction,
     default=None,
     type=int)
 
-  parser.add_argument("-L", "--rti-license",
-    metavar="FILE",
-    help="Path to a valid RTI license file to be used by the UVN agents.",
-    default=None,
-    type=Path)
+  # parser.add_argument("-L", "--rti-license",
+  #   metavar="FILE",
+  #   help="Path to a valid RTI license file to be used by the UVN agents.",
+  #   default=None,
+  #   type=Path)
 
   parser.add_argument("-p", "--password",
     metavar="PASSWORD",
@@ -342,7 +342,6 @@ def _config_notify(args: argparse.Namespace) -> dict | None:
 
 def _config_args_registry(args: argparse.Namespace) -> dict | None:
   result = {
-    "rti_license": getattr(args, "rti_license", None),
     "cloud_provider": _config_cloud_provider(args),
     "uvn": {
       "address": getattr(args, "address", None),

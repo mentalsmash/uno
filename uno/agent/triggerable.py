@@ -15,10 +15,7 @@
 # along with this program. If not, see <https://www.gnu.org/licenses/>.
 ###############################################################################
 import threading
-import rti.connextdds as dds
 from ..core.time import Timestamp
-
-from ..registry.versioned import Versioned
 
 
 class Triggerrable:
@@ -32,7 +29,6 @@ class Triggerrable:
     self._service_active = False
     self._triggered = False
     self._last_trigger_ts = None
-    self.result_available_condition = dds.GuardCondition()
     super().__init__()
 
 
@@ -75,7 +71,6 @@ class Triggerrable:
         test_end = Timestamp.now()
         test_length = int(test_end.subtract(self._last_trigger_ts).total_seconds())
         self.log.debug("trigger handled in {} seconds", test_length)
-        self.result_available_condition.trigger_value = True
         if test_length > self.max_trigger_delay:
           self.log.warning("handler took longer than max delay: {} > {}", test_length, self.max_trigger_delay)
     except Exception as e:

@@ -14,18 +14,14 @@
 # You should have received a copy of the GNU Affero General Public License
 # along with this program. If not, see <https://www.gnu.org/licenses/>.
 ###############################################################################
-from typing import TYPE_CHECKING, Generator, Iterable
+from typing import TYPE_CHECKING
 from pathlib import Path
 from functools import cached_property
-import contextlib
-import os
 from enum import Enum
-import rti.connextdds as dds
 
-from ..core.exec import exec_command, shell_which
+from ..core.exec import exec_command
 from ..registry.versioned import disabled_if, error_if
 
-from .render import Templates
 from .runnable import Runnable
 from .agent_static_service import AgentStaticService
 
@@ -58,10 +54,9 @@ class AgentService(Runnable):
   STATIC_SERVICE = None
 
   def __init__(self, **properties) -> None:
-    self.updated_condition_triggered = False
-    self.updated_condition = dds.GuardCondition()
-    self.listeners: list[AgentServiceListener] = list()
     super().__init__(**properties)
+    self.updated_condition = self.agent.middleware.condition()
+    self.listeners: list[AgentServiceListener] = list()
 
 
   @property
@@ -149,7 +144,7 @@ class AgentService(Runnable):
     )
     if delegate_static:
       # Leave service active
-      self.log.info("returning control to systemd unit: {}", self.static)
+      self.log.warning("returning control to systemd unit: {}", self.static)
       self.static.write_marker()
       return
 

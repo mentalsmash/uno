@@ -14,19 +14,15 @@
 # You should have received a copy of the GNU Affero General Public License
 # along with this program. If not, see <https://www.gnu.org/licenses/>.
 ###############################################################################
-from typing import Generator, Iterable, Callable, TYPE_CHECKING
-from functools import cached_property
-import threading
+from typing import Generator, Iterable, TYPE_CHECKING
 from enum import Enum
 import ipaddress
-
-import rti.connextdds as dds
 
 from ..registry.uvn import Uvn
 from ..registry.cell import Cell
 from ..registry.particle import Particle
 from ..registry.lan_descriptor import LanDescriptor
-from ..registry.versioned import Versioned, prepare_timestamp, prepare_enum, serialize_enum, prepare_collection
+from ..registry.versioned import Versioned, prepare_timestamp, prepare_enum, prepare_collection
 from ..registry.database import DatabaseObjectOwner, OwnableDatabaseObject
 
 from ..core.time import Timestamp
@@ -46,15 +42,15 @@ class UvnPeer(Versioned, DatabaseObjectOwner, OwnableDatabaseObject):
     "registry_id",
     "status",
     "routed_networks",
-    "ih",
-    "ih_dw",
+    "instance",
+    "writer",
     "ts_start",
     "vpn_interfaces",
     "known_networks",
   ]
   VOLATILE_PROPERTIES = [
-    "ih",
-    "ih_dw",
+    "instance",
+    "writer",
   ]
   EQ_PROPERTIES = [
     "owner",
@@ -139,18 +135,16 @@ class UvnPeer(Versioned, DatabaseObjectOwner, OwnableDatabaseObject):
     return changed
 
 
-  def configure_known_networks(self, known_networks: None|list[dict]) -> bool:
+  def configure_known_networks(self, known_networks: None|dict[LanDescriptor, bool]) -> bool:
     changed = False
     configured = set()
-    for net_cfg in (known_networks or []):
-      known_net = next((n for n in self.known_networks if n.lan == net_cfg["lan"]), None)
-      init_props = ["lan"]
-      cfg_args = dict(i for i in net_cfg.items() if i[0] not in init_props)
+    for lan, reachable in (known_networks or {}).items():
+      known_net = next((n for n in self.known_networks if n.lan == lan), None)
+      cfg = {"reachable": reachable}
       if known_net is None:
-        init_args = dict(i for i in net_cfg.items() if i[0] in init_props)
-        known_net = self.new_child(LanStatus, init_args, owner=self, save=False)
+        known_net = self.new_child(LanStatus, {"lan": lan}, owner=self, save=False)
         changed = True
-      changed_cfg = known_net.configure(**cfg_args)
+      changed_cfg = known_net.configure(**cfg)
       changed = changed or len(changed_cfg) > 0
       configured.add(known_net)
     if changed:
@@ -165,10 +159,15 @@ class UvnPeer(Versioned, DatabaseObjectOwner, OwnableDatabaseObject):
 
 
   @property
-  def local(self) -> bool:
+  def agent(self) -> "Agent":
     assert(self.parent.parent is not None)
+    return self.parent.parent
+
+
+  @property
+  def local(self) -> bool:
     assert(self.owner is not None)
-    return self.parent.parent.owner == self.owner
+    return self.agent.owner == self.owner
 
 
   @property

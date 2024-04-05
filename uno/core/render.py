@@ -123,7 +123,6 @@ class _Templates:
       loader=jinja2.PackageLoader("uno", package_path="templates"),
       autoescape=jinja2.select_autoescape(['html', 'xml']),
       extensions=['jinja2.ext.i18n'])
-
     self._env.filters["time_since"] = _filter_time_since
     self._env.filters["format_ts"] = _filter_format_ts
     self._env.filters["ip_default_route"] = _filter_ip_default_route

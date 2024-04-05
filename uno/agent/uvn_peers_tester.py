@@ -16,7 +16,7 @@
 ###############################################################################
 from typing import Iterable
 
-from .uvn_peer import UvnPeer, LanStatus
+from .uvn_peer import UvnPeer
 from ..core.exec import exec_command
 from ..core.ip import ipv4_get_route
 from ..core.log import Logger as log
@@ -41,6 +41,7 @@ class UvnPeersTester(AgentService, Triggerrable):
   def __init__(self, **properties) -> None:
     super().__init__(**properties)
     self._peers_status = {}
+    self._last_result = None
 
 
   def check_runnable(self) -> bool:
@@ -101,18 +102,17 @@ class UvnPeersTester(AgentService, Triggerrable):
         else:
           unreachable.append((peer, lan))
 
-    known_networks = [
-      *({
-        "lan": l,
-        "reachable": True,
-      } for p, l in reachable),
-      *({
-        "lan": l,
-        "reachable": False,
-      } for p, l in unreachable),
-    ]
+    self._last_result = dict((
+      *((l, True) for p, l in reachable),
+      *((l, False) for p, l in unreachable)
+    ))
+
+    self.updated_condition.trigger_value = True
+
+
+  def _process_updates(self) -> None:
     self.agent.peers.update_peer(self.agent.peers.local,
-      known_networks=known_networks)
+      known_networks=self._last_result)
 
 
   def _ping_test(self, peer: UvnPeer, lan: LanDescriptor) -> bool:

@@ -84,7 +84,7 @@ class Packager(Versioned):
     package_files: list[Path] = []
     
     # Export DDS keys from identity db
-    id_dir = tmp_dir / "id"
+    id_dir = tmp_dir / ".id-import"
     exported_keymat = registry.id_db.export_keys(
       output_dir=id_dir,
       target=cell)
@@ -99,18 +99,19 @@ class Packager(Versioned):
     }))
     package_files.append(id_file)
 
-    # Copy additional files (some possibly optional)
-    for src, dst, optional in [
-        (registry.rti_license, None, False),
-      ]:
-      dst = dst or src.name
+    # Create a participant from the registry to
+    # read additional bundled files
+    participant = registry.middleware.participant(
+      registry=registry,
+      owner=cell)
+    for src in participant.cell_agent_package_files:
+      dst = src.relative_to(participant.root)
       tgt = tmp_dir / dst
-      if optional and not src.exists():
-        continue
+      tgt.parent.mkdir(exist_ok=True, parents=True)
       exec_command(["cp", "-v", src, tgt])
       package_files.append(tgt)
 
-    
+
     # Generate agent's database in the temporary directory
     db = registry.generate_cell_database(cell, root=tmp_dir)
     package_files.append(db.db_file)
@@ -201,43 +202,11 @@ class Packager(Versioned):
 
   @classmethod
   def extract_cell_agent_package(cls, package: Path, agent_dir: Path, exclude: list[str] | None = None) -> None:
-    # Extract package to a temporary directory
-    tmp_dir_h = tempfile.TemporaryDirectory()
-    tmp_dir = Path(tmp_dir_h.name)
-
     package = package.resolve()
-
-    cls.log.activity("extracting agent package contents: {}", tmp_dir)
-    # print("PACKAGE FILE TYPE", exec_command([f"ls -l {package}"], shell=True, capture_output=True).stdout.decode())
-    exec_command(["tar", "xvJf", package], cwd=tmp_dir)
-
-    agent_dir.mkdir(parents=True, exist_ok=True)
-    agent_dir = agent_dir.resolve()
+    cls.log.activity("extracting agent package contents: {}", agent_dir)
+    exec_command(["tar", "xvJf", package, *(f"--exclude={e}" for e in (exclude or []))], cwd=agent_dir)
     agent_dir.chmod(0o755)
-
-    exclude = exclude or []
-
-    for f, permissions in {
-        "rti_license.dat": 0o600,
-        "id.yaml": 0o644,
-        Database.DB_NAME: 0o600,
-        ("id", ".id-import"): 0o700,
-      }.items():
-      if f in exclude:
-        continue
-      if isinstance(f, tuple):
-        in_f = f[0]
-        out_f = f[1]
-      else:
-        in_f = f
-        out_f = f
-      src = tmp_dir / in_f
-      dst = agent_dir / out_f
-      # shutil.copy2(src, dst)
-      exec_command(["cp", "-rv", src, dst])
-      dst.chmod(permissions)
-
-    cls.log.info("agent package extracted: {}", package)
+    cls.log.info("agent package extracted: {} → {}", package, agent_dir)
 
 
   @classmethod
