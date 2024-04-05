@@ -1,6 +1,6 @@
 [tool.poetry]
 name = "uno"
-version = "2.1.1"
+version = "2.1.2"
 description = "Dynamic site-to-site VPNs"
 authors = ["Andrea Sorbini <as@mentalsmash.org>"]
 readme = "README.md"

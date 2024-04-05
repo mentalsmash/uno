@@ -58,7 +58,7 @@ RUN adduser --shell /bin/bash uno
 # Copy uno
 COPY . /uno-dev
 
-ARG VERSION=2.1.1
+ARG VERSION=2.1.2
 ARG DEV=
 
 RUN set -e; \

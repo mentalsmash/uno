@@ -68,6 +68,11 @@ class Middleware:
       raise RuntimeError("no middleware available")
 
 
+  @property
+  def install_instructions(self) -> str | None:
+    return None
+
+
   def supports_agent(self) -> bool:
     return True
 

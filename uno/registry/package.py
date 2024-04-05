@@ -139,11 +139,16 @@ class Packager(Versioned):
     guide_file = output_dir / guide_file_name
     guide_file.parent.mkdir(exist_ok=True, parents=True)
     other_cells = sorted((c for c in cell.uvn.cells.values() if c != cell), key=lambda c: c.id)
+    install_base = "/opt/uno"
     html_body = Templates.render("install/agent_install_guide.md", {
       "generation_ts": Timestamp.now(),
       "uvn": registry.uvn,
       "cell": cell,
       "cell_package": cell_package,
+      "install_base": install_base,
+      "venv": install_base + "/venv",
+      "agent_root": install_base + "/" + cell.name,
+      "middleware_install": registry.middleware.install_instructions,
       # Cache some frequently used variables for easier reference
       "allowed_lans": list(cell.allowed_lans),
       "address": cell.address,

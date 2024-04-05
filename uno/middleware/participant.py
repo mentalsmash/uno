@@ -167,3 +167,5 @@ class Participant:
   def cell_agent_package_files(self) -> Generator[Path, None, None]:
     for f in []:
       yield f
+
+
