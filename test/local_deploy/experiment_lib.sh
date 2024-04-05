@@ -259,10 +259,10 @@ uvn_create()
           uvn_admin="${2}" \
           uvn_admin_name="${3}"
 
-    if [ -z "${RTI_LICENSE_FILE}" ]; then
-        log_error "Please set RTI_LICENSE_FILE to a valid rti_license.dat"
-        exit 1
-    fi
+    # if [ -z "${RTI_LICENSE_FILE}" ]; then
+    #     log_error "Please set RTI_LICENSE_FILE to a valid rti_license.dat"
+    #     exit 1
+    # fi
 
     log_debug " creating UVN: ${uvn_address}"
     (

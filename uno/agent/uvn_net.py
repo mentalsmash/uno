@@ -41,6 +41,12 @@ class UvnNet(AgentService):
         shell=True,
         fail_msg="failed to enable ipv4 forwarding")
 
+    # Since we won't disable kernel forwarding,
+    # permanently install a DROP rule for the FORWARD chain
+    self._iptables_install("forward_drop", [
+      "-P", "FORWARD", "DROP"
+    ], noop=noop, irremovable=True)
+
     self._iptables_install("tcp_pmtu", [
       "-A", "FORWARD",
       "-p", "tcp",
@@ -49,8 +55,12 @@ class UvnNet(AgentService):
       "--clamp-mss-to-pmtu"
     ], noop=noop)
 
+    for lan in self.agent.lans:
+      self._iptables_forward(lan.nic.name, noop=noop)
+
     for vpn in self.agent.vpn_interfaces:
       vpn.start(noop=noop)
+      self._iptables_forward(vpn.config.intf.name, noop=noop)
       if vpn.config.masquerade:
         self._vpn_masquerade(vpn, noop=noop)
 
@@ -71,7 +81,15 @@ class UvnNet(AgentService):
     for rule_id, rules in list(self._iptables_rules.items()):
       for rule in reversed(rules or []):
         try:
-          del_rule = [tkn if tkn != "-A" else "-D" for tkn in rule]
+          if rule[0] == "-P":
+            assert(len(rule) == 3)
+            del_rule = [*rule[:2], "ACCEPT"]
+          else:
+            tkn_map = {
+              "-A": "-D",
+              "-N": "-X",
+            }
+            del_rule = [tkn_map.get(tkn, tkn) for tkn in rule]
           exec_command(["iptables", *del_rule])
         except Exception as e:
           if not assert_stopped:
@@ -82,6 +100,44 @@ class UvnNet(AgentService):
           errors.append(e)
     if errors:
       raise StopAgentServiceError(errors)
+
+
+  def _iptables_forward(self, nic: str, noop: bool=False) -> None:
+    # Add a dedicated chain to the FORWARD chain
+    chain=f"FORWARD_{nic}"
+
+    self._iptables_install(nic, [
+      "-N", chain,
+    ], noop=noop)
+    self._iptables_install(nic, [
+      "-A", "FORWARD", "-j", chain,
+    ], noop=noop)
+
+    # Accept related or established traffic
+    self._iptables_install(nic, [
+      "-A", chain, "-o", nic, "-m", "conntrack", "--ctstate", "RELATED,ESTABLISHED", "-j", "ACCEPT",
+    ], noop=noop)
+
+    # Accept traffic from any valid known subnet
+    for subnet in sorted((
+        *([self.agent.uvn.settings.root_vpn.subnet] if self.agent.root_vpn else []),
+        *([self.agent.uvn.settings.particles_vpn.subnet] if self.agent.particles_vpn else []),
+        *([self.agent.uvn.settings.backbone_vpn.subnet] if self.agent.backbone_vpns else []),
+        *([lan for cell in self.agent.uvn.cells.values() for lan in cell.allowed_lans]),
+        )):
+      self._iptables_install(nic, [
+        "-A", chain, "-s", str(subnet), "-i", nic, "-j", "ACCEPT",
+      ], noop=noop)
+
+    # Drop everything else coming through the interface
+    self._iptables_install(nic, [
+      "-A", chain, "-i", nic, "-j", "DROP",
+    ], noop=noop)
+
+    # Return to FORWARD chain
+    self._iptables_install(nic, [
+      "-A", chain, "-j", "RETURN",
+    ], noop=noop)
 
 
   def _vpn_masquerade(self, vpn: WireGuardInterface, noop: bool=False) -> None:
@@ -105,9 +161,11 @@ class UvnNet(AgentService):
       self.log.debug("NAT ENABLED for VPN interface: {}", vpn)
 
 
-  def _iptables_install(self, rule_id: str, rule: list[str], noop: bool=False):
+  def _iptables_install(self, rule_id: str, rule: list[str], noop: bool=False, irremovable: bool=False):
     if not noop:
       exec_command(["iptables", *rule])
+    if irremovable:
+      return
     rules = self._iptables_rules[rule_id] = self._iptables_rules.get(rule_id, [])
     rules.append(rule)
 
