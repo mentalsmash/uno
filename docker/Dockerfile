@@ -58,7 +58,7 @@ RUN adduser --shell /bin/bash uno
 # Copy uno
 COPY . /uno-dev
 
-ARG VERSION=2.1.2
+ARG VERSION=2.1.3
 ARG DEV=
 
 RUN set -e; \
@@ -74,7 +74,7 @@ RUN set -e; \
     pip3 install -e /uno
 
 
-ARG PLUGINS=uno-middleware-connext@https://github.com/mentalsmash/uno-middleware-connext.git|1.1.0
+ARG PLUGINS=uno-middleware-connext@https://github.com/mentalsmash/uno-middleware-connext.git|1.1.1
 
 RUN set -e; \
     if [ -n "${DEV}" -a -d "${DEV}/plugins" ]; then \
