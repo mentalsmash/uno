@@ -70,18 +70,26 @@ class Network:
       yield self.router
     if self.public_agent:
       yield self.public_agent
-    yield from self.agents
-    yield from self.hosts
     if self.registry:
       yield self.registry
+    yield from self.agents
+    yield from self.hosts
+    yield from self.particles
 
 
   def __contains__(self, value: object) -> bool:
-    if value is None:
+    if not isinstance(value, Host):
       return False
-    for host in (self.router, self.public_agent, *self.hosts, *self.agents):
-      if host == value:
-        return True
+    if value.role == HostRole.REGISTRY:
+      return value == self.registry
+    if value.role == HostRole.ROUTER:
+      return value == self.router
+    if value.role == HostRole.CELL:
+      return value == self.public_agent or value in self.agents
+    if value.role == HostRole.PARTICLE:
+      return value in self.particles
+    if value.role == HostRole.HOST:
+      return value in self.hosts
     return False
 
 
@@ -172,9 +180,9 @@ class Network:
 
   def define_agent(self,
       address: ipaddress.IPv4Address,
+      cell_package: Path,
       hostname: str|None=None,
       container_name: str|None=None,
-      cell_package: Path|None=None,
       adjacent_networks: dict["Network", ipaddress.IPv4Address]|None=None,
       public: bool=True,
       uvn: Uvn|None=None,
@@ -196,7 +204,7 @@ class Network:
       container_name=container_name,
       networks=networks,
       default_network=self,
-      role=HostRole.AGENT,
+      role=HostRole.CELL,
       cell_package=cell_package,
       **host_args)
     if public:
@@ -240,6 +248,7 @@ class Network:
 
   def define_particle(self,
       address: ipaddress.IPv4Address,
+      particle_package: Path,
       hostname: str|None=None,
       container_name: str|None=None,
       **host_args) -> None:
@@ -253,6 +262,7 @@ class Network:
       experiment=self.experiment,
       hostname=hostname,
       container_name=container_name,
+      particle_package=particle_package,
       networks={self: address},
       default_network=self,
       role=HostRole.PARTICLE,

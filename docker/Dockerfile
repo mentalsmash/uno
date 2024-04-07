@@ -33,6 +33,8 @@ RUN export DEBIAN_FRONTEND="noninteractive" \
       lighttpd \
       openssl \
       git \
+      unzip \
+      zip \
       $([ -z "${EXTRAS}" ] || \
         echo \
           rng-tools \
@@ -79,7 +81,6 @@ ARG LOCAL=
 RUN set -e; \
     if [ -n "${LOCAL}" ]; then \
       cp -r /uno-dev /uno; \
-      pip3 install pytest; \
     else \
       git clone ${UNO_URL} -b ${UNO_VERSION} /uno; \
     fi; \
@@ -126,6 +127,7 @@ ARG USER="uno"
 ARG DEV=
 RUN set -xe; \
     if [ -n "${DEV}" ]; then \
+      pip3 install pytest; \
       apt-get update; \
       apt-get install -y --no-install-recommends sudo openssh-server openssh-client; \
       apt-get clean; \

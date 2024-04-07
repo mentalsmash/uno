@@ -22,22 +22,27 @@ def experiment(scenario: Scenario):
 
 
 @pytest.fixture
-def hosts(experiment: Experiment) -> list[Host]:
+def the_hosts(experiment: Experiment) -> list[Host]:
   return sorted((h for h in experiment.hosts if h.role == HostRole.HOST), key=lambda h: h.container_name)
 
 
 @pytest.fixture
-def registry(experiment: Experiment) -> list[Host]:
+def the_registry(experiment: Experiment) -> list[Host]:
   return next(h for h in experiment.hosts if h.role == HostRole.REGISTRY)
 
 
 @pytest.fixture
-def uno_agents(experiment: Experiment) -> Generator[dict[Host, subprocess.Popen], None, None]:
+def the_particles(experiment: Experiment) -> list[Host]:
+  return sorted((h for h in experiment.hosts if h.role == HostRole.PARTICLE), key=lambda h: h.container_name)
+
+
+@pytest.fixture
+def the_agents(experiment: Experiment) -> Generator[dict[Host, subprocess.Popen], None, None]:
   import contextlib
   with contextlib.ExitStack() as stack:
     agents = {}
     for host in experiment.hosts:
-      if host.role != HostRole.AGENT:
+      if host.role != HostRole.CELL:
         continue
       # agents.append(host.uno_agent())
       agents[host] = stack.enter_context(host.uno_agent())
@@ -45,7 +50,7 @@ def uno_agents(experiment: Experiment) -> Generator[dict[Host, subprocess.Popen]
 
 
 @pytest.fixture
-def uno_fully_routed_agents(experiment: Experiment, uno_agents: dict[Host, subprocess.Popen]) -> Generator[dict[Host, subprocess.Popen], None, None]:
+def the_fully_routed_agents(experiment: Experiment, uno_agents: dict[Host, subprocess.Popen]) -> Generator[dict[Host, subprocess.Popen], None, None]:
   def _check_all_consistent() -> bool:
     for agent in uno_agents:
       if not agent.cell_fully_routed:

@@ -18,7 +18,7 @@ from enum import Enum
 class HostRole(Enum):
   HOST = 0
   ROUTER = 1
-  AGENT = 2
+  CELL = 2
   REGISTRY = 3
   PARTICLE = 4
 

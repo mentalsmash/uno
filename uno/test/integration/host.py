@@ -28,6 +28,7 @@ from uno.core.time import Timer
 from uno.core.exec import exec_command
 from uno.core.log import Logger
 from uno.registry.cell import Cell
+from uno.registry.particle import Particle
 from uno.registry.package import Packager
 from uno.agent.agent import Agent
 
@@ -66,6 +67,7 @@ class Host:
       role: HostRole,
       upstream_network: "Network|None"=None,
       cell_package: Path|None=None,
+      particle_package: Path|None=None,
       image: str|None=None,
       port_forward: "dict[tuple[Network, int], Host]|None"=None):
     self.experiment = experiment
@@ -78,10 +80,13 @@ class Host:
     assert(self.upstream_network is None or upstream_network in self.networks)
     self.role = role
     self.cell_package = cell_package.resolve() if cell_package else None
-    assert(self.role != HostRole.AGENT or self.cell_package is not None)
+    assert(self.role != HostRole.CELL or self.cell_package is not None)
+    self.particle_package = particle_package.resolve() if particle_package else None
+    assert(self.role != HostRole.PARTICLE or self.particle_package is not None)
     self.image = image or self.experiment.config["image"]
     self.port_forward = dict(port_forward or {})
     self.log = Logger.sublogger(self.container_name)
+
 
 
   def __str__(self) -> str:
@@ -155,10 +160,10 @@ class Host:
     return self.experiment_uvn_dir / "test"
 
 
-  def test_file(self, name: str) -> tuple[Path, Path]:
+  def test_file(self, name: str, create: bool=False) -> tuple[Path, Path]:
     self.test_dir.mkdir(exist_ok=True, parents=True)
     output = self.test_dir / name
-    if output.exists():
+    if create and output.exists():
       output.unlink()
     return [
       output,
@@ -177,6 +182,14 @@ class Host:
       return None
     # Parse cell_package.name
     return Packager.parse_cell_archive_file(self.cell_package, self.experiment.registry.uvn)
+
+
+  @cached_property
+  def particle(self) -> Particle | None:
+    if self.particle_package is None:
+      return None
+    # Parse particle_package.name
+    return Packager.parse_particle_archive_file(self.particle_package, self.experiment.registry.uvn)
 
 
   @cached_property
@@ -225,14 +238,33 @@ class Host:
     return expected_lans == self.cell_reachable_networks
 
 
+  def particle_file(self, cell: Cell, ext: str=".conf") -> tuple[Path, Path]:
+    artifacts_dir, artifacts_dir_c = self.test_file(f"{self.particle.uvn.name}__{self.particle.name}")
+    basename = Packager.particle_cell_file(self.particle, cell)
+    return (artifacts_dir / f"{basename}{ext}", artifacts_dir_c / f"{basename}{ext}")
+
+
+  @contextlib.contextmanager
+  def particle_wg_up(self, cell: Cell) -> Generator[Cell, None, None]:
+    conf, conf_c = self.particle_file(cell)
+    up_conf_c = conf_c.parent / "uwg-v0.conf"
+    self.exec("cp", conf_c, up_conf_c)
+    self.exec("wg-quick", "up", up_conf_c)
+    try:
+      yield cell
+    finally:
+      self.exec("wg-quick", "down", up_conf_c)
+
+
+
   def create(self) -> None:
     # The uno package must have been imported from a cloned repository
     assert((self.experiment.uno_dir / ".git").is_dir())
     assert(not self.experiment.inside_test_runner)
-
     # Make sure the host doesn't exist, then create it
     self.delete(ignore_errors=True)
-    
+
+    self.test_dir.mkdir(exist_ok=True, parents=True)
 
     if self.role == HostRole.REGISTRY:
       # Make a copy of the registry's uvn directory
@@ -271,8 +303,8 @@ class Host:
         "-e", f"UNO_MIDDLEWARE={self.experiment.registry.middleware.plugin}",
         *(["-v", f"{plugin_base_dir}:/uno-middleware"] if plugin_base_dir else []),
         "-v", f"{self.experiment.registry.root}:/experiment-uvn",
-        *(["-v", f"{self.experiment_uvn_dir}:/uvn"] if self.role in (HostRole.REGISTRY, HostRole.AGENT) else []),
-        *(["-v", f"{self.cell_package}:/package.uvn-agent"] if self.role == HostRole.AGENT else []),
+        *(["-v", f"{self.experiment_uvn_dir}:/uvn"] if self.role in (HostRole.REGISTRY, HostRole.CELL) else []),
+        *(["-v", f"{self.cell_package}:/package.uvn-agent"] if self.role == HostRole.CELL else []),
         self.image,
         "/uno/uno/test/integration/runner.py",
           "host",
@@ -347,10 +379,10 @@ class Host:
   def wait_ready(self) -> None:
     self.log.activity("waiting for container to be up")
     Timer(30, 1, lambda: self.ready, self.log,
-      "waiting for container to be up",
-      "container not ready yet...",
-      "container ready",
-      "container failed to activate").wait()
+      f"waiting for container {self.container_name} to be up",
+      f"container {self.container_name} not ready yet...",
+      f"container {self.container_name} ready",
+      f"container {self.container_name} failed to activate").wait()
 
 
   @property
@@ -452,7 +484,7 @@ kill -0 $(cat /run/uno/uno-agent.pid) && echo OK
         ])
 
 
-  def _init_agent(self) -> None:
+  def _init_cell(self) -> None:
     self._init_common()
     self.install_default_route(
       dev=self.default_nic, route=self.default_network.router_address)
@@ -462,6 +494,14 @@ kill -0 $(cat /run/uno/uno-agent.pid) && echo OK
     self._init_common()
     self.install_default_route(
       dev=self.default_nic, route=self.default_network.router_address)
+
+
+  def _init_particle(self) -> None:
+    self._init_common()
+    # Extract particle package
+    exec_command([
+      "unzip", "-o", self.particle_package
+    ], cwd=self.test_dir)
 
 
   def run(self) -> None:
@@ -535,7 +575,7 @@ kill -0 $(cat /run/uno/uno-agent.pid) && echo OK
     self._run_forever()
 
 
-  def _run_agent(self) -> None:
+  def _run_cell(self) -> None:
     self.uno("install", "/package.uvn-agent", "-r", "/uvn")
     with self._uno_service_up():
       self._run_forever()
@@ -549,6 +589,10 @@ kill -0 $(cat /run/uno/uno-agent.pid) && echo OK
 
 
   def _run_router(self) -> None:
+    self._run_forever()
+
+
+  def _run_particle(self) -> None:
     self._run_forever()
 
 
@@ -628,7 +672,7 @@ kill -0 $(cat /run/uno/uno-agent.pid) && echo OK
       import signal
       server.send_signal(signal.SIGINT)
       server.wait(timeout=5)
-      self.exec("killall", "sshd")
+      # self.exec("killall", "sshd")
       self.log.activity("stopped SSH server")
 
 
@@ -675,7 +719,7 @@ done
 
   def agent_httpd_test(self, agent_host: "Host") -> None:
     def _test_url(address: ipaddress.IPv4Address):
-      output, output_c = self.test_file(f"{agent_host.container_name}-{address}-index.html")
+      output, output_c = self.test_file(f"{agent_host.container_name}-{address}-index.html", create=True)
       agent_url = f"https://{address}"
       self.log.activity("test HTTP GET {} -> {}", agent_url, output.name)
       # assert(agent_host.agent_alive)

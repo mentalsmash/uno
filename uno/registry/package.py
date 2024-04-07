@@ -47,6 +47,18 @@ class Packager(Versioned):
 
 
   @classmethod
+  def parse_particle_archive_file(cls, file: Path|str, uvn: Uvn) -> Cell:
+    if isinstance(file, Path):
+      file = file.name
+    file = file.split("/")[-1]
+    file = file[:-len(cls.PARTICLE_PACKAGE_EXT)]
+    uvn_name, particle_name = file.split("__")
+    if uvn.name != uvn_name:
+      raise ValueError("file from a different uvn", file, uvn, uvn_name)
+    return next(p for p in uvn.particles.values() if p.name == particle_name)
+
+
+  @classmethod
   def particle_cell_file(cls, particle: Particle, cell: Cell | None = None, ext: str=None) -> str:
     return f"{particle.uvn.name}__{particle.name}__{cell.name}{ext if ext is not None else ''}"
 

@@ -157,10 +157,13 @@ class BasicScenario(Scenario):
     # Define "particle" hosts
     for p_i in range(self.config["particles_count"]):
       address = internet.allocate_address()
-      hostname = f"particle{p_i}"
+      hostname = f"particle{p_i+1}"
+      particle = next(p for p in self.registry.uvn.particles.values() if p.name == hostname)
+      particle_package = self.registry.particles_dir / Packager.particle_archive_file(particle)
       internet.define_particle(
         address=address,
-        hostname=hostname)
+        hostname=hostname,
+        particle_package=particle_package)
 
     # Define registry node in the internet network
     # Assign it a "router" address, since this network

@@ -1,4 +1,6 @@
 #!/bin/sh -ex
+# Load Python virtual environment
+. ${UNO_VENV}/bin/activate
 
 # Check if a custom init script was mounted/specified
 if [ -n "${INIT}" ]; then

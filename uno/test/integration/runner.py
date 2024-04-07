@@ -53,9 +53,6 @@ def runner_host(args: argparse.Namespace) -> None:
   if middleware_plugin_dir.is_dir():
     sys.path.insert(0, str(middleware_plugin_dir))
   test_case_filef = Path("/experiment") / args.test_case
-  print("IMPORTING", test_case_filef)
-  from uno.core.exec import exec_command
-  print("/experiment CONTENTS", exec_command(["ls", "-l", "/experiment"], capture_output=True).stdout.decode())
   scenario: Scenario = IntegrationTest.import_test_case(test_case_filef)
   # Find host for the current container
   host = next(h for h in scenario.experiment.hosts if h.container_name == args.container_name)
