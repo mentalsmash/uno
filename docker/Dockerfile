@@ -144,6 +144,7 @@ RUN set -xe; \
       cp ${key} /home/${USER}/.ssh/id_ed25519; \
       cp ${key}.pub /home/${USER}/.ssh/id_ed25519.pub; \
       chown -R ${USER}:${USER} /home/${USER}/.ssh; \
+      chmod 600 /home/${USER}/.ssh/id_ed25519; \
     fi
 
 # Clean-up uno repository

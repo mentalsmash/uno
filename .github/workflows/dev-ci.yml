@@ -69,7 +69,8 @@ jobs:
         run: |
           . venv/bin/activate
           cd src/uno
-          pytest -k "not test_integration" -s -v --junit-xml=${GITHUB_WORKSPACE}/test/pytest-results-unit-${{ matrix.uno-middleware }}.xml
+          # TODO(asorbini) run tests inside a container
+          pytest -k "not test_integration" -v --junit-xml=${GITHUB_WORKSPACE}/test/pytest-results-unit-${{ matrix.uno-middleware }}.xml
         env:
           UNO_MIDDLEWARE: ${{ matrix.uno-middleware }}
           VERBOSITY: activity
@@ -85,7 +86,7 @@ jobs:
         run: |
           . venv/bin/activate
           cd src/uno
-          pytest -k test_integration -s -v --junit-xml=${GITHUB_WORKSPACE}/test/pytest-results-int-${{ matrix.uno-middleware }}.xml
+          pytest -k test_integration -v --junit-xml=${GITHUB_WORKSPACE}/test/pytest-results-int-${{ matrix.uno-middleware }}.xml
         env:
           UNO_MIDDLEWARE: ${{ matrix.uno-middleware }}
           VERBOSITY: activity
