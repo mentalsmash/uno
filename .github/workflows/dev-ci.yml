@@ -30,14 +30,12 @@ jobs:
         with:
           repository: mentalsmash/uno-middleware-connext
           path: src/plugins/uno-middleware-connext
-          # ref: ${{ github.ref_name }}
       # Clone CI configuration repository
       - name: Clone CI configuration
         uses: actions/checkout@v4
         with:
           repository: mentalsmash/uno-ci
-          ref: master
-          ssh_key: ${{ secrets.UNO_CI_SSH_KEY }}
+          token: ${{ secrets.UNO_CI_PAT }}
           path: src/uno-ci
       # Build tester docker image
       - name: Set up Docker Buildx
