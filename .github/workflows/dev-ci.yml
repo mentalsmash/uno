@@ -60,6 +60,10 @@ jobs:
           pip install -e src/uno
           pip install -e src/plugins/uno-middleware-connext
           pip install pytest
+      # Generate path to rti_license.dat
+      - name: Configure test environment
+        run: |
+          echo "RTI_LICENSE_FILE=${GITHUB_WORKSPACE}/src/uno-ci/resource/rti/rti_license.dat" >> ${GITHUB_ENV}
       # Run tests with the selected middleware
       - name: Run unit tests
         run: |
@@ -70,7 +74,6 @@ jobs:
           UNO_MIDDLEWARE: ${{ matrix.uno-middleware }}
           VERBOSITY: activity
           DEBUG: y
-          RTI_LICENSE_FILE: ${GITHUB_WORKSPACE}/src/uno-ci/resource/rti/rti_license.dat
       - name: Upload unit test results
         uses: actions/upload-artifact@v4
         with:
@@ -87,7 +90,6 @@ jobs:
           UNO_MIDDLEWARE: ${{ matrix.uno-middleware }}
           VERBOSITY: activity
           DEBUG: y
-          RTI_LICENSE_FILE: ${GITHUB_WORKSPACE}/src/uno-ci/resource/rti/rti_license.dat
       - name: Upload integration test results
         uses: actions/upload-artifact@v4
         with:
