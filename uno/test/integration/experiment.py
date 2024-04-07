@@ -36,7 +36,7 @@ uno_dir = Path(uno.__file__).parent.parent
 
 
 class Experiment:
-  uno_dir = Path(uno.__file__).parent.parent
+  uno_dir = Path(uno.__file__).resolve().parent.parent
   BuiltImages = set()
 
   def __init__(self,
@@ -113,15 +113,26 @@ class Experiment:
     self.log.info("created {} networks and {} containers", len(self.networks), len(self.hosts))
 
 
-  def restore_registry_permissions(self) -> None:
+  @classmethod
+  def restore_registry_permissions(cls, registry_root: Path|None=None, test_dir: Path|None=None, experiment: "Experiment|None"=None, image: str="mentalsmash/uno:dev") -> None:
+    if experiment is not None:
+      registry_root = experiment.registry.root
+      test_dir = experiment.test_dir
+      image = experiment.config["image"]
+    do_update = (
+      (registry_root and registry_root.exists())
+      or (test_dir and test_dir.exists())
+    )
     # Return ownership of registry directory to current user
-    if self.registry.root.exists():
+    if do_update:
       exec_command([
         "docker", "run", "--rm",
-          "-v", f"{self.registry.root}:/registry",
-          "-v", f"{self.test_dir}:/test-dir",
-          self.config["image"],
-          "chown", "-R", f"{os.getuid()}:{os.getgid()}", "/registry", "/test-dir"
+          *(["-v", f"{registry_root}:/registry"] if registry_root else []),
+          *(["-v", f"{test_dir}:/test_dir"] if test_dir else []),
+          image,
+          "chown", "-R", f"{os.getuid()}:{os.getgid()}",
+            *(["/registry"] if registry_root else []),
+            *(["/test_dir"] if test_dir else []),
       ])
 
 
@@ -137,7 +148,7 @@ class Experiment:
       net.delete(ignore_errors=assert_stopped)
       self.log.activity("network deleted: {}", net)
     self.networks.clear()
-    self.restore_registry_permissions()
+    self.restore_registry_permissions(experiment=self)
     self.log.info("removed all networks and containers", len(self.networks), len(self.hosts))
 
 

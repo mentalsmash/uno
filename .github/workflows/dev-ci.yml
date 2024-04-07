@@ -61,21 +61,38 @@ jobs:
           pip install -e src/plugins/uno-middleware-connext
           pip install pytest
       # Run tests with the selected middleware
-      - name: Run tests
+      - name: Run unit tests
         run: |
           . venv/bin/activate
           cd src/uno
-          pytest -s -v --junit-xml=${GITHUB_WORKSPACE}/test/test-results-${{ matrix.uno-middleware }}.xml
+          pytest -k "not test_integration" -s -v --junit-xml=${GITHUB_WORKSPACE}/test/pytest-results-unit-${{ matrix.uno-middleware }}.xml
         env:
           UNO_MIDDLEWARE: ${{ matrix.uno-middleware }}
           VERBOSITY: activity
           DEBUG: y
           RTI_LICENSE_FILE: ${GITHUB_WORKSPACE}/src/uno-ci/resource/rti/rti_license.dat
-      - name: Upload test results
+      - name: Upload unit test results
         uses: actions/upload-artifact@v4
         with:
-          name: pytest-results-${{ matrix.uno-middleware }}
-          path: junit/test-results-${{ matrix.uno-middleware }}.xml
+          name: pytest-results-unit-${{ matrix.uno-middleware }}
+          path: test/pytest-results-unit-${{ matrix.uno-middleware }}.xml
+        # Use always() to always run this step to publish test results when there are test failures
+        if: ${{ always() }}
+      - name: Run integration tests
+        run: |
+          . venv/bin/activate
+          cd src/uno
+          pytest -k test_integration -s -v --junit-xml=${GITHUB_WORKSPACE}/test/pytest-results-int-${{ matrix.uno-middleware }}.xml
+        env:
+          UNO_MIDDLEWARE: ${{ matrix.uno-middleware }}
+          VERBOSITY: activity
+          DEBUG: y
+          RTI_LICENSE_FILE: ${GITHUB_WORKSPACE}/src/uno-ci/resource/rti/rti_license.dat
+      - name: Upload integration test results
+        uses: actions/upload-artifact@v4
+        with:
+          name: pytest-results-int-${{ matrix.uno-middleware }}
+          path: test/pytest-results-int-${{ matrix.uno-middleware }}.xml
         # Use always() to always run this step to publish test results when there are test failures
         if: ${{ always() }}
 

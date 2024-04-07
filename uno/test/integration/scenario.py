@@ -6,6 +6,7 @@ import os
 import ipaddress
 
 from uno.registry.registry import Registry
+from uno.middleware import Middleware
 from uno.core.log import Logger
 from uno.core.exec import exec_command
 
@@ -83,11 +84,40 @@ class Scenario:
 
 
   def uno(self, *args, **exec_args):
+    # define_uvn = len(args) > 2 and args[0] == "define" and args[1] == "uvn"
     verbose_flag = Logger.verbose_flag
-    return exec_command([
-      "uno", *args,
-        "-r", self.registry_root,
-        *([verbose_flag] if verbose_flag else []),
-    ], **exec_args)
-
+    uno_middleware_plugin, uno_middleware_plugin_module = Middleware.load_module()
+    plugin_base_dir = Middleware.plugin_base_directory(
+      uno_dir=Experiment.uno_dir,
+      plugin=uno_middleware_plugin,
+      plugin_module=uno_middleware_plugin_module)
+    rti_license = os.environ.get("RTI_LICENSE_FILE")
+    if rti_license:
+      rti_license = Path(rti_license).resolve()
+    # The command may create files with root permissions.
+    # These files will be returned to the host user when
+    # Experiment.restore_registry_permissions() is called
+    # during tear down.
+    try:
+      return exec_command([
+        "docker", "run", "--rm",
+          "-v", f"{self.registry_root}:/experiment-uvn",
+          "-v", f"{self.registry_root}:/uvn",
+          "-v", f"{Experiment.uno_dir}:/uno",
+          *(["-v", f"{plugin_base_dir}:/uno-middleware"] if plugin_base_dir else []),
+          "-e", f"UNO_MIDDLEWARE={uno_middleware_plugin}",
+          *([
+            "-v", f"{rti_license}:/rti_license.dat",
+            "-e", "RTI_LICENSE_FILE=/rti_license.dat",
+          ] if rti_license else []),
+          "-w", "/uvn",
+          self.config["image"],
+          "uno", *args,
+            *([verbose_flag] if verbose_flag else []),
+      ], **exec_args)
+    finally:
+      Experiment.restore_registry_permissions(
+          registry_root=self.registry_root,
+          image=self.config["image"])
+    # return result
 

@@ -30,6 +30,7 @@ from uno.core.log import Logger
 from uno.registry.cell import Cell
 from uno.registry.particle import Particle
 from uno.registry.package import Packager
+from uno.middleware import Middleware
 from uno.agent.agent import Agent
 
 from .host_role import HostRole
@@ -272,16 +273,10 @@ class Host:
         shutil.rmtree(self.experiment_uvn_dir)
       shutil.copytree(self.experiment.registry.root, self.experiment_uvn_dir)
 
-    plugin_base_dir = Path(self.experiment.registry.middleware.module.__file__).parent
-    try:
-      # If the plugin directory is in the base uno repository, we don't need to mount it
-      plugin_base_dir.relative_to(self.experiment.uno_dir)
-      plugin_base_dir = None
-    except ValueError:
-      # Determine the base directory to add to PYTHONPATH
-      plugin_parent_depth = len(self.experiment.registry.middleware.plugin.split("."))
-      for i in range(plugin_parent_depth):
-        plugin_base_dir = plugin_base_dir.parent
+    plugin_base_dir = self.experiment.registry.middleware.plugin_base_directory(
+      uno_dir=self.experiment.uno_dir,
+      plugin=self.experiment.registry.middleware.plugin,
+      plugin_module=self.experiment.registry.middleware.module)
 
     interactive = self.experiment.config.get("interactive", False)
 
