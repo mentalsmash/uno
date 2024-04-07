@@ -37,6 +37,7 @@ uno_dir = Path(uno.__file__).parent.parent
 
 class Experiment:
   uno_dir = Path(uno.__file__).parent.parent
+  BuiltImages = set()
 
   def __init__(self,
       test_case: Path,
@@ -210,7 +211,10 @@ class Experiment:
 
 
   @classmethod
-  def build_uno_image(cls, tag: str="uno:latest", use_cache: bool=False, dev: bool=True, extras: bool=True) -> None:
+  def build_uno_image(cls, tag: str="mentalsmash/uno:dev-local", use_cache: bool=False, dev: bool=True, extras: bool=True, local: bool=True) -> None:
+    if tag in cls.BuiltImages:
+      Logger.debug("image already built: {}", tag)
+      return
     Logger.info("building uno docker image: {}", tag)
     exec_command([
       "docker", "build",
@@ -219,7 +223,9 @@ class Experiment:
         "-t", tag,
         *(["--build-arg", "DEV=y"] if dev else []),
         *(["--build-arg", "EXTRAS=y"] if extras else []),
+        *(["--build-arg", "LOCAL=y"] if local else []),
         cls.uno_dir,
     ], debug=True)
+    cls.BuiltImages.add(tag)
     Logger.warning("uno docker image updated: {}", tag)
   

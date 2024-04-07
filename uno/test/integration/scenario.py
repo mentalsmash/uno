@@ -34,7 +34,7 @@ class Scenario:
   def default_config(self) -> dict:
     return {
       "interactive": False,
-      "image": "uno:latest",
+      "image": "mentalsmash/uno:dev-local",
       "uvn_fully_routed_timeout": 60,
     }
 

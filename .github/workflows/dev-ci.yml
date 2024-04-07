@@ -1,0 +1,81 @@
+name: Dev CI
+
+on:
+  workflow_dispatch:
+
+  push:
+    branches:
+      - 'master'
+
+concurrency:
+  # Don't run workflow in parallel
+  group: '${{ github.workflow }} @ ${{ github.event.pull_request.head.label || github.head_ref || github.ref }}'
+
+jobs:
+  build_and_test:
+    runs-on: ubuntu-latest
+    strategy:
+      matrix:
+        # python-version: ["3.9", "3.10", "3.11"]
+        uno-middleware: ["uno_middleware_connext"]
+    steps:
+      # Check out main repository
+      - name: Clone uno
+        uses: actions/checkout@v4
+        with:
+          path: src/uno
+      # Check out plugins
+      - name: Clone uno-middleware-connext
+        uses: actions/checkout@v4
+        with:
+          repository: https://github.com/mentalsmash/uno-middleware-connext.git
+          path: src/plugins/uno-middleware-connext
+          # ref: ${{ github.ref_name }}
+      # Clone CI configuration repository
+      - name: Clone CI configuration
+        uses: actions/checkout@v4
+        with:
+          repository: git@github.com:mentalsmash/uno-ci.git
+          ssh_key: ${{ secrets.UNO_CI_SSH_KEY }}
+          path: src/uno-ci
+      # Build tester docker image
+      - name: Set up Docker Buildx
+        uses: docker/setup-buildx-action@v3
+      - name: Build tester image
+        uses: docker/build-push-action@v5
+        with:
+          file: docker/Dockerfile
+          tags: mentalsmash/uno:dev-local
+          context: src/uno
+          build-args: |
+            DEV=y
+            EXTRAS=y
+            LOCAL=y
+      # Install uno in a venv
+      - name: Generate virtual environment
+        run: |
+          python3 -m venv venv
+          . venv/bin/activate
+          pip install -e src/uno
+          pip install -e src/plugins/uno-middleware-connext
+      # Run tests with the selected middleware
+      - name: Run tests
+        run: |
+          . venv/bin/activate
+          cd src/uno
+          pytest3 -s -v --junit-xml=${GITHUB_WORKSPACE}/test/test-results-${{ matrix.uno-middleware }}.xml
+        env:
+          UNO_MIDDLEWARE: ${{ matrix.uno-middleware }}
+          VERBOSITY: activity
+          DEBUG: y
+          RTI_LICENSE_FILE: ${GITHUB_WORKSPACE}/src/uno-ci/resource/rti/rti_license.dat
+      - name: Upload test results
+        uses: actions/upload-artifact@v4
+        with:
+          name: pytest-results-${{ matrix.uno-middleware }}
+          path: junit/test-results-${{ matrix.uno-middleware }}.xml
+        # Use always() to always run this step to publish test results when there are test failures
+        if: ${{ always() }}
+
+
+  
