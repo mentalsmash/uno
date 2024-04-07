@@ -1,13 +1,14 @@
 import os
 import pytest
 import time
+import subprocess
 from typing import Generator
-from uno.test.integration import Experiment, Host, HostRole, Scenario
 
+from uno.test.integration import Experiment, Host, HostRole, Scenario
+from uno.core.time import Timer
 
 @pytest.fixture
 def experiment(scenario: Scenario):
-  # scenario = scenario()
   scenario.experiment.create()
   try:
     scenario.experiment.start()
@@ -31,19 +32,7 @@ def registry(experiment: Experiment) -> list[Host]:
 
 
 @pytest.fixture
-def uno_up(experiment: Experiment) -> Generator[Experiment, None, None]:
-  # No need to wait, since we are starting container in a "synchronous" fashion
-  # (by waiting for them to signal us that they're ready)
-  # wait_t = 5
-  # experiment.log.activity("waiting {} seconds for routers to discover each other", wait_t)
-  # time.sleep(wait_t)
-  yield experiment
-
-
-import subprocess
-
-@pytest.fixture
-def uno_agents(experiment: Experiment, uno_up) -> Generator[dict[Host, subprocess.Popen], None, None]:
+def uno_agents(experiment: Experiment) -> Generator[dict[Host, subprocess.Popen], None, None]:
   import contextlib
   with contextlib.ExitStack() as stack:
     agents = {}
@@ -53,4 +42,21 @@ def uno_agents(experiment: Experiment, uno_up) -> Generator[dict[Host, subproces
       # agents.append(host.uno_agent())
       agents[host] = stack.enter_context(host.uno_agent())
     yield agents
+
+
+@pytest.fixture
+def uno_fully_routed_agents(experiment: Experiment, uno_agents: dict[Host, subprocess.Popen]) -> Generator[dict[Host, subprocess.Popen], None, None]:
+  def _check_all_consistent() -> bool:
+    for agent in uno_agents:
+      if not agent.cell_fully_routed:
+        return False
+    return True
+  timer = Timer(experiment.config["uvn_fully_routed_timeout"], 1, _check_all_consistent,
+    experiment.log,
+    "waiting for UVN to become consistent",
+    "UVN not consistent yet",
+    "UVN fully routed",
+    "UVN failed to reach consistency")
+  timer.wait()
+  yield uno_agents
 

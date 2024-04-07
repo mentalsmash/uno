@@ -44,6 +44,7 @@ class Network:
     self.router: Host|None = None
     self.registry: Host|None = None
     self.particles: list[Host] = []
+    self.addresses = []
 
 
   def __str__(self) -> str:
@@ -97,6 +98,13 @@ class Network:
     return self.default_router
 
 
+  def allocate_address(self) -> ipaddress.IPv4Address:
+    next_i = len(self.addresses) + 1
+    addr = self.subnet.network_address + 1 + next_i
+    self.addresses.append(addr)
+    return addr
+
+
   def create(self) -> None:
     # Make sure the network doesn't exist then create it
     self.delete(ignore_errors=True)
@@ -117,7 +125,8 @@ class Network:
   def define_router(self,
       address: ipaddress.IPv4Address,
       adjacent_networks: dict["Network", ipaddress.IPv4Address],
-      upstream_network: "Network|None"=None) -> "Host":
+      upstream_network: "Network|None"=None,
+      **host_args) -> "Host":
     assert(self not in adjacent_networks)
     assert(len(adjacent_networks) > 0)
     assert(self.router is None)
@@ -131,7 +140,8 @@ class Network:
       networks=networks,
       default_network=self,
       upstream_network=upstream_network,
-      role=HostRole.ROUTER)
+      role=HostRole.ROUTER,
+      **host_args)
     self.experiment.hosts.append(self.router)
     return self.router
 
@@ -139,7 +149,8 @@ class Network:
   def define_host(self,
       address: ipaddress.IPv4Address,
       hostname: str|None=None,
-      container_name: str|None=None) -> "Host":
+      container_name: str|None=None,
+      **host_args) -> "Host":
     assert(address in self.subnet)
     if hostname is None:
       host_i = len(self.hosts) + 1
@@ -152,7 +163,8 @@ class Network:
       container_name=container_name,
       networks={self: address},
       default_network=self,
-      role=HostRole.HOST)
+      role=HostRole.HOST,
+      **host_args)
     self.hosts.append(host)
     self.experiment.hosts.append(host)
     return host
@@ -165,7 +177,8 @@ class Network:
       cell_package: Path|None=None,
       adjacent_networks: dict["Network", ipaddress.IPv4Address]|None=None,
       public: bool=True,
-      uvn: Uvn|None=None) -> "Host":
+      uvn: Uvn|None=None,
+      **host_args) -> "Host":
     assert(address in self.subnet)
     if hostname is None:
       if public:
@@ -184,7 +197,8 @@ class Network:
       networks=networks,
       default_network=self,
       role=HostRole.AGENT,
-      cell_package=cell_package)
+      cell_package=cell_package,
+      **host_args)
     if public:
       assert(self.router is not None)
       assert(self.public_agent is None)
@@ -203,7 +217,8 @@ class Network:
   def define_registry(self,
       address: ipaddress.IPv4Address,
       hostname: str|None=None,
-      container_name: str|None=None,) -> None:
+      container_name: str|None=None,
+      **host_args) -> None:
     assert(address in self.subnet)
     if hostname is None:
       hostname = "registry"
@@ -215,7 +230,8 @@ class Network:
       container_name=container_name,
       networks={self: address},
       default_network=self,
-      role=HostRole.REGISTRY)
+      role=HostRole.REGISTRY,
+      **host_args)
     assert(self.registry is None)
     self.registry = registry
     self.experiment.hosts.append(registry)
@@ -225,7 +241,8 @@ class Network:
   def define_particle(self,
       address: ipaddress.IPv4Address,
       hostname: str|None=None,
-      container_name: str|None=None,) -> None:
+      container_name: str|None=None,
+      **host_args) -> None:
     assert(address in self.subnet)
     if hostname is None:
       particle_i = len(self.particles) + 1
@@ -234,9 +251,12 @@ class Network:
       container_name = f"{self.experiment.name}-{self.name}-{hostname}"
     particle = Host(
       experiment=self.experiment,
+      hostname=hostname,
+      container_name=container_name,
       networks={self: address},
       default_network=self,
-      role=HostRole.PARTICLE)
+      role=HostRole.PARTICLE,
+      **host_args)
     self.particles.append(particle)
     self.experiment.hosts.append(particle)
     return particle

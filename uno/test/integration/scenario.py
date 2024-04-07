@@ -3,6 +3,7 @@ from pathlib import Path
 import tempfile
 from functools import cached_property
 import os
+import ipaddress
 
 from uno.registry.registry import Registry
 from uno.core.log import Logger
@@ -16,15 +17,30 @@ class Scenario:
     self.config = dict(config or {})
     for k, v in self.default_config.items():
       self.config.setdefault(k, v)
-    
+    self.config.setdefault("networks", self.make_networks())
     self.registry_tmp = tempfile.TemporaryDirectory()
+    # Check if we should refresh the uno docker image
+    if os.environ.get("BUILD_IMAGE", False):
+      Experiment.build_uno_image(self.config["image"])
+    # Automatically set RTI_LICENSE_FILE if there is an rti_license.dat
+    # in the root of the uno diir
+    default_license = Experiment.uno_dir / "rti_license.dat"
+    if default_license.exists():
+      os.environ["RTI_LICENSE_FILE"] = str(default_license)
+
 
 
   @property
   def default_config(self) -> dict:
     return {
       "interactive": False,
+      "image": "uno:latest",
+      "uvn_fully_routed_timeout": 60,
     }
+
+
+  def make_networks(self) -> list[ipaddress.IPv4Network]:
+    return []
 
 
   @cached_property

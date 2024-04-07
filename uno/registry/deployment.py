@@ -95,3 +95,9 @@ class P2pLinksMap(Versioned):
     ]
 
 
+  def get_interfaces(self, peer_id: int) -> list[ipaddress.IPv4Address]:
+    peer = self.peers.get(peer_id)
+    if not peer:
+      return []
+    return [addr for _, addr, _, _ in peer["peers"].values()]
+

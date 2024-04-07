@@ -1186,16 +1186,19 @@ class Agent(
         return
       with output_file.open("w") as output:
         for status in statuses:
-          if status.lan in local_lans:
-            continue
-          output.writelines(" ".join([
-              f"{status.lan.nic.subnet.network_address}/{status.lan.nic.netmask}",
-              str(local_lan.nic.address),
-              # str(peer_status.lan.gw),
-              "\n"
-            ]) for local_lan in local_lans)
+          output.write(
+            f"{status.lan.nic.subnet}"
+            "\n")
+          # # if status.lan in local_lans:
+          # #   continue
+          # output.writelines(" ".join([
+          #     f"{status.lan.nic.subnet.network_address}/{status.lan.nic.netmask}",
+          #     str(local_lan.nic.address),
+          #     # str(peer_status.lan.gw),
+          #     "\n"
+          #   ]) for local_lan in local_lans)
 
-    local_lans = sorted(self.lans, key=lambda v: (v.nic.name, v.nic.subnet))
+    # local_lans = sorted(self.lans, key=lambda v: (v.nic.name, v.nic.subnet))
     output_file: Path = self.log_dir / self.REACHABLE_NETWORKS_TABLE_FILENAME
     _write_output(output_file,
       sorted(self.peers.local.reachable_networks,

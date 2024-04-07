@@ -9,6 +9,7 @@ from ..core.wg import WireGuardConfig
 from ..core.qr import encode_qr_from_file
 from ..core.time import Timestamp
 from .cell import Cell
+from .uvn import Uvn
 from .particle import Particle
 from .database import Database
 from .versioned import Versioned
@@ -26,6 +27,18 @@ class Packager(Versioned):
     cell_name = cell_name or cell.name
     uvn_name = uvn_name or cell.uvn.name
     return f"{uvn_name}__{cell_name}{cls.CELL_PACKAGE_EXT if not basename else ''}"
+
+
+  @classmethod
+  def parse_cell_archive_file(cls, file: Path|str, uvn: Uvn) -> Cell:
+    if isinstance(file, Path):
+      file = file.name
+    file = file.split("/")[-1]
+    file = file[:-len(cls.CELL_PACKAGE_EXT)]
+    uvn_name, cell_name = file.split("__")
+    if uvn.name != uvn_name:
+      raise ValueError("file from a different uvn", file, uvn, uvn_name)
+    return next(c for c in uvn.cells.values() if c.name == cell_name)
 
 
   @classmethod

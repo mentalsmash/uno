@@ -27,12 +27,34 @@ import shutil
 from uno.core.time import Timer
 from uno.core.exec import exec_command
 from uno.core.log import Logger
+from uno.registry.cell import Cell
+from uno.registry.package import Packager
+from uno.agent.agent import Agent
 
 from .host_role import HostRole
 
 if TYPE_CHECKING:
   from .experiment import Experiment
   from .network import Network
+
+
+def _read_networks_file(logger, file: Path) -> set[ipaddress.IPv4Network]:
+  if not file.exists():
+    logger.warning("filed doesn't exist: {}", file)
+    return set()
+  def _parse(line):
+    try:
+      return ipaddress.ip_network(line)
+    except:
+      logger.error("{} invalid line: '{}'", file, line)
+      return None
+  return {
+    net
+    for line in file.read_text().split("\n") if bool(line)
+      for net in [_parse(line)]
+        if net is not None
+  }
+
 
 class Host:
   def __init__(self,
@@ -57,7 +79,7 @@ class Host:
     self.role = role
     self.cell_package = cell_package.resolve() if cell_package else None
     assert(self.role != HostRole.AGENT or self.cell_package is not None)
-    self.image = image or "uno:latest"
+    self.image = image or self.experiment.config["image"]
     self.port_forward = dict(port_forward or {})
     self.log = Logger.sublogger(self.container_name)
 
@@ -127,20 +149,90 @@ class Host:
   def experiment_uvn_dir(self) -> Path:
     return self.experiment.test_dir / self.container_name
 
+
+  @cached_property
+  def test_dir(self) -> Path:
+    return self.experiment_uvn_dir / "test"
+
+
+  def test_file(self, name: str) -> tuple[Path, Path]:
+    self.test_dir.mkdir(exist_ok=True, parents=True)
+    output = self.test_dir / name
+    if output.exists():
+      output.unlink()
+    return [
+      output,
+      Path("/experiment-tmp") / self.test_dir.relative_to(self.experiment.test_dir) / output.name
+    ]
+
+
   @cached_property
   def container_uvn_dir(self) -> Path:
     return Path("/uvn")
 
 
+  @cached_property
+  def cell(self) -> Cell | None:
+    if self.cell_package is None:
+      return None
+    # Parse cell_package.name
+    return Packager.parse_cell_archive_file(self.cell_package, self.experiment.registry.uvn)
+
+
+  @cached_property
+  def cell_addresses(self) -> list[ipaddress.IPv4Address]:
+    if self.cell is None:
+      return []
+    addresses = []
+    # Add the agents LAN interfaces included in the cell's configuration
+    for lan in self.cell.allowed_lans:
+      net = next((n for n in self.networks.keys() if n.subnet == lan), None)
+      if net is None:
+        continue
+      addresses.append(self.networks[net])
+    # Add the backbone vpn interfaces
+    addresses.extend(
+      self.experiment.registry.deployment.get_interfaces(self.cell.id))
+    return addresses
+
+
+  @property
+  def cell_reachable_networks(self) -> set[ipaddress.IPv4Network]:
+    return _read_networks_file(self.log, self.experiment_uvn_dir / "log" / Agent.REACHABLE_NETWORKS_TABLE_FILENAME)
+
+
+  @property
+  def cell_unreachable_networks(self) -> set[ipaddress.IPv4Network]:
+    return _read_networks_file(self.log, self.experiment_uvn_dir / "log" / Agent.UNREACHABLE_NETWORKS_TABLE_FILENAME)
+
+
+  @property
+  def cell_known_networks(self) -> set[ipaddress.IPv4Network]:
+    return _read_networks_file(self.log, self.experiment_uvn_dir / "log" / Agent.KNOWN_NETWORKS_TABLE_FILENAME)
+
+
+  @property
+  def cell_local_networks(self) -> set[ipaddress.IPv4Network]:
+    return _read_networks_file(self.log, self.experiment_uvn_dir / "log" / Agent.LOCAL_NETWORKS_TABLE_FILENAME)
+
+
+  @property
+  def cell_fully_routed(self) -> bool:
+    expected_lans = {
+      l for c in self.experiment.registry.uvn.cells.values()
+        for l in c.allowed_lans
+    }
+    return expected_lans == self.cell_reachable_networks
+
+
   def create(self) -> None:
+    # The uno package must have been imported from a cloned repository
+    assert((self.experiment.uno_dir / ".git").is_dir())
     assert(not self.experiment.inside_test_runner)
 
     # Make sure the host doesn't exist, then create it
     self.delete(ignore_errors=True)
-    import uno
-    uno_dir = Path(uno.__file__).parent.parent
-    # The uno package must have been imported from a cloned repository
-    assert((uno_dir / ".git").is_dir())
+    
 
     if self.role == HostRole.REGISTRY:
       # Make a copy of the registry's uvn directory
@@ -151,7 +243,7 @@ class Host:
     plugin_base_dir = Path(self.experiment.registry.middleware.module.__file__).parent
     try:
       # If the plugin directory is in the base uno repository, we don't need to mount it
-      plugin_base_dir.relative_to(uno_dir)
+      plugin_base_dir.relative_to(self.experiment.uno_dir)
       plugin_base_dir = None
     except ValueError:
       # Determine the base directory to add to PYTHONPATH
@@ -175,7 +267,7 @@ class Host:
         "-w", "/uvn",
         "-v", f"{self.experiment.root}:/experiment",
         "-v", f"{self.experiment.test_dir}:/experiment-tmp",
-        "-v", f"{uno_dir.resolve()}:/uno",
+        "-v", f"{self.experiment.uno_dir.resolve()}:/uno",
         "-e", f"UNO_MIDDLEWARE={self.experiment.registry.middleware.plugin}",
         *(["-v", f"{plugin_base_dir}:/uno-middleware"] if plugin_base_dir else []),
         "-v", f"{self.experiment.registry.root}:/experiment-uvn",
@@ -259,6 +351,20 @@ class Host:
       "container not ready yet...",
       "container ready",
       "container failed to activate").wait()
+
+
+  @property
+  def agent_alive(self) -> bool:
+    result = self.exec("sh", "-c", """\
+[ -f /run/uno/uno-agent.pid ] || exit
+kill -0 $(cat /run/uno/uno-agent.pid) && echo OK
+""", capture_output=True, shell=True).stdout
+    if not result:
+      return False
+    result = result.decode().strip()
+    print(f"$$$$$$$$$$$$ RESULT = '{result}'")
+    return result == "OK"
+    # return result and result.decode().strip() == "OK"
 
 
   def init(self) -> None:
@@ -446,10 +552,10 @@ class Host:
     self._run_forever()
 
 
-  def ping_test(self, other_host: "Host") -> None:
-    self.log.activity("performing PING test: {}", other_host)
-    self.exec("ping", "-c", "3", str(other_host.default_address))
-    self.log.info("PING OK: {}", other_host)
+  def ping_test(self, other_host: "Host", address: ipaddress.IPv4Address) -> None:
+    self.log.activity("performing PING test with {}: {}", other_host, address)
+    self.exec("ping", "-c", "3", str(address))
+    self.log.info("PING {} OK: {}", other_host, address)
 
 
   @contextlib.contextmanager
@@ -544,7 +650,7 @@ class Host:
     agent = self.uno("agent", popen=True)
     if agent.poll():
       raise RuntimeError("failed to start uno agent", self)
-    time.sleep(1)
+    time.sleep(2)
     try:
       yield agent
     finally:
@@ -565,4 +671,53 @@ done
 """)
     # stdout, stderr = agent.communicate()
     self.log.activity("stopped uno agent")
+
+
+  def agent_httpd_test(self, agent_host: "Host") -> None:
+    def _test_url(address: ipaddress.IPv4Address):
+      output, output_c = self.test_file(f"{agent_host.container_name}-{address}-index.html")
+      agent_url = f"https://{address}"
+      self.log.activity("test HTTP GET {} -> {}", agent_url, output.name)
+      # assert(agent_host.agent_alive)
+      self.exec("curl",
+        "-v",
+        "--output", output_c,
+        # Since the agent uses a self-signed certificate, disable certificate verification
+        "--insecure",
+        # TODO(asorbini) use the central CA to sign the certificate, then pass the
+        # CA's certificate.
+        # "--cacert", ca_cert
+        agent_url)
+      assert(output.exists())
+      assert(output.stat().st_size > 0)
+      with output.open("rt") as input:
+        first_line = input.readline().strip()
+        assert(first_line == "<!doctype html>")
+      # <!doctype html>
+      # assert(agent_host.agent_alive)
+      self.log.info("HTTP GET {} -> {}", agent_url, output.name)
+      return output
+
+    # Agent should be accessible on it's "default address",
+    # if it's not roaming, and on its backbone interfaces
+    self.log.activity("performing HTTPD test on {} addresses for {}: {}",
+      len(agent_host.cell_addresses), agent_host, agent_host.cell_addresses)
+    assert(len(agent_host.cell_addresses) > 0)
+    # import hashlib
+    # def _hash(f: Path) -> str:
+    #   h = hashlib.sha256()
+    #   h.update(f.read_bytes())
+    #   return h.hexdigest()
+    downloaded = []
+    for addr in agent_host.cell_addresses:
+      downloaded.append(_test_url(addr))
+    # We can't compare the downloaded files, because the agent might
+    # have updated the HTML in between calls
+    # if len(downloaded) > 1:
+    #   prev = downloaded[0]
+    #   for other in downloaded[1:]:
+    #     assert(prev.stat().st_size == other.stat().st_size)
+    #     assert(_hash(prev) == _hash(other))
+    #     prev = other
+    self.log.info("{} HTTP interfaces OK: {}", len(agent_host.cell_addresses), agent_host)
 

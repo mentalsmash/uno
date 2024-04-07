@@ -31,8 +31,13 @@ from .network import Network
 from .host import Host
 from .host_role import HostRole
 
+import uno
+uno_dir = Path(uno.__file__).parent.parent
+
 
 class Experiment:
+  uno_dir = Path(uno.__file__).parent.parent
+
   def __init__(self,
       test_case: Path,
       name: str | None=None,
@@ -90,6 +95,9 @@ class Experiment:
 
   def create(self) -> None:
     self.log.info("creating {} networks and {} containers", len(self.networks), len(self.hosts))
+    if self.registry.deployed:
+      self.log.info("UVN {} deployement configuration:", self.registry.uvn.name)
+      self.registry.uvn.log_deployment(self.registry.deployment, log_level="info")
     # Make sure no stale container exists
     # (otherwise we will fail to recreate networks)
     self.wipe_containers()
@@ -111,7 +119,7 @@ class Experiment:
         "docker", "run", "--rm",
           "-v", f"{self.registry.root}:/registry",
           "-v", f"{self.test_dir}:/test-dir",
-          "uno:latest",
+          self.config["image"],
           "chown", "-R", f"{os.getuid()}:{os.getgid()}", "/registry", "/test-dir"
       ])
 
@@ -199,3 +207,19 @@ class Experiment:
       for host in net:
         host.stop()
     self.log.info("stopped {} hosts", len(self.hosts))
+
+
+  @classmethod
+  def build_uno_image(cls, tag: str="uno:latest", use_cache: bool=False, dev: bool=True, extras: bool=True) -> None:
+    Logger.info("building uno docker image: {}", tag)
+    exec_command([
+      "docker", "build",
+        *(["--no-cache"] if not use_cache else []),
+        "-f", f"{cls.uno_dir}/docker/Dockerfile",
+        "-t", tag,
+        *(["--build-arg", "DEV=y"] if dev else []),
+        *(["--build-arg", "EXTRAS=y"] if extras else []),
+        cls.uno_dir,
+    ], debug=True)
+    Logger.warning("uno docker image updated: {}", tag)
+  

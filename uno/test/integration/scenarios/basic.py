@@ -20,27 +20,59 @@ from uno.registry.package import Packager
 from uno.test.integration import Scenario, Experiment
 
 class BasicScenario(Scenario):
+  ################################################################################
+  # Experiment Configuration
+  ################################################################################
+  # ┌───────────────────────────────────────────────────────────────────────────┐
+  # │                            CONNECTION LAYOUT                              │
+  # ├───────────────────────────────────────────────────────────────────────────┤
+  # |                                                                           |
+  # |                                ┌──────────┐                               |
+  # │            ┌───────────────┐   │ registry │   ┌───────────────┐           │
+  # │            │       ┌── router ───┐  │  ┌─── router ──┐        │           │
+  # │            │ agent │       │   │ │  │  │  │   │      │  agent │           │
+  # │            │   │ ┌─┴──┐    │   │ │  │  │  │   │    ┌─┴──┐ │   │           │
+  # │            │   └─┤net1│    │   │ │  │  │  │   │    │net2├─┘   │           │
+  # │            │     └─┬──┘    │   │ │  │  │  │   │    └─┬──┘     │           │
+  # │            │       │       │   │ │  │  │  │   │      │        │           │
+  # │            │      host     │   │┌┴──┴──┴─┐│   │     host      │           │
+  # │            └───────────────┘   ││internet├──┐ └───────────────┘           │
+  # │                                │└┬──┬────┘│ │                             │
+  # │            ┌───────────────┐   │ │  │     │ │ ┌───────────────┐           │
+  # │            │       ┌── router ───┘  │     │ router ──┐        │           │
+  # │            │ agent │       │   │  relay1  │   │      │  agent │           │
+  # │            │   │ ┌─┴──┐    │   └──────────┘   │    ┌─┴──┐ │   │           │
+  # │            │   └─┤net3│    │                  │    │net4├─┘   │           │
+  # │            │     └─┬──┘    │                  │    └─┬──┘     │           │
+  # │            │       │       │                  │      │        │           │
+  # │            │      host     │                  │     host      │           │
+  # │            └───────────────┘                  └───────────────┘           │
+  # |                                                                           |
+  # └───────────────────────────────────────────────────────────────────────────┘
+
+  def make_networks(self) -> list[ipaddress.IPv4Network]:
+    addrp = list(map(int, str(self.config["public_net_subnet"].network_address).split(".")))
+    return [
+      ipaddress.ip_network(f"{addrp[0]}.{addrp[1]}.{addrp[2] -1 - i}.{addrp[3]}/24")
+        for i in range(self.config["networks_count"])
+    ]
+
   @property
   def default_config(self) -> dict:
     default_cfg = super().default_config
-    networks_count = 4
-    public_net_subnet = ipaddress.ip_network("10.230.255.0/24")
-    addrp = list(map(int, str(public_net_subnet.network_address).split(".")))
-    networks = [
-      ipaddress.ip_network(f"{addrp[0]}.{addrp[1]}.{addrp[2] -1 - i}.{addrp[3]}/24")
-        for i in range(networks_count)
-    ]
     default_cfg.update({
+      "networks_count": 4,
       "relays_count": 1, #1,
       "hosts_count": 1,
+      "particles_count": 1,
       "public_agent": True,
       "uvn_name": "test-uvn",
       "uvn_owner": "root@internet",
       "uvn_owner_password": "abc",
       "public_net": "internet",
+      "public_net_subnet": ipaddress.ip_network("10.230.255.0/24"),
       "registry_host": "registry.internet",
-      "public_net_subnet": public_net_subnet,
-      "networks": networks,
+      "registry_host_address": ipaddress.ip_address("10.230.255.254"),
     })
     return default_cfg
 
@@ -63,6 +95,11 @@ class BasicScenario(Scenario):
           "-a", f"relay{relay_i+1}.{self.config['public_net']}",
           "-o", self.config["uvn_owner"])
 
+    # Define particles
+    for p_i in range(self.config["particles_count"]):
+      self.uno("define", "particle", f"particle{p_i+1}",
+        "-o", self.config["uvn_owner"])
+
 
   def _define_experiment(self, experiment: Experiment) -> None:
     # Define N private networks + an "internet" network to connect them
@@ -80,7 +117,7 @@ class BasicScenario(Scenario):
     for i, net in enumerate(networks):
       # Define a router for the network
       adjacent_networks = {
-        internet: internet.subnet.network_address + i + 2
+        internet: internet.allocate_address()
       }
       address = net.subnet.network_address + 254
       net.define_router(
@@ -106,7 +143,7 @@ class BasicScenario(Scenario):
 
     # Define "relay" agent hosts
     for relay_i in range(self.config["relays_count"]):
-      address = internet.subnet.network_address + len(networks) + 2 + relay_i
+      address = internet.allocate_address()
       hostname = f"relay{relay_i+1}"
       cell = next(c for c in self.registry.uvn.cells.values() if c.name == hostname)
       cell_package = self.registry.cells_dir / Packager.cell_archive_file(cell)
@@ -117,9 +154,21 @@ class BasicScenario(Scenario):
         uvn=self.registry.uvn,
         cell_package=cell_package)
 
+    # Define "particle" hosts
+    for p_i in range(self.config["particles_count"]):
+      address = internet.allocate_address()
+      hostname = f"particle{p_i}"
+      internet.define_particle(
+        address=address,
+        hostname=hostname)
+
     # Define registry node in the internet network
     # Assign it a "router" address, since this network
     # doesn't have a router
-    registry_h = internet.define_registry(
-      address=internet.subnet.network_address + 254)
+    if self.config["registry_host"]:
+      hostname, netname = self.config["registry_host"].split(".")
+      net = next(n for n in experiment.networks if n.name == netname)
+      registry_h = net.define_registry(
+        hostname=hostname,
+        address=self.config["registry_host_address"])
 

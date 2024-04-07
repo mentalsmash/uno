@@ -19,6 +19,7 @@ ARG EXTRAS
 RUN export DEBIAN_FRONTEND="noninteractive" \
     && apt-get update \
     && apt-get install -y \
+      python3-venv \
       python3-pip \
       psmisc \
       iproute2 \
@@ -56,40 +57,47 @@ RUN export DEBIAN_FRONTEND="noninteractive" \
 # Copy uno
 COPY . /uno-dev
 
-ARG VERSION=2.1.3
-ARG DEV=
+# Install everything in a virtual environment
+# Add venv/bin directory to the top of PATH
+# so we don't have to activate it
+ENV UNO_VENV /opt/uno/venv
+RUN python3 -m venv ${UNO_VENV}
+ENV PATH "${UNO_VENV}/bin:${PATH}"
 
+# Check if the user passed a Connext wheel in the context
 RUN set -e; \
     rti_wheel=$(find /uno-dev/ -mindepth 1 -maxdepth 1 -name "rti.connext*.whl" | head -1); \
-    if [ -e "${rti_wheel}" ]; then \
+    if [ -f "${rti_wheel}" ]; then \
       pip3 install ${rti_wheel}; \
-    fi; \
-    if [ -n "${DEV}" ]; then \
+    fi
+
+# Allow the user to install the local clone, otherwise
+# Clone the selected version from the remote repository
+ARG UNO_VERSION=master
+ARG UNO_URL=https://github.com/mentalsmash/uno
+ARG LOCAL=
+RUN set -e; \
+    if [ -n "${LOCAL}" ]; then \
       cp -r /uno-dev /uno; \
       pip3 install pytest; \
     else \
-      git clone https://github.com/mentalsmash/uno -b ${VERSION} /uno; \
+      git clone ${UNO_URL} -b ${UNO_VERSION} /uno; \
     fi; \
     pip3 install -e /uno
 
-
-ARG PLUGINS=uno-middleware-connext@https://github.com/mentalsmash/uno-middleware-connext.git|1.1.1
+# Install some plugins.
+ARG PLUGINS=uno-middleware-connext@https://github.com/mentalsmash/uno-middleware-connext.git|master
 
 RUN set -e; \
-    if [ -n "${DEV}" -a -d "${DEV}/plugins" ]; then \
-      cp ${DEV}/plugins /uno-plugins; \
-    else \
-      mkdir -p /uno-plugins; \
-      for plugin in ${PLUGINS}; do \
-        plugin_name=$(echo ${plugin} | cut -d@ -f1); \
-        plugin_url=$(echo ${plugin} | cut -d@ -f2- | cut "-d|" -f1); \
-        plugin_branch=$(echo ${plugin} | cut -d@ -f2- | cut "-d|" -f2); \
-        plugin_dir=/uno-plugins/${plugin_name}; \
-        git clone ${plugin_url} -b ${plugin_branch} ${plugin_dir}; \
-        pip3 install -e ${plugin_dir}; \
-      done; \
-    fi
-
+    mkdir -p /uno-plugins; \
+    for plugin in ${PLUGINS}; do \
+      plugin_name=$(echo ${plugin} | cut -d@ -f1); \
+      plugin_url=$(echo ${plugin} | cut -d@ -f2- | cut "-d|" -f1); \
+      plugin_branch=$(echo ${plugin} | cut -d@ -f2- | cut "-d|" -f2); \
+      plugin_dir=/uno-plugins/${plugin_name}; \
+      git clone ${plugin_url} -b ${plugin_branch} ${plugin_dir}; \
+      pip3 install -e ${plugin_dir}; \
+    done
 
 # Make sure locale is en_US.UTF-8
 RUN apt-get update \
@@ -115,7 +123,7 @@ ENV LANG en_US.UTF-8
 # Also configure uno-dev/docker/dev/test_key.ed25519.key as an authorized key
 # and install it as the user's private key
 ARG USER="uno"
-
+ARG DEV=
 RUN set -xe; \
     if [ -n "${DEV}" ]; then \
       apt-get update; \

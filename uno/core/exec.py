@@ -38,15 +38,21 @@ def exec_command(
     cwd: Path|None = None,
     noexcept: bool = False,
     output_file: Path|None = None,
-    capture_output: bool=False):
+    capture_output: bool=False,
+    debug: bool=False):
   if root and os.geteuid() != 0:
     cmd_args = ["sudo", *cmd_args]
 
+  debug = debug or log.DEBUG
+
   run_args = {"shell": shell,}
+
+  logger = (log.trace if not debug else log.info)
   if cwd is not None:
     run_args["cwd"] = cwd
+    logger("cd {}", cwd)
 
-  log.trace(" ".join(["{}"]*len(cmd_args)), *cmd_args)
+  logger(" ".join(["{}"]*len(cmd_args)), *cmd_args)
 
   try:
     if output_file is not None:
@@ -62,7 +68,7 @@ def exec_command(
       if capture_output:
         stdout = subprocess.PIPE
         stderr = subprocess.PIPE
-      elif log.level >= log.Level.tracedbg:
+      elif log.level >= log.Level.tracedbg or debug:
         stdout = sys.stdout
         stderr = sys.stderr
       else:
