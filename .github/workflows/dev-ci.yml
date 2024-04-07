@@ -36,6 +36,7 @@ jobs:
         with:
           repository: mentalsmash/uno-ci
           token: ${{ secrets.UNO_CI_PAT }}
+          ref: master
           path: src/uno-ci
       # Build tester docker image
       - name: Set up Docker Buildx
