@@ -59,12 +59,13 @@ jobs:
           . venv/bin/activate
           pip install -e src/uno
           pip install -e src/plugins/uno-middleware-connext
+          pip install pytest
       # Run tests with the selected middleware
       - name: Run tests
         run: |
           . venv/bin/activate
           cd src/uno
-          pytest3 -s -v --junit-xml=${GITHUB_WORKSPACE}/test/test-results-${{ matrix.uno-middleware }}.xml
+          pytest-3 -s -v --junit-xml=${GITHUB_WORKSPACE}/test/test-results-${{ matrix.uno-middleware }}.xml
         env:
           UNO_MIDDLEWARE: ${{ matrix.uno-middleware }}
           VERBOSITY: activity
