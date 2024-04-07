@@ -81,7 +81,7 @@ _LOGGERS = {}
 _LOGGER_LOCK = threading.RLock()
 _LOGGER_FILE = None
 _LOGGER_PREFIX = ""
-_LOGGER_NOCOLOR = False
+_LOGGER_NOCOLOR = not sys.stderr.isatty()
 _LOGGER_SYSLOG = False
 
 def context_enabled(context):
@@ -164,15 +164,15 @@ def _colorize(lvl, line):
         # return colored(line, "white")
         return colored(line, no_color=True)
     elif lvl >= level.debug:
-        return colored(line, "magenta")
+        return colored(line, "magenta", force_color=not _LOGGER_NOCOLOR)
     elif lvl >= level.activity:
-        return colored(line, "cyan")
+        return colored(line, "cyan", force_color=not _LOGGER_NOCOLOR)
     elif lvl >= level.info:
-        return colored(line, "green")
+        return colored(line, "green", force_color=not _LOGGER_NOCOLOR)
     elif lvl >= level.warning:
-        return colored(line, "yellow")
+        return colored(line, "yellow", force_color=not _LOGGER_NOCOLOR)
     elif lvl >= level.error:
-        return colored(line, "red")
+        return colored(line, "red", force_color=not _LOGGER_NOCOLOR)
     else:
         return line
 
@@ -307,9 +307,34 @@ class UvnLogger:
 
 
     @level.setter
-    def level(self, val: _LogLevels) -> None:
+    def level(self, val: _LogLevels | int | str) -> None:
+        if val is None or isinstance(val, int):
+            val = (
+                self.Level.quiet if val is None else
+                self.Level.tracedbg if val >= 5 else
+                self.Level.trace if val >= 4 else
+                self.Level.debug if val >= 3 else
+                self.Level.activity if val >= 2 else
+                self.Level.info if val >= 1 else
+                self.Level.warning
+            )
+        elif isinstance(val, str):
+            val = getattr(self.Level, val.lower())
         set_verbosity(val)
 
+
+    @property
+    def verbose_flag(self) -> str|None:
+        verbosity_level = (
+            5 if self.level >= self.Level.tracedbg else
+            4 if self.level >= self.Level.trace else
+            3 if self.level >= self.Level.debug else
+            2 if self.level >= self.Level.activity else
+            1 if self.level >= self.Level.info else
+            0
+        )
+        return f"-{'v'*verbosity_level}" if verbosity_level > 0 else None
+        
 
     def _update_sublogger_context(self, context: str) -> None:
         context = self.camelcase_to_kebabcase(context)
@@ -398,7 +423,6 @@ class UvnLogger:
         except:
             return str(val)
 
-
-
+# Logger = logger(f"{os.getpid()}")
 Logger = logger("uno")
 

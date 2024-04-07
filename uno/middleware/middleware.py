@@ -15,6 +15,7 @@
 # along with this program. If not, see <https://www.gnu.org/licenses/>.
 ###############################################################################
 from typing import TYPE_CHECKING, Generator
+from types import ModuleType
 import os
 from pathlib import Path
 import importlib
@@ -39,16 +40,22 @@ class Middleware:
   CONDITION: type[Condition] = None
   PARTICIPANT: type[Participant] = None
 
+
+  def __init__(self, plugin: str, module: ModuleType):
+    self.plugin = plugin
+    self.module = module
+
+
   @classmethod
-  def load(cls) -> "Middleware":
-    def _load_cls(plugin: str) -> Middleware|None:
+  def load_module(cls) -> tuple[str, ModuleType]:
+    def _load_module(plugin: str) -> ModuleType|None:
       try:
-        log.activity("loading middleware: {}", plugin)
+        log.debug("loading middleware: {}", plugin)
         plugin_mod = importlib.import_module(plugin)
         ImplCls = getattr(plugin_mod, "Middleware")
         assert(issubclass(ImplCls, cls))
-        log.info("loaded middleware: {}", plugin)
-        return ImplCls
+        log.activity("loaded middleware: {}", plugin)
+        return plugin_mod
       except Exception as e:
         log.error("failed to load middleware {}: {}", plugin, e)
         log.exception(e)
@@ -56,16 +63,23 @@ class Middleware:
 
     plugin = os.environ.get(cls.EnvVar)
     if plugin:
-      ImplCls = _load_cls(plugin)
-      if ImplCls is None:
+      plugin_mod = _load_module(plugin)
+      if plugin_mod is None:
         raise RuntimeError(f"invalid middleware selected via {cls.EnvVar}", plugin)
-      return ImplCls()
+      return (plugin, plugin_mod)
     else:
       for plugin in cls.Default:
-        ImplCls = _load_cls(plugin)
-        if ImplCls is not None:
-          return ImplCls()
+        plugin_mod = _load_module(plugin)
+        if plugin_mod is not None:
+          return (plugin, plugin_mod)
       raise RuntimeError("no middleware available")
+  
+
+  @classmethod
+  def load(cls) -> "Middleware":
+    plugin, plugin_mod = cls.load_module()
+    ImplCls = getattr(plugin_mod, "Middleware")
+    return ImplCls(plugin=plugin, module=plugin_mod)
 
 
   @property

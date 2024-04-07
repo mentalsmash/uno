@@ -38,8 +38,8 @@ ip route delete default
 #     ip route delete default via ${TEST_NET_PRIV}.1 dev ${TEST_NET_PRIV_NIC}
 # fi
 
-ip route add ${TEST_NET_PUB}.1/32 via ${TEST_NET_PUB}.1 dev ${TEST_NET_PUB_NIC}
-ip route add ${TEST_NET_PRIV}.1/32 via ${TEST_NET_PRIV}.1 dev ${TEST_NET_PRIV_NIC}
+# ip route add ${TEST_NET_PUB}.1/32 via ${TEST_NET_PUB}.1 dev ${TEST_NET_PUB_NIC}
+# ip route add ${TEST_NET_PRIV}.1/32 via ${TEST_NET_PRIV}.1 dev ${TEST_NET_PRIV_NIC}
 
 # Add default route via public network
 # (either custom router or default Docker router)
@@ -95,8 +95,8 @@ for port_entry in $(cat ${EXPERIMENT_DIR}/forwarded); do
            "${fwd_host}" "${udp_port}"
     iptables -t nat -A PREROUTING -i ${TEST_NET_PUB_NIC} -p udp --dport ${udp_port} \
         -j DNAT --to-destination ${fwd_host}:${udp_port}
-    iptables -A FORWARD -i ${TEST_NET_PUB_NIC} -p udp --dport ${udp_port} \
-        -m state --state NEW,ESTABLISHED,RELATED -j ACCEPT
+    # iptables -A FORWARD -i ${TEST_NET_PUB_NIC} -p udp --dport ${udp_port} \
+    #     -m state --state NEW,ESTABLISHED,RELATED -j ACCEPT
 done
 
 # Dump host configuration for logging

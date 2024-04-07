@@ -103,8 +103,7 @@ class Participant:
         *([self.root_vpn_config.peers[0].address] if self.root_vpn_config else []),
       ]
     elif isinstance(self.owner, Uvn):
-      initial_peers = [p.address for p in self.root_vpn_config.peers] if self.root_vpn_config else []
-      initial_peers = [f"[0]@{p}" for p in initial_peers]
+      return [p.address for p in self.root_vpn_config.peers] if self.root_vpn_config else []
 
 
   @property

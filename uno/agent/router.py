@@ -16,6 +16,11 @@
 ###############################################################################
 from pathlib import Path
 from typing import TYPE_CHECKING, Iterable
+import threading
+import signal
+import subprocess
+import os
+    
 
 from .render import Templates
 from ..core.wg import WireGuardInterface
@@ -23,6 +28,7 @@ from ..core.exec import exec_command
 from ..registry.cell import Cell
 from .agent_service import AgentService
 from .agent_service import AgentStaticService
+from .systemd import Systemd
 
 if TYPE_CHECKING:
   from .agent import Agent
@@ -34,6 +40,14 @@ class Router(AgentService):
   FRR_CONF = "/etc/frr/frr.conf"
 
   STATIC_SERVICE = "router"
+
+  # def __init__(self, **properties) -> None:
+  #   self.__init__(**properties)
+  #   self._watchfrr = None
+  #   self._watchfrr_thread = None
+  #   self._watchfrr_thread_active = False
+  #   self._watchfrr_thread_started = threading.Semaphore(0)
+  #   self._watchfrr_thread_exit = threading.Semaphore(0)
 
 
   def check_runnable(self) -> bool:
@@ -93,11 +107,46 @@ class Router(AgentService):
     # Make sure the required frr daemons are enabled
     exec_command(["sed", "-i", "-r", r"s/^(zebra|bgpd)=no$/\1=yes/g", "/etc/frr/daemons"])
     # (Re)start frr
+    # if Systemd.available:
     exec_command(["service", "frr", "restart"])
+
+    # self._watchfrr = subprocess.Popen([
+    #     "bash", "-c", "source /usr/lib/frr/frrcommon.sh; /usr/lib/frr/watchfrr $(daemon_list)"
+    #   ],
+    #   stdin=subprocess.DEVNULL,
+    #   stdout=subprocess.PIPE,
+    #   stderr=subprocess.DEVNULL,
+    #   preexec_fn=os.setpgrp,
+    #   text=True)
+    # self._watchfrr_thread = threading.Thread(target=self._watchfrr_thread_run)
+    # self._watchfrr_thread_active = True
+    # self._watchfrr_thread.start()
+    # self._watchfrr_thread_started.acquire()
+
+
+  def _watchfrr_thread_run(self):
+    self.log.activity("starting FRR daemons...")
+    self._watchfrr_thread_started.release()
+    while self._watchfrr_thread_active:
+      try:
+        self.log.debug("waiting for exit signal...")
+        self._watchfrr_thread_exit.acquire()
+      except Exception as e:
+        self.log.error("error in router thread")
+        self.log.exception(e)
+    self.log.activity("stopped")
+
 
 
   def _stop(self, assert_stopped: bool) -> None:
     exec_command(["service", "frr", "stop"])
+    # if self._watchfrr is not None:
+    #   self._watchfrr_thread_active = False
+    #   self._watchfrr.send_signal(signal.SIGINT)
+    #   if self._watchfrr_thread is not None:
+    #     self._watchfrr_thread.join()
+    #     self._watchfrr_thread = None
+    #   self._watchfrr = None
 
 
   def vtysh(self, cmd: Iterable[str|Path], output_file: Path|None=None) -> str|None:

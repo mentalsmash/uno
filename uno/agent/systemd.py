@@ -15,6 +15,7 @@
 # along with this program. If not, see <https://www.gnu.org/licenses/>.
 ###############################################################################
 from pathlib import Path
+from functools import cached_property
 
 from ..core.exec import exec_command, shell_which
 from ..core.log import Logger
@@ -27,6 +28,14 @@ class _Systemd:
 
   def __init__(self) -> None:
     self._systemctl = shell_which("systemctl")
+
+
+  @cached_property
+  def available(self) -> bool:
+    result = exec_command([
+      "ps aux | grep /sbin/init | grep -v grep"
+    ], shell=True, capture_output=True).stdout
+    return result and len(result.decode().strip()) > 0
 
 
   def _exec(self, *command, required: bool=True, **exec_args) -> None:

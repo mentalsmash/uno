@@ -336,3 +336,15 @@ class Uvn(Versioned, OwnableDatabaseObject, DatabaseObjectOwner):
             for peer_cell in [next(c for c in self.cells.values() if c.id == peer_id)]
     ]
 
+
+  @cached_property
+  def agent_ports(self) -> list[int]:
+    ports = []
+    if self.settings.enable_root_vpn:
+      ports.append(self.settings.root_vpn.peer_port)
+    if self.settings.enable_particles_vpn:
+      ports.append(self.settings.particles_vpn.port)
+    for i in range(len(self.cells)):
+      ports.append(self.settings.backbone_vpn.port + i)
+    return ports
+

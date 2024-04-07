@@ -53,8 +53,6 @@ RUN export DEBIAN_FRONTEND="noninteractive" \
       ) \
     && apt-get clean
 
-RUN adduser --shell /bin/bash uno
-
 # Copy uno
 COPY . /uno-dev
 
@@ -68,6 +66,7 @@ RUN set -e; \
     fi; \
     if [ -n "${DEV}" ]; then \
       cp -r /uno-dev /uno; \
+      pip3 install pytest; \
     else \
       git clone https://github.com/mentalsmash/uno -b ${VERSION} /uno; \
     fi; \
@@ -91,16 +90,66 @@ RUN set -e; \
       done; \
     fi
 
+
+# Make sure locale is en_US.UTF-8
+RUN apt-get update \
+    && set -e \
+    && if [ "$(. /etc/os-release && echo $ID)" = ubuntu ]; then \
+      apt-get install -y --no-install-recommends \
+          locales  \
+      && apt-get clean \
+      && locale-gen en_US en_US.UTF-8 \
+      && update-locale LC_ALL=en_US.UTF-8 LANG=en_US.UTF-8; \
+    else \
+      apt-get install -y --no-install-recommends \
+          locales \
+          locales-all \
+      && apt-get clean \
+      && update-locale LC_ALL=en_US.utf8 LANG=en_US.utf8; \
+    fi
+
+ENV LANG en_US.UTF-8
+
+# Create a non-root user
+# For DEV mode, also install openssh-server, openssh-client, and (passwordless) sudo.
+# Also configure uno-dev/docker/dev/test_key.ed25519.key as an authorized key
+# and install it as the user's private key
+ARG USER="uno"
+
+RUN set -xe; \
+    if [ -n "${DEV}" ]; then \
+      apt-get update; \
+      apt-get install -y --no-install-recommends sudo openssh-server openssh-client; \
+      apt-get clean; \
+    fi; \
+    adduser ${USER} --shell /bin/bash; \
+    if [ -n "${DEV}" ]; then \
+      echo ${USER} ALL=\(root\) NOPASSWD:ALL > /etc/sudoers.d/${USER}; \
+      chmod 0440 /etc/sudoers.d/${USER}; \
+      adduser ${USER} sudo; \
+      mkdir -p /home/${USER}/.ssh; \
+      touch /home/${USER}/.ssh/authorized_keys; \
+      key=/uno-dev/docker/dev/test_key.ed25519.key; \
+      cat ${key}.pub >> /home/${USER}/.ssh/authorized_keys; \
+      cp ${key} /home/${USER}/.ssh/id_ed25519; \
+      cp ${key}.pub /home/${USER}/.ssh/id_ed25519.pub; \
+      chown -R ${USER}:${USER} /home/${USER}/.ssh; \
+    fi
+
+# Clean-up uno repository
 RUN rm -rf /uno-dev
+
+# Make sure IPv4 forwarding is disabled in the image by default
+RUN sysctl -w net.ipv4.ip_forward=0
 
 # Custom entrypoint
 ENTRYPOINT [ "/uno/docker/entrypoint.sh" ]
 CMD ["__default__"]
 
 # Define volumes
-ARG UNO_MIDDLEWARE=uno_middleware_connext
+# ARG UNO_MIDDLEWARE=uno_middleware_connext
 
-ENV UNO_MIDDLEWARE  "${UNO_MIDDLEWARE}"
+# ENV UNO_MIDDLEWARE  "${UNO_MIDDLEWARE}"
 ENV UVN_DIR "/uvn"
 ENV UNO_DIR "/uno"
 

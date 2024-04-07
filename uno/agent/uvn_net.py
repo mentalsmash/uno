@@ -59,7 +59,12 @@ class UvnNet(AgentService):
       self._iptables_forward(lan.nic.name, noop=noop)
 
     for vpn in self.agent.vpn_interfaces:
+      from .render import Templates
+      wg_config = self.root / f"{vpn.config.intf.name}.conf"
+      Templates.generate(wg_config, *vpn.config.template_args)
+
       vpn.start(noop=noop)
+
       self._iptables_forward(vpn.config.intf.name, noop=noop)
       if vpn.config.masquerade:
         self._vpn_masquerade(vpn, noop=noop)

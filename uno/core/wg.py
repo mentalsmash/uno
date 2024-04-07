@@ -408,6 +408,8 @@ class WireGuardInterface:
     # Set wireguard configuration with "wg setconf..."
     try:
       self.log.debug("configuring WireGuard")
+      self.log.warning(wg_config.read_text())
+      self.log.warning(Path("/etc/hosts").read_text())
       exec_command(
         ["wg", "setconf", self.config.intf.name, wg_config])
     except:

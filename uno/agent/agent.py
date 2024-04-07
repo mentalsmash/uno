@@ -805,6 +805,8 @@ class Agent(
         # didn't reach it.
         if until:
           raise AgentTimedout("timed out", max_spin_time)
+        # Otherwise terminate
+        break
 
       # Test custom exit condition after event processing
       if until and until():
@@ -1371,19 +1373,12 @@ class Agent(
       return
     # Start agent as a separate process
     import subprocess
-    verbosity_level = (
-      5 if self.log.level >= self.log.Level.tracedbg else
-      4 if self.log.level >= self.log.Level.trace else
-      3 if self.log.level >= self.log.Level.debug else
-      2 if self.log.level >= self.log.Level.activity else
-      1 if self.log.level >= self.log.Level.info else
-      0
-    )
+    verbose_flag = self.log.verbose_flag
     agent_cmd = [
       self.static.uno_bin, "agent",
         "--systemd",
         "-r", self.root,
-        *(["-" + ("v"*verbosity_level)] if verbosity_level > 0 else []),
+        *([verbose_flag] if verbose_flag else []),
     ]
     self.log.warning("starting agent daemon: {}", " ".join(map(str, agent_cmd)))
     agent_process = subprocess.Popen(agent_cmd,
