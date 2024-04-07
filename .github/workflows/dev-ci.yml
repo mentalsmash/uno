@@ -46,6 +46,7 @@ jobs:
         with:
           file: docker/Dockerfile
           tags: mentalsmash/uno:dev-local
+          load: true
           context: src/uno
           build-args: |
             DEV=y
