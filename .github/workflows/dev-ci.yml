@@ -65,7 +65,7 @@ jobs:
         run: |
           . venv/bin/activate
           cd src/uno
-          pytest-3 -s -v --junit-xml=${GITHUB_WORKSPACE}/test/test-results-${{ matrix.uno-middleware }}.xml
+          pytest -s -v --junit-xml=${GITHUB_WORKSPACE}/test/test-results-${{ matrix.uno-middleware }}.xml
         env:
           UNO_MIDDLEWARE: ${{ matrix.uno-middleware }}
           VERBOSITY: activity

@@ -149,9 +149,6 @@ RUN set -xe; \
 # Clean-up uno repository
 RUN rm -rf /uno-dev
 
-# Make sure IPv4 forwarding is disabled in the image by default
-RUN sysctl -w net.ipv4.ip_forward=0
-
 # Custom entrypoint
 ENTRYPOINT [ "/uno/docker/entrypoint.sh" ]
 CMD ["__default__"]
