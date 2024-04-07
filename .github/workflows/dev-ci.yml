@@ -28,7 +28,7 @@ jobs:
       - name: Clone uno-middleware-connext
         uses: actions/checkout@v4
         with:
-          repository: mentalsmash/uno-middleware-connext.git
+          repository: mentalsmash/uno-middleware-connext
           path: src/plugins/uno-middleware-connext
           # ref: ${{ github.ref_name }}
       # Clone CI configuration repository
