@@ -1,5 +1,5 @@
 name: release
-run-name: Trigger release from ${{ github.ref_type }} ${{ github.ref_name }}
+# run-name: Trigger release from ${{ github.ref_type }} ${{ github.ref_name }}
 
 on:
   workflow_dispatch:

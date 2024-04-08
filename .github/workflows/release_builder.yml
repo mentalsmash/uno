@@ -1,5 +1,5 @@
 name: Release Builder
-run-name: ${{ inputs.push-images && 'Generate' || 'Validate' }} release from ${{ github.ref_type }} ${{ github.ref_name }}
+# run-name: ${{ inputs.push-images && 'Generate' || 'Validate' }} release from ${{ github.ref_type }} ${{ github.ref_name }}
 
 on:
   workflow_call:

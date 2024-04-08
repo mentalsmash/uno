@@ -1,5 +1,5 @@
 name: Updated image badges
-run-name: Updated image badges from ${{ github.ref_type }} ${{ github.ref_name }}${{ github.ref_type == 'branch' && ' @ ' || '' }}${{ github.ref_type == 'branch' && github.sha || '' }}
+# run-name: Update badges from ${{ github.ref_type }} ${{ github.ref_name }}${{ github.ref_type == 'branch' && ' @ ' || '' }}${{ github.ref_type == 'branch' && github.sha || '' }}
 
 concurrency:
   # Run sequentially

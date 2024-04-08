@@ -1,5 +1,5 @@
 name: Build and test
-run-name: Build and test from ${{ github.ref_type }} ${{ github.ref_name }}${{ github.ref_type == 'branch' && ' @ ' || '' }}${{ github.ref_type == 'branch' && github.sha || '' }} with ${{ inputs.uno-middleware }} on ${{ inputs.base-image }}
+# run-name: Build and test from ${{ github.ref_type }} ${{ github.ref_name }}${{ github.ref_type == 'branch' && ' @ ' || '' }}${{ github.ref_type == 'branch' && github.sha || '' }} with ${{ inputs.uno-middleware }} on ${{ inputs.base-image }}
 
 concurrency:
   # Queue jobs by (workflow, ref, uno-middleware, base-image)
