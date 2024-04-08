@@ -63,16 +63,16 @@ jobs:
         with:
           repository: mentalsmash/uno-middleware-connext
           path: src/plugins/uno-middleware-connext
-        if: matrix.uno-middleware == "uno_middleware_connext"
+        if: matrix.uno-middleware == 'uno_middleware_connext'
       - name: Install uno-middleware-connext
         run: |
           . venv/bin/activate
           pip install -e src/plugins/uno-middleware-connext
-        if: matrix.uno-middleware == "uno_middleware_connext"
+        if: matrix.uno-middleware == 'uno_middleware_connext'
       - name: Configure uno-middleware-connext
         run: |
           echo "RTI_LICENSE_FILE=${GITHUB_WORKSPACE}/src/uno-ci/resource/rti/rti_license.dat" >> ${GITHUB_ENV}
-        if: matrix.uno-middleware == "uno_middleware_connext"
+        if: matrix.uno-middleware == 'uno_middleware_connext'
       # Run tests with the selected middleware
       - name: Run unit tests
         run: |
