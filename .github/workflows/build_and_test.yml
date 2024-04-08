@@ -8,39 +8,44 @@ concurrency:
 on:
   workflow_call:
     inputs:
-      base-image: &in-base-image
+      base-image:
         required: true
         type: string
-      uno-middleware: &in-uno-middleware
+      uno-middleware:
         required: true
         type: string
-      run-unit: &in-run-unit
+      run-unit:
         type: boolean
         default: true
-      run-integration: &in-run-integration
+      run-integration:
         type: boolean
         default: true
-      test-image: &in-test-image
+      test-image:
         type: string
         default: mentalsmash/uno:test
 
   workflow_dispatch:
     inputs:
       base-image:
-        <<: *in-base-image
         description: Base OS image
+        required: true
+        type: string
       uno-middleware:
-        <<: *in-uno-middleware
         description: Middleware plugin
+        required: true
+        type: string
       run-unit:
-        <<: *in-run-unit
         description: Run unit tests
+        type: boolean
+        default: true
       run-integration:
-        <<: *in-run-integration
         description: Run integration tests
+        type: boolean
+        default: true
       test-image:
-        <<: *in-test-image
         description: Tag for tester image
+        type: string
+        default: mentalsmash/uno:test
       
 
 jobs:

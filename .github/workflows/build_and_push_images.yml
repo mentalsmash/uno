@@ -7,25 +7,25 @@ concurrency:
 on:
   workflow_call:
     inputs:
-      repo: &in-repo
+      repo:
         type: string
         default: mentalsmash/uno
-      tag-default: &in-tag-default
+      tag-default:
         type: string
         default: latest
-      tag-static: &in-tag-static
+      tag-static:
         type: string
         default: latest-static
-      middleware-default: &in-middleware-default
+      middleware-default:
         type: string
         default: uno_middleware_connext
-      middleware-static: &in-middleware-static
+      middleware-static:
         type: string
         default: uno.middleware.native
-      base-image-default: &in-base-image-default
+      base-image-default:
         type: string
         default: ubuntu:22.04
-      base-image-static: &in-base-image-static
+      base-image-static:
         type: string
         default: ubuntu:24.04
 
@@ -34,25 +34,32 @@ on:
     inputs:
       repo:
         description: Base name of the generated images
-        <<: *in-repo
+        type: string
+        default: mentalsmash/uno
       tag-default:
         description: Tag for the "default" image
-        <<: *in-tag-default
+        type: string
+        default: latest
       tag-static:
         description: Tag for the "static" image
-        <<: *in-tag-static
+        type: string
+        default: latest-static
       middleware-default:
         description: Middleware id for the "default" image
-        <<: *in-middleware-default
+        type: string
+        default: uno_middleware_connext
       middleware-static:
         description: Middleware id for the "static" image
-        <<: *in-middleware-static
+        type: string
+        default: uno.middleware.native
       base-image-default:
         description: Base OS for the "default" image
-        <<: *in-base-image-default
+        type: string
+        default: ubuntu:22.04
       base-image-static:
         description: Base OS for the "static" image
-        <<: *in-base-image-static
+        type: string
+        default: ubuntu:24.04
 
 
 jobs:
