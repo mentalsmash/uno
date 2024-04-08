@@ -6,7 +6,7 @@ on:
 
 
 concurrency:
-  group: ${{ github.workflow }} for ${{ github.ref_type }} ${{ github.ref_name }}
+  group: ${{ github.workflow }}
 
 
 jobs:

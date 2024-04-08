@@ -1,8 +1,8 @@
 name: Build and test
-run-name: Build and test from ${{ github.ref_type }} ${{ github.ref_name }}${{ github.ref_type == 'branch' && ' @ ' || '' }}${{ github.ref_type == 'branch' && github.sha || '' }}
+run-name: Build and test from ${{ github.ref_type }} ${{ github.ref_name }}${{ github.ref_type == 'branch' && ' @ ' || '' }}${{ github.ref_type == 'branch' && github.sha || '' }} with ${{ inputs.uno-middleware }} on ${{ inputs.base-image }}
 
 concurrency:
-  group: ${{ github.workflow }} for ${{ github.ref_type }} ${{ github.ref_name }}
+  group: ${{ github.workflow }} for ${{ github.ref_type }} ${{ github.ref_name }} with ${{ inputs.uno-middleware}} on ${{ inputs.base-image }}
 
 
 on:

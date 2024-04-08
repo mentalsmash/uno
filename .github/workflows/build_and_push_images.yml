@@ -1,8 +1,8 @@
 name: Build and push images
-run-name: Build and push images from ${{ github.ref_type }} ${{ github.ref_name }}${{ github.ref_type == 'branch' && ' @ ' || '' }}${{ github.ref_type == 'branch' && github.sha || '' }}
+run-name: Build and push images ${{ inputs.repo }}:${{ inputs.tag-default}}, and ${{ inputs.repo }}:${{ inputs.tag-static }} from ${{ github.ref_type }} ${{ github.ref_name }}${{ github.ref_type == 'branch' && ' @ ' || '' }}${{ github.ref_type == 'branch' && github.sha || '' }}
 
 concurrency:
-  group: ${{ github.workflow }} for ${{ github.ref_type }} ${{ github.ref_name }}
+  group: ${{ github.workflow }} for ${{ github.ref_type }} ${{ github.ref_name }} generates ${{ inputs.repo }}:${{ inputs.tag-default}}, and ${{ inputs.repo }}:${{ inputs.tag-static }}
 
 on:
   workflow_call:
