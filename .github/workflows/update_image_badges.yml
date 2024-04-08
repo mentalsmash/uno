@@ -45,7 +45,7 @@ jobs:
       with:
         auth: ${{ secrets.GIST_UPDATE_TOKEN }}
         gistID: ${{ inputs.badge-default-version }}
-        filename: uno-badge-image-default-version-${{ input.tag-default }}.json
+        filename: uno-badge-image-default-version-${{ inputs.tag-default }}.json
         label: version
         message: ${{ github.ref_name }}${{ github.ref_type == 'branch' && '@' || '' }}${{ github.ref_type == 'branch' && steps.vars.outputs.sha_short || '' }}
         color: ${{ github.ref_type == 'tag' && 'green' || 'orange' }}
@@ -56,7 +56,7 @@ jobs:
       with:
         auth: ${{ secrets.GIST_UPDATE_TOKEN }}
         gistID: ${{ inputs.badge-default-base }}
-        filename: uno-badge-image-default-base-${{ input.tag-default }}.json
+        filename: uno-badge-image-default-base-${{ inputs.tag-default }}.json
         label: base image
         message: ${{ inputs.base-image-default }}
         color: "blue"
@@ -67,7 +67,7 @@ jobs:
       with:
         auth: ${{ secrets.GIST_UPDATE_TOKEN }}
         gistID: ${{ inputs.badge-static }}
-        filename: uno-badge-image-static-version-${{ input.tag-static }}.json
+        filename: uno-badge-image-static-version-${{ inputs.tag-static }}.json
         label: version
         message: ${{ github.ref_name }}${{ github.ref_type == 'branch' && '@' || '' }}${{ github.ref_type == 'branch' && steps.vars.outputs.sha_short || '' }}
         color: ${{ github.ref_type == 'tag' && 'green' || 'orange' }}
@@ -78,7 +78,7 @@ jobs:
       with:
         auth: ${{ secrets.GIST_UPDATE_TOKEN }}
         gistID: ${{ inputs.badge-static-base }}
-        filename: uno-badge-image-static-base-${{ input.tag-static }}.json
+        filename: uno-badge-image-static-base-${{ inputs.tag-static }}.json
         label: base image
         message: ${{ inputs.base-image-static }}
         color: "blue"
