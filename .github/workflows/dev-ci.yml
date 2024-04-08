@@ -19,11 +19,14 @@ env:
 
 jobs:
   build_and_test:
-    runs-on: ubuntu-latest
     strategy:
       matrix:
         base-image: ["ubuntu:22.04", "ubuntu:24.04"]
         uno-middleware: [uno.middleware.native, uno_middleware_connext]
+        exclude:
+          - base-image: ubuntu:24.04
+            uno-middleware: uno_middleware_connext
+    runs-on: ubuntu-latest
     steps:
       # Check out main repository
       - name: Clone uno
@@ -121,7 +124,8 @@ jobs:
           push: true
           context: src/uno
           build-args: |
-            BASE_IMAGE=ubuntu:24.04
+            UNO_MIDDLEWARE=uno_middleware_connext
+            BASE_IMAGE=ubuntu:22.04
       - name: Build and push dev image
         uses: docker/build-push-action@v5
         with:
