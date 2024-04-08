@@ -1,0 +1,72 @@
+name: Build and push images
+run-name: Build and push images from ${{ github.ref_type }} ${{ github.ref_name }}${{ github.ref_type == 'branch' && ' @ ' + github.sha || '' }}
+
+concurrency:
+  group: ${{ github.workflow }} for ${{ github.ref_type }} ${{ github.ref_name }}
+
+on:
+  workflow_call:
+    inputs:
+      repo:
+        type: string
+        default: mentalsmash/uno
+      tag-default:
+        type: string
+        default: latest
+      tag-static:
+        type: string
+        default: latest-static
+      middleware-default:
+        type: string
+        default: uno_middleware_connext
+      middleware-static:
+        type: string
+        default: uno.middleware.native
+      base-image-default:
+        type: string
+        default: ubuntu:22.04
+      base-image-static:
+        type: string
+        default: ubuntu:24.04
+
+jobs:
+  docker:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      # - name: Set up QEMU
+      #   uses: docker/setup-qemu-action@v3
+
+      - name: Set up Docker Buildx
+        uses: docker/setup-buildx-action@v3
+      
+      - name: Login to Docker Hub
+        uses: docker/login-action@v3
+        with:
+          username: ${{ secrets.DOCKERHUB_USERNAME }}
+          password: ${{ secrets.DOCKERHUB_TOKEN }}
+
+      - name: Build and push default image
+        uses: docker/build-push-action@v5
+        with:
+          file: docker/Dockerfile
+          tags: ${{ inputs.repo }}:${{ inputs.tag-default }}
+          push: true
+          context: .
+          build-args: |
+            UNO_MIDDLEWARE=${{ inputs.middleware-default }}
+            BASE_IMAGE=${{ inputs.base-image-default }}
+
+      - name: Build and push static image
+        uses: docker/build-push-action@v5
+        with:
+          file: docker/Dockerfile
+          tags: ${{ inputs.repo }}:${{ inputs.tag-static }}
+          push: true
+          context: .
+          build-args: |
+            UNO_MIDDLEWARE=${{ inputs.middleware-static }}
+            BASE_IMAGE=${{ inputs.base-image-static }}
+
+
