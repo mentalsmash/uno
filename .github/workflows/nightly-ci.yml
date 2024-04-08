@@ -106,7 +106,6 @@ jobs:
         run: |
           . venv/bin/activate
           cd src/uno
-          base_image=$(echo '${{ matrix.base-image }}' | tr : _)
           pytest -s -k test_integration -v --junit-xml=${GITHUB_WORKSPACE}/test/pytest-results-integration.xml
         env:
           UNO_MIDDLEWARE: ${{ matrix.uno-middleware }}
