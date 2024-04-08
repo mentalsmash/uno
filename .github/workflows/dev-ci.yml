@@ -54,6 +54,7 @@ jobs:
           build-args: |
             TEST=y
             BASE_IMAGE=${{ matrix.base-image }}
+            UNO_MIDDLEWARE=${{ matrix.uno-middleware }}
       # Install uno in a venv
       - name: Generate virtual environment
         run: |
