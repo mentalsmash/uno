@@ -7,27 +7,53 @@ concurrency:
 on:
   workflow_call:
     inputs:
-      repo:
+      repo: &in-repo
         type: string
         default: mentalsmash/uno
-      tag-default:
+      tag-default: &in-tag-default
         type: string
         default: latest
-      tag-static:
+      tag-static: &in-tag-static
         type: string
         default: latest-static
-      middleware-default:
+      middleware-default: &in-middleware-default
         type: string
         default: uno_middleware_connext
-      middleware-static:
+      middleware-static: &in-middleware-static
         type: string
         default: uno.middleware.native
-      base-image-default:
+      base-image-default: &in-base-image-default
         type: string
         default: ubuntu:22.04
-      base-image-static:
+      base-image-static: &in-base-image-static
         type: string
         default: ubuntu:24.04
+
+
+  workflow_dispatch:
+    inputs:
+      repo:
+        description: Base name of the generated images
+        <<: *in-repo
+      tag-default:
+        description: Tag for the "default" image
+        <<: *in-tag-default
+      tag-static:
+        description: Tag for the "static" image
+        <<: *in-tag-static
+      middleware-default:
+        description: Middleware id for the "default" image
+        <<: *in-middleware-default
+      middleware-static:
+        description: Middleware id for the "static" image
+        <<: *in-middleware-static
+      base-image-default:
+        description: Base OS for the "default" image
+        <<: *in-base-image-default
+      base-image-static:
+        description: Base OS for the "static" image
+        <<: *in-base-image-static
+
 
 jobs:
   docker:

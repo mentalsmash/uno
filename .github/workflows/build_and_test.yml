@@ -8,22 +8,40 @@ concurrency:
 on:
   workflow_call:
     inputs:
-      base-image:
+      base-image: &in-base-image
         required: true
         type: string
-      uno-middleware:
+      uno-middleware: &in-uno-middleware
         required: true
         type: string
-      run-unit:
+      run-unit: &in-run-unit
         type: boolean
         default: true
-      run-integration:
+      run-integration: &in-run-integration
         type: boolean
         default: true
-      test-image:
+      test-image: &in-test-image
         type: string
         default: mentalsmash/uno:test
 
+  workflow_dispatch:
+    inputs:
+      base-image:
+        <<: *in-base-image
+        description: Base OS image
+      uno-middleware:
+        <<: *in-uno-middleware
+        description: Middleware plugin
+      run-unit:
+        <<: *in-run-unit
+        description: Run unit tests
+      run-integration:
+        <<: *in-run-integration
+        description: Run integration tests
+      test-image:
+        <<: *in-test-image
+        description: Tag for tester image
+      
 
 jobs:
   build_and_test:
@@ -109,7 +127,7 @@ jobs:
       - name: Upload test results
         uses: actions/upload-artifact@v4
         with:
-          name: test-results-${{ env.BASE_IMAGE }}-${{ inputs.uno-middleware }}
-          path: junit/test-results-*.xml
+          name: tests-${{ env.BASE_IMAGE }}-${{ inputs.uno-middleware }}
+          path: test/tests-*.xml
         if: ${{ always() }}
 
