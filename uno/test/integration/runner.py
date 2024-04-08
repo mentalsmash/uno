@@ -15,13 +15,11 @@
 # You should have received a copy of the GNU Affero General Public License
 # along with this program. If not, see <https://www.gnu.org/licenses/>.
 ###############################################################################
-import sys
 from pathlib import Path
 import os
 
-from uno.registry.registry import Registry
 from uno.cli.cli_helpers import cli_command_main, cli_command
-from uno.test.integration import Experiment, IntegrationTest, Scenario
+from uno.test.integration import Experiment
 
 import argparse
 
@@ -45,17 +43,14 @@ def _parser(parser: argparse.ArgumentParser) -> None:
 
 
 def runner_host(args: argparse.Namespace) -> None:
-  # Set UNO_TEST_RUNNER to inform tests that they're running inside Docker
-  os.environ["UNO_TEST_RUNNER"] = "y"
-  
-  # Add /uno-middleware to python's module path if it exists
-  middleware_plugin_dir = Path("/uno-middleware")
-  if middleware_plugin_dir.is_dir():
-    sys.path.insert(0, str(middleware_plugin_dir))
+  # UNO_TEST_RUNNER must have been set in the environment
+  # to signal that the code is running inside Docker
+  assert(bool(os.environ.get("UNO_TEST_RUNNER")))
+  # Load test case file as a module
   test_case_filef = Path("/experiment") / args.test_case
-  scenario: Scenario = IntegrationTest.import_test_case(test_case_filef)
+  experiment: Experiment = Experiment.import_test_case(test_case_filef)
   # Find host for the current container
-  host = next(h for h in scenario.experiment.hosts if h.container_name == args.container_name)
+  host = next(h for h in experiment.hosts if h.container_name == args.container_name)
   # Perform host initialization steps
   host.init()
   # Run test-case's main()

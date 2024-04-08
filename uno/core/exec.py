@@ -47,12 +47,11 @@ def exec_command(
 
   run_args = {"shell": shell,}
 
-  logger = (log.trace if not debug else log.info)
   if cwd is not None:
     run_args["cwd"] = cwd
-    logger("cd {}", cwd)
+    log.trace("cd {}", cwd)
 
-  logger(" ".join(["{}"]*len(cmd_args)), *cmd_args)
+  log.trace(" ".join(["{}"]*len(cmd_args)), *cmd_args)
 
   try:
     if output_file is not None:
@@ -68,7 +67,7 @@ def exec_command(
       if capture_output:
         stdout = subprocess.PIPE
         stderr = subprocess.PIPE
-      elif log.level >= log.Level.tracedbg or debug:
+      elif debug:
         stdout = sys.stdout
         stderr = sys.stderr
       else:

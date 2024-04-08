@@ -21,9 +21,10 @@ import ipaddress
 import tempfile
 import os
 from functools import cached_property
+import contextlib
 
 from uno.core.exec import exec_command
-from uno.core.log import Logger
+from uno.core.log import Logger, UvnLogger
 from uno.registry.registry import Registry
 from uno.middleware import Middleware
 
@@ -32,43 +33,147 @@ from .host import Host
 from .host_role import HostRole
 
 import uno
-uno_dir = Path(uno.__file__).parent.parent
+
+
+_uno_dir = Path(uno.__file__).resolve().parent.parent
 
 
 class Experiment:
-  uno_dir = Path(uno.__file__).resolve().parent.parent
+  InsideTestRunner = bool(os.environ.get("UNO_TEST_RUNNER", False))
   BuiltImages = set()
+  UnoDir = _uno_dir
+  DefaultLicense = UnoDir / "rti_license.dat"
 
-  def __init__(self,
+  @classmethod
+  def define(cls,
       test_case: Path,
       name: str | None=None,
       root: Path | None=None,
       config: dict|None=None,
-      registry: Registry|None=None,
-      registry_tmp: tempfile.TemporaryDirectory|None=None,
-      container_wait: int=60,
-      test_dir: Path | None=None) -> None:
-    self.test_case = test_case.resolve()
-    self.name = name or test_case.stem.replace("_", "-")
-    self.log = Logger.sublogger(self.name)
+      test_dir: Path | None=None) -> "Experiment":
+    # Make sure the test case file is an absolute path
+    test_case = test_case.resolve()
+    # Derive the name from the test case file if unspecified
+    name = name or test_case.stem.replace("_", "-")
+    # Derive root directory from test case file if unspecified
+    root = root.resolve() if root else test_case.parent
+    # Define a dedicated logger for the experiment
+    log = Logger.sublogger(name)
+    # Allow users to cusomize logger verbosity via environment
     VERBOSITY = os.environ.get("VERBOSITY")
     if VERBOSITY:
-      self.log.level = VERBOSITY
-    self.root = root.resolve() if root else self.test_case.parent
+      log.level = VERBOSITY
+    # Load test configuration
+    config = cls.load_config(config)
+    # Check if the user specified a non-temporary test directory
+    # Otherwise the experiment will allocate a temporary directory
+    test_dir = os.environ.get("TEST_DIR", test_dir)
+    test_dir_tmp = None
+    if test_dir is not None:
+      test_dir = Path(test_dir)
+    elif cls.InsideTestRunner:
+      test_dir = Path("/experiment-tmp")
+    else:
+      test_dir_tmp = tempfile.TemporaryDirectory()
+      test_dir = Path(test_dir_tmp.name)
+    # Check if we should refresh the uno docker image
+    if os.environ.get("BUILD_IMAGE", False):
+      cls.build_uno_image(config["image"])
+    # Load the selected uno middleware plugin
+    uno_middleware, uno_middleware_module = Middleware.load_module()
+    uno_middleware_base_dir = Middleware.plugin_base_directory(
+      uno_dir=_uno_dir,
+      plugin=uno_middleware,
+      plugin_module=uno_middleware_module)
+    # Check if an RTI license was passed through the environment
+    rti_license = os.environ.get("RTI_LICENSE_FILE")
+    if rti_license:
+      rti_license = Path(rti_license).resolve()
+    # Automatically set RTI_LICENSE_FILE if there is an rti_license.dat
+    # in the root of the uno diir
+    elif cls.DefaultLicense.exists():
+      os.environ["RTI_LICENSE_FILE"] = str(cls.DefaultLicense)
+      rti_license = cls.DefaultLicense
+    else:
+      rti_license = None
+
+    experiment = cls(
+      test_case=test_case,
+      name=name,
+      root=root,
+      config=config,
+      test_dir=test_dir,
+      log=log,
+      uno_middleware=uno_middleware,
+      uno_middleware_module=uno_middleware_module,
+      uno_middleware_base_dir=uno_middleware_base_dir,
+      rti_license=rti_license)
+    experiment.__test_dir_tmp = test_dir_tmp
+    return experiment
+
+
+  @classmethod
+  def import_test_case(cls, test_case_file: Path) -> "Experiment":
+    # Load test case as a module
+    # (see: https://stackoverflow.com/a/67692)
+    import importlib.util
+    import sys
+    spec = importlib.util.spec_from_file_location(test_case_file.stem, str(test_case_file))
+    test_case = importlib.util.module_from_spec(spec)
+    sys.modules[test_case_file.stem] = test_case
+    spec.loader.exec_module(test_case)
+    return test_case.load_scenario()
+
+
+  @classmethod
+  def load_config(cls, user_config: dict | None = None) -> dict:
+    config = dict(user_config or {})
+    for k, v in cls.default_config().items():
+      config.setdefault(k, v)
+    cls.default_derived_config(config)
+    # config.setdefault("networks", cls.default_networks(config))
+    return config
+
+
+  @classmethod
+  def default_config(cls) -> dict:
+    return {
+      "interactive": False,
+      "image": "mentalsmash/uno:dev-local",
+      "uvn_fully_routed_timeout": 60,
+      "container_stop_timeout": 60,
+    }
+
+
+  @classmethod
+  def default_derived_config(cls, config: dict) -> None:
+    pass
+
+
+  def __init__(self,
+      test_case: Path,
+      name: str,
+      root: Path,
+      config: dict,
+      test_dir: Path,
+      log: UvnLogger,
+      uno_middleware: str,
+      uno_middleware_module: ModuleType,
+      uno_middleware_base_dir: Path,
+      rti_license: Path) -> None:
+    self.test_case = test_case
+    self.name = name
+    self.log = log
+    self.root = root
+    self.test_dir = test_dir
+    self.config = config
+    self.uno_middleware = uno_middleware
+    self.uno_middleware_module = uno_middleware_module
+    self.uno_middleware_base_dir = uno_middleware_base_dir
+    self.rti_license = rti_license
     self.networks: list[Network] = []
     self.hosts: list[Host] = []
-    if test_dir is not None:
-      self.test_dir = test_dir.resolve()
-    else:
-      if self.inside_test_runner:
-        self.test_dir = Path("/experiment-tmp")
-      else:
-        self.test_dir_h = tempfile.TemporaryDirectory()
-        self.test_dir = Path(self.test_dir_h.name)
-    self.config = dict(config or {})
-    self.registry = registry
-    self.registry_tmp = registry_tmp
-    self.container_wait = container_wait
+    self.define_networks_and_hosts()
 
 
   def __str__(self) -> str:
@@ -90,8 +195,41 @@ class Experiment:
 
 
   @cached_property
-  def inside_test_runner(self) -> bool:
-    return bool(os.environ.get("UNO_TEST_RUNNER", False))
+  def registry_root(self) -> Path:
+    return self.test_dir / "uvn"
+
+
+  @cached_property
+  def registry(self) -> Registry:
+    if not self.InsideTestRunner and not Registry.is_uno_directory(self.registry_root):
+      self.define_uvn()
+    return Registry.open(self.registry_root, readonly=True)
+
+
+  def define_networks_and_hosts(self) -> None:
+    pass
+
+
+  def define_uvn(self) -> None:
+    pass
+
+  
+  @contextlib.contextmanager
+  def begin(self) -> "Generator[Experiment, None, None]":
+    try:
+      self.create()
+      self.start()
+      yield self
+    finally:
+      KEEP_DOCKER = os.environ.get("KEEP_DOCKER", False)
+      try:
+        self.stop()
+      except Exception as e:
+        self.log.error("failed to stop containers")
+        self.log.exception(e)
+      if not KEEP_DOCKER:
+        self.tear_down(assert_stopped=True)
+      self.log.info("done")
 
 
   def create(self) -> None:
@@ -134,6 +272,40 @@ class Experiment:
             *(["/registry"] if registry_root else []),
             *(["/test_dir"] if test_dir else []),
       ])
+
+
+  def uno(self, *args, **exec_args):
+    # define_uvn = len(args) > 2 and args[0] == "define" and args[1] == "uvn"
+    verbose_flag = Logger.verbose_flag
+    # The command may create files with root permissions.
+    # These files will be returned to the host user when
+    # Experiment.restore_registry_permissions() is called
+    # during tear down.
+    try:
+      return exec_command([
+        "docker", "run", "--rm",
+          *(["-ti"] if self.config["interactive"] else []),
+          "--init",
+          "-v", f"{self.root}:/experiment",
+          "-v", f"{self.test_dir}:/experiment-tmp",
+          "-v", f"{self.registry_root}:/uvn",
+          "-v", f"{self.UnoDir}:/uno",
+          *(["-v", f"{self.uno_middleware_base_dir}:/uno-middleware"] if self.uno_middleware_base_dir else []),
+          "-e", f"UNO_MIDDLEWARE={self.uno_middleware}",
+          *([
+            "-v", f"{self.rti_license}:/rti_license.dat",
+            "-e", "RTI_LICENSE_FILE=/rti_license.dat",
+          ] if self.rti_license else []),
+          "-w", "/uvn",
+          self.config["image"],
+          "uno", *args,
+            *([verbose_flag] if verbose_flag else []),
+      ], **exec_args)
+    finally:
+      self.restore_registry_permissions(
+          registry_root=self.registry_root,
+          image=self.config["image"])
+
 
 
   def tear_down(self, assert_stopped: bool=False) -> None:
@@ -230,13 +402,16 @@ class Experiment:
     exec_command([
       "docker", "build",
         *(["--no-cache"] if not use_cache else []),
-        "-f", f"{cls.uno_dir}/docker/Dockerfile",
+        "-f", f"{cls.UnoDir}/docker/Dockerfile",
         "-t", tag,
         *(["--build-arg", "DEV=y"] if dev else []),
         *(["--build-arg", "EXTRAS=y"] if extras else []),
         *(["--build-arg", "LOCAL=y"] if local else []),
-        cls.uno_dir,
+        cls.UnoDir,
     ], debug=True)
     cls.BuiltImages.add(tag)
     Logger.warning("uno docker image updated: {}", tag)
   
+# Make "info" the minimum default verbosity when this module is loaded
+if Logger.level >= Logger.Level.warning:
+  Logger.level = Logger.Level.info

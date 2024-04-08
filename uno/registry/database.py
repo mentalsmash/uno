@@ -794,7 +794,6 @@ class Database:
           self.log.debug("exporting table {} to {}", table, target)
           query, params = exported_cls.importable_query(table)
           assert(query is not None)
-          # print(f"QUERY = '{query}'; PARAMS = '{params}';")
           for row in cursor.execute(query, params or tuple()):
             self.log.debug("export record {}: {}", table, row)
             t_cursor.execute(

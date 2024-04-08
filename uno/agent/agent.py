@@ -1249,13 +1249,10 @@ class Agent(
       # tmp_dir_h = tempfile.TemporaryDirectory()
       # enc_package = Path(tmp_dir_h.name) / f"{cell_package.name}.enc"
       # key = self.id_db.backend[cell]
-      # print("PACKAGE SIZE", cell, exec_command([f"ls -l {cell_package}"], shell=True, capture_output=True).stdout.decode())
       # self.registry.id_db.backend.encrypt_file(key, cell_package, enc_package)
-      # print("ENCODED PACKAGE SIZE", cell, exec_command([f"ls -l {enc_package}"], shell=True, capture_output=True).stdout.decode())
-      # print("ENCODED PACKAGE CONTENTS", cell, exec_command([f"cat {enc_package}"], shell=True, capture_output=True).stdout.decode())
       # dec_package = Path(tmp_dir_h.name) / f"{cell_package.name}.enc.dec"
       # self.registry.id_db.backend.decrypt_file(key, enc_package, dec_package)
-      # print("DECODED PACKAGE SIZE", cell, exec_command([f"ls -l {dec_package}"], shell=True, capture_output=True).stdout.decode())
+
       self.participant.cell_agent_config(
         uvn=self.uvn,
         cell_id=cell.id,

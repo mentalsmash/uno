@@ -179,6 +179,12 @@ class Registry(Versioned):
     return (id_cfg["owner"], id_cfg["config_id"])
 
 
+  @classmethod
+  def is_uno_directory(cls, root: Path) -> bool:
+    # For now we just check if there is a database file
+    return (root / Database.DB_NAME).exists()
+
+
   @cached_property
   @inject_db_cursor
   def local_id(self, cursor: Database.Cursor) -> tuple[Uvn|Cell, str]:
@@ -615,7 +621,6 @@ class Registry(Versioned):
         self.uvn.updated_property("particle_properties")
         self.updated_property("particles")
       if modified_users:
-        # print("SAVE MODIFIED USERS", modified_users)
         self.db.save_all(modified_users, cursor=cursor)
         self.updated_property("users")
       if modified_other:

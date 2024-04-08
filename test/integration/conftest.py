@@ -1,24 +1,25 @@
-import os
+###############################################################################
+# (C) Copyright 2020-2024 Andrea Sorbini
+#
+# This program is free software: you can redistribute it and/or modify
+# it under the terms of the GNU Affero General Public License as 
+# published by the Free Software Foundation, either version 3 of the 
+# License, or (at your option) any later version.
+#
+# This program is distributed in the hope that it will be useful,
+# but WITHOUT ANY WARRANTY; without even the implied warranty of
+# MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE. See the
+# GNU Affero General Public License for more details.
+#
+# You should have received a copy of the GNU Affero General Public License
+# along with this program. If not, see <https://www.gnu.org/licenses/>.
+###############################################################################
 import pytest
-import time
 import subprocess
 from typing import Generator
 
-from uno.test.integration import Experiment, Host, HostRole, Scenario
+from uno.test.integration import Experiment, Host, HostRole
 from uno.core.time import Timer
-
-@pytest.fixture
-def experiment(scenario: Scenario):
-  scenario.experiment.create()
-  try:
-    scenario.experiment.start()
-    yield scenario.experiment
-  finally:
-    KEEP_DOCKER = os.environ.get("KEEP_DOCKER", False)
-    scenario.experiment.stop()
-    if not KEEP_DOCKER:
-      scenario.experiment.tear_down(assert_stopped=True)
-    scenario.experiment.log.info("done")
 
 
 @pytest.fixture

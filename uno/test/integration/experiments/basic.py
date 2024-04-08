@@ -15,11 +15,10 @@
 # along with this program. If not, see <https://www.gnu.org/licenses/>.
 ###############################################################################
 import ipaddress
-
 from uno.registry.package import Packager
-from uno.test.integration import Scenario, Experiment
+from uno.test.integration import Experiment
 
-class BasicScenario(Scenario):
+class BasicExperiment(Experiment):
   ################################################################################
   # Experiment Configuration
   ################################################################################
@@ -50,16 +49,9 @@ class BasicScenario(Scenario):
   # |                                                                           |
   # └───────────────────────────────────────────────────────────────────────────┘
 
-  def make_networks(self) -> list[ipaddress.IPv4Network]:
-    addrp = list(map(int, str(self.config["public_net_subnet"].network_address).split(".")))
-    return [
-      ipaddress.ip_network(f"{addrp[0]}.{addrp[1]}.{addrp[2] -1 - i}.{addrp[3]}/24")
-        for i in range(self.config["networks_count"])
-    ]
-
-  @property
-  def default_config(self) -> dict:
-    default_cfg = super().default_config
+  @classmethod
+  def default_config(cls) -> dict:
+    default_cfg = super(cls, cls).default_config()
     default_cfg.update({
       "networks_count": 4,
       "relays_count": 1, #1,
@@ -77,7 +69,16 @@ class BasicScenario(Scenario):
     return default_cfg
 
 
-  def _define_uvn(self) -> None:
+  @classmethod
+  def default_derived_config(cls, config: dict) -> None:
+    addrp = list(map(int, str(config["public_net_subnet"].network_address).split(".")))
+    config["networks"] = [
+      ipaddress.ip_network(f"{addrp[0]}.{addrp[1]}.{addrp[2] -1 - i}.{addrp[3]}/24")
+        for i in range(config["networks_count"])
+    ]
+
+
+  def define_uvn(self) -> None:
     self.uno("define", "uvn", self.config["uvn_name"],
       *(["-a", self.config["registry_host"]] if self.config["registry_host"] else []),
         "-o", self.config["uvn_owner"],
@@ -101,15 +102,15 @@ class BasicScenario(Scenario):
         "-o", self.config["uvn_owner"])
 
 
-  def _define_experiment(self, experiment: Experiment) -> None:
+  def define_networks_and_hosts(self) -> None:
     # Define N private networks + an "internet" network to connect them
     networks = []
-    internet = experiment.define_network(
+    internet = self.define_network(
       subnet=self.config["public_net_subnet"],
       name=self.config["public_net"])
 
     for i, subnet in enumerate(self.config["networks"]):
-      net = experiment.define_network(
+      net = self.define_network(
         subnet=subnet,
         name=f"net{i+1}")
       networks.append(net)
@@ -170,7 +171,7 @@ class BasicScenario(Scenario):
     # doesn't have a router
     if self.config["registry_host"]:
       hostname, netname = self.config["registry_host"].split(".")
-      net = next(n for n in experiment.networks if n.name == netname)
+      net = next(n for n in self.networks if n.name == netname)
       registry_h = net.define_registry(
         hostname=hostname,
         address=self.config["registry_host_address"])

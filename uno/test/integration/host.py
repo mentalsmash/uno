@@ -260,8 +260,8 @@ class Host:
 
   def create(self) -> None:
     # The uno package must have been imported from a cloned repository
-    assert((self.experiment.uno_dir / ".git").is_dir())
-    assert(not self.experiment.inside_test_runner)
+    assert((self.experiment.UnoDir / ".git").is_dir())
+    assert(not self.experiment.InsideTestRunner)
     # Make sure the host doesn't exist, then create it
     self.delete(ignore_errors=True)
 
@@ -274,7 +274,7 @@ class Host:
       shutil.copytree(self.experiment.registry.root, self.experiment_uvn_dir)
 
     plugin_base_dir = self.experiment.registry.middleware.plugin_base_directory(
-      uno_dir=self.experiment.uno_dir,
+      uno_dir=self.experiment.UnoDir,
       plugin=self.experiment.registry.middleware.plugin,
       plugin_module=self.experiment.registry.middleware.module)
 
@@ -294,10 +294,10 @@ class Host:
         "-w", "/uvn",
         "-v", f"{self.experiment.root}:/experiment",
         "-v", f"{self.experiment.test_dir}:/experiment-tmp",
-        "-v", f"{self.experiment.uno_dir.resolve()}:/uno",
+        "-v", f"{self.experiment.UnoDir}:/uno",
         "-e", f"UNO_MIDDLEWARE={self.experiment.registry.middleware.plugin}",
+        "-e", "UNO_TEST_RUNNER=y",
         *(["-v", f"{plugin_base_dir}:/uno-middleware"] if plugin_base_dir else []),
-        "-v", f"{self.experiment.registry.root}:/experiment-uvn",
         *(["-v", f"{self.experiment_uvn_dir}:/uvn"] if self.role in (HostRole.REGISTRY, HostRole.CELL) else []),
         *(["-v", f"{self.cell_package}:/package.uvn-agent"] if self.role == HostRole.CELL else []),
         self.image,
@@ -325,7 +325,7 @@ class Host:
 
   def stop(self) -> None:
     self.log.debug("stopping container")
-    exec_command(["docker", "stop", "-s", "SIGINT", "-t", str(self.experiment.container_wait), self.container_name])
+    exec_command(["docker", "stop", "-s", "SIGINT", "-t", str(self.experiment.config["container_stop_timeout"]), self.container_name])
     self.log.activity("stopped")
 
 
@@ -389,7 +389,6 @@ kill -0 $(cat /run/uno/uno-agent.pid) && echo OK
     if not result:
       return False
     result = result.decode().strip()
-    print(f"$$$$$$$$$$$$ RESULT = '{result}'")
     return result == "OK"
     # return result and result.decode().strip() == "OK"
 
@@ -528,7 +527,7 @@ kill -0 $(cat /run/uno/uno-agent.pid) && echo OK
 
 
   def exec(self, *args, user: str|None=None, **exec_args):
-    if self.experiment.inside_test_runner:
+    if self.experiment.InsideTestRunner:
       cmd = args
       assert(user is None)
     else:
@@ -539,7 +538,7 @@ kill -0 $(cat /run/uno/uno-agent.pid) && echo OK
   def popen(self, *args, user: str|None=None, **popen_args) -> subprocess.Popen:
     # Stop signals from propagating to the child process by default
     popen_args.setdefault("preexec_fn", os.setpgrp)
-    if self.experiment.inside_test_runner:
+    if self.experiment.InsideTestRunner:
       cmd = args
       assert(user is None)
     else:

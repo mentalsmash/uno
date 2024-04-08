@@ -179,11 +179,6 @@ class _Templates:
 
 
   def markdown_to_html(self, md_text: str) -> str:
-    # print("-"*100)
-    # print("-"*100)
-    # print(md_text)
-    # print("-"*100)
-    # print("-"*100)
     return markdown.markdown(md_text,
       extensions=[
         "tables",

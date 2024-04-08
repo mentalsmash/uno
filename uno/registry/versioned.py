@@ -570,8 +570,6 @@ class Versioned(DatabaseObject):
     self.log.context = self._str_repr
     self.load_nested()
     self._initialized = True
-    
-    # print(self.__class__.__qualname__, "transient", self.SCHEMA)
     assert(not self.SCHEMA.transient or self.parent is not None)
 
 

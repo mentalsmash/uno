@@ -14,17 +14,17 @@
 # You should have received a copy of the GNU Affero General Public License
 # along with this program. If not, see <https://www.gnu.org/licenses/>.
 ###############################################################################
+from typing import Generator
 from pathlib import Path
 import pytest
 import subprocess
 import contextlib
-import time
 
-from uno.test.integration import Experiment, Host, Scenario, HostRole
-from uno.test.integration.scenarios.basic import BasicScenario
+from uno.test.integration import Experiment, Host, Experiment, HostRole
+from uno.test.integration.experiments.basic import BasicExperiment
 
-def load_scenario() -> Scenario:
-  return BasicScenario(Path(__file__), {
+def load_scenario() -> Experiment:
+  return BasicExperiment.define(Path(__file__), config={
     # "networks_count": 1,
     # "networks_count": 6,
     # "relays_count": 0,
@@ -34,8 +34,10 @@ def load_scenario() -> Scenario:
 
 
 @pytest.fixture
-def scenario() -> Scenario:
-  return load_scenario()
+def experiment() -> Generator[Experiment, None, None]:
+  e = load_scenario()
+  with e.begin():
+    yield e
 
 
 def _other_hosts(host: Host, hosts: list[Host]) -> list[Host]:
