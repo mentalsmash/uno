@@ -17,4 +17,5 @@ concurrency:
 jobs:
   build_test_release:
     uses: ./.github/workflows/release.yml
+    secrets: inherit
 
