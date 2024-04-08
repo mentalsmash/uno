@@ -48,7 +48,7 @@ jobs:
           file: docker/Dockerfile
           tags: mentalsmash/uno:latest,mentalsmash/uno:${{ github.ref_name }}
           push: true
-          context: src/uno
+          context: .
           build-args: |
             UNO_MIDDLEWARE=uno_middleware_connext
             BASE_IMAGE=ubuntu:22.04
@@ -59,7 +59,7 @@ jobs:
           file: docker/Dockerfile
           tags: mentalsmash/uno:latest-static,mentalsmash/uno:${{ github.ref_name }}-static
           push: true
-          context: src/uno
+          context: .
           build-args: |
             UNO_MIDDLEWARE=uno.middleware.native
             BASE_IMAGE=ubuntu:latest      
