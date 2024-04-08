@@ -20,12 +20,12 @@ jobs:
             uno-middleware: uno.middleware.native
           - base-image: ubuntu:24.04
             uno-middleware: uno_middleware_connext
-    uses: ./github/workflows/build_and_test.yml
+    uses: ./.github/workflows/build_and_test.yml
     with:
       base-image: ${{ matrix.base-image }}
       uno-middleware: ${{ matrix.uno-middleware }}
 
   docker_images:
     needs: build_and_test
-    uses: ./github/workflows/build_and_push_images.yml
+    uses: ./.github/workflows/build_and_push_images.yml
 

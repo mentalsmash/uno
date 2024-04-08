@@ -16,5 +16,5 @@ concurrency:
 
 jobs:
   build_test_release:
-    uses: ./github/workflows/release.yml
+    uses: ./.github/workflows/release.yml
 
