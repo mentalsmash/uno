@@ -124,7 +124,6 @@ RUN set -xe; \
         iputils-tracepath \
         dnsutils \
         inetutils-traceroute \
-        netcat \
         iperf \
         iperf3 \
         tcpdump \
