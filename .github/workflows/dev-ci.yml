@@ -22,7 +22,7 @@ jobs:
     runs-on: ubuntu-latest
     strategy:
       matrix:
-        base-image: ["ubuntu:22:04", "ubuntu:24.04"]
+        base-image: ["ubuntu:22.04", "ubuntu:24.04"]
         uno-middleware: [uno.middleware.native, uno_middleware_connext]
     steps:
       # Check out main repository
