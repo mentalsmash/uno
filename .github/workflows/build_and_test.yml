@@ -21,33 +21,26 @@ on:
       run-integration:
         type: boolean
         default: true
-      test-image:
-        type: string
-        default: mentalsmash/uno:test
 
-  workflow_dispatch:
-    inputs:
-      base-image:
-        description: Base OS image
-        type: string
-        default: ubuntu:24.04
-      uno-middleware:
-        description: Middleware plugin
-        type: string
-        default: uno_middleware_connext
-      run-unit:
-        description: Run unit tests
-        type: boolean
-        default: true
-      run-integration:
-        description: Run integration tests
-        type: boolean
-        default: true
-      test-image:
-        description: Tag for tester image
-        type: string
-        default: mentalsmash/uno:test
-      
+  # workflow_dispatch:
+  #   inputs:
+  #     base-image:
+  #       description: Base OS image
+  #       type: string
+  #       default: ubuntu:24.04
+  #     uno-middleware:
+  #       description: Middleware plugin
+  #       type: string
+  #       default: uno_middleware_connext
+  #     run-unit:
+  #       description: Run unit tests
+  #       type: boolean
+  #       default: true
+  #     run-integration:
+  #       description: Run integration tests
+  #       type: boolean
+  #       default: true
+
 
 jobs:
   build_and_test:
@@ -76,7 +69,7 @@ jobs:
         uses: docker/build-push-action@v5
         with:
           file: src/uno/docker/Dockerfile
-          tags: ${{ inputs.test-image }}
+          tags: mentalsmash/uno:test
           load: true
           context: src/uno
           build-args: |

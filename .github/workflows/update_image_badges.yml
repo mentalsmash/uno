@@ -1,0 +1,85 @@
+name: Updated image badges
+run-name: Updated image badges from ${{ github.ref_type }} ${{ github.ref_name }}${{ github.ref_type == 'branch' && ' @ ' || '' }}${{ github.ref_type == 'branch' && github.sha || '' }}
+
+concurrency:
+  # Run sequentially
+  group: ${{ github.workflow }}
+
+on:
+  workflow_call:
+    inputs:
+      tag-default:
+        type: string
+        required: true
+      tag-static:
+        type: string
+        required: true
+      base-image-default:
+        type: string
+        default: ubuntu:22.04
+      base-image-static:
+        type: string
+        default: ubuntu:24.04
+      badge-default-version:
+        type: string
+      badge-default-base:
+        type: string
+      badge-static-version:
+        type: string
+      badge-static-base:
+        type: string
+
+
+jobs:
+  update_badges:
+    runs-on: ubuntu-latest
+    needs: push_images
+    steps:
+    - name: Generate derived variables
+      id: vars
+      run: echo "sha_short=$(git rev-parse --short HEAD)" >> $GITHUB_OUTPUT
+
+    - name: Update default version badge
+      if: inputs.badge-default-version
+      uses: schneegans/dynamic-badges-action@v1.7.0
+      with:
+        auth: ${{ secrets.GIST_UPDATE_TOKEN }}
+        gistID: ${{ inputs.badge-default-version }}
+        filename: uno-badge-image-default-version-${{ input.tag-default }}.json
+        label: version
+        message: ${{ github.ref_name }}${{ github.ref_type == 'branch' && '@' || '' }}${{ github.ref_type == 'branch' && steps.vars.outputs.sha_short || '' }}
+        color: ${{ github.ref_type == 'tag' && 'green' || 'orange' }}
+
+    - name: Update default base image badge
+      if: inputs.badge-default-base
+      uses: schneegans/dynamic-badges-action@v1.7.0
+      with:
+        auth: ${{ secrets.GIST_UPDATE_TOKEN }}
+        gistID: ${{ inputs.badge-default-base }}
+        filename: uno-badge-image-default-base-${{ input.tag-default }}.json
+        label: base image
+        message: ${{ inputs.base-image-default }}
+        color: "blue"
+
+    - name: Update static base badge
+      if: inputs.badge-static-version
+      uses: schneegans/dynamic-badges-action@v1.7.0
+      with:
+        auth: ${{ secrets.GIST_UPDATE_TOKEN }}
+        gistID: ${{ inputs.badge-static }}
+        filename: uno-badge-image-static-version-${{ input.tag-static }}.json
+        label: version
+        message: ${{ github.ref_name }}${{ github.ref_type == 'branch' && '@' || '' }}${{ github.ref_type == 'branch' && steps.vars.outputs.sha_short || '' }}
+        color: ${{ github.ref_type == 'tag' && 'green' || 'orange' }}
+
+    - name: Update static base image badge
+      if: inputs.badge-static-base
+      uses: schneegans/dynamic-badges-action@v1.7.0
+      with:
+        auth: ${{ secrets.GIST_UPDATE_TOKEN }}
+        gistID: ${{ inputs.badge-static-base }}
+        filename: uno-badge-image-static-base-${{ input.tag-static }}.json
+        label: base image
+        message: ${{ inputs.base-image-static }}
+        color: "blue"
+
