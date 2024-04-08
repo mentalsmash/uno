@@ -15,6 +15,7 @@ env:
   TEST_TAG: mentalsmash/uno:test
   LATEST_TAG: mentalsmash/uno:latest
   LATEST_EXTRAS_TAG: mentalsmash/uno:latest-extras
+  LATEST_STATIC_TAG: mentalsmash/uno:latest-static
 
 jobs:
   build_and_test:
@@ -49,7 +50,6 @@ jobs:
           context: src/uno
           build-args: |
             TEST=y
-            EXTRAS=y
       # Install uno in a venv
       - name: Generate virtual environment
         run: |
@@ -123,10 +123,10 @@ jobs:
         uses: docker/build-push-action@v5
         with:
           file: src/uno/docker/Dockerfile
-          tags: ${{ env.LATEST_EXTRAS_TAG }}
+          tags: ${{ env.LATEST_STATIC_TAG }}
           push: true
           context: src/uno
           build-args: |
-            EXTRAS=y
+            UNO_MIDDLEWARE=uno.middleware.native
 
   

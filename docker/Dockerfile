@@ -35,25 +35,6 @@ RUN export DEBIAN_FRONTEND="noninteractive" \
       git \
       unzip \
       zip \
-      $([ -z "${EXTRAS}" ] || \
-        echo \
-          rng-tools \
-          vim \
-          less \
-          iputils-tracepath \
-          dnsutils \
-          inetutils-traceroute \
-          netcat \
-          iperf \
-          iperf3 \
-          tcpdump \
-          curl \
-          elinks \
-          net-tools \
-          build-essential \
-          cargo \
-          sqlite3 \
-      ) \
     && apt-get clean
 
 # Copy uno
@@ -96,7 +77,7 @@ RUN set -e; \
       plugin_dir=/uno-plugins/$1; \
       git clone $2 -b $3 ${plugin_dir}; \
       pip3 install -e ${plugin_dir}; \
-    } \
+    }; \
     case "${UNO_MIDDLEWARE}" in \
       uno_middleware_connext) \
         echo install_plugin uno_middleware_connext https://github.com/mentalsmash/uno-middleware-connext.git master; \
@@ -122,17 +103,37 @@ RUN apt-get update \
 
 ENV LANG en_US.UTF-8
 
-# Create a non-root user
-# For TEST mode, also install openssh-server, openssh-client, and (passwordless) sudo.
-# Also configure uno-dev/docker/dev/test_key.ed25519.key as an authorized key
-# and install it as the user's private key
+# For TEST mode:
+# - create a non-root user
+# - install openssh-server, openssh-client, and (passwordless) sudo.
+# - configure uno-dev/docker/dev/test_key.ed25519.key as an authorized key
+#   and install it as the user's private key
+# - install some extra packages
 ARG USER="uno"
 ARG TEST=
 RUN set -xe; \
     if [ -n "${TEST}" ]; then \
       pip3 install pytest; \
       apt-get update; \
-      apt-get install -y --no-install-recommends sudo openssh-server openssh-client; \
+      apt-get install -y --no-install-recommends \
+        openssh-server \
+        openssh-client \
+        rng-tools \
+        vim \
+        less \
+        iputils-tracepath \
+        dnsutils \
+        inetutils-traceroute \
+        netcat \
+        iperf \
+        iperf3 \
+        tcpdump \
+        curl \
+        elinks \
+        net-tools \
+        build-essential \
+        cargo \
+        sqlite3; \
       apt-get clean; \
       adduser ${USER} --shell /bin/bash; \
       echo ${USER} ALL=\(root\) NOPASSWD:ALL > /etc/sudoers.d/${USER}; \
@@ -146,7 +147,9 @@ RUN set -xe; \
       cp ${key}.pub /home/${USER}/.ssh/id_ed25519.pub; \
       chown -R ${USER}:${USER} /home/${USER}/.ssh; \
       chmod 600 /home/${USER}/.ssh/id_ed25519; \
+      export DEBIAN_FRONTEND="noninteractive"; \
     fi
+
 
 # Clean-up uno repository
 RUN rm -rf /uno-dev
