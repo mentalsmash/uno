@@ -77,6 +77,9 @@ RUN set -e; \
 # Clone the selected version from the remote repository
 ARG UNO_VERSION=master
 ARG UNO_URL=https://github.com/mentalsmash/uno
+ARG UNO_MIDDLEWARE=uno_middleware_connext
+# Export default middleware
+ENV UNO_MIDDLEWARE  "${UNO_MIDDLEWARE}"
 ARG LOCAL=
 RUN set -e; \
     if [ -n "${LOCAL}" ]; then \
@@ -86,19 +89,19 @@ RUN set -e; \
     fi; \
     pip3 install -e /uno
 
-# Install some plugins.
-ARG PLUGINS=uno-middleware-connext@https://github.com/mentalsmash/uno-middleware-connext.git|master
-
+# Install middleware and other plugins
 RUN set -e; \
     mkdir -p /uno-plugins; \
-    for plugin in ${PLUGINS}; do \
-      plugin_name=$(echo ${plugin} | cut -d@ -f1); \
-      plugin_url=$(echo ${plugin} | cut -d@ -f2- | cut "-d|" -f1); \
-      plugin_branch=$(echo ${plugin} | cut -d@ -f2- | cut "-d|" -f2); \
-      plugin_dir=/uno-plugins/${plugin_name}; \
-      git clone ${plugin_url} -b ${plugin_branch} ${plugin_dir}; \
+    install_plugin() { \
+      plugin_dir=/uno-plugins/$1; \
+      git clone $2 -b $3 ${plugin_dir}; \
       pip3 install -e ${plugin_dir}; \
-    done
+    } \
+    case "${UNO_MIDDLEWARE}" in \
+      uno_middleware_connext) \
+        echo install_plugin uno_middleware_connext https://github.com/mentalsmash/uno-middleware-connext.git master; \
+        ;; \
+    esac
 
 # Make sure locale is en_US.UTF-8
 RUN apt-get update \
@@ -155,9 +158,6 @@ ENTRYPOINT [ "/uno/docker/entrypoint.sh" ]
 CMD ["__default__"]
 
 # Define volumes
-# ARG UNO_MIDDLEWARE=uno_middleware_connext
-
-# ENV UNO_MIDDLEWARE  "${UNO_MIDDLEWARE}"
 ENV UVN_DIR "/uvn"
 ENV UNO_DIR "/uno"
 

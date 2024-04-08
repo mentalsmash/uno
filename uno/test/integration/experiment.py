@@ -162,7 +162,7 @@ class Experiment:
   def default_config(cls) -> dict:
     return {
       "interactive": False,
-      "image": "mentalsmash/uno:dev-local",
+      "image": "mentalsmash/uno:test",
       "uvn_fully_routed_timeout": 60,
       "container_stop_timeout": 60,
     }
@@ -429,7 +429,7 @@ class Experiment:
 
 
   @classmethod
-  def build_uno_image(cls, tag: str="mentalsmash/uno:dev-local", use_cache: bool=False, dev: bool=True, extras: bool=True, local: bool=True) -> None:
+  def build_uno_image(cls, tag: str="mentalsmash/uno:test", use_cache: bool=False, dev: bool=True, extras: bool=True, local: bool=True) -> None:
     if tag in cls.BuiltImages:
       Logger.debug("image already built: {}", tag)
       return
