@@ -30,10 +30,44 @@ on:
         type: string
 
 
+  workflow_dispatch:
+    inputs:
+      tag-default:
+        description: Tag for the "default" image
+        type: string
+        required: true
+      tag-static:
+        description: Tag for the "static" image
+        type: string
+        required: true
+      base-image-default:
+        description: Base image for the "default" image
+        type: string
+        default: ubuntu:22.04
+      base-image-static:
+        description: Base image for the "static" image
+        type: string
+        default: ubuntu:24.04
+      badge-default-version:
+        description: Gist id for the "default" image's version badge
+        type: string
+      badge-default-base:
+        description: Gist id for the "default" image's base-image badge
+        type: string
+      badge-static-version:
+        description: Gist id for the "static" image's version badge
+        type: string
+      badge-static-base:
+        description: Gist id for the "static" image's base-image version badge
+        type: string
+
+
 jobs:
   update_badges:
     runs-on: ubuntu-latest
     steps:
+    - uses: actions/checkout@v4
+
     - name: Generate derived variables
       id: vars
       run: echo "sha_short=$(git rev-parse --short HEAD)" >> $GITHUB_OUTPUT
