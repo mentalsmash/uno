@@ -116,6 +116,7 @@ RUN set -xe; \
       pip3 install pytest; \
       apt-get update; \
       apt-get install -y --no-install-recommends \
+        sudo \
         openssh-server \
         openssh-client \
         rng-tools \
