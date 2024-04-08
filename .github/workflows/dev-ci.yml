@@ -22,7 +22,7 @@ jobs:
     runs-on: ubuntu-latest
     strategy:
       matrix:
-        # python-version: ["3.9", "3.10", "3.11"]
+        base-image: ["ubuntu:22:04", "ubuntu:24.04"]
         uno-middleware: [uno.middleware.native, uno_middleware_connext]
     steps:
       # Check out main repository
@@ -50,6 +50,7 @@ jobs:
           context: src/uno
           build-args: |
             TEST=y
+            BASE_IMAGE=${{ matrix.base-image }}
       # Install uno in a venv
       - name: Generate virtual environment
         run: |
@@ -119,6 +120,8 @@ jobs:
           tags: ${{ env.LATEST_TAG }}
           push: true
           context: src/uno
+          build-args: |
+            BASE_IMAGE=ubuntu:24.04
       - name: Build and push dev image
         uses: docker/build-push-action@v5
         with:
@@ -128,5 +131,6 @@ jobs:
           context: src/uno
           build-args: |
             UNO_MIDDLEWARE=uno.middleware.native
+            BASE_IMAGE=ubuntu:24.04
 
   
