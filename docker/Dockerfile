@@ -80,7 +80,7 @@ RUN set -e; \
     }; \
     case "${UNO_MIDDLEWARE}" in \
       uno_middleware_connext) \
-        echo install_plugin uno_middleware_connext https://github.com/mentalsmash/uno-middleware-connext.git master; \
+        install_plugin uno_middleware_connext https://github.com/mentalsmash/uno-middleware-connext.git master; \
         ;; \
     esac
 
