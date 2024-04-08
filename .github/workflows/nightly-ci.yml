@@ -90,7 +90,7 @@ jobs:
           . venv/bin/activate
           cd src/uno
           # TODO(asorbini) run tests inside a container
-          pytest -s -k "not test_integration" -v --junit-xml=${GITHUB_WORKSPACE}/test/pytest-results-unit-${{ matrix.uno-middleware }}.xml
+          pytest -s -k "not test_integration" -v --junit-xml=${GITHUB_WORKSPACE}/test/pytest-results-unit.xml
         env:
           UNO_MIDDLEWARE: ${{ matrix.uno-middleware }}
           VERBOSITY: activity
@@ -98,15 +98,16 @@ jobs:
       - name: Upload unit test results
         uses: actions/upload-artifact@v4
         with:
-          name: pytest-results-unit-${{ matrix.uno-middleware }}
-          path: test/pytest-results-unit-${{ matrix.uno-middleware }}.xml
+          name: pytest-results-unit-${{ matrix.uno-middleware }}-${{ matrix-base_image }}
+          path: test/pytest-results-*
         # Use always() to always run this step to publish test results when there are test failures
         if: ${{ always() }}
       - name: Run integration tests
         run: |
           . venv/bin/activate
           cd src/uno
-          pytest -s -k test_integration -v --junit-xml=${GITHUB_WORKSPACE}/test/pytest-results-int-${{ matrix.uno-middleware }}.xml
+          base_image=$(echo '${{ matrix.base-image }}' | tr : _)
+          pytest -s -k test_integration -v --junit-xml=${GITHUB_WORKSPACE}/test/pytest-results-integration.xml
         env:
           UNO_MIDDLEWARE: ${{ matrix.uno-middleware }}
           VERBOSITY: activity
@@ -114,7 +115,7 @@ jobs:
       - name: Upload integration test results
         uses: actions/upload-artifact@v4
         with:
-          name: pytest-results-int-${{ matrix.uno-middleware }}
+          name: pytest-results-int-${{ matrix.uno-middleware }}-${{ matrix-base_image }}
           path: test/pytest-results-int-${{ matrix.uno-middleware }}.xml
         # Use always() to always run this step to publish test results when there are test failures
         if: ${{ always() }}
