@@ -25,10 +25,10 @@ jobs:
   build_and_test:
     strategy:
       matrix:
-        base-image: ["ubuntu:22.04", "ubuntu:latest"] #, "debian:stable"]
+        base-image: ["ubuntu:22.04", "ubuntu:24.04"] #, "debian:stable"]
         uno-middleware: [uno.middleware.native, uno_middleware_connext]
         exclude:
-          - base-image: ubuntu:latest
+          - base-image: ubuntu:24.04
             uno-middleware: uno_middleware_connext
           # - base-image: debian:stable
           #   uno-middleware: uno_middleware_connext
@@ -151,6 +151,6 @@ jobs:
           context: .
           build-args: |
             UNO_MIDDLEWARE=uno.middleware.native
-            BASE_IMAGE=ubuntu:latest
+            BASE_IMAGE=ubuntu:24.04
 
   
