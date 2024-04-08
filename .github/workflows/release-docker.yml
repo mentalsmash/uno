@@ -1,14 +1,17 @@
-name: Docker Images Build
+name: Release to Docker
 
 on:
   workflow_dispatch:
 
-  # push:
-  #   branches:
-  #     - 'master'
+  workflow_call:
 
 concurrency:
-  group: '${{ github.workflow }} @ ${{ github.event.pull_request.head.label || github.head_ref || github.ref }}'
+  group: '${{ github.workflow }}'
+
+
+env:
+  LATEST_TAG: mentalsmash/uno:latest
+  LATEST_STATIC_TAG: mentalsmash/uno:latest-static
 
 jobs:
   docker:
@@ -16,8 +19,8 @@ jobs:
     steps:
       - uses: actions/checkout@v4
       
-      - name: Set up QEMU
-        uses: docker/setup-qemu-action@v3
+      # - name: Set up QEMU
+      #   uses: docker/setup-qemu-action@v3
       
       - name: Set up Docker Buildx
         uses: docker/setup-buildx-action@v3
@@ -27,21 +30,27 @@ jobs:
         with:
           username: ${{ secrets.DOCKERHUB_USERNAME }}
           password: ${{ secrets.DOCKERHUB_TOKEN }}
-      
-      - name: Build and push dev
+
+      - name: Build and push full image
         uses: docker/build-push-action@v5
         with:
           file: docker/Dockerfile
+          tags: ${{ env.LATEST_TAG }}
           push: true
-          tags: mentalsmash/uno:dev
+          context: src/uno
           build-args: |
-            DEV=y
-            EXTRAS=y
-      
-      - name: Build and push latest
+            UNO_MIDDLEWARE=uno_middleware_connext
+            BASE_IMAGE=ubuntu:22.04
+
+      - name: Build and push static image
         uses: docker/build-push-action@v5
         with:
           file: docker/Dockerfile
+          tags: ${{ env.LATEST_STATIC_TAG }}
           push: true
-          tags: mentalsmash/uno:latest
+          context: src/uno
+          build-args: |
+            UNO_MIDDLEWARE=uno.middleware.native
+            BASE_IMAGE=ubuntu:latest      
+
 
