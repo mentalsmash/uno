@@ -29,7 +29,7 @@ jobs:
             uno-middleware: uno_middleware_connext
           # - base-image: debian:stable
           #   uno-middleware: uno_middleware_connext
-    uses: ./github/.workflows/build_and_test.yml
+    uses: ./github/workflows/build_and_test.yml
     with:
       base-image: ${{ matrix.base-image }}
       uno-middleware: ${{ matrix.uno-middleware }}
@@ -37,7 +37,7 @@ jobs:
   docker_images:
     if: github.ref_name	== 'master'
     needs: build_and_test
-    uses: ./github/.workflows/build_and_push_images.yml
+    uses: ./github/workflows/build_and_push_images.yml
     with:
       tag-default: nightly
       tag-static: nightly
