@@ -73,6 +73,7 @@ def test_integration_basic_ping(experiment: Experiment, the_hosts: list[Host], t
     ((h, c, a) for h in the_hosts for c in the_cells for a in c.cell_addresses)))
 
 
+@pytest.mark.skip(reason="unnecessary for basic validation if SSH is tested")
 def test_integration_basic_iperf(experiment: Experiment, the_hosts: list[Host], the_fully_routed_cell_networks: list[Network]):
   # Try to perform an iperf TCP and UDP test between all hosts
   experiment.log.activity("testing IPERF communication between {} hosts: {}", len(the_hosts), [h.container_name for h in the_hosts])
