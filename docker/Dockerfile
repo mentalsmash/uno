@@ -25,7 +25,7 @@ RUN export DEBIAN_FRONTEND="noninteractive" \
       iproute2 \
       iptables \
       gnupg2 \
-      wireguard-dkms \
+      wireguard \
       wireguard-tools \
       frr \
       qrencode \
