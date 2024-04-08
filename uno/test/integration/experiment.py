@@ -22,6 +22,9 @@ import tempfile
 import os
 from functools import cached_property
 import contextlib
+from functools import wraps
+from typing import Callable, Protocol
+import pytest
 
 from uno.core.exec import exec_command
 from uno.core.log import Logger, UvnLogger
@@ -37,12 +40,49 @@ import uno
 
 _uno_dir = Path(uno.__file__).resolve().parent.parent
 
+# Allow users to customize logger verbosity via environment
+VERBOSITY = os.environ.get("VERBOSITY")
+if VERBOSITY:
+  Logger.level = VERBOSITY
+# Make "info" the minimum default verbosity when this module is loaded
+elif Logger.level >= Logger.Level.warning:
+  Logger.level = Logger.Level.info
+
+
+class TestFunction(Protocol):
+  def __call__(self, experiment: "Experiment", *args, **kwargs) -> None: ...
+
+class TestFixture(Protocol):
+  def __call__(self, experiment: "Experiment", *args, **kwargs) -> Generator[object, None, None]: ...
+
+class ExperimentLoader(Protocol):
+  def __call__(self, **experiment_args) -> "Experiment": ...
+
+
+def agent_test(wrapped: TestFunction) -> TestFunction:
+  return pytest.mark.skipif(not Experiment.SupportsAgent, reason="agent support required")(wrapped)
+
 
 class Experiment:
   InsideTestRunner = bool(os.environ.get("UNO_TEST_RUNNER", False))
   BuiltImages = set()
   UnoDir = _uno_dir
   DefaultLicense = UnoDir / "rti_license.dat"
+  # Load the selected uno middleware plugin
+  UnoMiddleware, UnoMiddlewareModule = Middleware.load_module()
+  UnoMiddlewareBaseDir = Middleware.plugin_base_directory(
+    uno_dir=UnoDir,
+    plugin=UnoMiddleware,
+    plugin_module=UnoMiddlewareModule)
+  SupportsAgent = UnoMiddlewareModule.Middleware.supports_agent()
+  Verbosity = VERBOSITY
+
+  @classmethod
+  def as_fixture(cls, loader: ExperimentLoader, **experiment_args) -> Generator["Experiment", None, None]:
+    e = loader(**experiment_args)
+    with e.begin():
+      yield e
+
 
   @classmethod
   def define(cls,
@@ -50,19 +90,13 @@ class Experiment:
       name: str | None=None,
       root: Path | None=None,
       config: dict|None=None,
-      test_dir: Path | None=None) -> "Experiment":
+      test_dir: Path | None=None) -> "Experiment | None":
     # Make sure the test case file is an absolute path
     test_case = test_case.resolve()
     # Derive the name from the test case file if unspecified
     name = name or test_case.stem.replace("_", "-")
     # Derive root directory from test case file if unspecified
     root = root.resolve() if root else test_case.parent
-    # Define a dedicated logger for the experiment
-    log = Logger.sublogger(name)
-    # Allow users to cusomize logger verbosity via environment
-    VERBOSITY = os.environ.get("VERBOSITY")
-    if VERBOSITY:
-      log.level = VERBOSITY
     # Load test configuration
     config = cls.load_config(config)
     # Check if the user specified a non-temporary test directory
@@ -79,12 +113,6 @@ class Experiment:
     # Check if we should refresh the uno docker image
     if os.environ.get("BUILD_IMAGE", False):
       cls.build_uno_image(config["image"])
-    # Load the selected uno middleware plugin
-    uno_middleware, uno_middleware_module = Middleware.load_module()
-    uno_middleware_base_dir = Middleware.plugin_base_directory(
-      uno_dir=_uno_dir,
-      plugin=uno_middleware,
-      plugin_module=uno_middleware_module)
     # Check if an RTI license was passed through the environment
     rti_license = os.environ.get("RTI_LICENSE_FILE")
     if rti_license:
@@ -96,17 +124,12 @@ class Experiment:
       rti_license = cls.DefaultLicense
     else:
       rti_license = None
-
     experiment = cls(
       test_case=test_case,
       name=name,
       root=root,
       config=config,
       test_dir=test_dir,
-      log=log,
-      uno_middleware=uno_middleware,
-      uno_middleware_module=uno_middleware_module,
-      uno_middleware_base_dir=uno_middleware_base_dir,
       rti_license=rti_license)
     experiment.__test_dir_tmp = test_dir_tmp
     return experiment
@@ -122,7 +145,7 @@ class Experiment:
     test_case = importlib.util.module_from_spec(spec)
     sys.modules[test_case_file.stem] = test_case
     spec.loader.exec_module(test_case)
-    return test_case.load_scenario()
+    return test_case.load_experiment()
 
 
   @classmethod
@@ -156,23 +179,16 @@ class Experiment:
       root: Path,
       config: dict,
       test_dir: Path,
-      log: UvnLogger,
-      uno_middleware: str,
-      uno_middleware_module: ModuleType,
-      uno_middleware_base_dir: Path,
-      rti_license: Path) -> None:
+      rti_license: Path|None=None) -> None:
     self.test_case = test_case
     self.name = name
-    self.log = log
     self.root = root
     self.test_dir = test_dir
     self.config = config
-    self.uno_middleware = uno_middleware
-    self.uno_middleware_module = uno_middleware_module
-    self.uno_middleware_base_dir = uno_middleware_base_dir
     self.rti_license = rti_license
     self.networks: list[Network] = []
     self.hosts: list[Host] = []
+    self.log = Logger.sublogger(name)
     self.define_networks_and_hosts()
 
 
@@ -202,8 +218,23 @@ class Experiment:
   @cached_property
   def registry(self) -> Registry:
     if not self.InsideTestRunner and not Registry.is_uno_directory(self.registry_root):
+      self.log.info("initializing UVN")
       self.define_uvn()
-    return Registry.open(self.registry_root, readonly=True)
+      self.log.info("initialized UVN")
+    self.log.activity("opening UVN registry from {}", self.registry_root)
+    registry = Registry.open(self.registry_root, readonly=True)
+    self.log.info("opened UVN registry {}: {}", registry.root, registry)
+    return registry
+
+
+  @cached_property
+  def uvn_networks(self) -> set[Network]:
+    subnets = {n for c in self.registry.uvn.cells.values() for n in c.allowed_lans}
+    return {
+      net
+      for net in self.networks
+        if net.subnet in subnets
+    }
 
 
   def define_networks_and_hosts(self) -> None:
@@ -290,8 +321,8 @@ class Experiment:
           "-v", f"{self.test_dir}:/experiment-tmp",
           "-v", f"{self.registry_root}:/uvn",
           "-v", f"{self.UnoDir}:/uno",
-          *(["-v", f"{self.uno_middleware_base_dir}:/uno-middleware"] if self.uno_middleware_base_dir else []),
-          "-e", f"UNO_MIDDLEWARE={self.uno_middleware}",
+          *(["-v", f"{self.UnoMiddlewareBaseDir}:/uno-middleware"] if self.UnoMiddlewareBaseDir else []),
+          "-e", f"UNO_MIDDLEWARE={self.UnoMiddleware}",
           *([
             "-v", f"{self.rti_license}:/rti_license.dat",
             "-e", "RTI_LICENSE_FILE=/rti_license.dat",
@@ -300,7 +331,7 @@ class Experiment:
           self.config["image"],
           "uno", *args,
             *([verbose_flag] if verbose_flag else []),
-      ], **exec_args)
+      ], debug=True, **exec_args)
     finally:
       self.restore_registry_permissions(
           registry_root=self.registry_root,
@@ -376,11 +407,15 @@ class Experiment:
     for net in self.networks:
       for router in (h for h in net if h.role == HostRole.ROUTER):
         router.start()
+      for router in (h for h in net if h.role == HostRole.ROUTER):
+        router.wait_ready()
 
     # Now start all other hosts
     for net in self.networks:
       for host in (h for h in net if h.role != HostRole.ROUTER):
         host.start()
+      for host in (h for h in net if h.role != HostRole.ROUTER):
+        host.wait_ready()
     
     self.log.info("started {} hosts", len(self.hosts))
 
@@ -411,7 +446,14 @@ class Experiment:
     ], debug=True)
     cls.BuiltImages.add(tag)
     Logger.warning("uno docker image updated: {}", tag)
-  
-# Make "info" the minimum default verbosity when this module is loaded
-if Logger.level >= Logger.Level.warning:
-  Logger.level = Logger.Level.info
+
+
+  def other_hosts(self, host: Host, hosts: list[Host]|None=None) -> list[Host]:
+    if hosts is None:
+      hosts = self.hosts
+    return sorted((h for h in hosts if h.role == HostRole.HOST and h != host), key=lambda h: h.container_name)
+
+
+
+print("EXPERIMENT.MIDDLEWARE", Experiment.UnoMiddleware)
+print("EXPERIMENT.SUPPORTS_AGENT", Experiment.SupportsAgent)

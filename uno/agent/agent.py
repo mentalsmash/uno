@@ -188,7 +188,8 @@ class Agent(
     excluded = []
     Packager.extract_cell_agent_package(package, root, exclude=exclude)
     agent = cls._assert_agent(root)
-    agent.participant.install()
+    if agent.registry.middleware.supports_agent():
+      agent.participant.install()
     agent._finish_import_id_db_keys()
     cls.log.warning("bootstrap completed: {}@{} [{}]", agent.owner, agent.uvn, agent.root)
     return agent
@@ -590,16 +591,17 @@ class Agent(
 
 
   def _validate(self) -> None:
-    # Check that the agent detected all of the expected networks
-    allowed_lans = set(str(net) for net in self.allowed_lans)
-    enabled_lans = set(str(lan.nic.subnet) for lan in self.lans)
+    if not os.environ.get("UNO_AGENT_ALLOW_INVALID_NETWORKS", False):
+      # Check that the agent detected all of the expected networks
+      allowed_lans = set(str(net) for net in self.allowed_lans)
+      enabled_lans = set(str(lan.nic.subnet) for lan in self.lans)
 
-    if allowed_lans and allowed_lans != enabled_lans:
-      self.log.error("failed to detect all of the expected network interfaces:")
-      self.log.error("- expected: {}", ', '.join(sorted(allowed_lans)))
-      self.log.error("- detected: {}", ', '.join(sorted(enabled_lans)))
-      self.log.error("- missing : {}", ', '.join(sorted(allowed_lans - enabled_lans)))
-      raise RuntimeError("invalid network interfaces")
+      if allowed_lans and allowed_lans != enabled_lans:
+        self.log.error("failed to detect all of the expected network interfaces:")
+        self.log.error("- expected: {}", ', '.join(sorted(allowed_lans)))
+        self.log.error("- detected: {}", ', '.join(sorted(enabled_lans)))
+        self.log.error("- missing : {}", ', '.join(sorted(allowed_lans - enabled_lans)))
+        raise RuntimeError("invalid network interfaces")
 
 
   @classmethod
@@ -1406,7 +1408,7 @@ class Agent(
           break
         if Timestamp.now().subtract(ts_start).total_seconds() >= max_wait:
           raise RuntimeError(f"the agent failed to exit in {max_wait} seconds")
-        time.sleep(1)
+        time.sleep(.1)
       self.log.warning("agent daemon stopped: {}", agent_pid)
     except Exception as e:
       raise RuntimeError("failed to terminate agent process: {}", agent_pid)

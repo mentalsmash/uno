@@ -257,6 +257,32 @@ class Host:
       self.exec("wg-quick", "down", up_conf_c)
 
 
+  @property
+  def locally_routed_networks(self) -> "set[Network]":
+    def _lookup_net(netaddr: str) -> "Network|None":
+      try:
+        subnet = ipaddress.ip_network(netaddr)
+      except:
+        return None
+      return next((n for n in self.experiment.networks if n.subnet == subnet), None)
+    return {
+      net
+      # Read output of `ip route` and detect lines for networks defined in the experiment
+      for line in self.exec("ip", "route", capture_output=True).stdout.decode().split("\n")
+        # ignore empty lines
+        if line
+          # Parse the first token
+          for net in [_lookup_net(line.split(" ")[0])]
+            if net
+    }
+
+
+  @property
+  def local_router_ready(self) -> bool:
+    # self.log.warning("local networks: {}", self.locally_routed_networks)
+    # self.log.warning("  uvn networks: {}", self.experiment.uvn_networks)
+    return (self.locally_routed_networks & self.experiment.uvn_networks) == self.experiment.uvn_networks
+
 
   def create(self) -> None:
     # The uno package must have been imported from a cloned repository
@@ -297,6 +323,7 @@ class Host:
         "-v", f"{self.experiment.UnoDir}:/uno",
         "-e", f"UNO_MIDDLEWARE={self.experiment.registry.middleware.plugin}",
         "-e", "UNO_TEST_RUNNER=y",
+        *(["-e", f"VERBOSITY={self.experiment.Verbosity}"] if self.experiment.Verbosity else []),
         *(["-v", f"{plugin_base_dir}:/uno-middleware"] if plugin_base_dir else []),
         *(["-v", f"{self.experiment_uvn_dir}:/uvn"] if self.role in (HostRole.REGISTRY, HostRole.CELL) else []),
         *(["-v", f"{self.cell_package}:/package.uvn-agent"] if self.role == HostRole.CELL else []),
@@ -315,7 +342,7 @@ class Host:
       ])
 
 
-  def start(self, wait: bool=True) -> None:
+  def start(self, wait: bool=False) -> None:
     self.log.debug("starting container")
     exec_command(["docker", "start", self.container_name])
     if wait:
@@ -371,26 +398,26 @@ class Host:
     return self.status_file.read_text() == "READY"
 
 
-  def wait_ready(self) -> None:
+  def wait_ready(self, timeout: int=30) -> None:
     self.log.activity("waiting for container to be up")
-    Timer(30, 1, lambda: self.ready, self.log,
+    Timer(timeout, .5, lambda: self.ready, self.log,
       f"waiting for container {self.container_name} to be up",
       f"container {self.container_name} not ready yet...",
       f"container {self.container_name} ready",
       f"container {self.container_name} failed to activate").wait()
 
 
-  @property
-  def agent_alive(self) -> bool:
-    result = self.exec("sh", "-c", """\
-[ -f /run/uno/uno-agent.pid ] || exit
-kill -0 $(cat /run/uno/uno-agent.pid) && echo OK
-""", capture_output=True, shell=True).stdout
-    if not result:
-      return False
-    result = result.decode().strip()
-    return result == "OK"
-    # return result and result.decode().strip() == "OK"
+#   @property
+#   def agent_alive(self) -> bool:
+#     result = self.exec("sh", "-c", """\
+# [ -f /run/uno/uno-agent.pid ] || exit
+# kill -0 $(cat /run/uno/uno-agent.pid) && echo OK
+# """, capture_output=True, shell=True).stdout
+#     if not result:
+#       return False
+#     result = result.decode().strip()
+#     return result == "OK"
+#     # return result and result.decode().strip() == "OK"
 
 
   def init(self) -> None:
@@ -553,7 +580,7 @@ kill -0 $(cat /run/uno/uno-agent.pid) && echo OK
       return self.popen(*uno_cmd, user=user, **exec_args)
     else:
       exec_args.setdefault("capture_output", True)
-      return self.exec(*uno_cmd, user=user, **exec_args)
+      return self.exec(*uno_cmd, user=user, debug=True, **exec_args)
 
 
   @contextlib.contextmanager
@@ -590,11 +617,17 @@ kill -0 $(cat /run/uno/uno-agent.pid) && echo OK
     self._run_forever()
 
 
-  def ping_test(self, other_host: "Host", address: ipaddress.IPv4Address) -> None:
-    self.log.activity("performing PING test with {}: {}", other_host, address)
-    self.exec("ping", "-c", "3", str(address))
-    self.log.info("PING {} OK: {}", other_host, address)
+  # def ping_test_start(self, other_host: "Host", address: ipaddress.IPv4Address) -> subprocess.Popen:
+  #   self.log.activity("performing PING test with {}: {}", other_host, address)
+  #   return self.popen("ping", "-c", "3", str(address))
 
+
+  # def ping_test_check(self, other_host: "Host", address: ipaddress.IPv4Address, ping_test: subprocess.Popen) -> None:
+  #   rc = ping_test.wait()
+  #   assert rc == 0, f"PING FAILED: {self} -> {other_host}@{address}"
+  #   self.log.info("PING {} OK: {}", other_host, address)
+    
+      
 
   @contextlib.contextmanager
   def iperf_server(self) -> Generator[subprocess.Popen, None, None]:
@@ -604,7 +637,7 @@ kill -0 $(cat /run/uno/uno-agent.pid) && echo OK
       stderr=subprocess.PIPE)
     if server.poll():
       raise RuntimeError("failed to start iperf3 server", self)
-    time.sleep(1)
+    time.sleep(.5)
     try:
       yield server
     finally:
@@ -659,7 +692,7 @@ kill -0 $(cat /run/uno/uno-agent.pid) && echo OK
     server = self.popen("/usr/sbin/sshd", "-D")
     if server.poll():
       raise RuntimeError("failed to start SSH server", self)
-    time.sleep(1)
+    time.sleep(.5)
     try:
       yield server
     finally:
@@ -684,31 +717,69 @@ kill -0 $(cat /run/uno/uno-agent.pid) && echo OK
 
 
   @contextlib.contextmanager
-  def uno_agent(self) -> Generator[subprocess.Popen, None, None]:
+  def uno_agent(self, wait_exit: bool=True, start_timeout: bool=10, stop_timeout: bool=30, graceful: bool=True) -> Generator[subprocess.Popen, None, None]:
     agent = self.uno("agent", popen=True)
     if agent.poll():
       raise RuntimeError("failed to start uno agent", self)
-    time.sleep(2)
+    self.uno_agent_wait_ready(timeout=start_timeout)
     try:
       yield agent
     finally:
-      self.uno_agent_stop(agent)
+      self.uno_agent_request_stop()
+      if wait_exit:
+        self.uno_agent_wait_exit(timeout=stop_timeout, graceful=graceful)
 
 
-  def uno_agent_stop(self, agent: subprocess.Popen) -> None:
-    if agent.poll():
-      self.log.warning("uno agent already stopped")
-      return
-    self.exec("sh", "-exc", """\
-[ -f /run/uno/uno-agent.pid ] || exit
-unopid=$(cat /run/uno/uno-agent.pid)
-kill -s INT $unopid
-while kill -0 $unopid
-  do sleep 1
-done
-""")
-    # stdout, stderr = agent.communicate()
-    self.log.activity("stopped uno agent")
+  def uno_agent_pid(self) -> int | None:
+    result = self.exec("sh", "-ec", """\
+[ ! -f /run/uno/uno-agent.pid ] || cat /run/uno/uno-agent.pid
+""", capture_output=True).stdout
+    if not result:
+      return None
+    pid = result.decode().strip()
+    if not pid:
+      return None
+    try:
+      return int(pid)
+    except Exception as e:
+      self.log.warning("failed to parse agent pid: '{}'", pid)
+      return None
+
+
+  def uno_agent_running(self) -> bool:
+    result = self.exec("sh", "-ec",
+      "[ -f /run/uno/uno-agent.pid ] && kill -0 $(cat /run/uno/uno-agent.pid)",
+      noexcept=True)
+    return result.returncode == 0
+
+
+  def uno_agent_wait_ready(self, timeout: float=10) -> None:
+    timer = Timer(timeout, .5, lambda: self.uno_agent_running(), self.log,
+      "waiting for cell agent to start",
+      "cell agent not ready yet",
+      "cell agent started",
+      f"cell agent {self} failed to start")
+    timer.wait()
+
+
+  def uno_agent_request_stop(self) -> None:
+    self.exec("sh", "-exc",
+      "[ ! -f /run/uno/uno-agent.pid ] || kill -s INT $(cat /run/uno/uno-agent.pid)")
+
+
+  def uno_agent_wait_exit(self, timeout: float=30, graceful: bool=True) -> None:
+    timer = Timer(timeout, 1, lambda: not self.uno_agent_running(), self.log,
+      "waiting for cell agent to exit",
+      "cell agent still running",
+      "cell agent stopped",
+      "cell agent failed to stop gracefully")
+    try:
+      timer.wait()
+    except Timer.TimeoutError:
+      if graceful:
+        raise
+      self.log.warning("failed to stop agent process gracefully, sending SIGKILL")
+      self.exec("sh", "-exc", "kill -9 $(cat /run/uno/uno-agent.pid)")
 
 
   def agent_httpd_test(self, agent_host: "Host") -> None:

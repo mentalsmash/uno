@@ -86,10 +86,16 @@ Timestamp.EPOCH = Timestamp(_epoch)
 
 from typing import Callable
 
+
+
 class Timer:
+  class TimeoutError(Exception):
+    def __init__(self, *args: object) -> None:
+      super().__init__(*args)
+
   def __init__(self,
       period: int = -1,
-      check_delay: int = 0,
+      check_delay: float = 0,
       check_condition: Callable[[], bool] | None = None,
       logger: UvnLogger | None = None,
       start_message: str | None = None,
@@ -133,7 +139,7 @@ class Timer:
 
   def check(self) -> None:
     if self.expired:
-      raise RuntimeError(f"timeout expired: {self._timeout_message}", self._period)
+      raise Timer.TimeoutError(f"timeout expired: {self._timeout_message}", self._period)
     if self._not_ready_message:
       self._log(self._not_ready_message, level="debug")
     if self._check_delay > 0:

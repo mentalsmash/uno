@@ -136,7 +136,7 @@ class Lighttpd:
             break
           except:
             continue
-        time.sleep(1)
+        time.sleep(.1)
       if pid is None:
         raise RuntimeError("failed to detect lighttpd process")
       # log.debug("lighttpd started: pid={}", pid)

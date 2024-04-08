@@ -120,20 +120,20 @@ RUN apt-get update \
 ENV LANG en_US.UTF-8
 
 # Create a non-root user
-# For DEV mode, also install openssh-server, openssh-client, and (passwordless) sudo.
+# For TEST mode, also install openssh-server, openssh-client, and (passwordless) sudo.
 # Also configure uno-dev/docker/dev/test_key.ed25519.key as an authorized key
 # and install it as the user's private key
 ARG USER="uno"
-ARG DEV=
+ARG TEST=
 RUN set -xe; \
-    if [ -n "${DEV}" ]; then \
+    if [ -n "${TEST}" ]; then \
       pip3 install pytest; \
       apt-get update; \
       apt-get install -y --no-install-recommends sudo openssh-server openssh-client; \
       apt-get clean; \
     fi; \
     adduser ${USER} --shell /bin/bash; \
-    if [ -n "${DEV}" ]; then \
+    if [ -n "${TEST}" ]; then \
       echo ${USER} ALL=\(root\) NOPASSWD:ALL > /etc/sudoers.d/${USER}; \
       chmod 0440 /etc/sudoers.d/${USER}; \
       adduser ${USER} sudo; \

@@ -97,8 +97,6 @@ class RoutesMonitor(AgentService):
     self._monitor_thread_active = True
     self._monitor_thread.start()
     self._monitor_thread_started.acquire()
-    # import time
-    # time.sleep(2)
 
 
   def _stop(self, assert_stopped: bool) -> None:

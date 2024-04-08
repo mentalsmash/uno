@@ -24,6 +24,7 @@ class NativeMiddleware(Middleware):
   CONDITION = NativeCondition
   PARTICIPANT = NativeParticipant
 
-  def supports_agent(self) -> bool:
+  @classmethod
+  def supports_agent(cls) -> bool:
     return False
 

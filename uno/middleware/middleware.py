@@ -102,7 +102,8 @@ class Middleware:
     return None
 
 
-  def supports_agent(self) -> bool:
+  @classmethod
+  def supports_agent(cls) -> bool:
     return True
 
 

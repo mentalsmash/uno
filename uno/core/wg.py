@@ -308,21 +308,16 @@ class WireGuardInterface:
     if not noop:
       self.create()
       self.bring_up()
-      # import time
-      # time.sleep(1)
     else:
       self.up = True
       self.created = True
 
 
   def stop(self, assert_stopped: bool=False) -> None:
-    errors = []
     if self.up or assert_stopped:
       self.tear_down(ignore_errors=assert_stopped)
     if self.created or assert_stopped:
       self.delete(ignore_errors=assert_stopped)
-      # import time
-      # time.sleep(1)
 
 
   def create(self):
