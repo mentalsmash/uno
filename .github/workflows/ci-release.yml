@@ -1,13 +1,12 @@
-name: Release CI
-run-name: Release from tag ${{ github.ref_name }}
+name: release
+run-name: Trigger release from tag ${{ github.ref_name }}
 
 on:
   workflow_dispatch:
 
   push:
-    # Pattern matched against refs/tags
     tags:        
-      - '*' # Push events to every tag not containing /
+      - '*'
 
 
 concurrency:
@@ -15,7 +14,11 @@ concurrency:
 
 
 jobs:
-  build_test_release:
-    uses: ./.github/workflows/release.yml
+  release:
+    uses: ./.github/workflows/release_builder.yml
     secrets: inherit
+    with:
+      push-images: true
+
+
 

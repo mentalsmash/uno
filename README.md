@@ -21,6 +21,19 @@ backbone links:
 
 ![uvn example](docs/static/uvn.png "UVN Example")
 
+## Project Status
+
+| Release | Nightly |
+|:-------:|:-------:|
+|![latest release](https://img.shields.io/endpoint?url=https://gist.githubusercontent.com/asorbini/fb644ccb3cbb57b2636f9eca808b9931/raw/uno-badge-latest-release.json)|![nightly status](https://github.com/mentalsmash/uno/actions/workflows/ci-dev.yml/badge.svg?branch=master)|
+
+| Docker Image | Version | Base Image |
+|:------------:|:-------:|:----------:|
+| Default (release) |![latest default image version](https://img.shields.io/endpoint?url=https://gist.githubusercontent.com/asorbini/29b57b0427def87cc3ef4ab81c956c29/raw/uno-badge-image-default-version-latest.json)|![latest default image base image](https://img.shields.io/endpoint?url=https://gist.githubusercontent.com/asorbini/2d53344e1ccfae961665e08432f18113/raw/uno-badge-image-default-base-latest.json)|
+| Static (release)|![latest static image version](https://img.shields.io/endpoint?url=https://gist.githubusercontent.com/asorbini/d73e338805c7d2c348a2d7149a66f66c/raw/uno-badge-image-static-version-latest.json)|![latest static image base image](https://img.shields.io/endpoint?url=https://gist.githubusercontent.com/asorbini/373e55438055b1222c9937797c949f9b/raw/uno-badge-image-static-base-latest.json)|
+| Default (nightly) |![latest default image version](https://img.shields.io/endpoint?url=https://gist.githubusercontent.com/asorbini/e7aab205f782cc0c6f394a2fece90509/raw/uno-badge-image-default-version-nightly.json)|![latest default image base image](https://img.shields.io/endpoint?url=https://gist.githubusercontent.com/asorbini/8f31c46dcfd0543b42f356e5b1c6c2c8/raw/uno-badge-image-default-base-nightly.json)|
+| Static (nightly)|![latest static image version](https://img.shields.io/endpoint?url=https://gist.githubusercontent.com/asorbini/b310f08c34f051846877aeb59b0be311/raw/uno-badge-image-static-version-nightly.json)|![latest static image base image](https://img.shields.io/endpoint?url=https://gist.githubusercontent.com/asorbini/b0e38a84eb8679d5212e162fbb616773/raw/uno-badge-image-static-base-nightly.json)|
+
 ## Installation
 
 ### Host Installation

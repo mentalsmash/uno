@@ -1,9 +1,7 @@
-name: Dev CI
-run-name: Build, ${{ github.ref_name != 'master' && 'and ' || '' }}test${{ github.ref_name == 'master' && ', and release nightly of' || '' }} branch ${{ github.ref_name }}
+name: nightly
+run-name: Build & test ${{ github.ref_type }} ${{ github.ref_name }}
 
 on:
-  workflow_dispatch:
-
   push:
     branches:
       - master
@@ -14,8 +12,8 @@ on:
 
 
 concurrency:
-  # Don't run workflow in parallel
-  group: ${{ github.workflow }}
+  # Don't run workflow in parallel for the same branch/tag
+  group: ${{ github.workflow }}${{ github.ref }}
 
 
 jobs:
@@ -35,14 +33,17 @@ jobs:
       base-image: ${{ matrix.base-image }}
       uno-middleware: ${{ matrix.uno-middleware }}
 
-  docker_images:
+
+  push_images:
     if: github.ref_name	== 'master'
     needs: build_and_test
     uses: ./.github/workflows/build_and_push_images.yml
     secrets: inherit
     with:
       tag-default: nightly
-      tag-static: nightly
+      tag-static:  nightly
+      badge-default-version: "e7aab205f782cc0c6f394a2fece90509"
+      badge-default-base:    "8f31c46dcfd0543b42f356e5b1c6c2c8"
+      badge-static-version:  "b310f08c34f051846877aeb59b0be311"
+      badge-static-base:     "b0e38a84eb8679d5212e162fbb616773"
 
-
-  
