@@ -134,9 +134,7 @@ RUN set -xe; \
       apt-get update; \
       apt-get install -y --no-install-recommends sudo openssh-server openssh-client; \
       apt-get clean; \
-    fi; \
-    adduser ${USER} --shell /bin/bash; \
-    if [ -n "${TEST}" ]; then \
+      adduser ${USER} --shell /bin/bash; \
       echo ${USER} ALL=\(root\) NOPASSWD:ALL > /etc/sudoers.d/${USER}; \
       chmod 0440 /etc/sudoers.d/${USER}; \
       adduser ${USER} sudo; \
