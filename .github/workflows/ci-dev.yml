@@ -1,5 +1,5 @@
 name: nightly
-run-name: Build & test ${{ github.ref_type }} ${{ github.ref_name }}
+# run-name: Build & test ${{ github.ref_type }} ${{ github.ref_name }}
 
 on:
   push:
