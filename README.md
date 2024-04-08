@@ -25,7 +25,7 @@ backbone links:
 
 | Release | Nightly |
 |:-------:|:-------:|
-|![latest release](https://img.shields.io/endpoint?url=https://gist.githubusercontent.com/asorbini/fb644ccb3cbb57b2636f9eca808b9931/raw/uno-badge-latest-release.json)|[![nightly](https://github.com/mentalsmash/uno/actions/workflows/ci-dev.yml/badge.svg?branch=master)](https://github.com/mentalsmash/uno/actions/workflows/ci-dev.yml)|
+|[![latest release](https://img.shields.io/endpoint?url=https://gist.githubusercontent.com/asorbini/fb644ccb3cbb57b2636f9eca808b9931/raw/uno-badge-latest-release.json)](https://github.com/mentalsmash/uno/actions/workflows/ci-release.yml)|[![nightly](https://github.com/mentalsmash/uno/actions/workflows/ci-dev.yml/badge.svg?branch=master)](https://github.com/mentalsmash/uno/actions/workflows/ci-dev.yml)|
 
 | Docker Image | Version | Base Image |
 |:------------:|:-------:|:----------:|

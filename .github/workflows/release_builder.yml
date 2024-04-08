@@ -74,9 +74,12 @@ jobs:
     runs-on: ubuntu-latest
     needs: push_images
     steps:
+    - uses: actions/checkout@v4
+
     - name: Generate derived variables
       id: vars
       run: echo "sha_short=$(git rev-parse --short HEAD)" >> $GITHUB_OUTPUT
+
     - name: Update latest-release badge
       uses: schneegans/dynamic-badges-action@v1.7.0
       with:
