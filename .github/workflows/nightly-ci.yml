@@ -138,7 +138,7 @@ jobs:
           file: docker/Dockerfile
           tags: ${{ env.NIGHTLY_TAG }}
           push: true
-          context: src/uno
+          context: .
           build-args: |
             UNO_MIDDLEWARE=uno_middleware_connext
             BASE_IMAGE=ubuntu:22.04
@@ -148,7 +148,7 @@ jobs:
           file: docker/Dockerfile
           tags: ${{ env.NIGHTLY_STATIC_TAG }}
           push: true
-          context: src/uno
+          context: .
           build-args: |
             UNO_MIDDLEWARE=uno.middleware.native
             BASE_IMAGE=ubuntu:latest
