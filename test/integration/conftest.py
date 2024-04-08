@@ -50,9 +50,9 @@ def the_agents(experiment: Experiment) -> Generator[dict[Host, subprocess.Popen]
 
 
 @pytest.fixture
-def the_fully_routed_agents(experiment: Experiment, uno_agents: dict[Host, subprocess.Popen]) -> Generator[dict[Host, subprocess.Popen], None, None]:
+def the_fully_routed_agents(experiment: Experiment, the_agents: dict[Host, subprocess.Popen]) -> Generator[dict[Host, subprocess.Popen], None, None]:
   def _check_all_consistent() -> bool:
-    for agent in uno_agents:
+    for agent in the_agents:
       if not agent.cell_fully_routed:
         return False
     return True
@@ -63,5 +63,5 @@ def the_fully_routed_agents(experiment: Experiment, uno_agents: dict[Host, subpr
     "UVN fully routed",
     "UVN failed to reach consistency")
   timer.wait()
-  yield uno_agents
+  yield the_agents
 
