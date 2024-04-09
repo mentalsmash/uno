@@ -22,6 +22,7 @@ jobs:
         run: exit 1
         if: github.event.review.state != 'APPROVED'
 
+
   build_and_test:
     needs: check_approval
     strategy:
@@ -36,4 +37,22 @@ jobs:
     with:
       base-image: ${{ matrix.base-image }}
       uno-middleware: ${{ matrix.uno-middleware }}
+
+  
+  build_and_test_arm64:
+    needs: check_approval
+    strategy:
+      matrix:
+        base-image: ["ubuntu:22.04", "ubuntu:24.04"]
+        uno-middleware: [uno.middleware.native, uno_middleware_connext]
+        exclude:
+          - base-image: ubuntu:24.04
+            uno-middleware: uno_middleware_connext
+    uses: ./.github/workflows/build_and_test_arm64.yml
+    secrets: inherit
+    with:
+      base-image: ${{ matrix.base-image }}
+      uno-middleware: ${{ matrix.uno-middleware }}
+
+    
 
