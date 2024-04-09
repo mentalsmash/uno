@@ -342,18 +342,24 @@ class Host:
       ])
 
 
-  def start(self, wait: bool=False) -> None:
-    self.log.debug("starting container")
-    exec_command(["docker", "start", self.container_name])
+  def start(self, wait: bool=False) -> subprocess.Popen:
+    self.log.warning("starting container")
+    # exec_command(["docker", "start", self.container_name])
+    result = subprocess.Popen(["docker", "start", self.container_name])
     if wait:
       self.wait_ready()
-    self.log.activity("started")
+      self.log.activity("started")
+    return result
 
 
-  def stop(self) -> None:
+  def stop(self) -> subprocess.Popen:
     self.log.debug("stopping container")
-    exec_command(["docker", "stop", "-s", "SIGINT", "-t", str(self.experiment.config["container_stop_timeout"]), self.container_name])
-    self.log.activity("stopped")
+    return subprocess.Popen(["docker", "stop", "-s", "SIGINT", "-t", str(self.experiment.config["container_stop_timeout"]), self.container_name])
+    # self.log.activity("stopped")
+
+  def wait_stop(self, stop_process: subprocess.Popen, timeout: int=30) -> None:
+    rc = stop_process.wait(timeout)
+    assert rc == 0, f"failed to stop docker container: {self.container_name}"
 
 
   def delete(self, ignore_errors: bool=False) -> None:
@@ -562,9 +568,14 @@ class Host:
     return exec_command(cmd, **exec_args)
 
 
-  def popen(self, *args, user: str|None=None, **popen_args) -> subprocess.Popen:
+  def popen(self, *args, user: str|None=None, capture_output: bool=False, **popen_args) -> subprocess.Popen:
     # Stop signals from propagating to the child process by default
     popen_args.setdefault("preexec_fn", os.setpgrp)
+    if capture_output:
+      popen_args.update({
+        "stdout": subprocess.PIPE,
+        "stderr": subprocess.PIPE,
+      })
     if self.experiment.InsideTestRunner:
       cmd = args
       assert(user is None)
@@ -703,21 +714,9 @@ class Host:
       self.log.activity("stopped SSH server")
 
 
-  def ssh_test(self, server: "Host") -> None:
-    with server.ssh_server() as ssh_server:
-      # Connect via SSH and run a "dummy" test (e.g. verify that the hostname is what we expect)
-      # We mostly want to make sure we can establish an SSH connection through the UVN
-      self.log.activity("performing SSH test: {}", server)
-      self.exec("sh", "-c", f"ssh-keyscan -p 22 -H {server.default_address} >> ~/.ssh/known_hosts",
-        user="uno")
-      result = self.exec("sh", "-c", f"ssh uno@{server.default_address} 'echo THIS_IS_A_TEST_ON $(hostname)' | grep 'THIS_IS_A_TEST_ON {server.hostname}'",
-        user="uno", capture_output=True)
-      assert(result.stdout.decode().strip() == f"THIS_IS_A_TEST_ON {server.hostname}")
-      self.log.info("SSH test completed: {}", server)
-
 
   @contextlib.contextmanager
-  def uno_agent(self, wait_exit: bool=True, start_timeout: bool=10, stop_timeout: bool=30, graceful: bool=True) -> Generator[subprocess.Popen, None, None]:
+  def uno_agent(self, wait_exit: bool=False, start_timeout: bool=10, stop_timeout: bool=30, graceful: bool=True) -> Generator[subprocess.Popen, None, None]:
     agent = self.uno("agent", popen=True)
     if agent.poll():
       raise RuntimeError("failed to start uno agent", self)

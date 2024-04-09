@@ -1,140 +1,111 @@
+# Select the base image
 ARG BASE_IMAGE="ubuntu:jammy"
 FROM ${BASE_IMAGE}
 
-ARG EXTRAS
-
-# Update apt database and install apt-utils (for debconf)
-# Install psmisc to have killall
-# Install iproute2 to provision `ip` command
-# Install iptables to control kernel routing
-# Install python3-pip to provision `pip` command (and possibly `python`)
-# Install gnupg2 to handle keys and identities
-# Install wireguard to implement the uvn connections
-# Install rng-tools to provision `rngd` and speed up key generation
-# Install vim to have a decent text editor, and less for a decent pager
-# Install frr for the ospfd routing daemon
-# Install qrencode to generate QR codes for particles
-# Install some system services used by uvn
-# Install useful networking utilities (and other external packages)
-RUN export DEBIAN_FRONTEND="noninteractive" \
-    && apt-get update \
-    && apt-get install -y \
-      python3-venv \
-      python3-pip \
-      psmisc \
+# Enable TEST mode
+ARG TEST=
+# Enable DEV mode
+ARG DEV=
+###############################################################################
+# Install system dependencies and perform basic environment setup
+###############################################################################
+RUN set -xe; \
+    export DEBIAN_FRONTEND="noninteractive"; \
+    apt-get update; \
+    # - Make sure locale is en_US.UTF-8
+    if [ "$(. /etc/os-release && echo $ID)" = ubuntu ]; then \
+      apt-get install -y --no-install-recommends \
+        locales;  \
+      locale-gen en_US en_US.UTF-8; \
+      update-locale LC_ALL=en_US.UTF-8 LANG=en_US.UTF-8; \
+    else \
+      apt-get install -y --no-install-recommends \
+        locales \
+        locales-all; \
+      update-locale LC_ALL=en_US.utf8 LANG=en_US.utf8; \
+    fi; \
+    # - Install uno's dependencies
+    #   - psmisc to have killall
+    #   - iproute2 to provision `ip` command
+    #   - iptables to control kernel routing
+    #   - python3-pip to provision `pip` command (and possibly `python`)
+    #   - gnupg2 to handle keys and identities
+    #   - wireguard to implement the uvn connections
+    #   - rng-tools to provision `rngd` and speed up key generation
+    #   - vim to have a decent text editor, and less for a decent pager
+    #   - frr for the ospfd routing daemon
+    #   - qrencode to generate QR codes for particles
+    #   - some system services used by uvn
+    apt-get install -y --no-install-recommends \
+      frr \
+      git \
+      gnupg2 \
       iproute2 \
       iptables \
-      gnupg2 \
-      wireguard \
-      wireguard-tools \
-      frr \
-      qrencode \
       iputils-ping \
       lighttpd \
+      psmisc \
       openssl \
-      git \
-      unzip \
-      zip \
-    && apt-get clean
-
-# Copy uno
-COPY . /uno-dev
-
-# Install everything in a virtual environment
-# Add venv/bin directory to the top of PATH
-# so we don't have to activate it
-ENV UNO_VENV /opt/uno/venv
-RUN python3 -m venv ${UNO_VENV}
-ENV PATH "${UNO_VENV}/bin:${PATH}"
-
-# Check if the user passed a Connext wheel in the context
-RUN set -e; \
-    rti_wheel=$(find /uno-dev/ -mindepth 1 -maxdepth 1 -name "rti.connext*.whl" | head -1); \
-    if [ -f "${rti_wheel}" ]; then \
-      pip3 install ${rti_wheel}; \
-    fi
-
-# Allow the user to install the local clone, otherwise
-# Clone the selected version from the remote repository
-ARG UNO_VERSION=master
-ARG UNO_URL=https://github.com/mentalsmash/uno
-ARG UNO_MIDDLEWARE=uno_middleware_connext
-# Export default middleware
-ENV UNO_MIDDLEWARE  "${UNO_MIDDLEWARE}"
-ARG LOCAL=
-RUN set -e; \
-    if [ -n "${LOCAL}" ]; then \
-      cp -r /uno-dev /uno; \
-    else \
-      git clone ${UNO_URL} -b ${UNO_VERSION} /uno; \
-    fi; \
-    pip3 install -e /uno
-
-# Install middleware and other plugins
-RUN set -e; \
-    mkdir -p /uno-plugins; \
-    install_plugin() { \
-      plugin_dir=/uno-plugins/$1; \
-      git clone $2 -b $3 ${plugin_dir}; \
-      pip3 install -e ${plugin_dir}; \
-    }; \
-    case "${UNO_MIDDLEWARE}" in \
-      uno_middleware_connext) \
-        install_plugin uno_middleware_connext https://github.com/mentalsmash/uno-middleware-connext.git master; \
-        ;; \
-    esac
-
-# Make sure locale is en_US.UTF-8
-RUN apt-get update \
-    && set -e \
-    && if [ "$(. /etc/os-release && echo $ID)" = ubuntu ]; then \
+      python3-dev \
+      python3-pip \
+      python3-venv \
+      qrencode \
+      wireguard \
+      wireguard-tools; \
+    # Install packages required by integration tests
+    if [ -n "${DEV}" -o -n "${TEST}" ]; then \
       apt-get install -y --no-install-recommends \
-          locales  \
-      && apt-get clean \
-      && locale-gen en_US en_US.UTF-8 \
-      && update-locale LC_ALL=en_US.UTF-8 LANG=en_US.UTF-8; \
-    else \
-      apt-get install -y --no-install-recommends \
-          locales \
-          locales-all \
-      && apt-get clean \
-      && update-locale LC_ALL=en_US.utf8 LANG=en_US.utf8; \
-    fi
-
-ENV LANG en_US.UTF-8
-
-# For TEST mode:
-# - create a non-root user
-# - install openssh-server, openssh-client, and (passwordless) sudo.
-# - configure uno-dev/docker/dev/test_key.ed25519.key as an authorized key
-#   and install it as the user's private key
-# - install some extra packages
-ARG USER="uno"
-ARG TEST=
-RUN set -xe; \
-    if [ -n "${TEST}" ]; then \
-      pip3 install pytest; \
-      apt-get update; \
-      apt-get install -y --no-install-recommends \
+        unzip \
         sudo \
         openssh-server \
         openssh-client \
-        rng-tools \
+        iperf3; \
+    fi; \
+    # Install extras packages to help with development
+    if [ -n "${DEV}" ]; then \
+      apt-get install -y --no-install-recommends \
         vim \
         less \
         iputils-tracepath \
         dnsutils \
         inetutils-traceroute \
         iperf \
-        iperf3 \
         tcpdump \
-        curl \
         elinks \
-        net-tools \
         build-essential \
         cargo \
         sqlite3; \
-      apt-get clean; \
+    fi; \
+    # clean up apt cache
+    apt-get clean
+
+ENV LANG en_US.UTF-8
+
+###############################################################################
+# Install uno and other Python packages
+###############################################################################
+# Path to the Python venv where everything will be installed.
+ENV UNO_VENV /opt/uno/venv
+
+# Copy uno repository
+COPY . /uno-dev
+
+# Install uno from the local repository clone, ...
+ARG LOCAL=
+# Name of non-root user created for TEST, and DEV modes
+ARG USER="uno"
+# Or to clone a specific version from the remote repository
+ARG UNO_VERSION=master
+ARG UNO_URL=https://github.com/mentalsmash/uno
+# Specify a default middleware for the image
+ARG UNO_MIDDLEWARE=uno_middleware_connext
+
+RUN set -xe; \
+    # - create a non-root user
+    # - install openssh-server, openssh-client, and (passwordless) sudo.
+    # - configure uno-dev/docker/dev/test_key.ed25519.key as an authorized key
+    #   and install it as the user's private key
+    if [ -n "${DEV}" -o -n "${TEST}" ]; then \
       adduser ${USER} --shell /bin/bash; \
       echo ${USER} ALL=\(root\) NOPASSWD:ALL > /etc/sudoers.d/${USER}; \
       chmod 0440 /etc/sudoers.d/${USER}; \
@@ -147,12 +118,40 @@ RUN set -xe; \
       cp ${key}.pub /home/${USER}/.ssh/id_ed25519.pub; \
       chown -R ${USER}:${USER} /home/${USER}/.ssh; \
       chmod 600 /home/${USER}/.ssh/id_ed25519; \
-      export DEBIAN_FRONTEND="noninteractive"; \
-    fi
-
-
-# Clean-up uno repository
-RUN rm -rf /uno-dev
+    fi; \
+    # Generate new virtual environment
+    python3 -m venv ${UNO_VENV}; \
+    . ${UNO_VENV}/bin/activate; \
+    # Check if the user passed a Connext wheel in the context
+    rti_wheel=$(find /uno-dev/ -mindepth 1 -maxdepth 1 -name "rti.connext*.whl" | head -1); \
+    if [ -f "${rti_wheel}" ]; then \
+      pip3 install ${rti_wheel}; \
+    fi; \
+    # Install uno
+    if [ -n "${LOCAL}" ]; then \
+      cp -r /uno-dev /uno; \
+    else \
+      git clone ${UNO_URL} -b ${UNO_VERSION} /uno; \
+    fi; \
+    pip3 install -e /uno; \
+    # Install middleware and other plugins
+    mkdir -p /uno-plugins; \
+    install_plugin() { \
+      plugin_dir=/uno-plugins/$1; \
+      git clone $2 -b $3 ${plugin_dir}; \
+      pip3 install -e ${plugin_dir}; \
+    }; \
+    case "${UNO_MIDDLEWARE}" in \
+      uno_middleware_connext) \
+        install_plugin uno_middleware_connext https://github.com/mentalsmash/uno-middleware-connext.git master; \
+        ;; \
+    esac; \
+    # Install packages required by tests
+    if [ -n "${DEV}" -o -n "${TEST}" ]; then \
+      pip3 install pytest; \
+    fi; \
+    # Delete uno repository
+    rm -rf /uno-dev
 
 # Custom entrypoint
 ENTRYPOINT [ "/uno/docker/entrypoint.sh" ]
@@ -161,7 +160,14 @@ CMD ["__default__"]
 # Define volumes
 ENV UVN_DIR "/uvn"
 ENV UNO_DIR "/uno"
-
 VOLUME [ "${UVN_DIR}" , "${UNO_DIR}"]
 
+# Add venv/bin directory to the top of PATH
+# so we don't have to activate it
+ENV PATH "${UNO_VENV}/bin:${PATH}"
+
+# Set default middleware
+ENV UNO_MIDDLEWARE  "${UNO_MIDDLEWARE}"
+
+# Set default work directory
 WORKDIR /uvn

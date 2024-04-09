@@ -47,20 +47,21 @@ On Debian-like systems, **uno**'s system dependencies can be installed with the 
 
 ```sh
 sudo apt install \
-  sudo \
-  psmisc \
+  frr \
+  git \
+  gnupg2 \
   iproute2 \
   iptables \
-  python3-pip \
-  wireguard-dkms \
-  wireguard-tools \
-  frr \
   iputils-ping \
-  tar \
-  qrencode \
   lighttpd \
+  psmisc \
   openssl \
-  git
+  python3-dev \
+  python3-pip \
+  python3-venv \
+  qrencode \
+  wireguard \
+  wireguard-tools
 ```
 
 After installing the system dependencies, you can install **uno** from

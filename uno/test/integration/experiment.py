@@ -404,32 +404,48 @@ class Experiment:
     # This is mostly a problem for wireguard, because all containers share the same kernel and thus
     # the same "wireguard routing table". If a wireguard connection gets through a router before the
     # nat is properly initialized, the kernel table will associate a public key with the wrong peer.
-    for net in self.networks:
-      for router in (h for h in net if h.role == HostRole.ROUTER):
-        router.start()
-      for router in (h for h in net if h.role == HostRole.ROUTER):
-        router.wait_ready()
-
+    startups = []
+    routers = [
+      r
+      for net in self.networks
+        for r in (h for h in net if h.role == HostRole.ROUTER)  
+    ]
+    for router in routers:
+      startups.append(router.start())
+    for router in routers:
+      router.wait_ready()
+    startups.clear()
+    other_hosts = [
+      h
+      for net in self.networks
+        for h in (h for h in net if h.role != HostRole.ROUTER)    
+    ]
     # Now start all other hosts
-    for net in self.networks:
-      for host in (h for h in net if h.role != HostRole.ROUTER):
-        host.start()
-      for host in (h for h in net if h.role != HostRole.ROUTER):
-        host.wait_ready()
+    for host in other_hosts:
+      startups.append(host.start())
+    for host in other_hosts:
+      host.wait_ready()
     
     self.log.info("started {} hosts", len(self.hosts))
 
 
   def stop(self) -> None:
     self.log.info("stopping {} hosts", len(self.hosts))
-    for net in self.networks:
-      for host in net:
-        host.stop()
+    stop_processes = []
+    for h in (h for n in self.networks for h in n):
+      stop_processes.append((h, h.stop()))
+    for h, stop_process in stop_processes:
+      h.wait_stop(stop_process)
     self.log.info("stopped {} hosts", len(self.hosts))
 
 
   @classmethod
-  def build_uno_image(cls, tag: str="mentalsmash/uno:test", use_cache: bool=False, dev: bool=True, extras: bool=True, local: bool=True) -> None:
+  def build_uno_image(cls,
+      tag: str="mentalsmash/uno:test",
+      use_cache: bool=False,
+      test: bool=True,
+      dev: bool=False,
+      local: bool=True) -> None:
     if tag in cls.BuiltImages:
       Logger.debug("image already built: {}", tag)
       return
@@ -440,7 +456,7 @@ class Experiment:
         "-f", f"{cls.UnoDir}/docker/Dockerfile",
         "-t", tag,
         *(["--build-arg", "DEV=y"] if dev else []),
-        *(["--build-arg", "EXTRAS=y"] if extras else []),
+        *(["--build-arg", "TEST=y"] if test else []),
         *(["--build-arg", "LOCAL=y"] if local else []),
         cls.UnoDir,
     ], debug=True)
