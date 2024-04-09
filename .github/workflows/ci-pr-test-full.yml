@@ -1,10 +1,6 @@
 name: PR Full Test
 
 on:
-  workflow_run:
-    workflows: [PR Test]
-    types: [completed]
-
   pull_request_review:
     types: [submitted]
 
@@ -13,13 +9,7 @@ concurrency:
   cancel-in-progress: true
 
 jobs:
-  fail_w_base_test:
-    runs-on: ubuntu-latest
-    if: ${{ github.event.review.state == 'APPROVED' && github.event.workflow_run.conclusion != 'success'}}
-    steps:
-      - name: Fail because base test already failed
-        run: exit 1
-
+  # This workflow does nothing if the PR hasn't been approved by all of the required reviewers.
   build:
     if: github.event.review.state == 'APPROVED'
     strategy:
