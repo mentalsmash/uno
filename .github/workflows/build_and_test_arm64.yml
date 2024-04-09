@@ -1,4 +1,4 @@
-name: Build and test
+name: Build and test (arm64)
 
 concurrency:
   # Queue jobs by (workflow, ref, uno-middleware, base-image)
@@ -21,10 +21,9 @@ on:
         type: boolean
         default: true
 
-
 jobs:
   build_and_test:
-    runs-on: ubuntu-latest
+    runs-on: [self-hosted, linux, arm64]
     steps:
       # Check out main repository
       - name: Clone uno
@@ -40,6 +39,18 @@ jobs:
           token: ${{ secrets.UNO_CI_PAT }}
           ref: master
           path: src/uno-ci
+
+      - name: Clone CI support files
+        uses: actions/checkout@v4
+        with:
+          repository: mentalsmash/uno-ci-arm
+          token: ${{ secrets.UNO_CI_ARM_PAT }}
+          ref: master
+          path: src/uno-ci-arm
+      
+      - name: Configure build
+        run: |
+          cp src/uno-ci-arm/resource/rti/rti.connext-7.1.0-cp310-cp310-linux_aarch64.whl src/uno
 
       # Build tester docker image
       - name: Set up Docker Buildx
@@ -118,7 +129,7 @@ jobs:
       - name: Upload test results
         uses: actions/upload-artifact@v4
         with:
-          name: tests-${{ env.BASE_IMAGE }}-${{ inputs.uno-middleware }}
+          name: tests-${{ env.BASE_IMAGE }}-${{ inputs.uno-middleware }}-arm64
           path: test/tests-*.xml
         if: ${{ always() }}
 

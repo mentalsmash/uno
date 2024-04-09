@@ -28,6 +28,16 @@ jobs:
       base-image: ${{ matrix.base-image }}
       uno-middleware: ${{ matrix.uno-middleware }}
 
+  build_and_test_arm64:
+    strategy:
+      matrix:
+        base-image: ["ubuntu:22.04"]
+        uno-middleware: [uno_middleware_connext]
+    uses: ./.github/workflows/build_and_test_arm64.yml
+    secrets: inherit
+    with:
+      base-image: ${{ matrix.base-image }}
+      uno-middleware: ${{ matrix.uno-middleware }}
 
   push_images:
     needs: build_and_test
