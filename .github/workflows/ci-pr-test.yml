@@ -16,13 +16,6 @@ concurrency:
   group: pr-validation-${{ github.ref }}
 
 jobs:
-  # fail_if_draft:
-  #   runs-on: ubuntu-latest
-  #   steps:
-  #   - name: Fail if PR is still in draft
-  #     if: github.event.pull_request.draft
-  #     run: exit 1
-
   build:
     if: ${{ !github.event.pull_request.draft }}
     strategy:
