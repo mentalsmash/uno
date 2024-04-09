@@ -450,6 +450,7 @@ class Experiment:
       Logger.debug("image already built: {}", tag)
       return
     Logger.info("building uno docker image: {}", tag)
+    base_image = os.environ.get("BASE_IMAGE")
     exec_command([
       "docker", "build",
         *(["--no-cache"] if not use_cache else []),
@@ -458,6 +459,8 @@ class Experiment:
         *(["--build-arg", "DEV=y"] if dev else []),
         *(["--build-arg", "TEST=y"] if test else []),
         *(["--build-arg", "LOCAL=y"] if local else []),
+        *(["--build-arg", f"BASE_IMAGE={base_image}"] if base_image else []),
+        "--build-arg", f"UNO_MIDDLEWARE={cls.UnoMiddleware}",
         cls.UnoDir,
     ], debug=True)
     cls.BuiltImages.add(tag)

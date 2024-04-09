@@ -1,5 +1,5 @@
 # Select the base image
-ARG BASE_IMAGE="ubuntu:jammy"
+ARG BASE_IMAGE="ubuntu:22.04"
 FROM ${BASE_IMAGE}
 
 # Enable TEST mode
@@ -38,7 +38,6 @@ RUN set -xe; \
     #   - some system services used by uvn
     #   - build-essential (because some PyPI packages might need building, e.g. netifaces)
     apt-get install -y --no-install-recommends \
-      build-essential \
       frr \
       git \
       gnupg2 \
@@ -46,6 +45,7 @@ RUN set -xe; \
       iptables \
       iputils-ping \
       lighttpd \
+      lighttpd-mod-openssl \
       psmisc \
       openssl \
       python3-dev \

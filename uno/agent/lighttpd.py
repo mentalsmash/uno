@@ -14,6 +14,7 @@
 # You should have received a copy of the GNU Affero General Public License
 # along with this program. If not, see <https://www.gnu.org/licenses/>.
 ###############################################################################
+import os
 from pathlib import Path
 import time
 from typing import Iterable
@@ -21,6 +22,7 @@ import subprocess
 
 from .render import Templates
 from ..core.exec import exec_command
+from ..core.time import Timer
 from ..core.log import Logger
 log = Logger.sublogger("lighttpd")
 from ..registry.certificate_subject import CertificateSubject
@@ -126,22 +128,23 @@ class Lighttpd:
       lighttpd_started = True
 
       # Wait for lighttpd to come online and
-      max_wait = 5
-      pid = None
-      for i in range(max_wait):
-        log.debug("waiting for lighttpd to come online...")
-        if self._lighttpd_pid.is_file():
-          try:
-            pid = int(self._lighttpd_pid.read_text())
-            break
-          except:
-            continue
-        time.sleep(.1)
-      if pid is None:
-        raise RuntimeError("failed to detect lighttpd process")
-      # log.debug("lighttpd started: pid={}", pid)
+      detected_pid = []
+      def _check_online() -> bool:
+        if not self._lighttpd_pid.is_file():
+          return False
+        try:
+          detected_pid.append(int(self._lighttpd_pid.read_text()))
+          return True
+        except:
+          return False
+      timer = Timer(10, .1, _check_online, log,
+        "waiting for lighttpd to come online",
+        "lighttpd not ready yet",
+        ready_message=None,
+        timeout_message="lighttpd failed to come online")
+      timer.wait()
       log.info("lighttpd started ({}), listening on {} interfaces: {}",
-        pid,
+        detected_pid.pop(),
         len(self.bind_addresses),
         ', '.join(f"{a}:{self.port}" for a in self.bind_addresses))
     except Exception as e:

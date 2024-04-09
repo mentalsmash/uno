@@ -46,7 +46,7 @@ right system dependencies have been installed.
 On Debian-like systems, **uno**'s system dependencies can be installed with the following packages:
 
 ```sh
-sudo apt install \
+sudo apt install --no-install-recommends \
   frr \
   git \
   gnupg2 \
@@ -54,6 +54,7 @@ sudo apt install \
   iptables \
   iputils-ping \
   lighttpd \
+  lighttpd-mod-openssl \
   psmisc \
   openssl \
   python3-dev \

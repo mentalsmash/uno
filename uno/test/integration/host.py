@@ -30,7 +30,6 @@ from uno.core.log import Logger
 from uno.registry.cell import Cell
 from uno.registry.particle import Particle
 from uno.registry.package import Packager
-from uno.middleware import Middleware
 from uno.agent.agent import Agent
 
 from .host_role import HostRole

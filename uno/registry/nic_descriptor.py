@@ -83,16 +83,12 @@ class NicDescriptor(Versioned):
     Return a list generator of all IPv4 networks associated with local nics.
     The list contains dict() elements describing each network
     """
-    roaming = kwargs.get("roaming")
     return [
       parent.new_child(NicDescriptor, {
         "name": nic,
-        "address": ipaddress.IPv4Address(nic_addr["addr"]),
-        "subnet": subnet
+        "address": nic_addr["addr"],
+        "subnet": nic_addr["subnet"],
       })
       for nic, nic_addrs in list_local_nics(*args, **kwargs)
         for nic_addr in nic_addrs
-          for subnet in [ipv4_nic_network(
-              nic_addr["addr"],
-              nic_addr["netmask"] if not roaming else 32)]
     ]

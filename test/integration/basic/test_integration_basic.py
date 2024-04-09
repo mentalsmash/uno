@@ -28,8 +28,8 @@ from uno.test.integration.experiments.basic import BasicExperiment
 
 def load_experiment() -> Experiment:
   return BasicExperiment.define(Path(__file__), config={
-    # "networks_count": 1,
-    # "relays_count": 0,
+    "networks_count": 1,
+    "relays_count": 0,
   })
 
 
@@ -178,7 +178,7 @@ def test_integration_basic_registry_sync(
     experiment: Experiment,
     the_registry: Host,
     the_agents: dict[Host, subprocess.Popen]):
-  the_registry.uno("sync", "--max-wait-time", "120000")
+  the_registry.uno("sync", "--max-wait-time", "90")
   for agent in the_agents.keys():
     assert(agent.cell_fully_routed)
 
@@ -190,7 +190,7 @@ def test_integration_basic_registry_redeploy(
     the_agents: dict[Host, subprocess.Popen]):
   the_registry.uno("redeploy")
   the_registry.uno("service", "down")
-  the_registry.uno("sync", "--max-wait-time", "120000")
+  the_registry.uno("sync", "--max-wait-time", "90")
   for agent in the_agents.keys():
     assert(agent.cell_fully_routed)
 
