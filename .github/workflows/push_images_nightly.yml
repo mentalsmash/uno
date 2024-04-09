@@ -27,12 +27,12 @@ jobs:
     uses: ./.github/workflows/push_images.yml
     secrets: inherit
     with:
-      tag-default: ${{ env.TAG_DEFAULT }}
-      tag-static:  ${{ env.TAG_STATIC }}
-      base-image-default: ${{ env.BASE_IMAGE_DEFAULT }}
-      base-image-static: ${{ env.BASE_IMAGE_STATIC }}
-      middleware-default: ${{ env.MIDDLEWARE_DEFAULT }}
-      middleware-static: ${{ env.MIDDLEWARE_STATIC }}
+      tag-default: "${{ env.TAG_DEFAULT }}"
+      tag-static:  "${{ env.TAG_STATIC }}"
+      base-image-default: "${{ env.BASE_IMAGE_DEFAULT }}"
+      base-image-static:  "${{ env.BASE_IMAGE_STATIC }}"
+      middleware-default: "${{ env.MIDDLEWARE_DEFAULT }}"
+      middleware-static:  "${{ env.MIDDLEWARE_STATIC }}"
 
   
   update_badges:
@@ -40,12 +40,12 @@ jobs:
     uses: ./.github/workflows/update_image_badges.yml
     secrets: inherit
     with:
-      tag-default: ${{ env.TAG_DEFAULT }}
-      tag-static:  ${{ env.TAG_STATIC }}
-      base-image-default: ${{ env.BASE_IMAGE_DEFAULT }}
-      base-image-static: ${{ env.BASE_IMAGE_STATIC }}
-      badge-default-version: ${{ env.BADGE_DEFAULT_VERSION }}
-      badge-default-base: ${{ env.BADGE_DEFAULT_BASE }}
-      badge-static-version: ${{ env.BADGE_STATIC_VERSION }}
-      badge-static-base: ${{ env.BADGE_STATIC_BASE }}
+      tag-default: "${{ env.TAG_DEFAULT }}"
+      tag-static:  "${{ env.TAG_STATIC }}"
+      base-image-default: "${{ env.BASE_IMAGE_DEFAULT }}"
+      base-image-static:  "${{ env.BASE_IMAGE_STATIC }}"
+      badge-default-version: "${{ env.BADGE_DEFAULT_VERSION }}"
+      badge-default-base:    "${{ env.BADGE_DEFAULT_BASE }}"
+      badge-static-version:  "${{ env.BADGE_STATIC_VERSION }}"
+      badge-static-base:     "${{ env.BADGE_STATIC_BASE }}"
 
