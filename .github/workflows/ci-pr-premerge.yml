@@ -1,6 +1,16 @@
 name: pr-premerge
 
 on:
+  pull_request:
+    branches:
+      - master
+    paths:
+      - 'pyproject.toml'
+      - 'uno/**/*'
+      - 'test/**/*'
+      - 'docker/**/*'
+      - '.github/**/*'
+
   pull_request_review:
     types: [submitted]
 
@@ -11,8 +21,15 @@ concurrency:
 
 
 jobs:
+  check_approval:
+    runs-on: ubuntu-latest
+    steps:
+      - name: "Fail if review hasn't been approved"
+        run: exit 1
+        if: github.event.review.state == 'APPROVED'
+
   build_and_test:
-    if: github.event.review.state == 'APPROVED'
+    needs: check_approval
     strategy:
       matrix:
         base-image: ["ubuntu:22.04", "ubuntu:24.04"]
