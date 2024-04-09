@@ -36,7 +36,9 @@ RUN set -xe; \
     #   - frr for the ospfd routing daemon
     #   - qrencode to generate QR codes for particles
     #   - some system services used by uvn
+    #   - build-essential (because some PyPI packages might need building, e.g. netifaces)
     apt-get install -y --no-install-recommends \
+      build-essential \
       frr \
       git \
       gnupg2 \
@@ -72,7 +74,6 @@ RUN set -xe; \
         iperf \
         tcpdump \
         elinks \
-        build-essential \
         cargo \
         sqlite3; \
     fi; \
