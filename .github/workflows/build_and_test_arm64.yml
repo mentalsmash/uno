@@ -30,110 +30,110 @@ jobs:
         with:
           path: src/uno
 
-      # # Clone CI configuration repository
-      # - name: Clone CI configuration
-      #   uses: actions/checkout@v4
-      #   with:
-      #     repository: mentalsmash/uno-ci
-      #     token: ${{ secrets.UNO_CI_PAT }}
-      #     ref: master
-      #     path: src/uno-ci
+      # Clone CI configuration repository
+      - name: Clone CI configuration
+        uses: actions/checkout@v4
+        with:
+          repository: mentalsmash/uno-ci
+          token: ${{ secrets.UNO_CI_PAT }}
+          ref: master
+          path: src/uno-ci
 
-      # - name: Clone CI support files
-      #   uses: actions/checkout@v4
-      #   with:
-      #     repository: mentalsmash/uno-ci-arm
-      #     token: ${{ secrets.UNO_CI_ARM_PAT }}
-      #     ref: master
-      #     path: src/uno-ci-arm
-      #   if: inputs.uno-middleware == 'uno_middleware_connext'
+      - name: Clone CI support files
+        uses: actions/checkout@v4
+        with:
+          repository: mentalsmash/uno-ci-arm
+          token: ${{ secrets.UNO_CI_ARM_PAT }}
+          ref: master
+          path: src/uno-ci-arm
+        if: inputs.uno-middleware == 'uno_middleware_connext'
       
-      # - name: Configure build
-      #   run: |
-      #     cp src/uno-ci-arm/resource/rti/rti.connext-7.1.0-cp310-cp310-linux_aarch64.whl src/uno
-      #   if: inputs.uno-middleware == 'uno_middleware_connext'
+      - name: Configure build
+        run: |
+          cp src/uno-ci-arm/resource/rti/rti.connext-7.1.0-cp310-cp310-linux_aarch64.whl src/uno
+        if: inputs.uno-middleware == 'uno_middleware_connext'
 
-      # # Build tester docker image
-      # - name: Set up Docker Buildx
-      #   uses: docker/setup-buildx-action@v3
+      # Build tester docker image
+      - name: Set up Docker Buildx
+        uses: docker/setup-buildx-action@v3
 
-      # - name: Build local test image
-      #   uses: docker/build-push-action@v5
-      #   with:
-      #     file: src/uno/docker/Dockerfile
-      #     tags: mentalsmash/uno:test
-      #     load: true
-      #     context: src/uno
-      #     build-args: |
-      #       TEST=y
-      #       BASE_IMAGE=${{ inputs.base-image }}
-      #       UNO_MIDDLEWARE=${{ inputs.uno-middleware }}
+      - name: Build local test image
+        uses: docker/build-push-action@v5
+        with:
+          file: src/uno/docker/Dockerfile
+          tags: mentalsmash/uno:test
+          load: true
+          context: src/uno
+          build-args: |
+            TEST=y
+            BASE_IMAGE=${{ inputs.base-image }}
+            UNO_MIDDLEWARE=${{ inputs.uno-middleware }}
 
-      # # Install uno in a venv
-      # - name: Generate virtual environment
-      #   run: |
-      #     python3 -m venv venv
-      #     . venv/bin/activate
-      #     if [ "${{ inputs.uno-middleware }}" = uno_middleware_connext ]; then
-      #       pip install src/uno-ci-arm/resource/rti/rti.connext-7.1.0-cp310-cp310-linux_aarch64.whl
-      #     fi
-      #     pip install -e src/uno
-      #     pip install pytest
+      # Install uno in a venv
+      - name: Generate virtual environment
+        run: |
+          python3 -m venv venv
+          . venv/bin/activate
+          if [ "${{ inputs.uno-middleware }}" = uno_middleware_connext ]; then
+            pip install src/uno-ci-arm/resource/rti/rti.connext-7.1.0-cp310-cp310-linux_aarch64.whl
+          fi
+          pip install -e src/uno
+          pip install pytest
 
-      # # Install middleware
-      # - name: Clone uno-middleware-connext
-      #   uses: actions/checkout@v4
-      #   with:
-      #     repository: mentalsmash/uno-middleware-connext
-      #     path: src/plugins/uno-middleware-connext
-      #   if: inputs.uno-middleware == 'uno_middleware_connext'
+      # Install middleware
+      - name: Clone uno-middleware-connext
+        uses: actions/checkout@v4
+        with:
+          repository: mentalsmash/uno-middleware-connext
+          path: src/plugins/uno-middleware-connext
+        if: inputs.uno-middleware == 'uno_middleware_connext'
 
-      # - name: Install uno-middleware-connext
-      #   run: |
-      #     . venv/bin/activate
-      #     pip install -e src/plugins/uno-middleware-connext
-      #   if: inputs.uno-middleware == 'uno_middleware_connext'
+      - name: Install uno-middleware-connext
+        run: |
+          . venv/bin/activate
+          pip install -e src/plugins/uno-middleware-connext
+        if: inputs.uno-middleware == 'uno_middleware_connext'
 
-      # - name: Configure uno-middleware-connext
-      #   run: |
-      #     echo "RTI_LICENSE_FILE=${GITHUB_WORKSPACE}/src/uno-ci/resource/rti/rti_license.dat" >> ${GITHUB_ENV}
-      #   if: inputs.uno-middleware == 'uno_middleware_connext'
+      - name: Configure uno-middleware-connext
+        run: |
+          echo "RTI_LICENSE_FILE=${GITHUB_WORKSPACE}/src/uno-ci/resource/rti/rti_license.dat" >> ${GITHUB_ENV}
+        if: inputs.uno-middleware == 'uno_middleware_connext'
 
-      # # Run unit tests
-      # - name: Run unit tests
-      #   if: inputs.run-unit
-      #   run: |
-      #     . venv/bin/activate
-      #     cd src/uno
-      #     # TODO(asorbini) run tests inside a container
-      #     pytest -s -k "not test_integration" -v --junit-xml=${GITHUB_WORKSPACE}/test/tests-unit.xml
-      #   env:
-      #     UNO_MIDDLEWARE: ${{ inputs.uno-middleware }}
-      #     VERBOSITY: activity
-      #     DEBUG: y
+      # Run unit tests
+      - name: Run unit tests
+        if: inputs.run-unit
+        run: |
+          . venv/bin/activate
+          cd src/uno
+          # TODO(asorbini) run tests inside a container
+          pytest -s -k "not test_integration" -v --junit-xml=${GITHUB_WORKSPACE}/test/tests-unit.xml
+        env:
+          UNO_MIDDLEWARE: ${{ inputs.uno-middleware }}
+          VERBOSITY: activity
+          DEBUG: y
 
-      # # Run integration tests
-      # - name: Run integration tests
-      #   if: inputs.run-integration
-      #   run: |
-      #     . venv/bin/activate
-      #     cd src/uno
-      #     pytest -s -k test_integration -v --junit-xml=${GITHUB_WORKSPACE}/test/tests-integration.xml
-      #   env:
-      #     UNO_MIDDLEWARE: ${{ inputs.uno-middleware }}
-      #     VERBOSITY: activity
-      #     DEBUG: y
+      # Run integration tests
+      - name: Run integration tests
+        if: inputs.run-integration
+        run: |
+          . venv/bin/activate
+          cd src/uno
+          pytest -s -k test_integration -v --junit-xml=${GITHUB_WORKSPACE}/test/tests-integration.xml
+        env:
+          UNO_MIDDLEWARE: ${{ inputs.uno-middleware }}
+          VERBOSITY: activity
+          DEBUG: y
 
-      # # Generate a valid id token from inputs.base-image
-      # - run: |
-      #     echo BASE_IMAGE=${{ inputs.base-image }} | tr : _ >> ${GITHUB_ENV}
-      #   if: ${{ always() }}
+      # Generate a valid id token from inputs.base-image
+      - run: |
+          echo BASE_IMAGE=${{ inputs.base-image }} | tr : _ >> ${GITHUB_ENV}
+        if: ${{ always() }}
 
-      # # Always collect and upload available test results
-      # - name: Upload test results
-      #   uses: actions/upload-artifact@v4
-      #   with:
-      #     name: tests-${{ env.BASE_IMAGE }}-${{ inputs.uno-middleware }}-arm64
-      #     path: test/tests-*.xml
-      #   if: ${{ always() }}
+      # Always collect and upload available test results
+      - name: Upload test results
+        uses: actions/upload-artifact@v4
+        with:
+          name: tests-${{ env.BASE_IMAGE }}-${{ inputs.uno-middleware }}-arm64
+          path: test/tests-*.xml
+        if: ${{ always() }}
 
