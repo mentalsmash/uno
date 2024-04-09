@@ -3,9 +3,11 @@ name: release
 on:
   push:
     # Consider any tag without a / to be a release tag
-    tags: ["*"]
+    tags:
+      - '*'
     # Use / to denote non-release tags.
-    tags-ignore: ["*/**"]
+    tags-ignore:
+      - '*/**'
 
 concurrency:
   # Don't run job in parallel
@@ -31,6 +33,9 @@ jobs:
       matrix:
         base-image: ["ubuntu:22.04"]
         uno-middleware: [uno_middleware_connext]
+        include:
+          - base-image: ubuntu:24.04
+            uno-middleware: uno.middleware.native
     uses: ./.github/workflows/build_and_test_arm64.yml
     secrets: inherit
     with:
