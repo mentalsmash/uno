@@ -64,7 +64,7 @@ jobs:
 
       - name: Configure arm64 build
         run: |
-          cp src/uno-ci/arm/resource/rti/rti.connext-7.1.0-cp310-cp310-linux_aarch64.whl src/uno
+          cp src/uno-ci-arm/resource/rti/rti.connext-7.1.0-cp310-cp310-linux_aarch64.whl src/uno
 
       - name: Build and push default image
         uses: docker/build-push-action@v5
