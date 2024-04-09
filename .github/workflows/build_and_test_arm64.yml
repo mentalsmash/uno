@@ -2,7 +2,7 @@ name: Build and test (arm64)
 
 concurrency:
   # Queue jobs by (workflow, ref, uno-middleware, base-image)
-  group: ${{ github.workflow }}${{ github.ref }}${{ inputs.uno-middleware}}${{ inputs.base-image }}
+  group: arm64/${{ github.workflow }}${{ github.ref }}${{ inputs.uno-middleware}}${{ inputs.base-image }}
 
 
 on:
