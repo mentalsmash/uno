@@ -28,9 +28,6 @@ on:
       middleware-static:
         required: true
         type: string
-      build-arm64:
-        type: boolean
-        default: false
 
 
 jobs:
@@ -54,7 +51,7 @@ jobs:
           username: ${{ secrets.DOCKERHUB_USERNAME }}
           password: ${{ secrets.DOCKERHUB_TOKEN }}
 
-      - name: Clone CI support files
+      - name: Clone support files
         uses: actions/checkout@v4
         with:
           repository: mentalsmash/uno-ci-arm
