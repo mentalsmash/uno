@@ -28,16 +28,22 @@ on:
       middleware-static:
         required: true
         type: string
+      build-arm64:
+        type: boolean
+        default: false
 
 
 jobs:
   default_image:
     runs-on: ubuntu-latest
     steps:
-      - uses: actions/checkout@v4
+      - name: Clone uno
+        uses: actions/checkout@v4
+        with:
+          path: src/uno
 
-      # - name: Set up QEMU
-      #   uses: docker/setup-qemu-action@v3
+      - name: Set up QEMU
+        uses: docker/setup-qemu-action@v3
 
       - name: Set up Docker Buildx
         uses: docker/setup-buildx-action@v3
@@ -48,24 +54,35 @@ jobs:
           username: ${{ secrets.DOCKERHUB_USERNAME }}
           password: ${{ secrets.DOCKERHUB_TOKEN }}
 
+      - name: Clone CI support files
+        uses: actions/checkout@v4
+        with:
+          repository: mentalsmash/uno-ci-arm
+          token: ${{ secrets.UNO_CI_ARM_PAT }}
+          ref: master
+          path: src/uno-ci-arm
+
+      - name: Configure arm64 build
+        run: |
+          cp src/uno-ci/arm/resource/rti/rti.connext-7.1.0-cp310-cp310-linux_aarch64.whl src/uno
+
       - name: Build and push default image
         uses: docker/build-push-action@v5
         with:
-          file: docker/Dockerfile
+          file: src/uno/docker/Dockerfile
           tags: ${{ inputs.repo }}:${{ inputs.tag-default }}
           push: true
-          context: .
+          context: src/uno
+          platforms: linux/amd64,linux/arm64
           build-args: |
             UNO_MIDDLEWARE=${{ inputs.middleware-default }}
             BASE_IMAGE=${{ inputs.base-image-default }}
+
 
   static_image:
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v4
-
-      # - name: Set up QEMU
-      #   uses: docker/setup-qemu-action@v3
 
       - name: Set up Docker Buildx
         uses: docker/setup-buildx-action@v3

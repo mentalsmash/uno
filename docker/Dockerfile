@@ -128,7 +128,7 @@ RUN set -xe; \
     python3 -m venv ${UNO_VENV}; \
     . ${UNO_VENV}/bin/activate; \
     # Check if the user passed a Connext wheel in the context
-    rti_wheel=$(find /uno-dev/ -mindepth 1 -maxdepth 1 -name "rti.connext*.whl" | head -1); \
+    rti_wheel=$(find /uno-dev/ -mindepth 1 -maxdepth 1 -name "rti.connext*$(uname -m).whl" | head -1); \
     if [ -f "${rti_wheel}" ]; then \
       pip3 install ${rti_wheel}; \
     fi; \

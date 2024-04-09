@@ -40,7 +40,6 @@ jobs:
           ref: master
           path: src/uno-ci
 
-      # Clone CI configuration repository
       - name: Clone CI support files
         uses: actions/checkout@v4
         with:
