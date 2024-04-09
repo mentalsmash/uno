@@ -1,16 +1,18 @@
 name: pr-premerge
 
 on:
-  workflow_dispatch:
+  pull_request_review:
+    types: [submitted]
 
 
 concurrency:
-  # Don't run workflow in parallel for the same branch/tag
+  # Don't run workflow in parallel for the same PR
   group: ${{ github.workflow }}${{ github.ref }}
 
 
 jobs:
   build_and_test:
+    if: github.event.review.state == 'APPROVED'
     strategy:
       matrix:
         base-image: ["ubuntu:22.04", "ubuntu:24.04"]
@@ -24,5 +26,3 @@ jobs:
       base-image: ${{ matrix.base-image }}
       uno-middleware: ${{ matrix.uno-middleware }}
 
-
-  
