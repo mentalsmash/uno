@@ -7,29 +7,17 @@ concurrency:
   # Don't run workflow in parallel
   group: ${{ github.workflow }}
 
-env:
-  TAG_DEFAULT: latest
-  TAG_STATIC:  latest-static
-  BASE_IMAGE_DEFAULT: ubuntu:22.04
-  BASE_IMAGE_STATIC: ubuntu:24.04
-  MIDDLEWARE_DEFAULT: uno_middleware_connext
-  MIDDLEWARE_STATIC: uno.middleware.native
-  BADGE_DEFAULT_VERSION: "29b57b0427def87cc3ef4ab81c956c29"
-  BADGE_DEFAULT_BASE:    "2d53344e1ccfae961665e08432f18113"
-  BADGE_STATIC_VERSION:  "d73e338805c7d2c348a2d7149a66f66c"
-  BADGE_STATIC_BASE:     "373e55438055b1222c9937797c949f9b"
-
 jobs:
   push_images:
     uses: ./.github/workflows/push_images.yml
     secrets: inherit
     with:
-      tag-default: ${{ env.TAG_DEFAULT }}
-      tag-static:  ${{ env.TAG_STATIC }}
-      base-image-default: ${{ env.BASE_IMAGE_DEFAULT }}
-      base-image-static: ${{ env.BASE_IMAGE_STATIC }}
-      middleware-default: ${{ env.MIDDLEWARE_DEFAULT }}
-      middleware-static: ${{ env.MIDDLEWARE_STATIC }}
+      tag-default: latest
+      tag-static:  latest-static
+      base-image-default: ubuntu:22.04
+      base-image-static:  ubuntu:24.04
+      middleware-default: uno_middleware_connext
+      middleware-static:  uno.middleware.native
 
 
   update_badges:
@@ -37,14 +25,14 @@ jobs:
     uses: ./.github/workflows/update_image_badges.yml
     secrets: inherit
     with:
-      tag-default: ${{ env.TAG_DEFAULT }}
-      tag-static:  ${{ env.TAG_STATIC }}
-      base-image-default: ${{ env.BASE_IMAGE_DEFAULT }}
-      base-image-static: ${{ env.BASE_IMAGE_STATIC }}
-      badge-default-version: ${{ env.BADGE_DEFAULT_VERSION }}
-      badge-default-base: ${{ env.BADGE_DEFAULT_BASE }}
-      badge-static-version: ${{ env.BADGE_STATIC_VERSION }}
-      badge-static-base: ${{ env.BADGE_STATIC_BASE }}
+      tag-default: latest
+      tag-static:  latest-static
+      base-image-default: ubuntu:22.04
+      base-image-static:  ubuntu:24.04
+      badge-default-version: "29b57b0427def87cc3ef4ab81c956c29"
+      badge-default-base:    "2d53344e1ccfae961665e08432f18113"
+      badge-static-version:  "d73e338805c7d2c348a2d7149a66f66c"
+      badge-static-base:     "373e55438055b1222c9937797c949f9b"
 
 
   update_release_badge:
