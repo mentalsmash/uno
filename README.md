@@ -1,6 +1,6 @@
 # uno
 
-**uno** is a tool to link multiple LANs into a single routing domain over the public Internet.
+**uno** is a tool for linking multiple LANs into a single routing domain over the public Internet.
 
 LANs are interconnected by local agents deployed within them to act as gateways to
 other LANs.
@@ -16,8 +16,7 @@ The configuration of each agent is automatically generated from a global manifes
 which defines all parameters of **uno**'s *unified virtual network* (UVN).
 
 The following diagram shows an example of a UVN interconnecting four LANs with
-an agent in each LAN, and an extra, cloud-deployed, agent to provide redudant
-backbone links:
+an agent in each LAN:
 
 ![uvn example](docs/static/uvn.png "UVN Example")
 
