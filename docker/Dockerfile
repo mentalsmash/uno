@@ -63,21 +63,23 @@ RUN set -xe; \
         sudo \
         openssh-server \
         openssh-client \
-        iperf3; \
+        iperf3 \
+        curl; \
     fi; \
     # Install extras packages to help with development
     if [ -n "${DEV}" ]; then \
       apt-get install -y --no-install-recommends \
-        vim \
-        less \
-        iputils-tracepath \
+        build-essential \
+        cargo \
         dnsutils \
+        elinks \
         inetutils-traceroute \
         iperf \
+        iputils-tracepath \
+        less \
+        sqlite3 \
         tcpdump \
-        elinks \
-        cargo \
-        sqlite3; \
+        vim; \
     fi; \
     # clean up apt cache
     apt-get clean
