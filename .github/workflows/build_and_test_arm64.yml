@@ -73,6 +73,7 @@ jobs:
         run: |
           python3 -m venv venv
           . venv/bin/activate
+          pip install src/uno-ci-arm/resource/rti/rti.connext-7.1.0-cp310-cp310-linux_aarch64.wh
           pip install -e src/uno
           pip install pytest
 
