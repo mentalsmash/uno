@@ -1,0 +1,25 @@
+name: pr-test
+
+on:
+  pull_request:
+    branches:
+      - master
+
+
+concurrency:
+  # Don't run workflow in parallel for the same branch/tag
+  group: ${{ github.workflow }}${{ github.ref }}
+
+
+jobs:
+  build_and_test:
+    strategy:
+      matrix:
+        base-image: ["ubuntu:22.04"]
+        uno-middleware: [uno_middleware_connext]
+    uses: ./.github/workflows/build_and_test.yml
+    secrets: inherit
+    with:
+      base-image: ${{ matrix.base-image }}
+      uno-middleware: ${{ matrix.uno-middleware }}
+

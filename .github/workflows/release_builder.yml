@@ -1,5 +1,4 @@
 name: Release Builder
-# run-name: ${{ inputs.push-images && 'Generate' || 'Validate' }} release from ${{ github.ref_type }} ${{ github.ref_name }}
 
 on:
   workflow_call:
@@ -9,17 +8,9 @@ on:
         default: false
 
 
-  # workflow_dispatch:
-  #   inputs:
-  #     push-images:
-  #       description: Build and push Docker images after completing test.
-  #       type: boolean
-  #       default: false
-
-
 concurrency:
-  # otherwise queue them by (workflow, ref)
   # Don't allow jobs that push images to run in parallel globally
+  # otherwise queue them by (workflow, ref)
   group: ${{ github.workflow }}${{ !inputs.push-images && github.ref || ''}}${{ inputs.push-images && 'push-images' || ''}}
 
 

@@ -104,10 +104,6 @@ jobs:
           echo "RTI_LICENSE_FILE=${GITHUB_WORKSPACE}/src/uno-ci/resource/rti/rti_license.dat" >> ${GITHUB_ENV}
         if: inputs.uno-middleware == 'uno_middleware_connext'
 
-      # Generate a valid id token from inputs.base-image
-      - run: |
-          echo BASE_IMAGE=${{ inputs.base-image }} | tr : _ >> ${GITHUB_ENV}
-
       # Run unit tests
       - name: Run unit tests
         if: inputs.run-unit
@@ -132,6 +128,11 @@ jobs:
           UNO_MIDDLEWARE: ${{ inputs.uno-middleware }}
           VERBOSITY: activity
           DEBUG: y
+
+      # Generate a valid id token from inputs.base-image
+      - run: |
+          echo BASE_IMAGE=${{ inputs.base-image }} | tr : _ >> ${GITHUB_ENV}
+        if: ${{ always() }}
 
       # Always collect and upload available test results
       - name: Upload test results

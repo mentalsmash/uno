@@ -1,12 +1,7 @@
 name: nightly
-# run-name: Build & test ${{ github.ref_type }} ${{ github.ref_name }}
 
 on:
   push:
-    branches:
-      - master
-
-  pull_request:
     branches:
       - master
 
@@ -35,7 +30,6 @@ jobs:
 
 
   push_images:
-    if: github.ref_name	== 'master'
     needs: build_and_test
     uses: ./.github/workflows/push_images.yml
     secrets: inherit

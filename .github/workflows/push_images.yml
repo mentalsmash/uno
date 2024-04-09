@@ -30,38 +30,6 @@ on:
         type: string
 
 
-  # workflow_dispatch:
-  #   inputs:
-  #     repo:
-  #       description: Base name of the generated images
-  #       type: string
-  #       default: mentalsmash/uno
-  #     tag-default:
-  #       description: Tag for the "default" image
-  #       type: string
-  #       default: latest
-  #     tag-static:
-  #       description: Tag for the "static" image
-  #       type: string
-  #       default: latest-static
-  #     middleware-default:
-  #       description: Middleware id for the "default" image
-  #       type: string
-  #       default: uno_middleware_connext
-  #     middleware-static:
-  #       description: Middleware id for the "static" image
-  #       type: string
-  #       default: uno.middleware.native
-  #     base-image-default:
-  #       description: Base OS for the "default" image
-  #       type: string
-  #       default: ubuntu:22.04
-  #     base-image-static:
-  #       description: Base OS for the "static" image
-  #       type: string
-  #       default: ubuntu:24.04
-
-
 jobs:
   default_image:
     runs-on: ubuntu-latest
