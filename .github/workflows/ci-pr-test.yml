@@ -10,8 +10,6 @@ on:
       - 'test/**/*'
       - 'docker/**/*'
       - '.github/**/*'
-    types:
-      - ready_for_review
 
 
 concurrency:
@@ -20,6 +18,13 @@ concurrency:
 
 
 jobs:
+  fail_if_draft:
+    if: github.event.pull_request.draft == true
+    runs-on: ubuntu-latest
+    steps:
+    - name: Fail if PR is still in draft
+      run: exit 1
+
   build_and_test:
     strategy:
       matrix:
