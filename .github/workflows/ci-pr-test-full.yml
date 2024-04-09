@@ -1,9 +1,9 @@
-name: pr-premerge
+name: PR Full Test
 
 on:
   workflow_run:
-    workflows: [pr-test]
-    types: [in_progress]
+    workflows: [PR Test]
+    types: [completed]
 
   pull_request_review:
     types: [submitted]
@@ -11,7 +11,7 @@ on:
 
 concurrency:
   # Don't run workflow in parallel for the same PR
-  group: ${{ github.workflow }}${{ github.ref }}
+  group: pr-validation-${{ github.ref }}
 
 
 jobs:
@@ -23,7 +23,7 @@ jobs:
         if: github.event.review.state != 'APPROVED'
 
 
-  build_and_test:
+  build:
     needs: check_approval
     strategy:
       matrix:
@@ -39,12 +39,15 @@ jobs:
       uno-middleware: ${{ matrix.uno-middleware }}
 
   
-  build_and_test_arm64:
+  build_arm64:
     needs: check_approval
     strategy:
       matrix:
         base-image: ["ubuntu:22.04"]
         uno-middleware: [uno_middleware_connext]
+        include:
+          - base-image: ubuntu:24.04
+            uno-middleware: uno.middleware.native
     uses: ./.github/workflows/build_and_test_arm64.yml
     secrets: inherit
     with:

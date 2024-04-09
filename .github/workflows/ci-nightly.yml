@@ -5,64 +5,41 @@ on:
     branches:
       - master
 
-
 concurrency:
-  # Don't run workflow in parallel for the same branch/tag
-  group: ${{ github.workflow }}${{ github.ref }}
-
+  # Don't run workflow in parallel
+  group: ${{ github.workflow }}
 
 jobs:
-  build_and_test:
+  build:
     strategy:
       matrix:
-        base-image: ["ubuntu:22.04", "ubuntu:24.04"] #, "debian:stable"]
-        uno-middleware: [uno.middleware.native, uno_middleware_connext]
-        exclude:
-          - base-image: ubuntu:24.04
+        base-image: ["ubuntu:22.04", "ubuntu:24.04"]
+        uno-middleware: [uno.middleware.native]
+        include:
+          - base-image: ubuntu:22.04
             uno-middleware: uno_middleware_connext
-          # - base-image: debian:stable
-          #   uno-middleware: uno_middleware_connext
     uses: ./.github/workflows/build_and_test.yml
     secrets: inherit
     with:
       base-image: ${{ matrix.base-image }}
       uno-middleware: ${{ matrix.uno-middleware }}
 
-  build_and_test_arm64:
+  build_arm64:
     strategy:
       matrix:
         base-image: ["ubuntu:22.04"]
         uno-middleware: [uno_middleware_connext]
+        include:
+          - base-image: ubuntu:24.04
+            uno-middleware: uno.middleware.native
     uses: ./.github/workflows/build_and_test_arm64.yml
     secrets: inherit
     with:
       base-image: ${{ matrix.base-image }}
       uno-middleware: ${{ matrix.uno-middleware }}
 
-  push_images:
-    needs: [build_and_test, build_and_test_arm64]
-    uses: ./.github/workflows/push_images.yml
+  build_docker:
+    needs: [build, build_arm64]
+    uses: ./.github/workflows/push_images_nightly.yml
     secrets: inherit
-    with:
-      tag-default: nightly
-      tag-static:  nightly-static
-      base-image-default: ubuntu:22.04
-      base-image-static: ubuntu:24.04
-      middleware-default: uno_middleware_connext
-      middleware-static: uno.middleware.native
-
-  
-  update_badges:
-    needs: push_images
-    uses: ./.github/workflows/update_image_badges.yml
-    secrets: inherit
-    with:
-      tag-default: nightly
-      tag-static:  nightly-static
-      base-image-default: ubuntu:22.04
-      base-image-static: ubuntu:24.04
-      badge-default-version: "e7aab205f782cc0c6f394a2fece90509"
-      badge-default-base:    "8f31c46dcfd0543b42f356e5b1c6c2c8"
-      badge-static-version:  "b310f08c34f051846877aeb59b0be311"
-      badge-static-base:     "b0e38a84eb8679d5212e162fbb616773"
 

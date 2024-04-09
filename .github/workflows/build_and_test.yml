@@ -4,7 +4,6 @@ concurrency:
   # Queue jobs by (workflow, ref, uno-middleware, base-image)
   group: ${{ github.workflow }}${{ github.ref }}${{ inputs.uno-middleware}}${{ inputs.base-image }}
 
-
 on:
   workflow_call:
     inputs:
@@ -21,9 +20,8 @@ on:
         type: boolean
         default: true
 
-
 jobs:
-  build_and_test:
+  build:
     runs-on: ubuntu-latest
     steps:
       # Check out main repository

@@ -1,0 +1,51 @@
+name: Build and push images (nightly)
+
+on:
+  workflow_call:
+  
+  workflow_dispatch:
+
+concurrency:
+  # Don't run workflow in parallel
+  group: ${{ github.workflow }}
+
+
+env:
+  TAG_DEFAULT: nightly
+  TAG_STATIC:  nightly-static
+  BASE_IMAGE_DEFAULT: ubuntu:22.04
+  BASE_IMAGE_STATIC: ubuntu:24.04
+  MIDDLEWARE_DEFAULT: uno_middleware_connext
+  MIDDLEWARE_STATIC: uno.middleware.native
+  BADGE_DEFAULT_VERSION: "e7aab205f782cc0c6f394a2fece90509"
+  BADGE_DEFAULT_BASE:    "8f31c46dcfd0543b42f356e5b1c6c2c8"
+  BADGE_STATIC_VERSION:  "b310f08c34f051846877aeb59b0be311"
+  BADGE_STATIC_BASE:     "b0e38a84eb8679d5212e162fbb616773"
+
+jobs:
+  push_images:
+    uses: ./.github/workflows/push_images.yml
+    secrets: inherit
+    with:
+      tag-default: ${{ env.TAG_DEFAULT }}
+      tag-static:  ${{ env.TAG_STATIC }}
+      base-image-default: ${{ env.BASE_IMAGE_DEFAULT }}
+      base-image-static: ${{ env.BASE_IMAGE_STATIC }}
+      middleware-default: ${{ env.MIDDLEWARE_DEFAULT }}
+      middleware-static: ${{ env.MIDDLEWARE_STATIC }}
+
+  
+  update_badges:
+    needs: push_images
+    uses: ./.github/workflows/update_image_badges.yml
+    secrets: inherit
+    with:
+      tag-default: ${{ env.TAG_DEFAULT }}
+      tag-static:  ${{ env.TAG_STATIC }}
+      base-image-default: ${{ env.BASE_IMAGE_DEFAULT }}
+      base-image-static: ${{ env.BASE_IMAGE_STATIC }}
+      badge-default-version: ${{ env.BADGE_DEFAULT_VERSION }}
+      badge-default-base: ${{ env.BADGE_DEFAULT_BASE }}
+      badge-static-version: ${{ env.BADGE_STATIC_VERSION }}
+      badge-static-base: ${{ env.BADGE_STATIC_BASE }}
+

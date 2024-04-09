@@ -1,4 +1,4 @@
-name: pr-test
+name: PR Test
 
 on:
   pull_request:
@@ -11,11 +11,9 @@ on:
       - 'docker/**/*'
       - '.github/**/*'
 
-
 concurrency:
   # Don't run workflow in parallel for the same PR
-  group: ${{ github.workflow }}${{ github.ref }}
-
+  group: pr-validation-${{ github.ref }}
 
 jobs:
   fail_if_draft:
@@ -25,7 +23,7 @@ jobs:
       if: github.event.pull_request.draft == true
       run: exit 1
 
-  build_and_test:
+  build:
     needs: fail_if_draft
     strategy:
       matrix:

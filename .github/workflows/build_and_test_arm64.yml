@@ -4,7 +4,6 @@ concurrency:
   # Queue jobs by (workflow, ref, uno-middleware, base-image)
   group: arm64/${{ github.workflow }}${{ github.ref }}${{ inputs.uno-middleware}}${{ inputs.base-image }}
 
-
 on:
   workflow_call:
     inputs:
@@ -47,10 +46,12 @@ jobs:
           token: ${{ secrets.UNO_CI_ARM_PAT }}
           ref: master
           path: src/uno-ci-arm
+        if: inputs.uno-middleware == 'uno_middleware_connext'
       
       - name: Configure build
         run: |
           cp src/uno-ci-arm/resource/rti/rti.connext-7.1.0-cp310-cp310-linux_aarch64.whl src/uno
+        if: inputs.uno-middleware == 'uno_middleware_connext'
 
       # Build tester docker image
       - name: Set up Docker Buildx
@@ -73,7 +74,9 @@ jobs:
         run: |
           python3 -m venv venv
           . venv/bin/activate
-          pip install src/uno-ci-arm/resource/rti/rti.connext-7.1.0-cp310-cp310-linux_aarch64.whl
+          if [ "${{ inputs.uno-middleware }}" = uno_middleware_connext ]; then
+            pip install src/uno-ci-arm/resource/rti/rti.connext-7.1.0-cp310-cp310-linux_aarch64.whl
+          fi
           pip install -e src/uno
           pip install pytest
 
