@@ -3,11 +3,10 @@ name: release
 on:
   push:
     # Consider any tag without a / to be a release tag
+    # Use / to denote non-release tags.
     tags:
       - '*'
-    # Use / to denote non-release tags.
-    tags-ignore:
-      - '*/**'
+      - '!*/**'
 
 concurrency:
   # Don't run job in parallel
