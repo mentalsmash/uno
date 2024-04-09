@@ -10,6 +10,11 @@ on:
       - 'test/**/*'
       - 'docker/**/*'
       - '.github/**/*'
+    types:
+      - opened
+      - synchronize
+      - reopened
+      - ready_for_review
 
 concurrency:
   # Don't run workflow in parallel for the same PR
@@ -27,4 +32,3 @@ jobs:
     with:
       base-image: ${{ matrix.base-image }}
       uno-middleware: ${{ matrix.uno-middleware }}
-

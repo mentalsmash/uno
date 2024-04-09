@@ -8,18 +8,17 @@ on:
   pull_request_review:
     types: [submitted]
 
-
 concurrency:
   group: pr-validation-${{ github.ref }}
-
+  cancel-in-progress: true
 
 jobs:
-  # fail_if_not_approved:
-  #   runs-on: ubuntu-latest
-  #   steps:
-  #     - name: "Fail if review hasn't been approved yet"
-  #       run: exit 1
-  #       if: github.event.review.state != 'APPROVED'
+  fail_w_base_test:
+    runs-on: ubuntu-latest
+    if: ${{ github.event.review.state == 'APPROVED' && github.event.workflow_run.conclusion != 'success'}}
+    steps:
+      - name: Fail because base test already failed
+        run: exit 1
 
   build:
     if: github.event.review.state == 'APPROVED'
