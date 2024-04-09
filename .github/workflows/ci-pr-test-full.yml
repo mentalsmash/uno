@@ -14,7 +14,7 @@ concurrency:
 
 
 jobs:
-  check_approval:
+  fail_if_not_approved:
     runs-on: ubuntu-latest
     steps:
       - name: "Fail if review hasn't been approved yet"
@@ -23,7 +23,7 @@ jobs:
 
 
   build:
-    needs: check_approval
+    needs: fail_if_not_approved
     strategy:
       matrix:
         base-image: ["ubuntu:22.04", "ubuntu:24.04"]
@@ -39,7 +39,7 @@ jobs:
 
   
   build_arm64:
-    needs: check_approval
+    needs: fail_if_not_approved
     strategy:
       matrix:
         base-image: ["ubuntu:22.04"]
