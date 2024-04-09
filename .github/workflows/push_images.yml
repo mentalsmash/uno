@@ -1,8 +1,9 @@
 name: Build and push images
-run-name: "${{ inputs.repo }}:(${{ inputs.tag-default}}, ${{ inputs.tag-static }}) = ${{ github.ref_type }} ${{ github.ref_name }}${{ github.ref_type == 'branch' && ' @ ' || '' }}${{ github.ref_type == 'branch' && github.sha || '' }}"
 
 concurrency:
-  group: ${{ github.workflow }} for ${{ github.ref_type }} ${{ github.ref_name }} generates ${{ inputs.repo }}:${{ inputs.tag-default}}, and ${{ inputs.repo }}:${{ inputs.tag-static }}
+  # Only run the latest instance of workflows that produce the same images
+  group: push-images-${{ inputs.repo }}-${{ inputs.tag-default }}-${{ inputs.tag-static }}
+  cancel-in-progress: true
 
 on:
   workflow_call:
@@ -33,6 +34,9 @@ on:
 jobs:
   default_image:
     runs-on: ubuntu-latest
+    concurrency:
+      group: push-image-${{ inputs.repo }}-${{ inputs.tag-default }}
+      cancel-in-progress: true
     steps:
       - name: Clone uno
         uses: actions/checkout@v4
@@ -77,6 +81,9 @@ jobs:
 
 
   static_image:
+    concurrency:
+      group: push-image-${{ inputs.repo }}-${{ inputs.tag-default }}
+      cancel-in-progress: true
     runs-on: ubuntu-latest
     steps:
       - name: Clone uno

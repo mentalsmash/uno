@@ -10,7 +10,6 @@ on:
 
 
 concurrency:
-  # Don't run workflow in parallel for the same PR
   group: pr-validation-${{ github.ref }}
 
 
