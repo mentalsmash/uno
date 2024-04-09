@@ -14,16 +14,16 @@ concurrency:
 
 
 jobs:
-  fail_if_not_approved:
-    runs-on: ubuntu-latest
-    steps:
-      - name: "Fail if review hasn't been approved yet"
-        run: exit 1
-        if: github.event.review.state != 'APPROVED'
+  # fail_if_not_approved:
+  #   runs-on: ubuntu-latest
+  #   steps:
+  #     - name: "Fail if review hasn't been approved yet"
+  #       run: exit 1
+  #       if: github.event.review.state != 'APPROVED'
 
 
   build:
-    needs: fail_if_not_approved
+    if: github.event.review.state == 'APPROVED'
     strategy:
       matrix:
         base-image: ["ubuntu:22.04", "ubuntu:24.04"]
@@ -39,7 +39,7 @@ jobs:
 
   
   build_arm64:
-    needs: fail_if_not_approved
+    if: github.event.review.state == 'APPROVED'
     strategy:
       matrix:
         base-image: ["ubuntu:22.04"]
