@@ -7,7 +7,7 @@ on:
 
 
 concurrency:
-  # Don't run workflow in parallel for the same branch/tag
+  # Don't run workflow in parallel for the same PR
   group: ${{ github.workflow }}${{ github.ref }}
 
 
