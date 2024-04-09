@@ -1,6 +1,6 @@
 # uno
 
-**uno** is a tool to link multiple LANs into a single routing domain over the public Internet.
+**uno** is a tool for linking multiple LANs into a single routing domain over the public Internet.
 
 LANs are interconnected by local agents deployed within them to act as gateways to
 other LANs.
@@ -16,8 +16,7 @@ The configuration of each agent is automatically generated from a global manifes
 which defines all parameters of **uno**'s *unified virtual network* (UVN).
 
 The following diagram shows an example of a UVN interconnecting four LANs with
-an agent in each LAN, and an extra, cloud-deployed, agent to provide redudant
-backbone links:
+an agent in each LAN:
 
 ![uvn example](docs/static/uvn.png "UVN Example")
 
@@ -32,7 +31,7 @@ backbone links:
 | [mentalsmash/uno:latest](https://hub.docker.com/repository/docker/mentalsmash/uno/tags?page=&page_size=&ordering=last_updated&name=latest) |![latest default image version](https://img.shields.io/endpoint?url=https://gist.githubusercontent.com/asorbini/29b57b0427def87cc3ef4ab81c956c29/raw/uno-badge-image-default-version-latest.json)|![latest default image base image](https://img.shields.io/endpoint?url=https://gist.githubusercontent.com/asorbini/2d53344e1ccfae961665e08432f18113/raw/uno-badge-image-default-base-latest.json)|
 | [mentalsmash/uno:latest-static](https://hub.docker.com/repository/docker/mentalsmash/uno/tags?page=&page_size=&ordering=last_updated&name=latest) |![latest static image version](https://img.shields.io/endpoint?url=https://gist.githubusercontent.com/asorbini/d73e338805c7d2c348a2d7149a66f66c/raw/uno-badge-image-static-version-latest-static.json)|![latest static image base image](https://img.shields.io/endpoint?url=https://gist.githubusercontent.com/asorbini/373e55438055b1222c9937797c949f9b/raw/uno-badge-image-static-base-latest-static.json)|
 | [mentalsmash/uno:nightly](https://hub.docker.com/repository/docker/mentalsmash/uno/tags?page=&page_size=&name=nightly&ordering=last_updated) |![latest default image version](https://img.shields.io/endpoint?url=https://gist.githubusercontent.com/asorbini/e7aab205f782cc0c6f394a2fece90509/raw/uno-badge-image-default-version-nightly.json)|![latest default image base image](https://img.shields.io/endpoint?url=https://gist.githubusercontent.com/asorbini/8f31c46dcfd0543b42f356e5b1c6c2c8/raw/uno-badge-image-default-base-nightly.json)|
-| [mentalsmash/uno:nightly-static](https://hub.docker.com/repository/docker/mentalsmash/uno/tags?page=&page_size=&name=nightly&ordering=last_updated) |![latest static image version](https://img.shields.io/endpoint?url=https://gist.githubusercontent.com/asorbini/b310f08c34f051846877aeb59b0be311/raw/uno-badge-image-static-version-nightly.json)|![latest static image base image](https://img.shields.io/endpoint?url=https://gist.githubusercontent.com/asorbini/b0e38a84eb8679d5212e162fbb616773/raw/uno-badge-image-static-base-nightly.json)|
+| [mentalsmash/uno:nightly-static](https://hub.docker.com/repository/docker/mentalsmash/uno/tags?page=&page_size=&name=nightly&ordering=last_updated) |![latest static image version](https://img.shields.io/endpoint?url=https://gist.githubusercontent.com/asorbini/b310f08c34f051846877aeb59b0be311/raw/uno-badge-image-static-version-nightly-static.json)|![latest static image base image](https://img.shields.io/endpoint?url=https://gist.githubusercontent.com/asorbini/b0e38a84eb8679d5212e162fbb616773/raw/uno-badge-image-static-base-nightly-static.json)|
 
 ## Installation
 
