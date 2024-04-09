@@ -41,7 +41,7 @@ jobs:
     secrets: inherit
     with:
       tag-default: nightly
-      tag-static:  nightly
+      tag-static:  nightly-static
       base-image-default: ubuntu:22.04
       base-image-static: ubuntu:24.04
       middleware-default: uno_middleware_connext
@@ -54,7 +54,7 @@ jobs:
     secrets: inherit
     with:
       tag-default: nightly
-      tag-static:  nightly
+      tag-static:  nightly-static
       base-image-default: ubuntu:22.04
       base-image-static: ubuntu:24.04
       badge-default-version: "e7aab205f782cc0c6f394a2fece90509"
