@@ -18,7 +18,7 @@ jobs:
   # will proceed only if the trigger succeeded.
   fail_w_base_test:
     runs-on: ubuntu-latest
-    if: ${{ github.event.review.state == 'APPROVED' && github.event.workflow_run.conclusion && github.event.workflow_run.conclusion != 'success') }}
+    if: ${{ github.event.review.state == 'APPROVED' && github.event.workflow_run.conclusion && github.event.workflow_run.conclusion != 'success' }}
     steps:
       - name: Fail because base test ended with ${{ github.event.workflow_run.conclusion }}
         run: exit 1
