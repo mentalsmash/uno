@@ -1,11 +1,5 @@
 name: Build and test (arm64)
 
-concurrency:
-  # Ideally, queue jobs by (workflow, ref, uno-middleware, base-image)
-  # group: arm64/${{ github.workflow }}${{ github.ref }}${{ inputs.uno-middleware}}${{ inputs.base-image }}
-  # But since the runner is resource-constrained, run builds one at a time
-  group: arm64/${{ github.workflow }}
-
 on:
   workflow_call:
     inputs:
@@ -21,6 +15,10 @@ on:
       run-integration:
         type: boolean
         default: true
+
+concurrency:
+  group: build-arm64-${{ inputs.base-image }}-${{ inputs.uno-middleware }}-${{ github.ref }}
+  cancel-in-progress: true
 
 jobs:
   build_and_test:

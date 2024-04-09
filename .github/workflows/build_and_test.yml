@@ -1,9 +1,5 @@
 name: Build and test
 
-concurrency:
-  # Queue jobs by (workflow, ref, uno-middleware, base-image)
-  group: ${{ github.workflow }}${{ github.ref }}${{ inputs.uno-middleware}}${{ inputs.base-image }}
-
 on:
   workflow_call:
     inputs:
@@ -19,6 +15,10 @@ on:
       run-integration:
         type: boolean
         default: true
+
+concurrency:
+  group: build-x64-${{ inputs.base-image }}-${{ inputs.uno-middleware }}-${{ github.ref }}
+  cancel-in-progress: true
 
 jobs:
   build:

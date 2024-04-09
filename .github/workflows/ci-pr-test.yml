@@ -10,21 +10,19 @@ on:
       - 'test/**/*'
       - 'docker/**/*'
       - '.github/**/*'
+    types:
+      - opened
+      - synchronize
+      - reopened
+      - ready_for_review
 
 concurrency:
   # Don't run workflow in parallel for the same PR
   group: pr-validation-${{ github.ref }}
 
 jobs:
-  fail_if_draft:
-    runs-on: ubuntu-latest
-    steps:
-    - name: Fail if PR is still in draft
-      if: github.event.pull_request.draft == true
-      run: exit 1
-
   build:
-    needs: fail_if_draft
+    if: ${{ !github.event.pull_request.draft }}
     strategy:
       matrix:
         base-image: ["ubuntu:22.04"]
@@ -34,4 +32,3 @@ jobs:
     with:
       base-image: ${{ matrix.base-image }}
       uno-middleware: ${{ matrix.uno-middleware }}
-

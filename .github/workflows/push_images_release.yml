@@ -4,8 +4,8 @@ on:
   workflow_call:
 
 concurrency:
-  # Don't run workflow in parallel
-  group: ${{ github.workflow }}
+  group: ci-release-images
+  cancel-in-progress: true
 
 jobs:
   push_images:
@@ -18,7 +18,6 @@ jobs:
       base-image-static:  ubuntu:24.04
       middleware-default: uno_middleware_connext
       middleware-static:  uno.middleware.native
-
 
   update_badges:
     needs: push_images
@@ -33,7 +32,6 @@ jobs:
       badge-default-base:    "2d53344e1ccfae961665e08432f18113"
       badge-static-version:  "d73e338805c7d2c348a2d7149a66f66c"
       badge-static-base:     "373e55438055b1222c9937797c949f9b"
-
 
   update_release_badge:
     runs-on: ubuntu-latest

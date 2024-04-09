@@ -8,23 +8,20 @@ on:
   pull_request_review:
     types: [submitted]
 
-
 concurrency:
-  # Don't run workflow in parallel for the same PR
   group: pr-validation-${{ github.ref }}
-
+  cancel-in-progress: true
 
 jobs:
-  check_approval:
+  fail_w_base_test:
     runs-on: ubuntu-latest
+    if: ${{ github.event.review.state == 'APPROVED' && github.event.workflow_run.conclusion != 'success'}}
     steps:
-      - name: "Fail if review hasn't been approved yet"
+      - name: Fail because base test already failed
         run: exit 1
-        if: github.event.review.state != 'APPROVED'
-
 
   build:
-    needs: check_approval
+    if: github.event.review.state == 'APPROVED'
     strategy:
       matrix:
         base-image: ["ubuntu:22.04", "ubuntu:24.04"]
@@ -40,7 +37,7 @@ jobs:
 
   
   build_arm64:
-    needs: check_approval
+    if: github.event.review.state == 'APPROVED'
     strategy:
       matrix:
         base-image: ["ubuntu:22.04"]

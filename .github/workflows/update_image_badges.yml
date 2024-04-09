@@ -1,8 +1,8 @@
 name: Updated image badges
 
-# concurrency:
-#   # Run sequentially for same sets of tags
-#   group: ${{ github.workflow }}${{inputs.tag-default}}${{inputs.tag-static}}
+concurrency:
+  group: update-badges-${{ inputs.tag-default }}-${{ inputs.tag-static }}-${{ inputs.badge-default-version || 'none' }}-${{ inputs.badge-default-base || 'none' }}-${{ inputs.badge-static-version || 'none' }}-${{ inputs.badge-static-base || 'none' }}
+  cancel-in-progress: true
 
 on:
   workflow_call:
@@ -15,10 +15,10 @@ on:
         required: true
       base-image-default:
         type: string
-        default: ubuntu:22.04
+        required: true
       base-image-static:
         type: string
-        default: ubuntu:24.04
+        required: true
       badge-default-version:
         type: string
       badge-default-base:

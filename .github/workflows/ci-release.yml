@@ -9,8 +9,8 @@ on:
       - '!*/**'
 
 concurrency:
-  # Don't run job in parallel
-  group: ${{ github.workflow }}
+  group: ci-release
+  cancel-in-progress: true
 
 jobs:
   build:

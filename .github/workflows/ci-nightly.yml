@@ -6,8 +6,8 @@ on:
       - master
 
 concurrency:
-  # Don't run workflow in parallel
-  group: ${{ github.workflow }}
+  group: ci-nightly
+  cancel-in-progress: true
 
 jobs:
   build:
