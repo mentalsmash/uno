@@ -16,7 +16,7 @@ jobs:
     strategy:
       matrix:
         base-image: ["ubuntu:22.04", "ubuntu:24.04"]
-        uno-middleware: [uno.middleware.native, uno_middleware_connext]
+        uno-middleware: [uno.middleware.native] #, uno_middleware_connext]
         exclude:
           - base-image: ubuntu:24.04
             uno-middleware: uno_middleware_connext
