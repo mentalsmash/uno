@@ -316,10 +316,14 @@ class Experiment:
         "docker", "run", "--rm",
           *(["-v", f"{registry_root}:/registry"] if registry_root else []),
           *(["-v", f"{test_dir}:/test_dir"] if test_dir else []),
+          "-v", f"{cls.UnoDir}:/uno",
+          "-v", f"{cls.UnoMiddlewareBaseDir}:/uno-middleware",
           image,
           "chown", "-R", f"{os.getuid()}:{os.getgid()}",
             *(["/registry"] if registry_root else []),
             *(["/test_dir"] if test_dir else []),
+            "/uno",
+            "/uno-middleware"
       ])
 
 
