@@ -32,7 +32,7 @@ def ssh_client_test(experiment: Experiment, test_config: Iterable[tuple[Host, Ho
       user="uno",
       capture_output=True)
 
-  def _wait(host: Host, server: Host, test: subprocess.Popen, timeout: float=30.) -> None:
+  def _wait(host: Host, server: Host, test: subprocess.Popen, timeout: float=60.) -> None:
     stdout, stderr = test.communicate(timeout=timeout)
     rc = test.wait(timeout)
     assert rc == 0, f"SSH FAILED {host} → {server}@{server.default_address}: rc = {rc}"

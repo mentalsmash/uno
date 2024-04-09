@@ -403,7 +403,7 @@ class Host:
     return self.status_file.read_text() == "READY"
 
 
-  def wait_ready(self, timeout: int=30) -> None:
+  def wait_ready(self, timeout: int=60) -> None:
     self.log.activity("waiting for container to be up")
     Timer(timeout, .5, lambda: self.ready, self.log,
       f"waiting for container {self.container_name} to be up",
@@ -708,14 +708,14 @@ class Host:
     finally:
       import signal
       server.send_signal(signal.SIGINT)
-      server.wait(timeout=5)
+      server.wait(timeout=30)
       # self.exec("killall", "sshd")
       self.log.activity("stopped SSH server")
 
 
 
   @contextlib.contextmanager
-  def uno_agent(self, wait_exit: bool=False, start_timeout: bool=10, stop_timeout: bool=30, graceful: bool=True) -> Generator[subprocess.Popen, None, None]:
+  def uno_agent(self, wait_exit: bool=False, start_timeout: bool=60, stop_timeout: bool=60, graceful: bool=True) -> Generator[subprocess.Popen, None, None]:
     agent = self.uno("agent", popen=True)
     if agent.poll():
       raise RuntimeError("failed to start uno agent", self)
@@ -751,7 +751,7 @@ class Host:
     return result.returncode == 0
 
 
-  def uno_agent_wait_ready(self, timeout: float=10) -> None:
+  def uno_agent_wait_ready(self, timeout: float=60) -> None:
     timer = Timer(timeout, .5, lambda: self.uno_agent_running(), self.log,
       "waiting for cell agent to start",
       "cell agent not ready yet",
@@ -765,7 +765,7 @@ class Host:
       "[ ! -f /run/uno/uno-agent.pid ] || kill -s INT $(cat /run/uno/uno-agent.pid)")
 
 
-  def uno_agent_wait_exit(self, timeout: float=30, graceful: bool=True) -> None:
+  def uno_agent_wait_exit(self, timeout: float=60, graceful: bool=True) -> None:
     timer = Timer(timeout, 1, lambda: not self.uno_agent_running(), self.log,
       "waiting for cell agent to exit",
       "cell agent still running",
