@@ -61,6 +61,8 @@ sudo apt install --no-install-recommends \
   python3-pip \
   python3-venv \
   qrencode \
+  tar \
+  xz-utils \
   wireguard \
   wireguard-tools
 ```

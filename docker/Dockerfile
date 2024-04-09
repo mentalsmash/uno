@@ -52,6 +52,8 @@ RUN set -xe; \
       python3-pip \
       python3-venv \
       qrencode \
+      tar \
+      xz-utils \
       wireguard \
       wireguard-tools; \
     # Install packages required by integration tests

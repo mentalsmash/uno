@@ -129,7 +129,8 @@ class Registry(Versioned):
       owner: str,
       password: str,
       root: Path | None = None,
-      registry_config: dict | None = None):
+      registry_config: dict | None = None,
+      uvn_spec: dict|None=None):
     root = root or Path.cwd() / name
     cls.log.activity("initializing UVN {} in {}", name, root)
     root_empty = next(root.glob("*"), None) is None
@@ -155,6 +156,11 @@ class Registry(Versioned):
       registry.configure(**registry_config)
     registry.generate_artifacts()
     registry.log.info("initialized UVN {}: {}", registry.uvn.name, registry.root)
+    if uvn_spec is not None:
+      registry.define_uvn(uvn_spec)
+      if registry.dirty:
+        registry.generate_artifacts()
+
     return registry
 
 
@@ -395,6 +401,36 @@ class Registry(Versioned):
   @inject_db_cursor
   def load_cell(self, name: str, cursor: Database.Cursor) -> Cell:
     return next(self.db.load(Cell, where="name = ?", params=(name,), cursor=cursor))
+
+
+  @disabled_if("readonly", error=True)
+  def define_uvn(self, uvn_spec: dict) -> None:
+    uvn_config = uvn_spec.get("config")
+    if uvn_config:
+      self.uvn.configure(**uvn_config)
+    for cfg in uvn_spec.get("user", []):
+      user = self.add_user(
+        email=cfg["email"],
+        password=cfg["password"],
+        **cfg.get("config", {}))
+    for cfg in uvn_spec.get("cells", []):
+      owner = cfg.get("owner")
+      if owner:
+        owner = self.load_user(owner)
+      cell = self.add_cell(
+        name=cfg["name"],
+        owner=owner,
+        address=cfg.get("address"),
+        allowed_lans=cfg.get("allowed_lans"),
+        settings=cfg.get("settings"))
+    for cfg in uvn_spec.get("particles", []):
+      owner = cfg.get("owner")
+      if owner:
+        owner = self.load_user(owner)
+      particle = self.add_particle(
+        name=cfg["name"],
+        owner=owner,
+        **cfg.get("config", {}))
 
 
   @disabled_if("readonly", error=True)

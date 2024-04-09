@@ -341,6 +341,9 @@ def _config_notify(args: argparse.Namespace) -> dict | None:
 
 
 def _config_args_registry(args: argparse.Namespace) -> dict | None:
+  uvn_spec = getattr(args, "spec", None)
+  if uvn_spec:
+    uvn_spec = _yaml_load_inline(uvn_spec)
   result = {
     "cloud_provider": _config_cloud_provider(args),
     "uvn": {
@@ -372,7 +375,8 @@ def _config_args_registry(args: argparse.Namespace) -> dict | None:
           "peer_mtu": getattr(args, "backbone_vpn_mtu", None),
         }
       }
-    }
+    },
+    "uvn_spec": uvn_spec,
   }
   if _empty_config(result):
     return None
@@ -457,6 +461,10 @@ def uno_parser(parser: argparse.ArgumentParser):
 
   cmd_define_uvn.add_argument("name",
     help="A unique name for the UVN.")
+
+  cmd_define_uvn.add_argument("-s", "--spec",
+    help="Define UVN elements from the specified configuration. "
+    "The value must be an inline JSON/YAML dictionary or the path of a file containing one.")
 
   _parser_args_registry(cmd_define_uvn, owner_id_required=True)
   _parser_args_deployment(cmd_define_uvn)
@@ -620,6 +628,7 @@ def uno_parser(parser: argparse.ArgumentParser):
 
 
   cmd_install_cloud.add_argument("--cloud-storage-args",
+
     help="Arguments passed to the storage component of the cloud provider plugin. "
     "The value must be an inline JSON/YAML dictionary or the path of a file containing one.",
     default=None)

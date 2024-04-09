@@ -28,8 +28,8 @@ from uno.test.integration.experiments.basic import BasicExperiment
 
 def load_experiment() -> Experiment:
   return BasicExperiment.define(Path(__file__), config={
-    "networks_count": 1,
-    "relays_count": 0,
+    # "networks_count": 1,
+    # "relays_count": 0,
   })
 
 

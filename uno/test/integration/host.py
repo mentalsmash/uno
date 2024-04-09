@@ -167,7 +167,7 @@ class Host:
       output.unlink()
     return [
       output,
-      Path("/experiment-tmp") / self.test_dir.relative_to(self.experiment.test_dir) / output.name
+      self.experiment.RunnerExperimentDir / self.test_dir.relative_to(self.experiment.test_dir) / output.name
     ]
 
 
@@ -318,7 +318,7 @@ class Host:
         "--privileged",
         "-w", "/uvn",
         "-v", f"{self.experiment.root}:/experiment",
-        "-v", f"{self.experiment.test_dir}:/experiment-tmp",
+        "-v", f"{self.experiment.test_dir}:{self.experiment.RunnerExperimentDir}",
         "-v", f"{self.experiment.UnoDir}:/uno",
         "-e", f"UNO_MIDDLEWARE={self.experiment.registry.middleware.plugin}",
         "-e", "UNO_TEST_RUNNER=y",

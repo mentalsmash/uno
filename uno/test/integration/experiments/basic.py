@@ -78,28 +78,55 @@ class BasicExperiment(Experiment):
     ]
 
 
+  # def define_uvn(self) -> None:
+  #   self.uno("define", "uvn", self.config["uvn_name"],
+  #     *(["-a", self.config["registry_host"]] if self.config["registry_host"] else []),
+  #       "-o", self.config["uvn_owner"],
+  #       "-p", self.config["uvn_owner_password"])
+
+  #   for i, subnet in enumerate(self.config["networks"]):
+  #     self.uno("define", "cell", f"cell{i+1}",
+  #         "-N", str(subnet),
+  #         "-a", f"router.net{i+1}.{self.config['public_net']}",
+  #         "-o", self.config["uvn_owner"])
+
+  #   # Define some cells for "relay" agents
+  #   for relay_i in range(self.config["relays_count"]):
+  #     self.uno("define", "cell", f"relay{relay_i+1}",
+  #         "-a", f"relay{relay_i+1}.{self.config['public_net']}",
+  #         "-o", self.config["uvn_owner"])
+
+  #   # Define particles
+  #   for p_i in range(self.config["particles_count"]):
+  #     self.uno("define", "particle", f"particle{p_i+1}",
+  #       "-o", self.config["uvn_owner"])
+
+
   def define_uvn(self) -> None:
-    self.uno("define", "uvn", self.config["uvn_name"],
-      *(["-a", self.config["registry_host"]] if self.config["registry_host"] else []),
-        "-o", self.config["uvn_owner"],
-        "-p", self.config["uvn_owner_password"])
+    return self.define_uvn_from_config(
+      name=self.config["uvn_name"],
+      owner=self.config["uvn_owner"],
+      address=self.config["registry_host"] if self.config["registry_host"] else None,
+      password=self.config["uvn_owner_password"],
+      uvn_spec={
+      "cells": [
+        *({
+          "name": f"cell{i+1}",
+          "address": f"router.net{i+1}.{self.config['public_net']}",
+          "allowed_lans": [str(subnet)],
+        } for i, subnet in enumerate(self.config["networks"])),
+        *({
+          "name": f"relay{i+1}",
+          "address": f"relay{i+1}.{self.config['public_net']}",
+        } for i in range(self.config["relays_count"])),
+      ],
+      "particles": [
+        {
+          "name": f"particle{i+1}",
+        } for i in range(self.config["particles_count"])
+      ]
+    })
 
-    for i, subnet in enumerate(self.config["networks"]):
-      self.uno("define", "cell", f"cell{i+1}",
-          "-N", str(subnet),
-          "-a", f"router.net{i+1}.{self.config['public_net']}",
-          "-o", self.config["uvn_owner"])
-
-    # Define some cells for "relay" agents
-    for relay_i in range(self.config["relays_count"]):
-      self.uno("define", "cell", f"relay{relay_i+1}",
-          "-a", f"relay{relay_i+1}.{self.config['public_net']}",
-          "-o", self.config["uvn_owner"])
-
-    # Define particles
-    for p_i in range(self.config["particles_count"]):
-      self.uno("define", "particle", f"particle{p_i+1}",
-        "-o", self.config["uvn_owner"])
 
 
   def define_networks_and_hosts(self) -> None:

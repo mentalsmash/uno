@@ -154,12 +154,15 @@ def registry_action(action: Callable[[argparse.Namespace, Registry], None]) -> C
 
 
 def registry_define_uvn(args: argparse.Namespace) -> None:
+  registry_config = args.config_registry(args)
+  uvn_spec = registry_config["uvn_spec"]
   registry = Registry.create(
     name=args.name,
     owner=args.owner,
     password=args.password,
     root=args.root,
-    registry_config=args.config_registry(args))
+    registry_config=args.config_registry(args),
+    uvn_spec=registry_config["uvn_spec"])
 
 
 @registry_action

@@ -76,6 +76,7 @@ class Experiment:
     plugin_module=UnoMiddlewareModule)
   SupportsAgent = UnoMiddlewareModule.Middleware.supports_agent()
   Verbosity = VERBOSITY
+  RunnerExperimentDir = Path("/experiment-tmp")
 
   @classmethod
   def as_fixture(cls, loader: ExperimentLoader, **experiment_args) -> Generator["Experiment", None, None]:
@@ -106,7 +107,7 @@ class Experiment:
     if test_dir is not None:
       test_dir = Path(test_dir)
     elif cls.InsideTestRunner:
-      test_dir = Path("/experiment-tmp")
+      test_dir = cls.RunnerExperimentDir
     else:
       test_dir_tmp = tempfile.TemporaryDirectory()
       test_dir = Path(test_dir_tmp.name)
@@ -244,6 +245,23 @@ class Experiment:
   def define_uvn(self) -> None:
     pass
 
+
+  def define_uvn_from_config(self,
+      name: str,
+      owner: str,
+      password: str,
+      uvn_spec: dict,
+      address: str|None=None) -> None:
+    import yaml
+    uvn_spec_f = self.test_dir / "uvn_spec.yaml"
+    uvn_spec_f.write_text(yaml.safe_dump(uvn_spec))
+    self.uno("define", "uvn", name,
+      *(["-a", address] if address else []),
+        "-o", owner,
+        "-p", password,
+        "-s", self.RunnerExperimentDir / uvn_spec_f.relative_to(self.test_dir))
+
+
   
   @contextlib.contextmanager
   def begin(self) -> "Generator[Experiment, None, None]":
@@ -318,7 +336,7 @@ class Experiment:
           *(["-ti"] if self.config["interactive"] else []),
           "--init",
           "-v", f"{self.root}:/experiment",
-          "-v", f"{self.test_dir}:/experiment-tmp",
+          "-v", f"{self.test_dir}:{self.RunnerExperimentDir}",
           "-v", f"{self.registry_root}:/uvn",
           "-v", f"{self.UnoDir}:/uno",
           *(["-v", f"{self.UnoMiddlewareBaseDir}:/uno-middleware"] if self.UnoMiddlewareBaseDir else []),
@@ -442,7 +460,7 @@ class Experiment:
   @classmethod
   def build_uno_image(cls,
       tag: str="mentalsmash/uno:test",
-      use_cache: bool=False,
+      use_cache: bool=True,
       test: bool=True,
       dev: bool=False,
       local: bool=True) -> None:
@@ -451,6 +469,7 @@ class Experiment:
       return
     Logger.info("building uno docker image: {}", tag)
     base_image = os.environ.get("BASE_IMAGE")
+    use_cache = use_cache if not os.environ.get("NO_CACHE", False) else False
     exec_command([
       "docker", "build",
         *(["--no-cache"] if not use_cache else []),
