@@ -1,4 +1,4 @@
-name: Updated image badges
+name: Update image badges
 
 concurrency:
   group: update-badges-${{ inputs.tag-default }}-${{ inputs.tag-static }}-${{ inputs.badge-default-version || 'none' }}-${{ inputs.badge-default-base || 'none' }}-${{ inputs.badge-static-version || 'none' }}-${{ inputs.badge-static-base || 'none' }}
