@@ -15,29 +15,24 @@ packages = [
 ]
 
 [tool.poetry.dependencies]
-python = "^3.9"
-Jinja2 = "^3.1.2"
-python-gnupg = "^0.5.2"
-PyYAML = "^6.0"
-# netifaces = "^0.11.0"
-termcolor = "^2.4.0"
-networkx = "^3.2.1"
-matplotlib = "^3.8.3"
-sdnotify = "^0.3.2"
-tabulate = "^0.9.0"
-markdown = "^3.6"
-pymdown-extensions = "^10.7.1"
-pygments = "^2.17.2"
-
-# bcrypt = "^4.1.2"
-# pyuwsgi = "^2.0.23"
-# flask = "^3.0.2"
-
 google-api-python-client = "^2.124.0"
 google-auth-httplib2 = "^0.2.0"
 google-auth-oauthlib = "^1.2.0"
+Jinja2 = "^3.1.2"
+pygments = "^2.17.2"
+pymdown-extensions = "^10.7.1"
+pytest = "^8.1"
+python = "^3.9"
+python-gnupg = "^0.5.2"
+PyYAML = "^6.0"
+markdown = "^3.6"
+matplotlib = "^3.8.3"
+networkx = "^3.2.1"
+sdnotify = "^0.3.2"
+tabulate = "^0.9.0"
+termcolor = "^2.4.0"
 
-# Doc dependencies
+[tool.poetry.doc-dependencies]
 docutils = "^0.18.1"
 m2r = "^0.3.1"
 mistune = "^0.8.4"
@@ -47,8 +42,6 @@ sphinxcontrib-programoutput = "^0.17"
 sphinxemoji = "^0.2.0"
 sphinx-tabs = "^3.4.4"
 
-[tool.poetry.dev-dependencies]
-pytest = "^5.2"
 
 [tool.pytest.ini_options]
 addopts = [
@@ -57,7 +50,6 @@ addopts = [
 
 [tool.poetry.scripts]
 uno = 'uno.cli.uno:main'
-# uvn-net = 'uno.cli.uvn_net:main'
 
 [build-system]
 requires = ["poetry-core>=1.0.0"]

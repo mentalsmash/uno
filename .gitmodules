@@ -1,0 +1,4 @@
+[submodule "plugins/uno_middleware_connext"]
+	path = plugins/uno_middleware_connext
+	url = https://github.com/mentalsmash/uno-middleware-connext
+	branch = master

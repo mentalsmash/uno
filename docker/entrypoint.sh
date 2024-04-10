@@ -1,52 +1,40 @@
 #!/bin/sh -e
 # Load Python virtual environment
 . ${UNO_VENV}/bin/activate
-
-# Add /uno-middleware to PYTHONPATH if present
-if [ -d /uno-middleware ]; then
-  export PYTHONPATH="/uno-middleware$([ -z "${PYTHONPATH}" ] || printf -- ":")${PYTHONPATH}"
-fi
-
-# Check if a custom init script was mounted/specified
+# Allow users (a.k.a. tests) to inject environment variables
 if [ -n "${INIT_ENV}" ]; then
   . ${INIT_ENV}
 fi
+# or to perform custom initialization steps
 if [ -n "${INIT}" ]; then
   ${INIT}
 fi
-
 # Check if we have a package, and if so, bootstrap it
 if [ -f /package.uvn-agent ]; then
   chmod 600 /package.uvn-agent
   uno install ${VERBOSE} /package.uvn-agent -r ${UVN_DIR}
 fi
-
-# Read action from environment, one of:
-# - deploy: generate a new deployment
-# - sync: push current configuration to agents
-# - net: start network services only
-# - <none>|agent: start a cell agent
-# - anything else: exec custom command (quotes not preserved)
+# Perform requested action, or custom command:
 case "$@" in
-deploy)
-  uno redeploy ${VERBOSE} -r ${UVN_DIR} \
-    $([ -z "${STRATEGY}" ] || printf -- "-S ${STRATEGY}" )
+# Start an agent for a cell or the registry
+agent)
+  exec uno agent ${VERBOSE} -r ${UVN_DIR}
   ;;
+# Regenerate deployment
+redeploy)
+  uno redeploy ${VERBOSE} -r ${UVN_DIR}
+  ;;
+# Start static network services
+static)
+  uno service up ${VERBOSE} -r ${UVN_DIR}
+  bash
+  uno service down ${VERBOSE} -r ${UVN_DIR}
+  ;;
+# Push configuration to cells
 sync)
   uno sync ${VERBOSE} -r ${UVN_DIR}
   ;;
-net)
-  # Use static configuration to start the agent
-  cd ${UVN_DIR}
-  uno service up router ${VERBOSE}
-  bash
-  uno service stop router ${VERBOSE}
-  ;;
-"__default__"|agent)
-  # start the agent
-  # Start the agent process
-  exec uno agent ${VERBOSE} -r ${UVN_DIR}
-  ;;
+# Run custom command
 *)
   exec "$@"
   ;;

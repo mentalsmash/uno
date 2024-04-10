@@ -22,12 +22,11 @@ import tempfile
 import os
 from functools import cached_property
 import contextlib
-from functools import wraps
-from typing import Callable, Protocol
+from typing import Protocol
 import pytest
 
 from uno.core.exec import exec_command
-from uno.core.log import Logger, UvnLogger
+from uno.core.log import Logger
 from uno.registry.registry import Registry
 from uno.middleware import Middleware
 
@@ -36,7 +35,6 @@ from .host import Host
 from .host_role import HostRole
 
 import uno
-
 
 _uno_dir = Path(uno.__file__).resolve().parent.parent
 
@@ -62,6 +60,8 @@ class ExperimentLoader(Protocol):
 def agent_test(wrapped: TestFunction) -> TestFunction:
   return pytest.mark.skipif(not Experiment.SupportsAgent, reason="agent support required")(wrapped)
 
+# Load the selected uno middleware plugin
+_UnoMiddleware, _UnoMiddlewareModule = Middleware.load_module()
 
 class Experiment:
   InsideTestRunner = bool(os.environ.get("UNO_TEST_RUNNER", False))
@@ -69,12 +69,8 @@ class Experiment:
   UnoDir = _uno_dir
   DefaultLicense = UnoDir / "rti_license.dat"
   # Load the selected uno middleware plugin
-  UnoMiddleware, UnoMiddlewareModule = Middleware.load_module()
-  UnoMiddlewareBaseDir = Middleware.plugin_base_directory(
-    uno_dir=UnoDir,
-    plugin=UnoMiddleware,
-    plugin_module=UnoMiddlewareModule)
-  SupportsAgent = UnoMiddlewareModule.Middleware.supports_agent()
+  UnoMiddleware = _UnoMiddleware
+  SupportsAgent = _UnoMiddlewareModule.Middleware.supports_agent()
   Verbosity = VERBOSITY
   RunnerExperimentDir = Path("/experiment-tmp")
 
@@ -111,9 +107,6 @@ class Experiment:
     else:
       test_dir_tmp = tempfile.TemporaryDirectory()
       test_dir = Path(test_dir_tmp.name)
-    # Check if we should refresh the uno docker image
-    if os.environ.get("BUILD_IMAGE", False):
-      cls.build_uno_image(config["image"])
     # Check if an RTI license was passed through the environment
     rti_license = os.environ.get("RTI_LICENSE_FILE")
     if rti_license:
@@ -163,7 +156,7 @@ class Experiment:
   def default_config(cls) -> dict:
     return {
       "interactive": False,
-      "image": "mentalsmash/uno:test",
+      "image": "mentalsmash/uno-test:latest",
       "uvn_fully_routed_timeout": 60,
       "container_stop_timeout": 60,
     }
@@ -316,14 +309,10 @@ class Experiment:
         "docker", "run", "--rm",
           *(["-v", f"{registry_root}:/registry"] if registry_root else []),
           *(["-v", f"{test_dir}:/test_dir"] if test_dir else []),
-          "-v", f"{cls.UnoDir}:/uno",
-          "-v", f"{cls.UnoMiddlewareBaseDir}:/uno-middleware",
           image,
           "chown", "-R", f"{os.getuid()}:{os.getgid()}",
             *(["/registry"] if registry_root else []),
             *(["/test_dir"] if test_dir else []),
-            "/uno",
-            "/uno-middleware"
       ])
 
 
@@ -342,8 +331,6 @@ class Experiment:
           "-v", f"{self.root}:/experiment",
           "-v", f"{self.test_dir}:{self.RunnerExperimentDir}",
           "-v", f"{self.registry_root}:/uvn",
-          "-v", f"{self.UnoDir}:/uno",
-          *(["-v", f"{self.UnoMiddlewareBaseDir}:/uno-middleware"] if self.UnoMiddlewareBaseDir else []),
           "-e", f"UNO_MIDDLEWARE={self.UnoMiddleware}",
           *([
             "-v", f"{self.rti_license}:/rti_license.dat",
@@ -461,41 +448,8 @@ class Experiment:
     self.log.info("stopped {} hosts", len(self.hosts))
 
 
-  @classmethod
-  def build_uno_image(cls,
-      tag: str="mentalsmash/uno:test",
-      use_cache: bool=True,
-      test: bool=True,
-      dev: bool=False,
-      local: bool=True) -> None:
-    if tag in cls.BuiltImages:
-      Logger.debug("image already built: {}", tag)
-      return
-    Logger.info("building uno docker image: {}", tag)
-    base_image = os.environ.get("BASE_IMAGE")
-    use_cache = use_cache if not os.environ.get("NO_CACHE", False) else False
-    exec_command([
-      "docker", "build",
-        *(["--no-cache"] if not use_cache else []),
-        "-f", f"{cls.UnoDir}/docker/Dockerfile",
-        "-t", tag,
-        *(["--build-arg", "DEV=y"] if dev else []),
-        *(["--build-arg", "TEST=y"] if test else []),
-        *(["--build-arg", "LOCAL=y"] if local else []),
-        *(["--build-arg", f"BASE_IMAGE={base_image}"] if base_image else []),
-        "--build-arg", f"UNO_MIDDLEWARE={cls.UnoMiddleware}",
-        cls.UnoDir,
-    ], debug=True)
-    cls.BuiltImages.add(tag)
-    Logger.warning("uno docker image updated: {}", tag)
-
-
   def other_hosts(self, host: Host, hosts: list[Host]|None=None) -> list[Host]:
     if hosts is None:
       hosts = self.hosts
     return sorted((h for h in hosts if h.role == HostRole.HOST and h != host), key=lambda h: h.container_name)
 
-
-
-print("EXPERIMENT.MIDDLEWARE", Experiment.UnoMiddleware)
-print("EXPERIMENT.SUPPORTS_AGENT", Experiment.SupportsAgent)
