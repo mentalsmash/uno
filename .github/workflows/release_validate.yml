@@ -168,6 +168,9 @@ jobs:
             src/uno/test/integration
         env:
           RTI_LICENSE_FILE: ${{ github.workspace }}/rti_license.dat
+          DEBUG: y
+          LOG_LEVEL: activity
+          UNO_MIDDLEWARE: ${{ matrix.uno-middleware }}
 
       - name: Restore permissions changed by integration tests
         if: ${{ always() }}

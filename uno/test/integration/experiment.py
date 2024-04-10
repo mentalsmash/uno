@@ -300,7 +300,7 @@ class Experiment:
     exec_command([
       "docker", "run", "--rm",
         *(tkn for hvol, vol in dirs.items() for tkn in ("-v", f"{hvol}:{vol}")),
-        self.image,
+        self.config["image"],
         f"{os.getuid()}:{os.getgid()}",
         "fix-root-permissions",
         *dirs.values(),
@@ -346,7 +346,7 @@ class Experiment:
       net.delete(ignore_errors=assert_stopped)
       self.log.activity("network deleted: {}", net)
     self.networks.clear()
-    self.fix_root_permissions(self)
+    self.fix_root_permissions()
     self.log.info("removed all networks and containers", len(self.networks), len(self.hosts))
 
 
