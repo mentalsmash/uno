@@ -165,22 +165,23 @@ jobs:
     strategy:
       matrix:
         include:
-          - build-platform: amd64
+          - platform: amd64
             image-type: default
             tag: ${{ needs.config.outputs.TAG_DEFAULT }}
-          - build-platform: arm64
+          - platform: arm64
             image-type: default
             tag: ${{ needs.config.outputs.TAG_DEFAULT }}
-          - build-platform: amd64
+          - platform: amd64
             image-type: default
             tag: ${{ needs.config.outputs.TAG_STATIC }}
-          - build-platform: arm64
+          - platform: arm64
             image-type: default
             tag: ${{ needs.config.outputs.TAG_STATIC }}
     uses: ./.github/workflows/release_image_test.yml
     secrets: inherit
     with:
-      build-platform: ${{ matrix.build-platform }}
+      tag: ${{matrix.tag}}
+      platform: ${{ matrix.platform }}
       image-type: ${{ matrix.image-type }}
 
   push:
