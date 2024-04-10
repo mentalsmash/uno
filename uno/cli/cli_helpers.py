@@ -95,7 +95,7 @@ def cli_command_main(define_parser: Callable[[argparse._SubParsersAction], None]
   if cmd is None:
     raise RuntimeError("no command specified")
 
-  Logger.level = None if args.quiet else args.verbose
+  Logger.min_level = None if args.quiet else args.verbose
 
   # if getattr(args, "systemd", False):
   #   Logger.enable_syslog = True

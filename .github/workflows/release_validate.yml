@@ -132,16 +132,23 @@ jobs:
             -v $(pwd):/workspace \
             -w /workspace \
             -e RTI_LICENSE_FILE=/workspace/rti_license.dat \
-            -e VERBOSITY=activity \
+            -e LOG_LEVEL=activity \
             -e DEBUG=y \
-            -e CHOWN=/workspace \
-            -e HOST_UID=$(id -u) \
-            -e HOST_GID=$(id -g) \
             ${{ steps.config.outputs.TEST_IMAGE }} \
             pytest -s -v --junit-xml=test-results/uno-test-results-unit-${{ steps.config.outputs.TEST_ID }}.xml \
               src/uno/test/unit
 
-      - name: Run integration tests
+      - name: Restore permissions changed by unit tests
+        if: ${{ always() }}
+        run: |
+          docker run --rm \
+            -v $(pwd):/workspace \
+            -e HOST_UID=$(id -u) \
+            -e HOST_GID=$(id -g) \
+            ${{ steps.config.outputs.TEST_IMAGE }} \
+            fix-root-permissions /workspace
+
+      - name: Setup integration tests
         run: |
           python3 -m venv venv
           . venv/bin/activate
@@ -155,13 +162,24 @@ jobs:
               ;;
           esac
 
-      - name: Setup integration tests
+      - name: Run integration tests
+        id: integration-tests
         run: |
           . venv/bin/activate
           pytest -s -v --junit-xml=test-results/uno-test-results-integration-${{ steps.config.outputs.TEST_ID }}.xml \
             src/uno/test/integration
         env:
           RTI_LICENSE_FILE: ${{ github.workspace }}/rti_license.dat
+
+      - name: Restore permissions changed by integration tests
+        if: ${{ always() }}
+        run: |
+          docker run --rm \
+            -v $(pwd):/workspace \
+            -e HOST_UID=$(id -u) \
+            -e HOST_GID=$(id -g) \
+            ${{ steps.config.outputs.TEST_IMAGE }} \
+            fix-root-permissions /workspace
 
       # Always collect and upload available test results
       - name: Upload test results

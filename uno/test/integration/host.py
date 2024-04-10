@@ -167,7 +167,7 @@ class Host:
       output.unlink()
     return [
       output,
-      self.experiment.RunnerExperimentDir / self.test_dir.relative_to(self.experiment.test_dir) / output.name
+      self.experiment.RunnerTestDir / self.test_dir.relative_to(self.experiment.test_dir) / output.name
     ]
 
 
@@ -311,21 +311,16 @@ class Host:
         "--net", self.default_network.name,
         "--ip", str(self.default_address),
         "--privileged",
-        "-w", "/uvn",
-        "-v", f"{self.experiment.root}:/experiment",
-        "-v", f"{self.experiment.test_dir}:{self.experiment.RunnerExperimentDir}",
-        *(["-v", f"{self.experiment_uvn_dir}:/uvn"] if self.role in (HostRole.REGISTRY, HostRole.CELL) else []),
+        "-e", "UNO_TEST_RUNNER=y",
+        "-v", f"{self.experiment.root}:{self.experiment.RunnerRoot}",
+        "-v", f"{self.experiment.test_dir}:{self.experiment.RunnerTestDir}",
+        *(["-v", f"{self.experiment_uvn_dir}:{self.experimentRunner}"] if self.role in (HostRole.REGISTRY, HostRole.CELL) else []),
         *(["-v", f"{self.cell_package}:/package.uvn-agent"] if self.role == HostRole.CELL else []),
         *([
-          "-v", f"{self.experiment.UnoDir}:/uno",
+          "-v", f"{self.experiment.UnoDir}:{self.experiment.RunnerUnoDir}",
           "-e", f"UNO_MIDDLEWARE={self.experiment.registry.middleware.plugin}",
         ] if self.experiment.Dev else []),
-        "-e", "UNO_TEST_RUNNER=y",
-        *(["-e", f"VERBOSITY={self.experiment.Verbosity}"] if self.experiment.Verbosity else []),
-        "-e", f"CHOWN=/experiment:{self.experiment.RunnerExperimentDir}" + (
-          "" if not self.experiment.Dev else ":/uno"),
-        "-e", f"HOST_UID={os.getuid()}",
-        "-e", f"HOST_GID={os.getgid()}",
+        *(["-e", f"LOG_LEVEL={self.log.LevelEnv}"] if self.log.LevelEnv else []),
         self.image,
         "/uno/uno/test/integration/runner.py",
           "host",
@@ -606,7 +601,7 @@ class Host:
 
 
   def _run_cell(self) -> None:
-    self.uno("install", "/package.uvn-agent", "-r", "/uvn")
+    self.uno("install", "/package.uvn-agent", "-r", self.experiment.RunnerRegistryRoot)
     with self._uno_service_up():
       self._run_forever()
 

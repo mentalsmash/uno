@@ -235,6 +235,24 @@ def _format_default(logger, context, lvl, fmt, *args, **kwargs):
 class UvnLogger:
     global_prefix = None
     Level = level
+    LevelEnv = os.environ.get("LOG_LEVEL")
+
+
+    @classmethod
+    def parse_level(cls, val: _LogLevels | int | str | None) -> _LogLevels:
+        if val is None or isinstance(val, int):
+            val = (
+                cls.Level.quiet if val is None else
+                cls.Level.tracedbg if val >= 5 else
+                cls.Level.trace if val >= 4 else
+                cls.Level.debug if val >= 3 else
+                cls.Level.activity if val >= 2 else
+                cls.Level.info if val >= 1 else
+                cls.Level.warning
+            )
+        elif isinstance(val, str):
+            val = getattr(cls.Level, val.lower())
+        return val
 
     def __init__(
             self,
@@ -251,6 +269,7 @@ class UvnLogger:
         self.no_prefix = no_prefix
         self._update_sublogger_context(context)
         self.local_level = None
+        self._min_level = None
 
 
     @property
@@ -308,19 +327,19 @@ class UvnLogger:
 
     @level.setter
     def level(self, val: _LogLevels | int | str) -> None:
-        if val is None or isinstance(val, int):
-            val = (
-                self.Level.quiet if val is None else
-                self.Level.tracedbg if val >= 5 else
-                self.Level.trace if val >= 4 else
-                self.Level.debug if val >= 3 else
-                self.Level.activity if val >= 2 else
-                self.Level.info if val >= 1 else
-                self.Level.warning
-            )
-        elif isinstance(val, str):
-            val = getattr(self.Level, val.lower())
+        val = self.parse_level(val)
         set_verbosity(val)
+
+    @property
+    def min_level(self) -> _LogLevels|None:
+        return self._min_level
+
+
+    @min_level.setter
+    def min_level(self, val: _LogLevels | int | str) -> None:
+        self._min_level = self.parse_level(val)
+        if self.level >= self._min_level:
+            set_verbosity(self._min_level)
 
 
     @property
@@ -425,4 +444,7 @@ class UvnLogger:
 
 # Logger = logger(f"{os.getpid()}")
 Logger = logger("uno")
+# Allow users to customize the minimum logger verbosity via environment
+if Logger.LevelEnv:
+    Logger.level = Logger.LevelEnv
 

@@ -38,12 +38,8 @@ import uno
 
 _uno_dir = Path(uno.__file__).resolve().parent.parent
 
-# Allow users to customize logger verbosity via environment
-VERBOSITY = os.environ.get("VERBOSITY")
-if VERBOSITY:
-  Logger.level = VERBOSITY
 # Make "info" the minimum default verbosity when this module is loaded
-elif Logger.level >= Logger.Level.warning:
+if Logger.level >= Logger.Level.warning:
   Logger.level = Logger.Level.info
 
 
@@ -72,8 +68,10 @@ class Experiment:
   # Load the selected uno middleware plugin
   UnoMiddleware = _UnoMiddleware
   SupportsAgent = _UnoMiddlewareModule.Middleware.supports_agent()
-  Verbosity = VERBOSITY
-  RunnerExperimentDir = Path("/experiment-tmp")
+  RunnerTestDir = Path("/experiment-tmp")
+  RunnerRoot = Path("/experiment")
+  RunnerRegistryRoot = Path("/uvn")
+  RunnerUnoDir = Path("/uno")
 
   @classmethod
   def as_fixture(cls, loader: ExperimentLoader, **experiment_args) -> Generator["Experiment", None, None]:
@@ -104,7 +102,7 @@ class Experiment:
     if test_dir is not None:
       test_dir = Path(test_dir)
     elif cls.InsideTestRunner:
-      test_dir = cls.RunnerExperimentDir
+      test_dir = cls.RunnerTestDir
     else:
       test_dir_tmp = tempfile.TemporaryDirectory()
       test_dir = Path(test_dir_tmp.name)
@@ -253,7 +251,7 @@ class Experiment:
       *(["-a", address] if address else []),
         "-o", owner,
         "-p", password,
-        "-s", self.RunnerExperimentDir / uvn_spec_f.relative_to(self.test_dir))
+        "-s", self.RunnerTestDir / uvn_spec_f.relative_to(self.test_dir))
 
 
   
@@ -294,70 +292,46 @@ class Experiment:
     self.log.info("created {} networks and {} containers", len(self.networks), len(self.hosts))
 
 
-  @classmethod
-  def restore_registry_permissions(cls, registry_root: Path|None=None, test_dir: Path|None=None, experiment_root: Path|None=None, experiment: "Experiment|None"=None, image: str="mentalsmash/uno:dev") -> None:
-    if experiment is not None:
-      registry_root = experiment.registry.root
-      experiment_root = experiment.root
-      test_dir = experiment.test_dir
-      image = experiment.config["image"]
-    # Return ownership of experiment directory to current user
-    restore = {}
-    if registry_root:
-      restore["/registry"] = registry_root
-    if test_dir:
-      restore["/experiment-tmp"] = test_dir
-    if experiment_root:
-      restore["/experiment"] = experiment_root
-    if restore:
-      exec_command([
-        "docker", "run", "--rm",
-          *(tkn for vol, hvol in restore.items() for tkn in ("-v", f"{hvol}:{vol}")),
-          "-e", f"CHOWN={':'.join(restore.keys())}",
-          "-e", f"HOST_UID={os.getuid()}",
-          "-e", f"HOST_GID={os.getgid()}",
-          image,
-          "chown",
-      ])
+  def fix_root_permissions(self) -> None:
+    dirs = {
+      self.root: self.RunnerRoot,
+      self.test_dir: self.RunnerTestDir
+    }
+    exec_command([
+      "docker", "run", "--rm",
+        *(tkn for hvol, vol in dirs.items() for tkn in ("-v", f"{hvol}:{vol}")),
+        "-e", f"HOST_UID={os.getuid()}",
+        "-e", f"HOST_GID={os.getgid()}",
+        self.image,
+        "fix-root-permissions",
+        *dirs.values(),
+    ])
 
 
   def uno(self, *args, **exec_args):
-    # define_uvn = len(args) > 2 and args[0] == "define" and args[1] == "uvn"
     verbose_flag = Logger.verbose_flag
-    # The command may create files with root permissions.
-    # These files will be returned to the host user when
-    # Experiment.restore_registry_permissions() is called
-    # during tear down.
     try:
       return exec_command([
         "docker", "run", "--rm",
           *(["-ti"] if self.config["interactive"] else []),
           "--init",
-          "-v", f"{self.root}:/experiment",
-          "-v", f"{self.test_dir}:{self.RunnerExperimentDir}",
-          "-v", f"{self.registry_root}:/uvn",
+          "-v", f"{self.root}:{self.RunnerRoot}",
+          "-v", f"{self.test_dir}:{self.RunnerTestDir}",
+          "-v", f"{self.registry_root}:{self.RunnerRegistryRoot}",
           *([
-            "-v", f"{self.UnoDir}:/uno",
+            "-v", f"{self.UnoDir}:{self.RunnerUnoDir}",
             "-e", f"UNO_MIDDLEWARE={self.UnoMiddleware}",
           ] if self.Dev else []),
           *([
             "-v", f"{self.rti_license}:/rti_license.dat",
             "-e", "RTI_LICENSE_FILE=/rti_license.dat",
           ] if self.rti_license else []),
-          "-e", f"CHOWN=/experiment:{self.RunnerExperimentDir}",
-          "-e", f"HOST_UID={os.getuid()}",
-          "-e", f"HOST_GID={os.getgid()}",
-          "-w", "/uvn",
           self.config["image"],
           "uno", *args,
             *([verbose_flag] if verbose_flag else []),
       ], debug=True, **exec_args)
     finally:
-      pass
-      # # permissions are already restored by the
-      # self.restore_registry_permissions(
-      #     registry_root=self.registry_root,
-      #     image=self.config["image"])
+      self.fix_root_permissions()
 
 
 
@@ -373,7 +347,7 @@ class Experiment:
       net.delete(ignore_errors=assert_stopped)
       self.log.activity("network deleted: {}", net)
     self.networks.clear()
-    self.restore_registry_permissions(experiment=self)
+    self.fix_root_permissions(self)
     self.log.info("removed all networks and containers", len(self.networks), len(self.hosts))
 
 
