@@ -98,6 +98,7 @@ jobs:
             tags-config: ${{ needs.config.outputs.TAGS_CONFIG_STATIC }}
             flavor-config: ${{ needs.config.outputs.FLAVOR_CONFIG_STATIC }}
     uses: ./.github/workflows/release_build.yml
+    secrets: inherit
     with:
       image-type: ${{ matrix.image-type }}
       uno-middleware: ${{ matrix.uno-middleware }}
