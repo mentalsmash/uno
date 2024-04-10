@@ -301,8 +301,8 @@ class Experiment:
       "docker", "run", "--rm",
         *(tkn for hvol, vol in dirs.items() for tkn in ("-v", f"{hvol}:{vol}")),
         self.config["image"],
-        f"{os.getuid()}:{os.getgid()}",
         "fix-root-permissions",
+        f"{os.getuid()}:{os.getgid()}",
         *dirs.values(),
     ])
 
