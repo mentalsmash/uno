@@ -300,9 +300,8 @@ class Experiment:
     exec_command([
       "docker", "run", "--rm",
         *(tkn for hvol, vol in dirs.items() for tkn in ("-v", f"{hvol}:{vol}")),
-        "-e", f"HOST_UID={os.getuid()}",
-        "-e", f"HOST_GID={os.getgid()}",
         self.image,
+        f"{os.getuid()}:{os.getgid()}",
         "fix-root-permissions",
         *dirs.values(),
     ])

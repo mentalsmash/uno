@@ -143,10 +143,8 @@ jobs:
         run: |
           docker run --rm \
             -v $(pwd):/workspace \
-            -e HOST_UID=$(id -u) \
-            -e HOST_GID=$(id -g) \
             ${{ steps.config.outputs.TEST_IMAGE }} \
-            fix-root-permissions /workspace
+            fix-root-permissions $(id -u):$(id -g) /workspace
 
       - name: Setup integration tests
         run: |
@@ -176,10 +174,8 @@ jobs:
         run: |
           docker run --rm \
             -v $(pwd):/workspace \
-            -e HOST_UID=$(id -u) \
-            -e HOST_GID=$(id -g) \
             ${{ steps.config.outputs.TEST_IMAGE }} \
-            fix-root-permissions /workspace
+            fix-root-permissions $(id -u):$(id -g) /workspace
 
       # Always collect and upload available test results
       - name: Upload test results
