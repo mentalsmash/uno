@@ -314,7 +314,7 @@ class Host:
         "-e", "UNO_TEST_RUNNER=y",
         "-v", f"{self.experiment.root}:{self.experiment.RunnerRoot}",
         "-v", f"{self.experiment.test_dir}:{self.experiment.RunnerTestDir}",
-        *(["-v", f"{self.experiment_uvn_dir}:{self.experimentRunner}"] if self.role in (HostRole.REGISTRY, HostRole.CELL) else []),
+        *(["-v", f"{self.experiment_uvn_dir}:{self.experiment.RunnerRegistryRoot}"] if self.role in (HostRole.REGISTRY, HostRole.CELL) else []),
         *(["-v", f"{self.cell_package}:/package.uvn-agent"] if self.role == HostRole.CELL else []),
         *([
           "-v", f"{self.experiment.UnoDir}:{self.experiment.RunnerUnoDir}",
