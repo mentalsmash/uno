@@ -1,0 +1,94 @@
+name: PR Test
+
+on:
+  pull_request:
+    branches:
+      - master
+    paths:
+      # No sense in doing these tests for other files, e.g. docs
+      - 'pyproject.toml'
+      - 'uno/**/*'
+      - 'plugins/**/*'
+      - 'test/**/*'
+      - 'docker/**/*'
+      - '.github/**/*'
+    types:
+      - opened
+      - ready_for_review
+      - synchronize
+      - reopened
+
+  pull_request_review:
+    types: [submitted]
+
+concurrency:
+  group: pr-test-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  check-review-status:
+    # Skip the whole workflow if the PR is still in draft
+    if: ${{ !github.event.pull_request.draft }}
+    runs-on: ubuntu-latest
+    outputs:
+      BASIC: ${{ steps.check-approved.outputs.BASIC }}
+      FULL: ${{ steps.check-approved.outputs.FULL }}
+    steps:
+      - name: "Generate job configuration from PR status"
+        id: check-approved
+        run: |
+          case ${{github.event_name}} in
+            pull_request_review)
+              case "${{github.event.review.state}}" in
+                APPROVED)
+                  full=y
+                  ;;
+                *)
+                  basic=y
+                  ;;
+              esac
+              ;;
+            pull_request)
+              basic=y
+              ;;
+          esac
+          echo BASIC=${basic} >> ${GITHUB_OUTPUT}
+          echo FULL=${full} >> ${GITHUB_OUTPUT}
+
+  basic-validation:
+    needs: check-review-status
+    if: ${{ needs.check-review-status.outputs.BASIC }}
+    strategy:
+      matrix:
+        include:
+          - build-platform: amd64
+            base-image: ubuntu:22.04
+            uno-middleware: uno_middleware_connext
+    uses: ./.github/workflows/build_and_test.yml
+    secrets: inherit
+    with:
+      build-platform: ${{matrix.build-platform}}
+      base-image: ${{matrix.base-image}}
+      uno-middleware: ${{matrix.uno-middleware}}
+
+  full-validation:
+    needs: check-review-status
+    if: ${{ needs.check-review-status.outputs.FULL }}
+    strategy:
+      matrix:
+        include:
+          - build-platform: arm64
+            base-image: ubuntu:22.04
+            uno-middleware: uno_middleware_connext
+          - build-platform: amd64
+            base-image: ubuntu:24.04
+            uno-middleware: uno.middleware.native
+          - build-platform: arm64
+            base-image: ubuntu:24.04
+            uno-middleware: uno.middleware.native
+    uses: ./.github/workflows/build_and_test.yml
+    secrets: inherit
+    with:
+      build-platform: ${{matrix.build-platform}}
+      base-image: ${{matrix.base-image}}
+      uno-middleware: ${{matrix.uno-middleware}}

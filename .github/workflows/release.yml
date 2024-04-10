@@ -1,0 +1,42 @@
+name: Release
+
+on:
+  push:
+    branches:
+      - master
+    tags:
+      - '*'
+      - '!*/**'
+
+concurrency:
+  group: release-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  build:
+    strategy:
+      matrix:
+        include:
+          - build-platform: amd64
+            base-image: ubuntu:22.04
+            uno-middleware: uno_middleware_connext
+          - build-platform: arm64
+            base-image: ubuntu:22.04
+            uno-middleware: uno_middleware_connext
+          - build-platform: amd64
+            base-image: ubuntu:24.04
+            uno-middleware: uno.middleware.native
+          - build-platform: arm64
+            base-image: ubuntu:24.04
+            uno-middleware: uno.middleware.native
+    uses: ./.github/workflows/build_and_test.yml
+    secrets: inherit
+    with:
+      build-platform: ${{matrix.build-platform}}
+      base-image: ${{matrix.base-image}}
+      uno-middleware: ${{matrix.uno-middleware}}
+
+  push:
+    needs: build
+    uses: ./.github/workflows/release_push_images.yml
+    secrets: inherit

@@ -1,0 +1,173 @@
+name: Release Images
+
+on:
+  workflow_dispatch:
+
+  workflow_call:
+
+concurrency:
+  group: release-images-${{ github.ref }}
+  cancel-in-progress: true
+
+permissions:
+  contents: read
+
+jobs:
+  push_images:
+    strategy:
+      matrix:
+        include:
+          - uno-middleware: uno.middleware.native
+            base-image: ubuntu:24.04
+            tag-suffix: -static
+          - uno-middleware: uno_middleware_connext
+            base-image: ubuntu:22.04
+            tag-suffix: ''
+    runs-on: ubuntu-latest
+    steps:
+      - name: Clone uno
+        uses: actions/checkout@v4
+        with:
+          path: src/uno
+          submodules: true
+
+      - name: Clone ARM support files
+        uses: actions/checkout@v4
+        with:
+          repository: mentalsmash/uno-ci-arm
+          token: ${{ secrets.UNO_CI_ARM_PAT }}
+          ref: master
+          path: src/uno-ci-arm
+        if: matrix.uno-middleware == 'uno_middleware_connext'
+
+      - name: Configure ARM support
+        run: |
+          case '${{ matrix.uno-middleware }}' in
+            uno_middleware_connext)
+              cp src/uno-ci-arm/resource/rti/rti.connext-7.1.0-cp310-cp310-linux_aarch64.whl \
+                 src/uno
+              ;;
+          esac
+
+      - name: Set up QEMU
+        uses: docker/setup-qemu-action@v3
+
+      - name: Set up Docker Buildx
+        uses: docker/setup-buildx-action@v3
+
+      - name: Extract image metadata
+        id: meta
+        uses: docker/metadata-action@v5
+        with:
+          images: |
+            ${{ github.repository }}
+            ghcr.io/${{ github.repository }}
+          tags: |
+            type=ref,event=branch
+            type=raw,value=nightly${{ matrix.tag-suffix }},event=branch
+            type=semver,patter={{version}}
+            type=semver,pattern={{major}}.{{minor}}
+            type=semver,pattern={{major}}
+          flavor: |
+            suffix=${{ matrix.tag-suffix }},onlatest=true
+
+      - name: Log in to GitHub
+        uses: docker/login-action@v3
+        with:
+          registry: ghcr.io
+          username: ${{ github.actor }}
+          password: ${{ secrets.GITHUB_TOKEN }}
+    
+      - name: Login to Docker Hub
+        uses: docker/login-action@v3
+        with:
+          username: ${{ secrets.DOCKERHUB_USERNAME }}
+          password: ${{ secrets.DOCKERHUB_TOKEN }}
+
+      - name: Build images
+        uses: docker/build-push-action@v5
+        with:
+          file: src/uno/docker/uno.dockerfile
+          tags: ${{ steps.meta.outputs.tags }}
+          labels: ${{ steps.meta.outputs.labels }}
+          push: true
+          context: src/uno
+          platforms: linux/amd64,linux/arm64
+          build-args: |
+            BASE_IMAGE=${{ matrix.base-image }}
+            UNO_MIDDLEWARE=${{ matrix.uno-middleware }}
+
+      - name: Generate image name
+        id: image-name
+        run: |
+          echo "VALUE=${{ github.repository }}:${{ github.ref_type == 'tag' && 'latest' || 'nightly' }}${{ matrix.tag-suffix }}" >> ${GITHUB_OUTPUT}
+      
+      - name: Push image to Docker Hub
+        run: |
+          docker push ${{ steps.image-name.outputs.VALUE }}
+
+  update_badges_latest:
+    needs: push_images
+    uses: ./.github/workflows/update_image_badges.yml
+    secrets: inherit
+    with:
+      tag-default:            latest
+      base-image-default:     ubuntu:22.04
+      tag-static:             latest-static
+      base-image-static:      ubuntu:24.04
+      badge-default-version: "29b57b0427def87cc3ef4ab81c956c29"
+      badge-default-base:    "2d53344e1ccfae961665e08432f18113"
+      badge-static-version:  "d73e338805c7d2c348a2d7149a66f66c"
+      badge-static-base:     "373e55438055b1222c9937797c949f9b"
+    if: github.ref_type == 'tag'
+
+  update_badges_nightly:
+    needs: push_images
+    uses: ./.github/workflows/update_image_badges.yml
+    secrets: inherit
+    with:
+      tag-default:            nightly
+      base-image-default:     ubuntu:22.04
+      tag-static:             nightly-static
+      base-image-static:      ubuntu:24.04
+      badge-default-version: "e7aab205f782cc0c6f394a2fece90509"
+      badge-default-base:    "8f31c46dcfd0543b42f356e5b1c6c2c8"
+      badge-static-version:  "b310f08c34f051846877aeb59b0be311"
+      badge-static-base:     "b0e38a84eb8679d5212e162fbb616773"
+    if: github.ref_type == 'branch'
+
+  update_badge_release:
+    if: github.ref_type == 'tag'
+    runs-on: ubuntu-latest
+    needs: push_images
+    steps:
+    - uses: actions/checkout@v4
+
+    - name: Generate derived variables
+      id: badge_cfg
+      run: |
+        SHA_SHORT=$(git rev-parse --short HEAD)
+        message=${{ github.ref_name }}
+        case ${{github.ref_type}} in
+          branch)
+            message="${message} @ ${SHA_SHORT}"
+            color=orange
+            ;;
+          tag)
+            color=green
+            ;;
+        esac
+        echo "MESSAGE=${message}" >> ${GITHUB_OUTPUT}
+        echo COLOR=${COLOR} >> ${GITHUB_OUTPUT}
+
+
+    - name: Update latest-release badge
+      uses: schneegans/dynamic-badges-action@v1.7.0
+      with:
+        auth: ${{ secrets.GIST_UPDATE_TOKEN }}
+        gistID: "fb644ccb3cbb57b2636f9eca808b9931"
+        filename: uno-badge-latest-release.json
+        label: latest release
+        message: ${{ steps.badge_cfg.outputs.MESSAGE }}
+        color: ${{ steps.badge_cfg.outputs.COLOR }}
+

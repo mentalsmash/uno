@@ -82,21 +82,6 @@ class Middleware:
     return ImplCls(plugin=plugin, module=plugin_mod)
 
 
-  @classmethod
-  def plugin_base_directory(cls, uno_dir: Path, plugin: str, plugin_module: ModuleType) -> Path | None:
-    plugin_base_dir = Path(plugin_module.__file__).parent
-    try:
-      # If the plugin directory is in the base uno repository, we don't need to mount it
-      plugin_base_dir.relative_to(uno_dir)
-      plugin_base_dir = None
-    except ValueError:
-      # Determine the base directory to add to PYTHONPATH
-      plugin_parent_depth = len(plugin.split("."))
-      for i in range(plugin_parent_depth):
-        plugin_base_dir = plugin_base_dir.parent
-    return plugin_base_dir
-
-
   @property
   def install_instructions(self) -> str | None:
     return None

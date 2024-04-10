@@ -298,11 +298,6 @@ class Host:
         shutil.rmtree(self.experiment_uvn_dir)
       shutil.copytree(self.experiment.registry.root, self.experiment_uvn_dir)
 
-    plugin_base_dir = self.experiment.registry.middleware.plugin_base_directory(
-      uno_dir=self.experiment.UnoDir,
-      plugin=self.experiment.registry.middleware.plugin,
-      plugin_module=self.experiment.registry.middleware.module)
-
     interactive = self.experiment.config.get("interactive", False)
 
     verbose_flag = self.log.verbose_flag
@@ -319,13 +314,11 @@ class Host:
         "-w", "/uvn",
         "-v", f"{self.experiment.root}:/experiment",
         "-v", f"{self.experiment.test_dir}:{self.experiment.RunnerExperimentDir}",
-        "-v", f"{self.experiment.UnoDir}:/uno",
+        *(["-v", f"{self.experiment_uvn_dir}:/uvn"] if self.role in (HostRole.REGISTRY, HostRole.CELL) else []),
+        *(["-v", f"{self.cell_package}:/package.uvn-agent"] if self.role == HostRole.CELL else []),
         "-e", f"UNO_MIDDLEWARE={self.experiment.registry.middleware.plugin}",
         "-e", "UNO_TEST_RUNNER=y",
         *(["-e", f"VERBOSITY={self.experiment.Verbosity}"] if self.experiment.Verbosity else []),
-        *(["-v", f"{plugin_base_dir}:/uno-middleware"] if plugin_base_dir else []),
-        *(["-v", f"{self.experiment_uvn_dir}:/uvn"] if self.role in (HostRole.REGISTRY, HostRole.CELL) else []),
-        *(["-v", f"{self.cell_package}:/package.uvn-agent"] if self.role == HostRole.CELL else []),
         self.image,
         "/uno/uno/test/integration/runner.py",
           "host",

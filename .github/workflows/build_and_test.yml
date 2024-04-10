@@ -3,12 +3,15 @@ name: Build and test
 on:
   workflow_call:
     inputs:
-      base-image:
-        required: true
-        type: string
       uno-middleware:
-        required: true
         type: string
+        required: true
+      base-image:
+        type: string
+        required: true
+      build-platform:
+        type: string
+        required: true
       run-unit:
         type: boolean
         default: true
@@ -17,106 +20,130 @@ on:
         default: true
 
 concurrency:
-  group: build-x64-${{ inputs.base-image }}-${{ inputs.uno-middleware }}-${{ github.ref }}
+  group: test-build-${{ github.ref }}-${{ inputs.uno-middleware }}-${{ inputs.build-platform }}-${{ inputs.base-image }}
   cancel-in-progress: true
 
+permissions:
+  contents: read
+
 jobs:
-  build:
+  build-n-test:
     runs-on: ubuntu-latest
     steps:
-      # Check out main repository
-      - name: Clone uno
-        uses: actions/checkout@v4
-        with:
-          path: src/uno
+      - name: Generate build and test configuration
+        id: config
+        run: |
+          case "${{ inputs.uno-middleware }}" in
+            uno.middleware.native)
+              middleware_type=static
+              ;;
+            *)
+              middleware_type=default
+              ;;
+          esac
+          middleware_label=$(echo ${{inputs.uno-middleware}} | sed -r 's/uno.middleware.//')
+          base_image=$(echo ${{inputs.base-image}} | tr : -)
+          image_version=${{github.ref_name}}
+          case "${{github.ref_type}}" in
+            tag)
+              ;;
+            *)
+              sha_short=$(git rev-parse --short HEAD)
+              image_version=${{github.ref_name}}@${sha_short}
+              ;;
+          esac
+          test_date=$(date +%Y%m%d-%H%M%S)
+          echo TEST_ARTIFACT=uno-${middleware_label}-${image_label}__${{ inputs.build-platform }}-${base_image}__${test_date} >> ${GITHUB_OUTPUT}
+          echo TEST_IMAGE=${{ github.repository }}-test:latest >> ${GITHUB_OUTPUT}
 
-      # Clone CI configuration repository
-      - name: Clone CI configuration
+      - name: Clone build support files
         uses: actions/checkout@v4
         with:
           repository: mentalsmash/uno-ci
           token: ${{ secrets.UNO_CI_PAT }}
           ref: master
           path: src/uno-ci
+        if: inputs.uno-middleware == 'uno_middleware_connext'
+
+      - name: Clone ARM support files
+        uses: actions/checkout@v4
+        with:
+          repository: mentalsmash/uno-ci-arm
+          token: ${{ secrets.UNO_CI_ARM_PAT }}
+          ref: master
+          path: src/uno-ci-arm
+        if: inputs.build-platform == 'arm64' && inputs.uno-middleware == 'uno_middleware_connext'
+      
+      # Clone uno's main repository
+      - name: Clone uno
+        uses: actions/checkout@v4
+        with:
+          path: src/uno
 
       # Build tester docker image
       - name: Set up Docker Buildx
         uses: docker/setup-buildx-action@v3
+        with:
+          driver-opts: network=host
 
-      - name: Build local test image
+      - name: Configure build environment
+        run: |
+          case '${{ inputs.uno-middleware }}' in
+            uno_middleware_connext)
+              cp src/uno-ci/resource/rti/rti_license.dat rti_license.dat
+              case '${{ inputs.build-platform }}' in
+                arm64)
+                  cp src/uno-ci-arm/resource/rti/rti.connext-7.1.0-cp310-cp310-linux_aarch64.whl \
+                     src/uno
+                  ;;
+              esac
+              ;;
+          esac
+
+      - name: Build tester image
         uses: docker/build-push-action@v5
         with:
           file: src/uno/docker/Dockerfile
-          tags: mentalsmash/uno:test
-          load: true
+          tags: ${{ steps.config.outputs.TEST_IMAGE }}
+          push: true
           context: src/uno
+          platforms: linux/${{ inputs.build-platform }}
           build-args: |
             TEST=y
             BASE_IMAGE=${{ inputs.base-image }}
             UNO_MIDDLEWARE=${{ inputs.uno-middleware }}
 
-      # Install uno in a venv
-      - name: Generate virtual environment
-        run: |
-          python3 -m venv venv
-          . venv/bin/activate
-          pip install -e src/uno
-          pip install pytest
-
-      # Install middleware
-      - name: Clone uno-middleware-connext
-        uses: actions/checkout@v4
-        with:
-          repository: mentalsmash/uno-middleware-connext
-          path: src/plugins/uno-middleware-connext
-        if: inputs.uno-middleware == 'uno_middleware_connext'
-
-      - name: Install uno-middleware-connext
-        run: |
-          . venv/bin/activate
-          pip install -e src/plugins/uno-middleware-connext
-        if: inputs.uno-middleware == 'uno_middleware_connext'
-
-      - name: Configure uno-middleware-connext
-        run: |
-          echo "RTI_LICENSE_FILE=${GITHUB_WORKSPACE}/src/uno-ci/resource/rti/rti_license.dat" >> ${GITHUB_ENV}
-        if: inputs.uno-middleware == 'uno_middleware_connext'
-
-      # Run unit tests
       - name: Run unit tests
         if: inputs.run-unit
         run: |
-          . venv/bin/activate
-          cd src/uno
-          # TODO(asorbini) run tests inside a container
-          pytest -s -k "not test_integration" -v --junit-xml=${GITHUB_WORKSPACE}/test/tests-unit.xml
-        env:
-          UNO_MIDDLEWARE: ${{ inputs.uno-middleware }}
-          VERBOSITY: activity
-          DEBUG: y
+          docker run --rm \
+            -v $(pwd):/workspace \
+            -w /workspace/src/uno \
+            -e RTI_LICENSE_FILE=/workspace/rti_license.dat \
+            -e VERBOSITY=activity \
+            -e DEBUG=y \
+            ${{ steps.config.outputs.TEST_IMAGE }} \
+            pytest -s -v --junit-xml=/workspace/test/tests-unit.xml \
+              test/unit
 
-      # Run integration tests
       - name: Run integration tests
         if: inputs.run-integration
         run: |
+          python3 -m venv venv
           . venv/bin/activate
+          pip3 install src/uno
+          pip3 install src/uno/plugins/${{ inputs.uno-middleware }}
           cd src/uno
-          pytest -s -k test_integration -v --junit-xml=${GITHUB_WORKSPACE}/test/tests-integration.xml
+          pytest -s -v \
+            --junit-xml=test/tests-integration.xml \
+            test/integration
         env:
-          UNO_MIDDLEWARE: ${{ inputs.uno-middleware }}
-          VERBOSITY: activity
-          DEBUG: y
+          RTI_LICENSE_FILE: ${{ github.workspace }}/rti_license.dat
 
-      # Generate a valid id token from inputs.base-image
-      - run: |
-          echo BASE_IMAGE=${{ inputs.base-image }} | tr : _ >> ${GITHUB_ENV}
-        if: ${{ always() }}
-
-      # Always collect and upload available test results
       - name: Upload test results
         uses: actions/upload-artifact@v4
         with:
-          name: tests-${{ env.BASE_IMAGE }}-${{ inputs.uno-middleware }}
+          name: ${{ steps.config.outputs.TEST_ARTIFACT }}
           path: test/tests-*.xml
         if: ${{ always() }}
 
