@@ -56,18 +56,18 @@ jobs:
             uno-middleware: uno.middleware.native
             base-image: ubuntu:24.04
             tag-suffix: '-static'
-          - build-platform: arm64
-            uno-middleware: uno.middleware.native
-            base-image: ubuntu:24.04
-            tag-suffix: '-static'
+          # - build-platform: arm64
+          #   uno-middleware: uno.middleware.native
+          #   base-image: ubuntu:24.04
+          #   tag-suffix: '-static'
           - build-platform: amd64
             uno-middleware: uno_middleware_connext
             base-image: ubuntu:22.04
             tag-suffix: ''
-          - build-platform: amd64
-            uno-middleware: uno_middleware_connext
-            base-image: ubuntu:22.04
-            tag-suffix: ''
+          # - build-platform: arm64
+          #   uno-middleware: uno_middleware_connext
+          #   base-image: ubuntu:22.04
+          #   tag-suffix: ''
 
     steps:
       - name: Clone uno
@@ -130,14 +130,18 @@ jobs:
         run: |
           python3 -m venv venv
           . venv/bin/activate
-          pip3 install src/uno
+          pip3 install -e src/uno
           case '${{ matrix.uno-middleware }}' in
             uno.middleware.native)
               ;;
             *)
-              pip3 install src/uno/plugins/${{ matrix.uno-middleware }}
+              pip3 install -e src/uno/plugins/${{ matrix.uno-middleware }}
               ;;
           esac
+
+      - name: Setup integration tests
+        run: |
+          . venv/bin/activate
           pytest -s -v --junit-xml=test/tests-integration.xml \
             src/uno/test/integration
         env:

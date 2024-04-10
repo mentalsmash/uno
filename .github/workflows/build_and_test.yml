@@ -59,7 +59,7 @@ jobs:
               ;;
           esac
           test_date=$(date +%Y%m%d-%H%M%S)
-          echo TEST_ARTIFACT=uno-${middleware_label}-${image_label}__${{ inputs.build-platform }}-${base_image}__${test_date} >> ${GITHUB_OUTPUT}
+          echo TEST_ARTIFACT=uno-${middleware_label}-${image_version}__${{ inputs.build-platform }}-${base_image}__${test_date} >> ${GITHUB_OUTPUT}
           echo TEST_IMAGE=${{ github.repository }}-test:latest >> ${GITHUB_OUTPUT}
 
       - name: Clone build support files
@@ -125,7 +125,7 @@ jobs:
             pytest -s -v --junit-xml=test/tests-unit.xml \
               src/uno/test/unit
 
-      - name: Run integration tests
+      - name: Setup integration tests
         if: inputs.run-integration
         run: |
           python3 -m venv venv
@@ -141,8 +141,12 @@ jobs:
               pip3 install -e src/uno/plugins/${{ inputs.uno-middleware }}
               ;;
           esac
-          pytest -s -v \
-            --junit-xml=test/tests-integration.xml \
+
+      - name: Run integration tests
+        if: inputs.run-integration
+        run: |
+          . venv/bin/activate
+          pytest -s -v --junit-xml=test/tests-integration.xml \
             src/uno/test/integration
         env:
           RTI_LICENSE_FILE: ${{ github.workspace }}/rti_license.dat
