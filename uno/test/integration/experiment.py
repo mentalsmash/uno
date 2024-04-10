@@ -353,9 +353,11 @@ class Experiment:
             *([verbose_flag] if verbose_flag else []),
       ], debug=True, **exec_args)
     finally:
-      self.restore_registry_permissions(
-          registry_root=self.registry_root,
-          image=self.config["image"])
+      pass
+      # # permissions are already restored by the
+      # self.restore_registry_permissions(
+      #     registry_root=self.registry_root,
+      #     image=self.config["image"])
 
 
 

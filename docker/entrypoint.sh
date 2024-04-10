@@ -55,7 +55,7 @@ sync)
 # Validate arguments and skip to bottom for chown
 chown)
   if  [ -z "${HOST_UID}" -o -z "${HOST_GID}" ]; then
-    printf -- "ERROR: action 'chown' requires variables HOST_UID and HOST_GID" >> &2
+    printf -- "ERROR: action 'chown' requires variables HOST_UID and HOST_GID"
     exit 1
   fi
   ;;
