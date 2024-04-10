@@ -70,7 +70,6 @@ jobs:
             tag-suffix: ''
 
     steps:
-      # Clone uno's main repository
       - name: Clone uno
         uses: actions/checkout@v4
         with:
