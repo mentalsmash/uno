@@ -104,7 +104,7 @@ jobs:
         with:
           file: src/uno/docker/Dockerfile
           tags: ${{ steps.config.outputs.TEST_IMAGE }}
-          push: true
+          load: true
           context: src/uno
           platforms: linux/${{ inputs.build-platform }}
           build-args: |
