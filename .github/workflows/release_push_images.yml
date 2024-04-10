@@ -56,9 +56,10 @@ jobs:
           # Generate Docker tags configuration
           (
             echo 'DOCKER_TAGS<<EOF'
-            [ ${{ github.ref_type }} = branch ] ||
+            if [ ${{ github.ref_type }} = branch ]; then
               # Add "nightly" tag with higher priority than type=ref
               echo 'type=raw,value=nightly${{ matrix.tag-suffix }},priority=601'
+            fi
             echo 'type=ref,event=branch'
             echo 'type=semver,pattern={{version}}'
             echo 'type=semver,pattern={{major}}.{{minor}}'
@@ -108,15 +109,6 @@ jobs:
           build-args: |
             BASE_IMAGE=${{ matrix.base-image }}
             UNO_MIDDLEWARE=${{ matrix.uno-middleware }}
-
-      - name: Generate image name
-        id: image-name
-        run: |
-          echo "VALUE=${{ github.repository }}:${{ github.ref_type == 'tag' && 'latest' || 'nightly' }}${{ matrix.tag-suffix }}" >> ${GITHUB_OUTPUT}
-      
-      - name: Push image to Docker Hub
-        run: |
-          docker push ${{ steps.image-name.outputs.VALUE }}
 
   update_badges_latest:
     needs: push_images
