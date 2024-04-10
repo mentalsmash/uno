@@ -130,7 +130,8 @@ jobs:
         run: |
           python3 -m venv venv
           . venv/bin/activate
-          pip3 install -e src/uno
+          pip3 install -U pip setuptools
+          pip3 install -U -e src/uno
           case '${{ inputs.uno-middleware }}' in
             uno.middleware.native)
               ;;
@@ -138,7 +139,7 @@ jobs:
               if [ '${{ inputs.uno-middleware }}/${{ inputs.build-platform}}' == uno_middleware_connext/arm64 ]; then
                 pip3 install src/uno-ci-arm/resource/rti/rti.connext-7.1.0-cp310-cp310-linux_aarch64.whl
               fi
-              pip3 install -e src/uno/plugins/${{ inputs.uno-middleware }}
+              pip3 install -U -e src/uno/plugins/${{ inputs.uno-middleware }}
               ;;
           esac
 

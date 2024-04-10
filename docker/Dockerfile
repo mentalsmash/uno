@@ -17,7 +17,7 @@ ARG DEV=
 # Install system dependencies and perform basic environment setup
 ###############################################################################
 RUN set -xe; \
-    export DEBIAN_FRONTEND="noninteractive"; \
+    export DEBIAN_FRONTEND=noninteractive; \
     apt-get update; \
     # Make sure the image has updated packages
     apt-get upgrade -y --no-install-recommends; \
@@ -116,7 +116,7 @@ RUN set -xe; \
     rm -f ${UNO_DIR}/*.whl; \
     # reinstall uno and the middleware in "editable" mode
     # so that they may be overwritten from the host (for development)
-    pip3 install $([ -z "${DEV}" ] || printf -- -e ) \
+    pip3 install -U $([ -z "${DEV}" ] || printf -- -e ) \
       ${UNO_DIR}; \
     # Install uno middleware
     case "${UNO_MIDDLEWARE}" in \
@@ -125,7 +125,7 @@ RUN set -xe; \
         ;; \
       *) \
         # Other middleware plugins must be installed
-        pip3 install $([ -z "${DEV}" ] || printf -- -e ) \
+        pip3 install -U $([ -z "${DEV}" ] || printf -- -e ) \
           ${UNO_PLUGINS_DIR}/${UNO_MIDDLEWARE}; \
         ;; \
     esac; \

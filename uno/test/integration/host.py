@@ -316,7 +316,7 @@ class Host:
         "-v", f"{self.experiment.test_dir}:{self.experiment.RunnerExperimentDir}",
         *(["-v", f"{self.experiment_uvn_dir}:/uvn"] if self.role in (HostRole.REGISTRY, HostRole.CELL) else []),
         *(["-v", f"{self.cell_package}:/package.uvn-agent"] if self.role == HostRole.CELL else []),
-        ([
+        *([
           "-v", f"{self.experiment.UnoDir}:/uno",
           "-e", f"UNO_MIDDLEWARE={self.experiment.registry.middleware.plugin}",
         ] if self.experiment.Dev else []),
