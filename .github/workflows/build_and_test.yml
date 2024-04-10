@@ -117,13 +117,13 @@ jobs:
         run: |
           docker run --rm \
             -v $(pwd):/workspace \
-            -w /workspace/src/uno \
+            -w /workspace \
             -e RTI_LICENSE_FILE=/workspace/rti_license.dat \
             -e VERBOSITY=activity \
             -e DEBUG=y \
             ${{ steps.config.outputs.TEST_IMAGE }} \
-            pytest -s -v --junit-xml=/workspace/test/tests-unit.xml \
-              test/unit
+            pytest -s -v --junit-xml=test/tests-unit.xml \
+              src/uno/test/unit
 
       - name: Run integration tests
         if: inputs.run-integration
@@ -131,11 +131,19 @@ jobs:
           python3 -m venv venv
           . venv/bin/activate
           pip3 install src/uno
-          pip3 install src/uno/plugins/${{ inputs.uno-middleware }}
-          cd src/uno
+          case '${{ inputs.uno-middleware }}' in
+            uno.middleware.native)
+              ;;
+            *)
+              if [ '${{ inputs.uno-middleware }}/${{ inputs.build-platform}}' == uno_middleware_connext/arm64 ]; then
+                pip3 install src/uno-ci-arm/resource/rti/rti.connext-7.1.0-cp310-cp310-linux_aarch64.whl
+              fi
+              pip3 install src/uno/plugins/${{ inputs.uno-middleware }}
+              ;;
+          esac
           pytest -s -v \
             --junit-xml=test/tests-integration.xml \
-            test/integration
+            src/uno/test/integration
         env:
           RTI_LICENSE_FILE: ${{ github.workspace }}/rti_license.dat
 

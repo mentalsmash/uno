@@ -118,24 +118,28 @@ jobs:
         run: |
           docker run --rm \
             -v $(pwd):/workspace \
-            -w /workspace/src/uno \
+            -w /workspace \
             -e RTI_LICENSE_FILE=/workspace/rti_license.dat \
             -e VERBOSITY=activity \
             -e DEBUG=y \
             ${{ steps.config.outputs.TEST_IMAGE }} \
-            pytest -s -v --junit-xml=/workspace/test/tests-unit.xml \
-              test/unit
+            pytest -s -v --junit-xml=test/tests-unit.xml \
+              src/uno/test/unit
 
       - name: Run integration tests
         run: |
           python3 -m venv venv
           . venv/bin/activate
           pip3 install src/uno
-          pip3 install src/uno/plugins/${{ matrix.uno-middleware }}
-          cd src/uno
-          pytest -s -v \
-            --junit-xml=test/tests-integration.xml \
-            test/integration
+          case '${{ matrix.uno-middleware }}' in
+            uno.middleware.native)
+              ;;
+            *)
+              pip3 install src/uno/plugins/${{ matrix.uno-middleware }}
+              ;;
+          esac
+          pytest -s -v --junit-xml=test/tests-integration.xml \
+            src/uno/test/integration
         env:
           RTI_LICENSE_FILE: ${{ github.workspace }}/rti_license.dat
 
