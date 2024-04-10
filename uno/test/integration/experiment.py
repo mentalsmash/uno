@@ -64,6 +64,7 @@ def agent_test(wrapped: TestFunction) -> TestFunction:
 _UnoMiddleware, _UnoMiddlewareModule = Middleware.load_module()
 
 class Experiment:
+  Dev = bool(os.environ.get("DEV", False))
   InsideTestRunner = bool(os.environ.get("UNO_TEST_RUNNER", False))
   BuiltImages = set()
   UnoDir = _uno_dir
@@ -331,7 +332,10 @@ class Experiment:
           "-v", f"{self.root}:/experiment",
           "-v", f"{self.test_dir}:{self.RunnerExperimentDir}",
           "-v", f"{self.registry_root}:/uvn",
-          "-e", f"UNO_MIDDLEWARE={self.UnoMiddleware}",
+          *([
+            "-v", f"{self.UnoDir}:/uno",
+            "-e", f"UNO_MIDDLEWARE={self.UnoMiddleware}",
+          ] if self.Dev else []),
           *([
             "-v", f"{self.rti_license}:/rti_license.dat",
             "-e", "RTI_LICENSE_FILE=/rti_license.dat",

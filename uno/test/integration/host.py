@@ -284,7 +284,7 @@ class Host:
 
 
   def create(self) -> None:
-    # The uno package must have been imported from a cloned repository
+    # # The uno package must have been imported from a cloned repository on the host
     assert((self.experiment.UnoDir / ".git").is_dir())
     assert(not self.experiment.InsideTestRunner)
     # Make sure the host doesn't exist, then create it
@@ -316,7 +316,10 @@ class Host:
         "-v", f"{self.experiment.test_dir}:{self.experiment.RunnerExperimentDir}",
         *(["-v", f"{self.experiment_uvn_dir}:/uvn"] if self.role in (HostRole.REGISTRY, HostRole.CELL) else []),
         *(["-v", f"{self.cell_package}:/package.uvn-agent"] if self.role == HostRole.CELL else []),
-        "-e", f"UNO_MIDDLEWARE={self.experiment.registry.middleware.plugin}",
+        ([
+          "-v", f"{self.experiment.UnoDir}:/uno",
+          "-e", f"UNO_MIDDLEWARE={self.experiment.registry.middleware.plugin}",
+        ] if self.experiment.Dev else []),
         "-e", "UNO_TEST_RUNNER=y",
         *(["-e", f"VERBOSITY={self.experiment.Verbosity}"] if self.experiment.Verbosity else []),
         self.image,
@@ -336,7 +339,6 @@ class Host:
 
   def start(self, wait: bool=False) -> subprocess.Popen:
     self.log.warning("starting container")
-    # exec_command(["docker", "start", self.container_name])
     result = subprocess.Popen(["docker", "start", self.container_name])
     if wait:
       self.wait_ready()
@@ -347,7 +349,7 @@ class Host:
   def stop(self) -> subprocess.Popen:
     self.log.debug("stopping container")
     return subprocess.Popen(["docker", "stop", "-s", "SIGINT", "-t", str(self.experiment.config["container_stop_timeout"]), self.container_name])
-    # self.log.activity("stopped")
+
 
   def wait_stop(self, stop_process: subprocess.Popen, timeout: int=30) -> None:
     rc = stop_process.wait(timeout)
