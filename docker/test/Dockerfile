@@ -2,8 +2,12 @@
 ARG BASE_IMAGE="mentalsmash/uno:latest"
 FROM ${BASE_IMAGE}
 
+LABEL org.opencontainers.image.source=https://github.com/mentalsmash/uno
+LABEL org.opencontainers.image.licenses=AGPL-3.0
+LABEL org.opencontainers.image.vendor=mentalsmash.org
+
 # Name of non-root user created for testing
-ARG USER="uno"
+ARG TEST_USER="uno"
 
 # Enable DEV mode
 ARG DEV=
@@ -36,13 +40,13 @@ RUN set -xe; \
     fi; \
     apt-get clean; \
     # create a non-root user and give it passwordless sudo
-    adduser ${USER} --shell /bin/bash; \
-    echo ${USER} ALL=\(root\) NOPASSWD:ALL > /etc/sudoers.d/${USER}; \
-    chmod 0440 /etc/sudoers.d/${USER}; \
-    adduser ${USER} sudo; \
+    adduser ${TEST_USER} --shell /bin/bash; \
+    echo ${TEST_USER} ALL=\(root\) NOPASSWD:ALL > /etc/sudoers.d/${TEST_USER}; \
+    chmod 0440 /etc/sudoers.d/${TEST_USER}; \
+    adduser ${TEST_USER} sudo; \
     # Initialize ~/.ssh
-    mkdir -p /home/${USER}/.ssh; \
-    touch /home/${USER}/.ssh/authorized_keys; \
+    mkdir -p /home/${TEST_USER}/.ssh; \
+    touch /home/${TEST_USER}/.ssh/authorized_keys; \
     # reinstall uno and the middleware in "editable" mode
     if [ -n "${DEV}" ]; then \
       pip3 install -e ${UNO_DIR}; \
@@ -55,11 +59,11 @@ RUN set -xe; \
       esac; \  
     fi; \
     # Copy private and public key
-    cp docker/dev/test_key.ed25519.key      /home/${USER}/.ssh/id_ed25519; \
-    cp docker/dev/test_key.ed25519.key.pub  /home/${USER}/.ssh/id_ed25519.pub; \
+    cp docker/dev/test_key.ed25519.key      /home/${TEST_USER}/.ssh/id_ed25519; \
+    cp docker/dev/test_key.ed25519.key.pub  /home/${TEST_USER}/.ssh/id_ed25519.pub; \
     # Adjust private key's permissions
-    chown -R ${USER}:${USER} /home/${USER}/.ssh; \
-    chmod 600 /home/${USER}/.ssh/id_ed25519; \
+    chown -R ${TEST_USER}:${TEST_USER} /home/${TEST_USER}/.ssh; \
+    chmod 600 /home/${TEST_USER}/.ssh/id_ed25519; \
     # Enable key for SSH login
-    cat ${key}.pub >> /home/${USER}/.ssh/authorized_keys
+    cat /home/${TEST_USER}/.ssh/id_ed25519.pub >> /home/${TEST_USER}/.ssh/authorized_keys
 

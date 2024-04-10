@@ -106,7 +106,7 @@ jobs:
       - name: Build tester image
         uses: docker/build-push-action@v5
         with:
-          file: src/uno/docker/uno-test.dockerfile
+          file: src/uno/docker/test/Dockerfile
           tags: ${{ steps.config.outputs.TEST_IMAGE }}
           load: true
           context: src/uno

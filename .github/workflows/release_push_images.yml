@@ -87,7 +87,7 @@ jobs:
       - name: Build images
         uses: docker/build-push-action@v5
         with:
-          file: src/uno/docker/uno.dockerfile
+          file: src/uno/docker/Dockerfile
           tags: ${{ steps.meta.outputs.tags }}
           labels: ${{ steps.meta.outputs.labels }}
           push: true
