@@ -65,7 +65,10 @@ jobs:
   update_badges:
     runs-on: ubuntu-latest
     steps:
-    - uses: actions/checkout@v4
+    - name: Clone uno
+      uses: actions/checkout@v4
+      with:
+        path: src/uno
 
     - name: Generate derived variables
       id: vars

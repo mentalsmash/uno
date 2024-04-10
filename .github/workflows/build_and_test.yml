@@ -48,7 +48,7 @@ jobs:
             tag)
               ;;
             *)
-              sha_short=$(git rev-parse --short HEAD)
+              sha_short=$(cd src/uno && git rev-parse --short HEAD)
               image_version=${{github.ref_name}}@${sha_short}
               ;;
           esac
@@ -74,13 +74,12 @@ jobs:
           path: src/uno-ci-arm
         if: inputs.build-platform == 'arm64' && inputs.uno-middleware == 'uno_middleware_connext'
       
-      # Clone uno's main repository
       - name: Clone uno
         uses: actions/checkout@v4
         with:
           path: src/uno
+          submodules: true
 
-      # Build tester docker image
       - name: Set up Docker Buildx
         uses: docker/setup-buildx-action@v3
         with:
