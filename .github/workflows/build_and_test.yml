@@ -122,7 +122,7 @@ jobs:
             -e VERBOSITY=activity \
             -e DEBUG=y \
             ${{ steps.config.outputs.TEST_IMAGE }} \
-            pytest -s -v --junit-xml=test/tests-unit.xml \
+            pytest -s -v --junit-xml=/workspace/test/tests-unit.xml \
               src/uno/test/unit
 
       - name: Setup integration tests
@@ -147,7 +147,7 @@ jobs:
         if: inputs.run-integration
         run: |
           . venv/bin/activate
-          pytest -s -v --junit-xml=test/tests-integration.xml \
+          pytest -s -v --junit-xml=$(pwd)/test/tests-integration.xml \
             src/uno/test/integration
         env:
           RTI_LICENSE_FILE: ${{ github.workspace }}/rti_license.dat
