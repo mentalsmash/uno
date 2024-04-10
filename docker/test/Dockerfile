@@ -44,9 +44,6 @@ RUN set -xe; \
     echo ${TEST_USER} ALL=\(root\) NOPASSWD:ALL > /etc/sudoers.d/${TEST_USER}; \
     chmod 0440 /etc/sudoers.d/${TEST_USER}; \
     adduser ${TEST_USER} sudo; \
-    # Initialize ~/.ssh
-    mkdir -p /home/${TEST_USER}/.ssh; \
-    touch /home/${TEST_USER}/.ssh/authorized_keys; \
     # reinstall uno and the middleware in "editable" mode
     if [ -n "${DEV}" ]; then \
       pip3 install -e ${UNO_DIR}; \
@@ -58,6 +55,9 @@ RUN set -xe; \
           ;; \
       esac; \  
     fi; \
+    # Initialize ~/.ssh
+    mkdir -p /home/${TEST_USER}/.ssh; \
+    touch /home/${TEST_USER}/.ssh/authorized_keys; \
     # Copy private and public key
     cp docker/dev/test_key.ed25519.key      /home/${TEST_USER}/.ssh/id_ed25519; \
     cp docker/dev/test_key.ed25519.key.pub  /home/${TEST_USER}/.ssh/id_ed25519.pub; \

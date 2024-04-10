@@ -139,8 +139,6 @@ RUN set -xe; \
 ###############################################################################
 RUN set -xe; \
     if [ -n "${TEST}${DEV}" ]; then \
-      cp ${UNO_DIR}/docker/dev/test_key.ed25519.key      /home/${TEST_USER}/.ssh/id_ed25519; \
-      cp ${UNO_DIR}/docker/dev/test_key.ed25519.key.pub  /home/${TEST_USER}/.ssh/id_ed25519.pub; \
       adduser ${TEST_USER} --shell /bin/bash; \
       echo ${TEST_USER} ALL=\(root\) NOPASSWD:ALL > /etc/sudoers.d/${TEST_USER}; \
       chmod 0440 /etc/sudoers.d/${TEST_USER}; \
@@ -148,6 +146,8 @@ RUN set -xe; \
       # Initialize ~/.ssh
       mkdir -p /home/${TEST_USER}/.ssh; \
       touch /home/${TEST_USER}/.ssh/authorized_keys; \
+      cp ${UNO_DIR}/docker/dev/test_key.ed25519.key      /home/${TEST_USER}/.ssh/id_ed25519; \
+      cp ${UNO_DIR}/docker/dev/test_key.ed25519.key.pub  /home/${TEST_USER}/.ssh/id_ed25519.pub; \
       # Adjust private key's permissions
       chown -R ${TEST_USER}:${TEST_USER} /home/${TEST_USER}/.ssh; \
       chmod 600 /home/${TEST_USER}/.ssh/id_ed25519; \
