@@ -57,9 +57,10 @@ jobs:
     strategy:
       matrix:
         platform: [amd64, arm64]
+        image-type: [default, static]
     uses: ./.github/workflows/release_image_test.yml
     with:
       tag: ${{github.repository}}:${{ needs.check-trigger.outputs.IMAGE_TAG }}
       platform: ${{matrix.platform}}
+      image-type: ${{matrix.image-type}}
 
-    

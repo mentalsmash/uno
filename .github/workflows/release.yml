@@ -229,7 +229,7 @@ jobs:
         auth: ${{ secrets.GIST_UPDATE_TOKEN }}
         gistID: "fb644ccb3cbb57b2636f9eca808b9931"
         filename: uno-badge-latest-release.json
-        label: latest release
+        label: Latest
         message: ${{ steps.badge_cfg.outputs.MESSAGE }}
         color: ${{ steps.badge_cfg.outputs.COLOR }}
 

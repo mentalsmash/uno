@@ -24,7 +24,7 @@ an agent in each LAN:
 
 | Release | Nightly |
 |:-------:|:-------:|
-|[![latest release](https://img.shields.io/endpoint?url=https://gist.githubusercontent.com/asorbini/fb644ccb3cbb57b2636f9eca808b9931/raw/uno-badge-latest-release.json)](https://github.com/mentalsmash/uno/actions/workflows/ci-release.yml)|[![nightly](https://github.com/mentalsmash/uno/actions/workflows/ci-nightly.yml/badge.svg?branch=master)](https://github.com/mentalsmash/uno/actions/workflows/ci-nightly.yml)|
+|[![latest release](https://img.shields.io/endpoint?url=https://gist.githubusercontent.com/asorbini/fb644ccb3cbb57b2636f9eca808b9931/raw/uno-badge-latest-release.json)](https://github.com/mentalsmash/uno/actions/workflows/release.yml)|[![nightly](https://github.com/mentalsmash/uno/actions/workflows/release.yml/badge.svg?branch=master)](https://github.com/mentalsmash/uno/actions/workflows/release.yml?query=branch%3Amaster)|
 
 | Docker Image | Version | Base Image |
 |:------------:|:-------:|:----------:|
