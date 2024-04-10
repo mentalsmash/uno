@@ -42,5 +42,5 @@ jobs:
 
   push:
     needs: build
-    uses: ./.github/workflows/release_push_images.yml
+    uses: ./.github/workflows/release_images_push.yml
     secrets: inherit
