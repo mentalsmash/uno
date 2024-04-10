@@ -1,4 +1,4 @@
-name: Release Images (Push)
+name: Release (Push Images)
 run-name: Push ${{inputs.image-type}} ${{github.ref_type == 'branch' && 'nightly' || 'release'}} images from ${{github.ref_type}} ${{github.ref_name}}${{github.ref_type == 'branch' && '@' || ''}}${{github.ref_type == 'branch' && github.sha || ''}}
 
 on:
