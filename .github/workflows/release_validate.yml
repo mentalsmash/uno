@@ -51,8 +51,6 @@ jobs:
     runs-on: ubuntu-latest
     strategy:
       matrix:
-        build-platform: [amd64, arm64]
-        uno-middleware: []
         include:
           - build-platform: amd64
             uno-middleware: uno.middleware.native
