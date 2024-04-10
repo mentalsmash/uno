@@ -1,5 +1,5 @@
 name: Release Images (Push)
-run-name: Push ${{inputs.image-type}} ${{github.ref_type == 'branch' && 'nightly' || 'release'}} images from ${{github.ref_type}} ${{github.ref_name}}${{github.ref_type == 'branch' && ' @ ' || ''}}${{github.ref_type == 'branch' && github.sha || ''}}
+run-name: Push ${{inputs.image-type}} ${{github.ref_type == 'branch' && 'nightly' || 'release'}} images from ${{github.ref_type}} ${{github.ref_name}}${{github.ref_type == 'branch' && '@' || ''}}${{github.ref_type == 'branch' && github.sha || ''}}
 
 on:
   workflow_call:

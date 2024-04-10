@@ -1,5 +1,5 @@
 name: Release Image Test
-run-name: Test ${{inputs.platform}} ${{github.ref_type == 'branch' && 'nightly' || 'release'}} image from ${{github.ref_type}} ${{github.ref_name}}${{github.ref_type == 'branch' && ' @ ' || ''}}${{github.ref_type == 'branch' && github.sha || ''}}
+run-name: Test ${{inputs.platform}} ${{github.ref_type == 'branch' && 'nightly' || 'release'}} image from ${{github.ref_type}} ${{github.ref_name}}${{github.ref_type == 'branch' && '@' || ''}}${{github.ref_type == 'branch' && github.sha || ''}}
 
 on:
   workflow_dispatch:
