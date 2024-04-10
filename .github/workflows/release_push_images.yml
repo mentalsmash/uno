@@ -1,4 +1,5 @@
 name: Release Images
+run-name: Release ${{github.ref_type == 'tag' && 'release' || 'nightly' }} images from ${{github.ref_type}} ${{github.ref_name}}
 
 on:
   workflow_dispatch:
@@ -41,14 +42,29 @@ jobs:
           path: src/uno-ci-arm
         if: matrix.uno-middleware == 'uno_middleware_connext'
 
-      - name: Configure ARM support
+      - name: Configure build
+        id: config
         run: |
+          # Configure ARM support
           case '${{ matrix.uno-middleware }}' in
             uno_middleware_connext)
               cp src/uno-ci-arm/resource/rti/rti.connext-7.1.0-cp310-cp310-linux_aarch64.whl \
                  src/uno
               ;;
           esac
+
+          # Generate Docker tags configuration
+          (
+            echo 'DOCKER_TAGS<<EOF'
+            [ ${{ github.ref_type }} = branch ] ||
+              # Add "nightly" tag with higher priority than type=ref
+              echo 'type=raw,value=nightly${{ matrix.tag-suffix }},priority=601'
+            echo 'type=ref,event=branch'
+            echo 'type=semver,pattern={{version}}'
+            echo 'type=semver,pattern={{major}}.{{minor}}'
+            echo 'type=semver,pattern={{major}}'
+            echo EOF
+          ) >> $GITHUB_OUTPUT
 
       - name: Set up QEMU
         uses: docker/setup-qemu-action@v3
@@ -63,12 +79,7 @@ jobs:
           images: |
             ${{ github.repository }}
             ghcr.io/${{ github.repository }}
-          tags: |
-            type=ref,event=branch
-            type=raw,value=nightly${{ matrix.tag-suffix }},event=branch
-            type=semver,pattern={{version}}
-            type=semver,pattern={{major}}.{{minor}}
-            type=semver,pattern={{major}}
+          tags: ${{ steps.config.outputs.DOCKER_TAGS }}
           flavor: |
             suffix=${{ matrix.tag-suffix }},onlatest=true
 

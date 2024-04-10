@@ -1,4 +1,5 @@
 name: Update image badges
+run-name: Update badges ${{inputs.tag-default}} and ${{inputs.tag-static}}
 
 concurrency:
   group: update-badges-${{ inputs.tag-default }}-${{ inputs.tag-static }}-${{ inputs.badge-default-version || 'none' }}-${{ inputs.badge-default-base || 'none' }}-${{ inputs.badge-static-version || 'none' }}-${{ inputs.badge-static-base || 'none' }}
@@ -27,7 +28,6 @@ on:
         type: string
       badge-static-base:
         type: string
-
 
   workflow_dispatch:
     inputs:
