@@ -1,5 +1,5 @@
 name: Release Images
-run-name: Release ${{github.ref_type == 'tag' && 'release' || 'nightly' }} images from ${{github.ref_type}} ${{github.ref_name}}
+run-name: Release ${{github.ref_type == 'tag' && 'stable' || 'nightly' }} images from ${{github.ref_type}} ${{github.ref_name}}
 
 on:
   workflow_dispatch:

@@ -322,6 +322,10 @@ class Host:
         ] if self.experiment.Dev else []),
         "-e", "UNO_TEST_RUNNER=y",
         *(["-e", f"VERBOSITY={self.experiment.Verbosity}"] if self.experiment.Verbosity else []),
+        "-e", f"CHOWN=/experiment:{self.experiment.RunnerExperimentDir}" + (
+          "" if not self.experiment.Dev else ":/uno"),
+        "-e", f"HOST_UID={os.getuid()}",
+        "-e", f"HOST_GID={os.getgid()}",
         self.image,
         "/uno/uno/test/integration/runner.py",
           "host",

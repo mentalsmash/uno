@@ -295,25 +295,29 @@ class Experiment:
 
 
   @classmethod
-  def restore_registry_permissions(cls, registry_root: Path|None=None, test_dir: Path|None=None, experiment: "Experiment|None"=None, image: str="mentalsmash/uno:dev") -> None:
+  def restore_registry_permissions(cls, registry_root: Path|None=None, test_dir: Path|None=None, experiment_root: Path|None=None, experiment: "Experiment|None"=None, image: str="mentalsmash/uno:dev") -> None:
     if experiment is not None:
       registry_root = experiment.registry.root
+      experiment_root = experiment.root
       test_dir = experiment.test_dir
       image = experiment.config["image"]
-    do_update = (
-      (registry_root and registry_root.exists())
-      or (test_dir and test_dir.exists())
-    )
-    # Return ownership of registry directory to current user
-    if do_update:
+    # Return ownership of experiment directory to current user
+    restore = {}
+    if registry_root:
+      restore["/registry"] = registry_root
+    if test_dir:
+      restore["/experiment-tmp"] = test_dir
+    if experiment_root:
+      restore["/experiment"] = experiment_root
+    if restore:
       exec_command([
         "docker", "run", "--rm",
-          *(["-v", f"{registry_root}:/registry"] if registry_root else []),
-          *(["-v", f"{test_dir}:/test_dir"] if test_dir else []),
+          *(tkn for vol, hvol in restore.items() for tkn in ("-v", f"{hvol}:{vol}")),
+          "-e", f"CHOWN={':'.join(restore.keys())}",
+          "-e", f"HOST_UID={os.getuid()}",
+          "-e", f"HOST_GID={os.getgid()}",
           image,
-          "chown", "-R", f"{os.getuid()}:{os.getgid()}",
-            *(["/registry"] if registry_root else []),
-            *(["/test_dir"] if test_dir else []),
+          "chown",
       ])
 
 
@@ -340,6 +344,9 @@ class Experiment:
             "-v", f"{self.rti_license}:/rti_license.dat",
             "-e", "RTI_LICENSE_FILE=/rti_license.dat",
           ] if self.rti_license else []),
+          "-e", f"CHOWN=/experiment:{self.RunnerExperimentDir}",
+          "-e", f"HOST_UID={os.getuid()}",
+          "-e", f"HOST_GID={os.getgid()}",
           "-w", "/uvn",
           self.config["image"],
           "uno", *args,

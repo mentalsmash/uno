@@ -139,6 +139,9 @@ jobs:
             -e RTI_LICENSE_FILE=/workspace/rti_license.dat \
             -e VERBOSITY=activity \
             -e DEBUG=y \
+            -e CHOWN=/workspace \
+            -e HOST_UID=$(id -u) \
+            -e HOST_GID=$(id -g) \
             ${{ steps.config.outputs.TEST_IMAGE }} \
             pytest -s -v --junit-xml=test-results/uno-test-results-unit-${{ steps.config.outputs.BUILD_ID }}.xml \
               src/uno/test/unit
