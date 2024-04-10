@@ -1,0 +1,202 @@
+name: Release Image Test
+run-name: Test ${{inputs.platform}} ${{github.ref_type == 'branch' && 'nightly' || 'release'}} image from ${{github.ref_type}} ${{github.ref_name}}${{github.ref_type == 'branch' && ' @ ' || ''}}${{github.ref_type == 'branch' && github.sha || ''}}
+
+on:
+  workflow_dispatch:
+    inputs:
+      tag:
+        description: Image to test
+        type: string
+        required: true
+
+      platform:
+        description: Image Architecture
+        type: choice
+        options:
+          - amd64
+          - arm64
+  
+      image-type:
+        description: Image Type
+        type: choice
+        options:
+          - default
+          - static
+        default: default
+
+  workflow_call:
+    inputs:
+      tag:
+        type: string
+        required: True
+      platform:
+        type: string
+        required: true
+      image-type:
+        type: string
+        required: true
+
+
+concurrency:
+  group: release-test-image-${{ github.ref }}-${{ inputs.tag}}-${{ inputs.platform }}
+  cancel-in-progress: true
+
+
+permissions:
+  contents: read
+  packages: read
+
+jobs:
+  test_config:
+    runs-on: ubuntu-latest
+    outputs:
+      BUILD_TYPE: ${{ steps.config.outputs.BUILD_TYPE }}
+      TEST_ARTIFACT: ${{ steps.config.outputs.TEST_ARTIFACT }}
+      TEST_ID: ${{ steps.config.outputs.TEST_ID }}
+      TEST_IMAGE: ${{ steps.config.outputs.TEST_IMAGE }}
+      TEST_RUNNER: ${{ inputs.platform == 'amd64' && 'ubuntu-latest' || fromJson('["self-hosted", "linux", "arm64"]') }}
+      UNO_MIDDLEWARE: ${{ steps.config.outputs.UNO_MIDDLEWARE }}
+    steps:
+      - name: Clone uno
+        uses: actions/checkout@v4
+        with:
+          path: src/uno
+          submodules: true
+
+      - name: Configure test
+        id: config
+        run: |
+          case "${{ inputs.image-type}}" in
+            default)
+              uno_middleware=uno_middleware_connext
+              ;;
+            static)
+              uno_middleware=uno.middleware.native
+              ;;
+            *)
+              echo "invalid image-type: '${{inputs.image-type}}'"
+              exit 1
+          esac
+          image_tag=$(echo ${{inputs.tag}} | tr : -)
+          case "${{github.ref_type}}" in
+            branch)
+              build_type=nightly
+              sha_short=$(git rev-parse --short HEAD)
+              image_label=${image_tag}@${sha_short}
+              ;;
+            tag)
+              build_type=release
+              image_label=${image_tag}@${{github.ref_name}}
+              ;;
+          esac
+          test_id=$(date +%Y%m%d-%H%M%S)
+          test_artifact=uno-test-${image_label}-${{ inputs.platform }}__${test_id}
+          test_image=${{ github.repository }}-test:latest
+          echo (
+            echo BUILD_TYPE=${build_type}
+            echo TEST_IMAGE=${test_image}
+            echo TEST_ARTIFACT=${test_artifact}
+            echo TEST_ID=${test_id}
+            echo UNO_MIDDLEWARE=${uno_middleware}
+          ) >> ${GITHUB_OUTPUT}
+
+
+  test:
+    needs: test_config
+    runs-on: ${{ needs.test_config.outputs.TEST_RUNNER }}
+    steps:
+      - name: Clone uno
+        uses: actions/checkout@v4
+        with:
+          path: src/uno
+          submodules: true
+
+      - name: Clone support files
+        uses: actions/checkout@v4
+        with:
+          repository: mentalsmash/uno-ci
+          token: ${{ secrets.UNO_CI_PAT }}
+          ref: master
+          path: src/uno-ci
+
+      - name: Configure tester
+        id: config
+        run: |
+          cp src/uno-ci/resource/rti/rti_license.dat rti_license.dat
+          
+          # Create test results directory
+          mkdir -p test-results
+
+
+      - name: Build tester image
+        uses: docker/build-push-action@v5
+        with:
+          file: src/uno/docker/test/Dockerfile
+          tags: ${{ needs.test_config.outputs.TEST_IMAGE }}
+          load: true
+          context: src/uno
+          platforms: ${{ inputs.platform }}
+          build-args: |
+            BASE_IMAGE=${{ inputs.tag }}
+    
+      - name: Run unit tests
+        run: |
+          docker run --rm \
+            -v $(pwd):/workspace \
+            -w /workspace \
+            -e RTI_LICENSE_FILE=/workspace/rti_license.dat \
+            -e LOG_LEVEL=activity \
+            -e DEBUG=y \
+            ${{ needs.test_config.outputs.TEST_IMAGE }} \
+            pytest -s -v --junit-xml=test-results/uno-test-results-unit-${{ needs.test_config.outputs.TEST_ID }}.xml \
+              src/uno/test/unit
+
+      - name: Restore permissions changed by unit tests
+        if: ${{ always() }}
+        run: |
+          docker run --rm \
+            -v $(pwd):/workspace \
+            ${{ needs.test_config.outputs.TEST_IMAGE }} \
+            fix-root-permissions $(id -u):$(id -g) /workspace
+
+      - name: Setup integration tests
+        run: |
+          python3 -m venv venv
+          . venv/bin/activate
+          pip3 install -U pip setuptools
+          pip3 install -U -e src/uno
+          case '${{ needs.test_config.outputs.UNO_MIDDLEWARE }}' in
+            uno.middleware.native)
+              ;;
+            *)
+              pip3 install -U -e src/uno/plugins/${{ needs.test_config.outputs.UNO_MIDDLEWARE }}
+              ;;
+          esac
+
+      - name: Run integration tests
+        id: integration-tests
+        run: |
+          . venv/bin/activate
+          pytest -s -v --junit-xml=test-results/uno-test-results-integration-${{ steps.config.outputs.TEST_ID }}.xml \
+            src/uno/test/integration
+        env:
+          RTI_LICENSE_FILE: ${{ github.workspace }}/rti_license.dat
+          DEBUG: y
+          LOG_LEVEL: activity
+          UNO_MIDDLEWARE: ${{ needs.test_config.outputs.UNO_MIDDLEWARE }}
+
+      - name: Restore permissions changed by integration tests
+        if: ${{ always() }}
+        run: |
+          docker run --rm \
+            -v $(pwd):/workspace \
+            ${{ needs.test_config.outputs.TEST_IMAGE }} \
+            fix-root-permissions $(id -u):$(id -g) /workspace
+
+      # Always collect and upload available test results
+      - name: Upload test results
+        uses: actions/upload-artifact@v4
+        with:
+          name: ${{ needs.test_config.outputs.TEST_ARTIFACT }}
+          path: test-results/*
+        if: ${{ always() }}

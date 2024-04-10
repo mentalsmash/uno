@@ -1,0 +1,69 @@
+name: Release Images (Push)
+run-name: Push ${{inputs.image-type}} ${{github.ref_type == 'branch' && 'nightly' || 'release'}} images from ${{github.ref_type}} ${{github.ref_name}}${{github.ref_type == 'branch' && ' @ ' || ''}}${{github.ref_type == 'branch' && github.sha || ''}}
+
+on:
+  workflow_call:
+    inputs:
+      tag:
+        type: string
+        required: true
+      image-type:
+        type: string
+        required: true
+      tags-config:
+        type: string
+        required: true
+      flavor-config:
+        type: string
+        required: true
+
+concurrency:
+  group: release-push-images-${{ github.ref }}-${{ inputs.image-type }}
+
+permissions:
+  contents: read
+  packages: read
+
+jobs:
+  push:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Clone uno
+        uses: actions/checkout@v4
+        with:
+          path: src/uno
+          submodules: true
+      
+      - name: Extract image metadata
+        id: meta-docker
+        uses: docker/metadata-action@v5
+        with:
+          images: |
+            ${{ github.repository }}
+          tags: ${{ inputs.tags-config }}
+          flavor: ${{ inputs.flavor-config }}
+    
+      - name: Log in to GitHub
+        uses: docker/login-action@v3
+        with:
+          registry: ghcr.io
+          username: ${{ github.actor }}
+          password: ${{ secrets.GITHUB_TOKEN }}
+    
+      - name: Login to Docker Hub
+        uses: docker/login-action@v3
+        with:
+          username: ${{ secrets.DOCKERHUB_USERNAME }}
+          password: ${{ secrets.DOCKERHUB_TOKEN }}
+
+      - name: Pull images from GitHub and push them to Docker Hub
+        run: |
+          docker image pull ${{inputs.tag}}
+
+          dockerhub_images="$(echo ${{steps.meta-docker.outputs.tags}} | tr , ' ')"
+          for tag in ${dockerhub_images}; do
+            docker image tag ${{inputs.tag}} ${tag}
+          done
+          for tag in ${dockerhub_images}; do
+            docker image push ${tag}
+          done

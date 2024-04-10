@@ -1,0 +1,65 @@
+name: Release (Install Test)
+run-name: Test ${{github.ref_type == 'branch' && 'nightly' || 'stable'}} release from ${{github.ref_type}} ${{github.ref_name}}${{github.ref_type == 'branch' && ' @ ' || ''}}${{github.ref_type == 'branch' && github.sha || ''}}
+
+on:
+  workflow_dispatch:
+
+  workflow_call:
+
+  workflow_run:
+    workflows: ["Release"]
+    types: [completed]
+
+concurrency:
+  group: release-install-test-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  check-trigger:
+    if: github.event_name == 'workflow_run'
+    runs-on: ubuntu-latest
+    outputs:
+      DO_VALIDATE: ${{steps.run-config.outputs.DO_VALIDATE}}
+      IMAGE_TAG: ${{steps.run-config.outputs.IMAGE_TAG}}
+    steps:
+      - name: "Ignore non-release upstream jobs"
+        id: run-config
+        run: |
+          do_validate=y
+          case ${{github.ref_type}} in
+            tag)
+              image_tag=latest
+              ;;
+            branch)
+              case ${{github.ref_name}} in
+                master)
+                  image_tag=nightly
+                  ;;
+                *)
+                  do_validate=
+                  ;;
+              esac
+              ;;
+          esac
+          echo (
+            echo IMAGE_TAG=${image_tag}
+            echo DO_VALIDATE=${do_validate}
+          ) >> ${GITHUB_OUTPUT}
+      - name: "Fail if upstream job failed"
+        run: |
+          echo "upstream job for ${{github.ref_type}} ${{github.ref_name}} failed with conclusion '${{github.event.workflow_run.conclusion}}'"
+          exit 1
+        if: steps.run-config.outputs.DO_VALIDATE && github.event.workflow_run.conclusion != 'success'
+
+  test:
+    needs: check-trigger
+    if: needs.check-trigger.outputs.DO_VALIDATE
+    strategy:
+      matrix:
+        platform: [amd64, arm64]
+    uses: ./.github/workflows/release_image_test.yml
+    with:
+      tag: ${{github.repository}}:${{ needs.check-trigger.outputs.IMAGE_TAG }}
+      platform: ${{matrix.platform}}
+
+    
