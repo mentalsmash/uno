@@ -49,6 +49,9 @@ jobs:
     needs: check-trigger
     if: needs.check-trigger.outputs.DO_VALIDATE
     runs-on: ubuntu-latest
+    outputs:
+      TEST_ID: ${{ steps.config.outputs.TEST_ID }}
+      BUILD_TYPE: ${{ steps.config.outputs.BUILD_TYPE }}
     strategy:
       matrix:
         include:
@@ -56,14 +59,14 @@ jobs:
             uno-middleware: uno.middleware.native
             base-image: ubuntu:24.04
             tag-suffix: '-static'
-          # - build-platform: arm64
-          #   uno-middleware: uno.middleware.native
-          #   base-image: ubuntu:24.04
-          #   tag-suffix: '-static'
           - build-platform: amd64
             uno-middleware: uno_middleware_connext
             base-image: ubuntu:22.04
             tag-suffix: ''
+          # - build-platform: arm64
+          #   uno-middleware: uno.middleware.native
+          #   base-image: ubuntu:24.04
+          #   tag-suffix: '-static'
           # - build-platform: arm64
           #   uno-middleware: uno_middleware_connext
           #   base-image: ubuntu:22.04
@@ -90,18 +93,27 @@ jobs:
           cp src/uno-ci/resource/rti/rti_license.dat rti_license.dat
           case "${{github.ref_type}}" in
             branch)
+              build_type=nightly
               image_tag=nightly${{ matrix.tag-suffix }}
               sha_short=$(git rev-parse --short HEAD)
               image_label=${image_tag}@${sha_short}
               ;;
             tag)
+              build_type=release
               image_tag=latest${{ matrix.tag-suffix }}
               image_label=${image_tag}@${{github.ref_name}}
               ;;
           esac
+          test_id=$(date +%Y%m%d-%H%M%S)
           echo IMAGE_TAG=${image_tag} >> ${GITHUB_OUTPUT}
           echo TEST_IMAGE=${{ github.repository }}-test:latest >> ${GITHUB_OUTPUT}
-          echo TEST_ARTIFACT=uno-test-${image_label}-${{ matrix.build-platform }}__$(date +%Y%m%d-%H%M%S) >> ${GITHUB_OUTPUT}
+          echo TEST_ARTIFACT=uno-test-${image_label}-${{ matrix.build-platform }}__${test_id} >> ${GITHUB_OUTPUT}
+          echo TEST_ID=${test_id}
+          echo BUILD_TYPE=${build_type}
+
+          # Create test results directory
+          mkdir -p test-results
+
 
       - name: Build tester image
         uses: docker/build-push-action@v5
@@ -123,7 +135,7 @@ jobs:
             -e VERBOSITY=activity \
             -e DEBUG=y \
             ${{ steps.config.outputs.TEST_IMAGE }} \
-            pytest -s -v --junit-xml=/workspace/test/tests-unit.xml \
+            pytest -s -v --junit-xml=test-results/uno-test-results-unit-${{ steps.config.outputs.TEST_ID }}.xml \
               src/uno/test/unit
 
       - name: Run integration tests
@@ -143,7 +155,7 @@ jobs:
       - name: Setup integration tests
         run: |
           . venv/bin/activate
-          pytest -s -v --junit-xml=$(pwd)/test/tests-integration.xml \
+          pytest -s -v --junit-xml=test-results/uno-test-results-integration-${{ steps.config.outputs.TEST_ID }}.xml \
             src/uno/test/integration
         env:
           RTI_LICENSE_FILE: ${{ github.workspace }}/rti_license.dat
@@ -153,5 +165,5 @@ jobs:
         uses: actions/upload-artifact@v4
         with:
           name: ${{ steps.config.outputs.TEST_ARTIFACT }}
-          path: test/tests-*.xml
+          path: test-results/*
         if: ${{ always() }}

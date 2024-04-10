@@ -29,6 +29,9 @@ permissions:
 jobs:
   build-n-test:
     runs-on: ${{ inputs.build-platform == 'amd64' && 'ubuntu-latest' || fromJson('["self-hosted", "linux", "arm64"]') }}
+    outputs:
+      BUILD_ID: ${{ steps.config.outputs.BUILD_ID }}
+      BUILD_TYPE: ${{ steps.config.outputs.BUILD_TYPE }}
     steps:
       - name: Clone uno
         uses: actions/checkout@v4
@@ -52,15 +55,29 @@ jobs:
           image_version=${{github.ref_name}}
           case "${{github.ref_type}}" in
             tag)
+              build_type=release
               ;;
             *)
               sha_short=$(cd src/uno && git rev-parse --short HEAD)
               image_version=${{github.ref_name}}@${sha_short}
+              case "${{github.ref_name}}" in
+                master)
+                  build_type=nightly
+                  ;;
+                pr*)
+                  build_type=pr
+                  ;;
+                *)
+                  build_type=test
+                  ;;
+              esac
               ;;
           esac
-          test_date=$(date +%Y%m%d-%H%M%S)
-          echo TEST_ARTIFACT=uno-${middleware_label}-${image_version}__${{ inputs.build-platform }}-${base_image}__${test_date} >> ${GITHUB_OUTPUT}
+          build_id=$(date +%Y%m%d-%H%M%S)
+          echo TEST_ARTIFACT=uno-${middleware_label}-${image_version}__${{ inputs.build-platform }}-${base_image}__${build_id} >> ${GITHUB_OUTPUT}
           echo TEST_IMAGE=${{ github.repository }}-test:latest >> ${GITHUB_OUTPUT}
+          echo BUILD_ID=${build_id} >> ${GITHUB_OUTPUT}
+          echo BUILD_TYPE=${build_type} >> ${GITHUB_OUTPUT}
 
       - name: Clone build support files
         uses: actions/checkout@v4
@@ -98,6 +115,7 @@ jobs:
               esac
               ;;
           esac
+          mkdir -p test-results
 
       - name: Build tester image
         uses: docker/build-push-action@v5
@@ -122,7 +140,7 @@ jobs:
             -e VERBOSITY=activity \
             -e DEBUG=y \
             ${{ steps.config.outputs.TEST_IMAGE }} \
-            pytest -s -v --junit-xml=/workspace/test/tests-unit.xml \
+            pytest -s -v --junit-xml=test-results/uno-test-results-unit-${{ steps.config.outputs.BUILD_ID }}.xml \
               src/uno/test/unit
 
       - name: Setup integration tests
@@ -147,7 +165,7 @@ jobs:
         if: inputs.run-integration
         run: |
           . venv/bin/activate
-          pytest -s -v --junit-xml=$(pwd)/test/tests-integration.xml \
+          pytest -s -v --junit-xml=test-results/uno-test-results-integration-${{ steps.config.outputs.BUILD_ID }}.xml \
             src/uno/test/integration
         env:
           RTI_LICENSE_FILE: ${{ github.workspace }}/rti_license.dat
@@ -156,6 +174,6 @@ jobs:
         uses: actions/upload-artifact@v4
         with:
           name: ${{ steps.config.outputs.TEST_ARTIFACT }}
-          path: test/tests-*.xml
+          path: test-results/*
         if: ${{ always() }}
 
