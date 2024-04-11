@@ -1,5 +1,6 @@
 name: Release Step (Update Badges)
-run-name: Update badges for ${{github.ref_type == 'branch' && 'nightly' || 'stable'}} ${{inputs.flavor}} release from ${{github.ref_type}} ${{github.ref_name}}${{github.ref_type == 'branch' && '@' || ''}}${{github.ref_type == 'branch' && github.sha || ''}}
+run-name: |
+  [${{github.ref_type == 'branch' && 'nightly' || 'release'}}] release (${{inputs.flavor}}) - update badges [${{github.ref_name}}${{github.ref_type == 'branch' && '@' || ''}}${{github.ref_type == 'branch' && github.sha || ''}}]
 
 concurrency:
   group: release-update-badges-${{github.ref_type == 'branch' && 'nightly' || 'stable'}}-${{inputs.flavor}}

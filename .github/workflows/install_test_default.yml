@@ -1,5 +1,6 @@
 name: Install Test (default)
-run-name: Test ${{github.ref_type == 'branch' && 'nightly' || 'stable'}} default release from ${{github.ref_type}} ${{github.ref_name}}${{github.ref_type == 'branch' && '@' || ''}}${{github.ref_type == 'branch' && github.sha || ''}}
+run-name: |
+  [${{github.ref_type == 'branch' && 'nightly' || 'stable'}}] install test (default) [${{github.ref_name}}${{github.ref_type == 'branch' && '@' || ''}}${{github.ref_type == 'branch' && github.sha || ''}}]
 
 on:
   workflow_dispatch:
@@ -67,6 +68,7 @@ jobs:
     with:
       tag: ${{github.repository}}:${{ needs.check-trigger.outputs.IMAGE_TAG }}
       platform: ${{matrix.platform}}
+      flavor: default
 
   test-user:
     if: github.event_name == 'workflow_dispatch'
@@ -77,4 +79,5 @@ jobs:
     with:
       tag: ${{ inputs.tag }}
       platform: ${{matrix.platform}}
+      flavor: default
 

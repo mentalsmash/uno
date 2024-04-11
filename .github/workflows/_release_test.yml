@@ -1,5 +1,6 @@
 name: Release Step (Test Image)
-run-name: Test ${{inputs.platform}} ${{github.ref_type == 'branch' && 'nightly' || 'release'}} image from ${{github.ref_type}} ${{github.ref_name}}${{github.ref_type == 'branch' && '@' || ''}}${{github.ref_type == 'branch' && github.sha || ''}}
+run-name: |
+  [${{github.ref_type == 'branch' && 'nightly' || 'release'}}] release (${{inputs.flavor}}) - test image ${{inputs.tag}} on ${{inputs.platform}} [${{github.ref_name}}${{github.ref_type == 'branch' && '@' || ''}}${{github.ref_type == 'branch' && github.sha || ''}}]
 
 on:
   workflow_call:
@@ -87,7 +88,7 @@ jobs:
 
   test:
     needs: test_config
-    runs-on: ${{ needs.test_config.outputs.TEST_RUNNER }}
+    runs-on: ${{ fromJson(needs.test_config.outputs.TEST_RUNNER) }}
     steps:
       - name: Clone uno
         uses: actions/checkout@v4

@@ -1,5 +1,6 @@
 name: Install Test Image
-run-name: Install test ${{inputs.tag}} on ${{inputs.platform}} [${{github.ref_name}}${{github.ref_type == 'branch' && '@' || ''}}${{github.ref_type == 'branch' && github.sha || ''}}]
+run-name: |
+  [${{github.ref_type == 'branch' && 'nightly' || 'release'}}] install test (${{inputs.flavor}}) - ${{inputs.tag}} on ${{inputs.platform}} [${{github.ref_name}}${{github.ref_type == 'branch' && '@' || ''}}${{github.ref_type == 'branch' && github.sha || ''}}]
 
 on:
   workflow_call:
@@ -10,13 +11,16 @@ on:
       platform:
         type: string
         required: true
+      flavor:
+        type: string
+        required: true
 
 jobs:
   test-config:
     runs-on: ubuntu-latest
     outputs:
       BUILD_TYPE: ${{ steps.config.outputs.BUILD_TYPE }}
-      NATIVE_RUNNER: ${{ fromJson(steps.config.outputs.NATIVE_RUNNER) }}
+      TEST_RUNNER: ${{ steps.config.outputs.TEST_RUNNER }}
     steps:
       - name: "Generate test config"
         id: config
@@ -32,10 +36,10 @@ jobs:
           (
             case "${{ inputs.platform }}" in
               arm64)
-                printf -- "NATIVE_RUNNER='%s'\n" '["self-hosted", "linux", "arm64"]'
+                printf -- "TEST_RUNNER='%s'\n" '["self-hosted", "linux", "arm64"]'
                 ;;
               amd64)
-                printf -- "NATIVE_RUNNER='%s'\n" '"ubuntu-latest"'
+                printf -- "TEST_RUNNER='%s'\n" '"ubuntu-latest"'
                 ;;
             esac
             echo BUILD_TYPE=${build_type}
