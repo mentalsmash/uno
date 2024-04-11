@@ -374,6 +374,7 @@ or by cloning the repository and building an image locally.
      -v $(pwd)/my-uvn__cell1.uvn-agent:/package.uvn-agent \
      -v $(pwd)/my-uvn/cell1:/uvn \
      --restart on-failure:5 \
+     --stop-signal SIGINT \
      mentalsmash/uno:latest \
      agent
   
