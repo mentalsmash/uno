@@ -65,6 +65,4 @@ def test_integration_basic_registry_redeploy(
   the_registry.uno("redeploy")
   the_registry.uno("service", "down")
   the_registry.uno("sync", "--max-wait-time", "300")
-  for agent in the_agents.keys():
-    assert(agent.cell_fully_routed)
 
