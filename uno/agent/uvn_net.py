@@ -35,8 +35,8 @@ class UvnNet(AgentService):
     self._start(noop=True)
 
 
-  def _detect_docker(self) -> bool:
-     return exec_command("iptables","-n", "-L" "DOCKER-USER", noexcept=True).returncode == 0
+  def _detect_docker_iptables(self) -> bool:
+     return exec_command(["iptables","-n", "-L" "DOCKER-USER"], noexcept=True).returncode == 0
 
 
   def _start(self, noop: bool=False) -> None:
@@ -115,7 +115,7 @@ class UvnNet(AgentService):
   def _iptables_forward(self, nic: str, noop: bool=False) -> None:
     # If docker is enabled we must make install extra rules
     # to prevent its iptables rules from stopping traffic
-    docker_installed = self._detect_docker()
+    docker_installed = self._detect_docker_iptables()
 
     # Add a dedicated chain to the FORWARD chain
     chain=f"FORWARD_{nic}"
