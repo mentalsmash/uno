@@ -71,10 +71,10 @@ jobs:
           (
             case "${{ inputs.platform }}" in
               arm64)
-                echo 'TEST_RUNNER=\'["self-hosted", "linux", "arm64"]\''
+                printf -- "TEST_RUNNER='%s'\n" '["self-hosted", "linux", "arm64"]'
                 ;;
               amd64)
-                echo 'TEST_RUNNER=\'"ubuntu-latest"\''
+                printf -- "TEST_RUNNER='%s'\n" '"ubuntu-latest"'
                 ;;
             esac
             echo BUILD_TYPE=${build_type}

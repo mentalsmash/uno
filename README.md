@@ -300,7 +300,7 @@ Select and install one of the available plugins:
 
 **uno** can be provisioned on a host using a container with one of the prebuilt [Docker images](#docker-images)
 
-### UVN Setup
+### Registry Setup
 
 <!-- 1. Create a directory to store your UVN's registry, e.g.:
 
@@ -342,10 +342,10 @@ Select and install one of the available plugins:
 
    docker run --rm \
     -v $(pwd)/uvn.yaml:/uvn.yaml \
-    -v $(pwd)/my-uvn:/uvn
+    -v $(pwd)/my-uvn:/uvn \
+    -v $(pwd)/rti_license.dat:/rti_license.dat \
     mentalsmash/uno:latest \
     uno define uvn my-uvn \
-      --root /uvn \
       --address registry.my-uvn.example.com \
       --owner "John Doe <john@example.com" \
       --password johnspassword \

@@ -16,7 +16,7 @@ jobs:
     runs-on: ubuntu-latest
     outputs:
       BUILD_TYPE: ${{ steps.config.outputs.BUILD_TYPE }}
-      NATIVE_RUNNER: ${{ inputs.platform == 'amd64' && 'ubuntu-latest' || fromJson('["self-hosted", "linux", "arm64"]') }}
+      NATIVE_RUNNER: ${{ fromJson(steps.config.outputs.NATIVE_RUNNER) }}
     steps:
       - name: "Generate test config"
         id: config
@@ -30,6 +30,14 @@ jobs:
               ;;
           esac
           (
+            case "${{ inputs.platform }}" in
+              arm64)
+                printf -- "NATIVE_RUNNER='%s'\n" '["self-hosted", "linux", "arm64"]'
+                ;;
+              amd64)
+                printf -- "NATIVE_RUNNER='%s'\n" '"ubuntu-latest"'
+                ;;
+            esac
             echo BUILD_TYPE=${build_type}
           ) >> ${GITHUB_OUTPUT}
 
@@ -42,6 +50,14 @@ jobs:
         with:
           path: src/uno
           submodules: true
+    
+      - name: Clone build support files
+        uses: actions/checkout@v4
+        with:
+          repository: mentalsmash/uno-ci
+          token: ${{ secrets.UNO_CI_PAT }}
+          ref: master
+          path: src/uno-ci
 
       - name: Set up QEMU
         uses: docker/setup-qemu-action@v3
@@ -55,10 +71,10 @@ jobs:
       
           docker run --rm \
             -v $(pwd)/src/uno/test/install/spec/basic_uvn.yaml:/uvn.yaml \
-            -v $(pwd)/my-uvn:/uvn
+            -v $(pwd)/my-uvn:/uvn \
+            -v $(pwd)/src/uno-ci/resource/rti/rti_license.dat:/rti_license.dat \
             mentalsmash/uno:latest \
             uno define uvn my-uvn \
-              --root /uvn \
               --address registry.my-uvn.example.com \
               --owner "John Doe <john@example.com" \
               --password johnspassword \
