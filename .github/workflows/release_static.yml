@@ -50,11 +50,10 @@ jobs:
             echo FLAVOR=${{env.FLAVOR}}
             echo BASE_TAG=${{env.BASE_TAG}}
             echo UNO_MIDDLEWARE=${{env.UNO_MIDDLEWARE}}
-            echo "TAG_TEST=${{github.repository}}-test:${tag}${{env.TAG_SUFFIX}}"
+            echo TAG_TEST=${{github.repository}}-test:${tag}${{env.TAG_SUFFIX}}
             echo 'DOCKER_TAGS_CONFIG<<EOF'
             if [ ${{ github.ref_type }} = branch ]; then
-              # Add "nightly" tag with higher priority than type=ref
-              echo 'type=raw,value=${tag}${{env.TAG_SUFFIX}},priority=601'
+              echo "type=raw,value=${tag}${{env.TAG_SUFFIX}},priority=601"
               if [ ${{ github.ref_name}} = master ]; then
                 # Add branch name as a tag only for "master"
                 echo 'type=ref,event=branch'
