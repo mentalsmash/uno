@@ -21,10 +21,6 @@ on:
 concurrency:
   group: release-push-images-${{ github.ref }}-${{ inputs.flavor }}
 
-permissions:
-  contents: read
-  packages: read
-
 jobs:
   push:
     runs-on: ubuntu-latest
