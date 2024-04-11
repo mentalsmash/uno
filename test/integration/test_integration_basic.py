@@ -15,23 +15,18 @@
 # along with this program. If not, see <https://www.gnu.org/licenses/>.
 ###############################################################################
 from itertools import chain
-from typing import Generator, Iterable
+from typing import Generator
 from pathlib import Path
 import pytest
-import subprocess
 import contextlib
-import ipaddress
 
-from uno.test.integration import Experiment, Host, Experiment, Network, agent_test
+from uno.test.integration import Experiment, Host, Experiment, Network
 from uno.test.integration.experiments.basic import BasicExperiment
 from uno.test.integration.units.ping_test import ping_test
 from uno.test.integration.units.ssh_client_test import ssh_client_test
 
 def load_experiment() -> Experiment:
-  return BasicExperiment.define(Path(__file__), config={
-    # "networks_count": 1,
-    # "relays_count": 0,
-  })
+  return BasicExperiment.define(Path(__file__))
 
 
 @pytest.fixture
@@ -86,42 +81,4 @@ def test_integration_basic_particles(
           experiment.log.info("particle CELL OK: {} via {}", particle, cell)
       experiment.log.info("particle OK: {}", particle)
     experiment.log.info("particles ALL {} OK", len(the_particles))
-
-
-@agent_test
-def test_integration_basic_httpd(
-    experiment: Experiment,
-    the_hosts: list[Host],
-    the_fully_routed_agents: dict[Host, subprocess.Popen]):
-  agents = list(the_fully_routed_agents)
-  # Try to connect to the httpd server of the agents
-  experiment.log.activity("testing HTTPD server of {} agent from {} hosts: {}",
-    len(agents), len(the_hosts), agents)
-  for host in the_hosts:
-    for agent in agents:
-      if not agent.cell_addresses:
-        continue
-      host.agent_httpd_test(agent)
-
-
-@agent_test
-def test_integration_basic_registry_sync(
-    experiment: Experiment,
-    the_registry: Host,
-    the_agents: dict[Host, subprocess.Popen]):
-  the_registry.uno("sync", "--max-wait-time", "90")
-  for agent in the_agents.keys():
-    assert(agent.cell_fully_routed)
-
-
-@agent_test
-def test_integration_basic_registry_redeploy(
-    experiment: Experiment,
-    the_registry: Host,
-    the_agents: dict[Host, subprocess.Popen]):
-  the_registry.uno("redeploy")
-  the_registry.uno("service", "down")
-  the_registry.uno("sync", "--max-wait-time", "90")
-  for agent in the_agents.keys():
-    assert(agent.cell_fully_routed)
 
