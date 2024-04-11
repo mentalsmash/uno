@@ -1,0 +1,119 @@
+name: Release (static)
+run-name: ${{github.ref_type == 'tag' && 'Stable' || 'Nightly' }} static release from ${{github.ref_type}} ${{github.ref_name}}${{github.ref_type == 'branch' && '@' || ''}}${{github.ref_type == 'branch' && github.sha || ''}}
+
+on:
+  push:
+    branches:
+      - master
+    tags:
+      - '*'
+      - '!*/**'
+
+concurrency:
+  group: release-static-${{ github.ref }}
+  cancel-in-progress: true
+
+permissions:
+  contents: read
+  packages: write
+
+env:
+  BASE_TAG: ubuntu:24.04
+  FLAVOR: static
+  TAG_SUFFIX: ''
+  UNO_MIDDLEWARE: uno.middleware.native
+
+jobs:
+  config:
+    runs-on: ubuntu-latest
+    outputs:
+      BASE_TAG: ${{steps.config.outputs.BASE_TAG}}
+      DOCKER_FLAVOR_CONFIG: ${{steps.config.outputs.DOCKER_FLAVOR_CONFIG}}
+      DOCKER_TAGS_CONFIG: ${{steps.config.outputs.DOCKER_TAGS_CONFIG}}
+      FLAVOR: ${{steps.config.outputs.FLAVOR}}
+      TAG: ${{steps.config.outputs.TAG}}
+      TAG_TEST: ${{steps.config.outputs.TAG_TEST}}
+      UNO_MIDDLEWARE: ${{steps.config.outputs.UNO_MIDDLEWARE}}
+    steps:
+      - name: Configure build
+        id: config
+        run: |
+          case "${{github.ref_type}}" in
+            tag)
+              base_tag=latest
+              ;;
+            branch)
+              base_tag=nightly
+              ;;
+          esac
+          (
+            echo FLAVOR=${{env.FLAVOR}}
+            echo BASE_TAG=${{env.BASE_TAG}}
+            echo UNO_MIDDLEWARE=${{env.UNO_MIDDLEWARE}}
+            echo "TAG=${{github.repository}}:${{env.BASE_TAG}}${suffix}"
+            echo "TAG=${{github.repository}}-test:${{env.BASE_TAG}}${suffix}"
+            echo 'DOCKER_TAGS_CONFIG<<EOF'
+            if [ ${{ github.ref_type }} = branch ]; then
+              # Add "nightly" tag with higher priority than type=ref
+              echo 'type=raw,value=${{env.BASE_TAG}}${suffix},priority=601'
+              if [ ${{ github.ref_name}} = master ]; then
+                # Add branch name as a tag only for "master"
+                echo 'type=ref,event=branch'
+              fi
+            fi
+            echo 'type=semver,pattern={{version}}'
+            echo 'type=semver,pattern={{major}}.{{minor}}'
+            echo 'type=semver,pattern={{major}}'
+            echo EOF
+            echo 'DOCKER_FLAVOR_CONFIG<<EOF'
+            echo 'suffix=${suffix},onlatest=true'
+            echo EOF
+          ) >> $GITHUB_OUTPUT
+
+  build:
+    needs: config
+    uses: ./.github/workflows/_release_build.yml
+    secrets: inherit
+    with:
+      flavor: ${{ needs.config.outputs.FLAVOR }}
+      uno-middleware: ${{ needs.config.outputs.UNO_MIDDLEWARE }}
+      base-tag: ${{ needs.config.outputs.BASE_TAG }}
+      tags-config: ${{ needs.config.outputs.DOCKER_TAGS_CONFIG }}
+      flavor-config: ${{ needs.config.outputs.DOCKER_FLAVOR_CONFIG }}
+
+  test:
+    needs:
+      - build
+      - config
+    strategy:
+      matrix:
+        platform: [amd64, arm64]
+    uses: ./.github/workflows/_release_validate.yml
+    secrets: inherit
+    with:
+      tag: ${{needs.config.outputs.TAG_TEST}}
+      platform: ${{ matrix.platform }}
+      flavor: ${{ needs.config.outputs.FLAVOR }}
+
+  push:
+    needs:
+      - build
+      - config
+      - test
+    uses: ./.github/workflows/_release_push.yml
+    secrets: inherit
+    with:
+      tag: ${{needs.config.outputs.TAG}}
+      flavor: ${{ needs.config.outputs.FLAVOR }}
+      tags-config: ${{ needs.config.outputs.DOCKER_TAGS_CONFIG }}
+      flavor-config: ${{ needs.config.outputs.DOCKER_FLAVOR_CONFIG }}
+
+  update_badges:
+    needs:
+      - config
+      - push
+    uses: ./.github/workflows/_release_badges.yml
+    secrets: inherit
+    with:
+      base-image: ${{ needs.config.outputs.BASE_TAG }}
+      flavor: ${{ needs.config.outputs.FLAVOR }}

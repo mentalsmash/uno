@@ -1,4 +1,4 @@
-name: Release (Test Image)
+name: Release Step (Test Image)
 run-name: Test ${{inputs.platform}} ${{github.ref_type == 'branch' && 'nightly' || 'release'}} image from ${{github.ref_type}} ${{github.ref_name}}${{github.ref_type == 'branch' && '@' || ''}}${{github.ref_type == 'branch' && github.sha || ''}}
 
 on:
@@ -10,7 +10,7 @@ on:
       platform:
         type: string
         required: true
-      image-type:
+      flavor:
         type: string
         required: true
 
@@ -42,7 +42,7 @@ jobs:
       - name: Configure test
         id: config
         run: |
-          case "${{ inputs.image-type}}" in
+          case "${{ inputs.flavor}}" in
             default)
               uno_middleware=uno_middleware_connext
               ;;
@@ -50,7 +50,7 @@ jobs:
               uno_middleware=uno.middleware.native
               ;;
             *)
-              echo "invalid image-type: '${{inputs.image-type}}'"
+              echo "invalid flavor: '${{inputs.flavor}}'"
               exit 1
           esac
           image_tag=$(echo ${{inputs.tag}} | tr : -)

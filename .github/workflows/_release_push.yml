@@ -1,5 +1,5 @@
-name: Release (Push Images)
-run-name: Push ${{inputs.image-type}} ${{github.ref_type == 'branch' && 'nightly' || 'release'}} images from ${{github.ref_type}} ${{github.ref_name}}${{github.ref_type == 'branch' && '@' || ''}}${{github.ref_type == 'branch' && github.sha || ''}}
+name: Release Step (Push Images)
+run-name: Push ${{inputs.flavor}} ${{github.ref_type == 'branch' && 'nightly' || 'release'}} images from ${{github.ref_type}} ${{github.ref_name}}${{github.ref_type == 'branch' && '@' || ''}}${{github.ref_type == 'branch' && github.sha || ''}}
 
 on:
   workflow_call:
@@ -7,7 +7,7 @@ on:
       tag:
         type: string
         required: true
-      image-type:
+      flavor:
         type: string
         required: true
       tags-config:
@@ -18,7 +18,7 @@ on:
         required: true
 
 concurrency:
-  group: release-push-images-${{ github.ref }}-${{ inputs.image-type }}
+  group: release-push-images-${{ github.ref }}-${{ inputs.flavor }}
 
 permissions:
   contents: read

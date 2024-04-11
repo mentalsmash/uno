@@ -1,16 +1,16 @@
-name: Release (Build Images)
-run-name: Build ${{inputs.image-type}} image with ${{inputs.uno-middleware}} on ${{inputs.base-image}} from ${{github.ref_type}} ${{github.ref_name}}${{github.ref_type == 'branch' && '@' || ''}}${{github.ref_type == 'branch' && github.sha || ''}}
+name: Release Step (Build Images)
+run-name: Build ${{inputs.flavor}} image with ${{inputs.uno-middleware}} on ${{inputs.base-tag}} from ${{github.ref_type}} ${{github.ref_name}}${{github.ref_type == 'branch' && '@' || ''}}${{github.ref_type == 'branch' && github.sha || ''}}
 
 on:
   workflow_call:
     inputs:
-      image-type:
+      flavor:
         type: string
         required: true
       uno-middleware:
         type: string
         required: true
-      base-image:
+      base-tag:
         type: string
         required: true
       tags-config:
@@ -21,7 +21,7 @@ on:
         required: true
 
 concurrency:
-  group: release-build-${{github.ref}}-${{inputs.image-type}}
+  group: release-build-${{github.ref}}-${{inputs.flavor}}
   cancel-in-progress: false
 
 jobs:
@@ -86,6 +86,6 @@ jobs:
           context: src/uno
           platforms: linux/amd64,linux/arm64
           build-args: |
-            BASE_IMAGE=${{ inputs.base-image }}
+            BASE_IMAGE=${{ inputs.base-tag }}
             UNO_MIDDLEWARE=${{ inputs.uno-middleware }}
 

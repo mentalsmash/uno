@@ -68,22 +68,22 @@ jobs:
     strategy:
       matrix:
         platform: [amd64, arm64]
-        image-type: [default, static]
-    uses: ./.github/workflows/release_validate.yml
+        flavor: [default, static]
+    uses: ./.github/workflows/_release_validate.yml
     with:
       tag: ${{github.repository}}:${{ needs.check-trigger.outputs.IMAGE_TAG }}
       platform: ${{matrix.platform}}
-      image-type: ${{matrix.image-type}}
+      flavor: ${{matrix.flavor}}
 
   test-user:
     if: github.event_name == 'workflow_dispatch'
     strategy:
       matrix:
         platform: ${{ fromJson(inputs.platforms) }}
-        image-type: ${{ fromJson(inputs.flavors) }}
-    uses: ./.github/workflows/release_validate.yml
+        flavor: ${{ fromJson(inputs.flavors) }}
+    uses: ./.github/workflows/_release_validate.yml
     with:
       tag: ${{ inputs.tag }}
       platform: ${{matrix.platform}}
-      image-type: ${{matrix.image-type}}
+      flavor: ${{matrix.flavor}}
 

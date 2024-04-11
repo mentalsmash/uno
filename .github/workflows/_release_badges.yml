@@ -1,17 +1,17 @@
-name: Release (Update Badges)
-run-name: Update badges for ${{github.ref_type == 'branch' && 'nightly' || 'stable'}} release from ${{github.ref_type}} ${{github.ref_name}}${{github.ref_type == 'branch' && '@' || ''}}${{github.ref_type == 'branch' && github.sha || ''}}
+name: Release Step (Update Badges)
+run-name: Update badges for ${{github.ref_type == 'branch' && 'nightly' || 'stable'}} ${{inputs.flavor}} release from ${{github.ref_type}} ${{github.ref_name}}${{github.ref_type == 'branch' && '@' || ''}}${{github.ref_type == 'branch' && github.sha || ''}}
 
 concurrency:
-  group: release-update-badges-${{github.ref_type == 'branch' && 'nightly' || 'stable'}}
+  group: release-update-badges-${{github.ref_type == 'branch' && 'nightly' || 'stable'}}-${{inputs.flavor}}
   cancel-in-progress: true
 
 on:
   workflow_call:
     inputs:
-      base-image-static:
+      flavor:
         type: string
         required: true
-      base-image-default:
+      base-image:
         type: string
         required: true
 
@@ -61,6 +61,7 @@ jobs:
         ) >> ${GITHUB_OUTPUT}
 
     - name: Update default version badge
+      if: inputs.flavor == 'default'
       uses: schneegans/dynamic-badges-action@v1.7.0
       with:
         auth: ${{ secrets.GIST_UPDATE_TOKEN }}
@@ -71,16 +72,18 @@ jobs:
         color: ${{ steps.config.outputs.COLOR_VERSION }}
 
     - name: Update default base image badge
+      if: inputs.flavor == 'default'
       uses: schneegans/dynamic-badges-action@v1.7.0
       with:
         auth: ${{ secrets.GIST_UPDATE_TOKEN }}
         gistID: ${{ steps.config.outputs.BADGE_DEFAULT_VERSION }}
         filename: uno-badge-image-default-base-${{ steps.config.outputs.TAG_DEFAULT }}.json
         label: base image
-        message: ${{ inputs.base-image-default }}
+        message: ${{ inputs.base-image }}
         color: ${{ steps.config.outputs.COLOR_BASE }}
 
     - name: Update static version badge
+      if: inputs.flavor == 'static'
       uses: schneegans/dynamic-badges-action@v1.7.0
       with:
         auth: ${{ secrets.GIST_UPDATE_TOKEN }}
@@ -91,17 +94,18 @@ jobs:
         color: ${{ steps.config.outputs.COLOR_VERSION }}
 
     - name: Update static base image badge
+      if: inputs.flavor == 'static'
       uses: schneegans/dynamic-badges-action@v1.7.0
       with:
         auth: ${{ secrets.GIST_UPDATE_TOKEN }}
         gistID: ${{ steps.config.outputs.BADGE_STATIC_BASE }}
         filename: uno-badge-image-static-base-${{ steps.config.outputs.TAG_STATIC }}.json
         label: base image
-        message: ${{ inputs.base-image-static }}
+        message: ${{ inputs.base-image }}
         color: ${{ steps.config.outputs.COLOR_BASE }}
 
     - name: Update latest-release badge
-      if: ${{github.ref_type == 'tag'}}
+      if: ${{github.ref_type == 'tag' && inputs.flavor == 'default' }}
       uses: schneegans/dynamic-badges-action@v1.7.0
       with:
         auth: ${{ secrets.GIST_UPDATE_TOKEN }}
