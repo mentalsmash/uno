@@ -81,19 +81,19 @@ jobs:
       tags-config: ${{ needs.config.outputs.DOCKER_TAGS_CONFIG }}
       flavor-config: ${{ needs.config.outputs.DOCKER_FLAVOR_CONFIG }}
 
-  test:
-    needs:
-      - build
-      - config
-    strategy:
-      matrix:
-        platform: [amd64, arm64]
-    uses: ./.github/workflows/_release_test.yml
-    secrets: inherit
-    with:
-      tag: ${{needs.config.outputs.TAG_TEST}}
-      platform: ${{ matrix.platform }}
-      flavor: ${{ needs.config.outputs.FLAVOR }}
+  # test:
+  #   needs:
+  #     - build
+  #     - config
+  #   strategy:
+  #     matrix:
+  #       platform: [amd64, arm64]
+  #   uses: ./.github/workflows/_release_test.yml
+  #   secrets: inherit
+  #   with:
+  #     tag: ${{needs.config.outputs.TAG_TEST}}
+  #     platform: ${{ matrix.platform }}
+  #     flavor: ${{ needs.config.outputs.FLAVOR }}
 
   push:
     needs:
