@@ -1,6 +1,6 @@
 name: Pull Request
 run-name: |
-  PR #${{github.event.number}} ${{github.event.pull_request.title}} [${{github.event_name == 'pull_request' && 'changed' || 'reviewed, ' }}${{github.event_name == 'pull_request' && '' || github.event.review.state }}]
+  PR #${{github.event.number}} [${{github.event_name == 'pull_request' && 'changed' || 'review, ' }}${{github.event_name == 'pull_request' && '' || github.event.review.state }}] ${{github.event.pull_request.title}}
 
 on:
   pull_request:
