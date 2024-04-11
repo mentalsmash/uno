@@ -31,24 +31,27 @@ jobs:
     if: ${{ !github.event.pull_request.draft }}
     runs-on: ubuntu-latest
     outputs:
-      BASIC: ${{ steps.check-approved.outputs.BASIC }}
-      FULL: ${{ steps.check-approved.outputs.FULL }}
+      BASIC: ${{ steps.config.outputs.BASIC }}
+      FULL: ${{ steps.config.outputs.FULL }}
     steps:
       - name: "Generate job configuration from PR status"
-        id: check-approved
+        id: config
         run: |
+          echo "Generating test configuration for pull-request ${{github.ref_name}} on event: ${{github.event_name}}..."
           case ${{github.event_name}} in
             pull_request_review)
               case "${{github.event.review.state}}" in
                 APPROVED)
+                  echo "Pull request ${{github.ref_name}} has been APPROVED. Performing full test."
                   full=y
                   ;;
                 *)
-                  basic=y
+                  echo "Pull request ${{github.ref_name}} NOT APPROVED yet. Skipping tests while waiting for approval."
                   ;;
               esac
               ;;
             pull_request)
+              echo "Pull request ${{github.ref_name}} NOT APPROVED but updated. Performing basic test."
               basic=y
               ;;
           esac
