@@ -36,7 +36,7 @@ class UvnNet(AgentService):
 
 
   def _detect_docker(self) -> bool:
-     return exec_command("iptables","-n", "-L" "DOCKER", noexcept=True).resultcode == 0
+     return exec_command("iptables","-n", "-L" "DOCKER-USER", noexcept=True).returncode == 0
 
 
   def _start(self, noop: bool=False) -> None:
