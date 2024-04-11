@@ -66,7 +66,7 @@ jobs:
           - build-platform: amd64
             base-image: ubuntu:22.04
             uno-middleware: uno_middleware_connext
-    uses: ./.github/workflows/ci_build.yml
+    uses: ./.github/workflows/ci.yml
     secrets: inherit
     with:
       build-platform: ${{matrix.build-platform}}
@@ -88,7 +88,7 @@ jobs:
           - build-platform: arm64
             base-image: ubuntu:24.04
             uno-middleware: uno.middleware.native
-    uses: ./.github/workflows/ci_build.yml
+    uses: ./.github/workflows/ci.yml
     secrets: inherit
     with:
       build-platform: ${{matrix.build-platform}}

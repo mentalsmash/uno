@@ -1,6 +1,6 @@
 name: Release Step (Test Image)
 run-name: |
-  release (${{inputs.flavor}}) - test image ${{inputs.tag}} on ${{inputs.platform}} [${{github.ref_type == 'branch' && 'nightly' || 'release'}}][${{github.ref_name}}${{github.ref_type == 'branch' && '@' || ''}}${{github.ref_type == 'branch' && github.sha || ''}}]
+  release (${{inputs.flavor}}) - test image ${{inputs.tag}} on ${{inputs.platform}} [${{github.ref_type == 'branch' && 'nightly' || 'stable'}} from ${{github.ref_name}}${{github.ref_type == 'branch' && '@' || ''}}${{github.ref_type == 'branch' && github.sha || ''}}]
 
 on:
   workflow_call:
@@ -31,7 +31,7 @@ jobs:
       TEST_ARTIFACT: ${{ steps.config.outputs.TEST_ARTIFACT }}
       TEST_ID: ${{ steps.config.outputs.TEST_ID }}
       TEST_IMAGE: ${{ steps.config.outputs.TEST_IMAGE }}
-      TEST_RUNNER: ${{ fromJson(steps.config.outputs.TEST_RUNNER) }}
+      RUNNER: ${{ fromJson(steps.config.outputs.RUNNER) }}
       UNO_MIDDLEWARE: ${{ steps.config.outputs.UNO_MIDDLEWARE }}
     steps:
       - name: Clone uno
@@ -72,10 +72,10 @@ jobs:
           (
             case "${{ inputs.platform }}" in
               arm64)
-                printf -- "TEST_RUNNER='%s'\n" '["self-hosted", "linux", "arm64"]'
+                printf -- "RUNNER='%s'\n" '["self-hosted", "linux", "arm64"]'
                 ;;
               amd64)
-                printf -- "TEST_RUNNER='%s'\n" '"ubuntu-latest"'
+                printf -- "RUNNER='%s'\n" '"ubuntu-latest"'
                 ;;
             esac
             echo BUILD_TYPE=${build_type}
@@ -88,7 +88,7 @@ jobs:
 
   test:
     needs: test_config
-    runs-on: ${{ fromJson(needs.test_config.outputs.TEST_RUNNER) }}
+    runs-on: ${{ fromJson(needs.test_config.outputs.RUNNER) }}
     steps:
       - name: Clone uno
         uses: actions/checkout@v4

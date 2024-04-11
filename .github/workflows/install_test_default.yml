@@ -1,6 +1,6 @@
 name: Install Test (default)
 run-name: |
-  install test (default) [${{github.ref_type == 'branch' && 'nightly' || 'stable'}}][${{github.ref_name}}${{github.ref_type == 'branch' && '@' || ''}}${{github.ref_type == 'branch' && github.sha || ''}}]
+  install test (default) [${{github.ref_type == 'branch' && 'nightly' || 'stable'}} from ${{github.ref_name}}${{github.ref_type == 'branch' && '@' || ''}}${{github.ref_type == 'branch' && github.sha || ''}}]
 
 on:
   workflow_dispatch:

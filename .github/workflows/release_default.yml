@@ -1,6 +1,6 @@
 name: Release (default)
 run-name: |
-  release (default) [${{github.ref_type == 'tag' && 'stable' || 'nightly' }}][${{github.ref_name}}${{github.ref_type == 'branch' && '@' || ''}}${{github.ref_type == 'branch' && github.sha || ''}}]
+  release (default) [${{github.ref_type == 'tag' && 'stable' || 'nightly' }} from ${{github.ref_name}}${{github.ref_type == 'branch' && '@' || ''}}${{github.ref_type == 'branch' && github.sha || ''}}]
 
 on:
   push:
@@ -40,21 +40,21 @@ jobs:
         run: |
           case "${{github.ref_type}}" in
             tag)
-              base_tag=latest
+              tag=latest
               ;;
             branch)
-              base_tag=nightly
+              tag=nightly
               ;;
           esac
           (
             echo FLAVOR=${{env.FLAVOR}}
             echo BASE_TAG=${{env.BASE_TAG}}
             echo UNO_MIDDLEWARE=${{env.UNO_MIDDLEWARE}}
-            echo "TAG_TEST=${{github.repository}}-test:${{env.BASE_TAG}}${suffix}"
+            echo "TAG_TEST=${{github.repository}}-test:${tag}${suffix}"
             echo 'DOCKER_TAGS_CONFIG<<EOF'
             if [ ${{ github.ref_type }} = branch ]; then
               # Add "nightly" tag with higher priority than type=ref
-              echo 'type=raw,value=${{env.BASE_TAG}}${suffix},priority=601'
+              echo 'type=raw,value=${tag}${suffix},priority=601'
               if [ ${{ github.ref_name}} = master ]; then
                 # Add branch name as a tag only for "master"
                 echo 'type=ref,event=branch'

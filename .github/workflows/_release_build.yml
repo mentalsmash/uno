@@ -1,6 +1,6 @@
 name: Release Step (Build Image)
 run-name: |
-  release (${{inputs.flavor}}) - build image with ${{inputs.uno-middleware}} on ${{inputs.base-tag}} [${{github.ref_type == 'branch' && 'nightly' || 'release'}}][${{github.ref_name}}${{github.ref_type == 'branch' && '@' || ''}}${{github.ref_type == 'branch' && github.sha || ''}}]
+  release (${{inputs.flavor}}) - build image with ${{inputs.uno-middleware}} on ${{inputs.base-tag}} [${{github.ref_type == 'branch' && 'nightly' || 'stable'}} from ${{github.ref_name}}${{github.ref_type == 'branch' && '@' || ''}}${{github.ref_type == 'branch' && github.sha || ''}}]
 
 on:
   workflow_call:

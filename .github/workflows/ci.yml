@@ -1,4 +1,4 @@
-name: CI (Build)
+name: CI
 
 on:
   workflow_call:
@@ -105,10 +105,10 @@ jobs:
           (
             case "${{ inputs.build-platform }}" in
               arm64)
-                printf -- "TEST_RUNNER='%s'\n" '["self-hosted", "linux", "arm64"]'
+                printf -- "RUNNER='%s'\n" '["self-hosted", "linux", "arm64"]'
                 ;;
               amd64)
-                printf -- "TEST_RUNNER='%s'\n" '"ubuntu-latest"'
+                printf -- "RUNNER='%s'\n" '"ubuntu-latest"'
                 ;;
             esac
             echo TEST_ARTIFACT=${test_artifact}
@@ -119,7 +119,7 @@ jobs:
 
   build-n-test:
     needs: config
-    runs-on: ${{ needs.config.outputs.RUNNER }}
+    runs-on: ${{ fromJson(needs.config.outputs.RUNNER) }}
     steps:
       - name: Clone uno
         uses: actions/checkout@v4
