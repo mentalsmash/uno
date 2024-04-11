@@ -78,7 +78,7 @@ After installing the system dependencies, you can install **uno** from
 this git repository and [one of the available middlewares](#middleware-setup):
 
 ```sh
-git clone https://github.com/mentalsmash/uno
+git clone --recurse-submodules https://github.com/mentalsmash/uno
 
 # Alternatively, you can install uno as a regular user if you plan
 # on using the host only to manage the UVN's registry,
@@ -297,7 +297,8 @@ Select and install one of the available plugins:
 
 ## Docker Installation
 
-**uno** can be provisioned on a host using a container with one of the prebuilt [Docker images](#docker-images)
+**uno** can be provisioned on a host using a container with one of the prebuilt [Docker images](#docker-images),
+or by cloning the repository and building an image locally.
 
 ### Registry Setup
 
@@ -368,7 +369,6 @@ Select and install one of the available plugins:
    docker create \
      --init \
      --name agent-cell1-my-uvn \
-     --hostname cell1 \
      --net host \
      --privileged \
      -v $(pwd)/my-uvn__cell1.uvn-agent:/package.uvn-agent \
