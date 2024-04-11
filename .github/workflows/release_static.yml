@@ -50,7 +50,7 @@ jobs:
             echo FLAVOR=${{env.FLAVOR}}
             echo BASE_TAG=${{env.BASE_TAG}}
             echo UNO_MIDDLEWARE=${{env.UNO_MIDDLEWARE}}
-            echo TAG_TEST=${{github.repository}}-test:${tag}${{env.TAG_SUFFIX}}
+            echo TAG_TEST=ghcr.io/${{github.repository}}-test:${tag}${{env.TAG_SUFFIX}}
             echo 'DOCKER_TAGS_CONFIG<<EOF'
             if [ ${{ github.ref_type }} = branch ]; then
               echo "type=raw,value=${tag}${{env.TAG_SUFFIX}},priority=601"
