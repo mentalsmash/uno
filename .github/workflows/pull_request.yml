@@ -46,7 +46,7 @@ jobs:
                   full=y
                   ;;
                 *)
-                  echo "Pull request ${{github.ref_name}} NOT APPROVED yet. Skipping tests while waiting for approval."
+                  echo "Pull request ${{github.ref_name}} NOT APPROVED yet (${{github.event.review.state}}). Skipping tests while waiting for approval."
                   ;;
               esac
               ;;
