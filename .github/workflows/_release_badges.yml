@@ -33,7 +33,7 @@ jobs:
             sha_short=$(cd src/uno && git rev-parse --short HEAD)
             version=${sha_short}
             color_version=orange
-            tag=latest
+            tag=nightly
             badge_default_version=29b57b0427def87cc3ef4ab81c956c29
             badge_default_base=2d53344e1ccfae961665e08432f18113
             badge_static_version=d73e338805c7d2c348a2d7149a66f66c
@@ -42,7 +42,7 @@ jobs:
           tag)
             version=${{github.ref_name}}
             color_version=green
-            tag=nightly
+            tag=latest
             badge_default_version=e7aab205f782cc0c6f394a2fece90509
             badge_default_base=8f31c46dcfd0543b42f356e5b1c6c2c8
             badge_static_version=b310f08c34f051846877aeb59b0be311

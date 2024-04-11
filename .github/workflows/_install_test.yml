@@ -80,7 +80,7 @@ jobs:
             mentalsmash/uno:latest \
             uno define uvn my-uvn \
               --address registry.my-uvn.example.com \
-              --owner "John Doe <john@example.com" \
+              --owner "John Doe <john@example.com>" \
               --password johnspassword \
               --spec /uvn.yaml
       

@@ -65,6 +65,7 @@ jobs:
       matrix:
         platform: [amd64, arm64]
     uses: ./.github/workflows/_install_test.yml
+    secrets: inherit
     with:
       tag: ${{github.repository}}:${{ needs.check-trigger.outputs.IMAGE_TAG }}
       platform: ${{matrix.platform}}
@@ -76,6 +77,7 @@ jobs:
       matrix:
         platform: ${{ fromJson(inputs.platforms) }}
     uses: ./.github/workflows/_install_test.yml
+    secrets: inherit
     with:
       tag: ${{ inputs.tag }}
       platform: ${{matrix.platform}}
