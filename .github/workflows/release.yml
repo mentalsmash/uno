@@ -32,7 +32,7 @@ jobs:
     with:
       flavor: ${{matrix.flavor}}
       base-image: ${{matrix.base-image}}
-
+      base-tag: ${{matrix.base-tag}}
 
   update_badges:
     needs: flavors
