@@ -155,7 +155,7 @@ class Experiment:
   def default_config(cls) -> dict:
     return {
       "interactive": False,
-      "image": "mentalsmash/uno-test:latest",
+      "image": "mentalsmash/uno-test-runner:latest",
       "uvn_fully_routed_timeout": 60,
       "container_stop_timeout": 60,
     }

@@ -97,10 +97,14 @@ jobs:
               ;;
           esac
           build_id=$(date +%Y%m%d-%H%M%S)
-          echo TEST_ARTIFACT=uno-${middleware_label}-${image_version}__${{ inputs.build-platform }}-${base_image}__${build_id} >> ${GITHUB_OUTPUT}
-          echo TEST_IMAGE=${{ github.repository }}-test:latest >> ${GITHUB_OUTPUT}
-          echo BUILD_ID=${build_id} >> ${GITHUB_OUTPUT}
-          echo BUILD_TYPE=${build_type} >> ${GITHUB_OUTPUT}
+          test_artifact=uno-${middleware_label}-${image_version}__${{ inputs.build-platform }}-${base_image}__${build_id}
+          test_image=${{ github.repository }}-test-runner:latest
+          (
+            echo TEST_ARTIFACT=${test_artifact}
+            echo TEST_IMAGE=${test_image}
+            echo BUILD_ID=${build_id}
+            echo BUILD_TYPE=${build_type}
+          ) >> ${GITHUB_OUTPUT}
 
       - name: Clone build support files
         uses: actions/checkout@v4

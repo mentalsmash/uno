@@ -67,7 +67,7 @@ jobs:
           esac
           test_id=$(date +%Y%m%d-%H%M%S)
           test_artifact=uno-test-${image_label}-${{ inputs.platform }}__${test_id}
-          test_image=${{ github.repository }}-test:latest
+          test_image=${{ github.repository }}-test-runner:latest
           echo (
             echo BUILD_TYPE=${build_type}
             echo TEST_IMAGE=${test_image}
