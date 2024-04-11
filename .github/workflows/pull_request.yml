@@ -22,7 +22,7 @@ on:
     types: [submitted]
 
 concurrency:
-  group: pr-test-${{ github.ref }}
+  group: pr-test-${{ github.ref }}-${{github.event_name}}
   cancel-in-progress: true
 
 jobs:
