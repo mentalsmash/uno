@@ -1,6 +1,6 @@
 name: Install Test Image
 run-name: |
-  [${{github.ref_type == 'branch' && 'nightly' || 'release'}}] install test (${{inputs.flavor}}) - ${{inputs.tag}} on ${{inputs.platform}} [${{github.ref_name}}${{github.ref_type == 'branch' && '@' || ''}}${{github.ref_type == 'branch' && github.sha || ''}}]
+  install test (${{inputs.flavor}}) - ${{inputs.tag}} on ${{inputs.platform}} [${{github.ref_type == 'branch' && 'nightly' || 'release'}}][${{github.ref_name}}${{github.ref_type == 'branch' && '@' || ''}}${{github.ref_type == 'branch' && github.sha || ''}}]
 
 on:
   workflow_call:
