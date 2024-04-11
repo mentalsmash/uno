@@ -1,0 +1,72 @@
+name: Install Test Image
+run-name: Install test ${{inputs.tag}} on ${{inputs.platform}} [${{github.ref_name}}${{github.ref_type == 'branch' && '@' || ''}}${{github.ref_type == 'branch' && github.sha || ''}}]
+
+on:
+  workflow_call:
+    inputs:
+      tag:
+        type: string
+        required: true
+      platform:
+        type: string
+        required: true
+
+jobs:
+  test-config:
+    runs-on: ubuntu-latest
+    outputs:
+      BUILD_TYPE: ${{ steps.config.outputs.BUILD_TYPE }}
+      NATIVE_RUNNER: ${{ inputs.platform == 'amd64' && 'ubuntu-latest' || fromJson('["self-hosted", "linux", "arm64"]') }}
+    steps:
+      - name: "Generate test config"
+        id: config
+        run: |
+          case "${{github.ref_type}}" in
+            tag)
+              build_type=stable
+              ;;
+            branch)
+              build_type=nightly
+              ;;
+          esac
+          (
+            echo BUILD_TYPE=${build_type}
+          ) >> ${GITHUB_OUTPUT}
+
+  test-spec-docker:
+    needs: test-config
+    runs-on: ubuntu-latest
+    steps:
+      - name: Clone uno
+        uses: actions/checkout@v4
+        with:
+          path: src/uno
+          submodules: true
+
+      - name: Set up QEMU
+        uses: docker/setup-qemu-action@v3
+        if: inputs.platform != 'amd64'
+
+      - name: "Create a UVN from spec using docker"
+        run: |
+          mkdir my-uvn
+    
+          chmod 700 my-uvn
+      
+          docker run --rm \
+            -v $(pwd)/src/uno/test/install/spec/basic_uvn.yaml:/uvn.yaml \
+            -v $(pwd)/my-uvn:/uvn
+            mentalsmash/uno:latest \
+            uno define uvn my-uvn \
+              --root /uvn \
+              --address registry.my-uvn.example.com \
+              --owner "John Doe <john@example.com" \
+              --password johnspassword \
+              --spec /uvn.yaml
+      
+          # if your're not running as root, make sure
+          # the directory has the proper permissions
+          docker run --rm \
+            -v $(pwd)/uvn:/uvn \
+            fix-root-permissions \
+            $(id -u):$(id -g)

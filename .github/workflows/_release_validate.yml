@@ -30,7 +30,7 @@ jobs:
       TEST_ARTIFACT: ${{ steps.config.outputs.TEST_ARTIFACT }}
       TEST_ID: ${{ steps.config.outputs.TEST_ID }}
       TEST_IMAGE: ${{ steps.config.outputs.TEST_IMAGE }}
-      TEST_RUNNER: ${{ inputs.platform == 'amd64' && 'ubuntu-latest' || fromJson('["self-hosted", "linux", "arm64"]') }}
+      TEST_RUNNER: ${{ fromJson(steps.config.outputs.TEST_RUNNER) }}
       UNO_MIDDLEWARE: ${{ steps.config.outputs.UNO_MIDDLEWARE }}
     steps:
       - name: Clone uno
@@ -68,7 +68,15 @@ jobs:
           test_id=$(date +%Y%m%d-%H%M%S)
           test_artifact=uno-test-${image_label}-${{ inputs.platform }}__${test_id}
           test_image=${{ github.repository }}-test-runner:latest
-          echo (
+          (
+            case "${{ inputs.platform }}" in
+              arm64)
+                echo 'TEST_RUNNER=\'["self-hosted", "linux", "arm64"]\''
+                ;;
+              amd64)
+                echo 'TEST_RUNNER=\'"ubuntu-latest"\''
+                ;;
+            esac
             echo BUILD_TYPE=${build_type}
             echo TEST_IMAGE=${test_image}
             echo TEST_ARTIFACT=${test_artifact}

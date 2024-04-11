@@ -52,8 +52,10 @@ jobs:
               basic=y
               ;;
           esac
-          echo BASIC=${basic} >> ${GITHUB_OUTPUT}
-          echo FULL=${full} >> ${GITHUB_OUTPUT}
+          (
+            echo BASIC=${basic}
+            echo FULL=${full}
+          )  >> ${GITHUB_OUTPUT}
 
   basic-validation:
     needs: check-review-status

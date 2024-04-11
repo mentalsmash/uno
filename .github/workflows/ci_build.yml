@@ -50,11 +50,14 @@ permissions:
   contents: read
 
 jobs:
-  build-n-test:
-    runs-on: ${{ inputs.build-platform == 'amd64' && 'ubuntu-latest' || fromJson('["self-hosted", "linux", "arm64"]') }}
+  config:
+    runs-on: ubuntu-latest
     outputs:
+      RUNNER: ${{ fromJson(steps.config.outputs.RUNNER) }}
       BUILD_ID: ${{ steps.config.outputs.BUILD_ID }}
       BUILD_TYPE: ${{ steps.config.outputs.BUILD_TYPE }}
+      TEST_ARTIFACT: ${{ steps.config.outputs.TEST_ARTIFACT }}
+      TEST_IMAGE: ${{ steps.config.outputs.TEST_IMAGE }}
     steps:
       - name: Clone uno
         uses: actions/checkout@v4
@@ -100,11 +103,29 @@ jobs:
           test_artifact=uno-${middleware_label}-${image_version}__${{ inputs.build-platform }}-${base_image}__${build_id}
           test_image=${{ github.repository }}-test-runner:latest
           (
+            case "${{ inputs.build-platform }}" in
+              arm64)
+                echo 'RUNNER=\'["self-hosted", "linux", "arm64"]\''
+                ;;
+              amd64)
+                echo 'RUNNER=\'"ubuntu-latest"\''
+                ;;
+            esac
             echo TEST_ARTIFACT=${test_artifact}
             echo TEST_IMAGE=${test_image}
             echo BUILD_ID=${build_id}
             echo BUILD_TYPE=${build_type}
           ) >> ${GITHUB_OUTPUT}
+
+  build-n-test:
+    needs: config
+    runs-on: ${{ needs.config.outputs.RUNNER }}
+    steps:
+      - name: Clone uno
+        uses: actions/checkout@v4
+        with:
+          path: src/uno
+          submodules: true
 
       - name: Clone build support files
         uses: actions/checkout@v4
@@ -148,7 +169,7 @@ jobs:
         uses: docker/build-push-action@v5
         with:
           file: src/uno/docker/Dockerfile
-          tags: ${{ steps.config.outputs.TEST_IMAGE }}
+          tags: ${{ needs.config.outputs.TEST_IMAGE }}
           load: true
           context: src/uno
           platforms: linux/${{ inputs.build-platform }}
@@ -166,8 +187,8 @@ jobs:
             -e RTI_LICENSE_FILE=/workspace/rti_license.dat \
             -e LOG_LEVEL=activity \
             -e DEBUG=y \
-            ${{ steps.config.outputs.TEST_IMAGE }} \
-            pytest -s -v --junit-xml=test-results/uno-test-results-unit-${{ steps.config.outputs.BUILD_ID }}.xml \
+            ${{ needs.config.outputs.TEST_IMAGE }} \
+            pytest -s -v --junit-xml=test-results/uno-test-results-unit-${{ needs.config.outputs.BUILD_ID }}.xml \
               src/uno/test/unit
 
       - name: Restore permissions changed by unit tests
@@ -175,7 +196,7 @@ jobs:
         run: |
           docker run --rm \
             -v $(pwd):/workspace \
-            ${{ steps.config.outputs.TEST_IMAGE }} \
+            ${{ needs.config.outputs.TEST_IMAGE }} \
             fix-root-permissions $(id -u):$(id -g) /workspace
 
       - name: Setup integration tests
@@ -200,7 +221,7 @@ jobs:
         if: inputs.run-integration
         run: |
           . venv/bin/activate
-          pytest -s -v --junit-xml=test-results/uno-test-results-integration-${{ steps.config.outputs.BUILD_ID }}.xml \
+          pytest -s -v --junit-xml=test-results/uno-test-results-integration-${{ needs.config.outputs.BUILD_ID }}.xml \
             src/uno/test/integration
         env:
           RTI_LICENSE_FILE: ${{ github.workspace }}/rti_license.dat
@@ -213,13 +234,13 @@ jobs:
         run: |
           docker run --rm \
             -v $(pwd):/workspace \
-            ${{ steps.config.outputs.TEST_IMAGE }} \
+            ${{ needs.config.outputs.TEST_IMAGE }} \
             fix-root-permissions $(id -u):$(id -g) /workspace
 
       - name: Upload test results
         uses: actions/upload-artifact@v4
         with:
-          name: ${{ steps.config.outputs.TEST_ARTIFACT }}
+          name: ${{ needs.config.outputs.TEST_ARTIFACT }}
           path: test-results/*
         if: ${{ always() }}
 

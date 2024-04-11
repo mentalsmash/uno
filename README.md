@@ -22,20 +22,29 @@ an agent in each LAN:
 
 ## Project Status
 
-| Release | Nightly |
-|:-------:|:-------:|
-|[![latest release](https://img.shields.io/endpoint?url=https://gist.githubusercontent.com/asorbini/fb644ccb3cbb57b2636f9eca808b9931/raw/uno-badge-latest-release.json)](https://github.com/mentalsmash/uno/actions/workflows/release.yml)|[![nightly](https://github.com/mentalsmash/uno/actions/workflows/release.yml/badge.svg?branch=master)](https://github.com/mentalsmash/uno/actions/workflows/release.yml?query=branch%3Amaster)|
+| Flavor | Build Status | Middleware |
+|--------|--------|------------|
+| default | [![nightly](https://github.com/mentalsmash/uno/actions/workflows/release_default.yml/badge.svg?branch=master)](https://github.com/mentalsmash/uno/actions/workflows/release_default.yml?query=branch%3Amaster) | [`uno_middleware_connext`](https://github.com/mentalsmash/uno-middleware-connext) |
+| static |  [![nightly](https://github.com/mentalsmash/uno/actions/workflows/release_static.yml/badge.svg?branch=master)](https://github.com/mentalsmash/uno/actions/workflows/release_static.yml?query=branch%3Amaster) | [`uno.middleware.native`](uno/middleware/native/) |
 
-| Docker Image | Version | Base Image |
-|:------------:|:-------:|:----------:|
-| [mentalsmash/uno:latest](https://hub.docker.com/repository/docker/mentalsmash/uno/tags?page=&page_size=&ordering=last_updated&name=latest) |![latest default image version](https://img.shields.io/endpoint?url=https://gist.githubusercontent.com/asorbini/29b57b0427def87cc3ef4ab81c956c29/raw/uno-badge-image-default-version-latest.json)|![latest default image base image](https://img.shields.io/endpoint?url=https://gist.githubusercontent.com/asorbini/2d53344e1ccfae961665e08432f18113/raw/uno-badge-image-default-base-latest.json)|
-| [mentalsmash/uno:latest-static](https://hub.docker.com/repository/docker/mentalsmash/uno/tags?page=&page_size=&ordering=last_updated&name=latest) |![latest static image version](https://img.shields.io/endpoint?url=https://gist.githubusercontent.com/asorbini/d73e338805c7d2c348a2d7149a66f66c/raw/uno-badge-image-static-version-latest-static.json)|![latest static image base image](https://img.shields.io/endpoint?url=https://gist.githubusercontent.com/asorbini/373e55438055b1222c9937797c949f9b/raw/uno-badge-image-static-base-latest-static.json)|
-| [mentalsmash/uno:nightly](https://hub.docker.com/repository/docker/mentalsmash/uno/tags?page=&page_size=&name=nightly&ordering=last_updated) |![latest default image version](https://img.shields.io/endpoint?url=https://gist.githubusercontent.com/asorbini/e7aab205f782cc0c6f394a2fece90509/raw/uno-badge-image-default-version-nightly.json)|![latest default image base image](https://img.shields.io/endpoint?url=https://gist.githubusercontent.com/asorbini/8f31c46dcfd0543b42f356e5b1c6c2c8/raw/uno-badge-image-default-base-nightly.json)|
-| [mentalsmash/uno:nightly-static](https://hub.docker.com/repository/docker/mentalsmash/uno/tags?page=&page_size=&name=nightly&ordering=last_updated) |![latest static image version](https://img.shields.io/endpoint?url=https://gist.githubusercontent.com/asorbini/b310f08c34f051846877aeb59b0be311/raw/uno-badge-image-static-version-nightly-static.json)|![latest static image base image](https://img.shields.io/endpoint?url=https://gist.githubusercontent.com/asorbini/b0e38a84eb8679d5212e162fbb616773/raw/uno-badge-image-static-base-nightly-static.json)|
+## Docker Images
 
-## Installation
+### Stable Images
 
-### Host Installation
+| Flavor | Tag | Version | Base OS |
+|--------|-----|---------|------------|
+| default | [`mentalsmash/uno:latest`](https://hub.docker.com/repository/docker/mentalsmash/uno/tags?page=&page_size=&ordering=last_updated&name=latest) |![latest default image version](https://img.shields.io/endpoint?url=https://gist.githubusercontent.com/asorbini/29b57b0427def87cc3ef4ab81c956c29/raw/uno-badge-image-default-version-latest.json)|![latest default image base image](https://img.shields.io/endpoint?url=https://gist.githubusercontent.com/asorbini/2d53344e1ccfae961665e08432f18113/raw/uno-badge-image-default-base-latest.json)|
+| static | [`mentalsmash/uno:latest-static`](https://hub.docker.com/repository/docker/mentalsmash/uno/tags?page=&page_size=&ordering=last_updated&name=latest) |![latest static image version](https://img.shields.io/endpoint?url=https://gist.githubusercontent.com/asorbini/d73e338805c7d2c348a2d7149a66f66c/raw/uno-badge-image-static-version-latest-static.json)|![latest static image base image](https://img.shields.io/endpoint?url=https://gist.githubusercontent.com/asorbini/373e55438055b1222c9937797c949f9b/raw/uno-badge-image-static-base-latest-static.json)|
+
+### Nightly Images
+
+| Flavor | Tag | Version | Base OS |
+|--------|-----|---------|------------|
+| default | [`mentalsmash/uno:nightly`](https://hub.docker.com/repository/docker/mentalsmash/uno/tags?page=&page_size=&name=nightly&ordering=last_updated) |![latest default image version](https://img.shields.io/endpoint?url=https://gist.githubusercontent.com/asorbini/e7aab205f782cc0c6f394a2fece90509/raw/uno-badge-image-default-version-nightly.json)|![latest default image base image](https://img.shields.io/endpoint?url=https://gist.githubusercontent.com/asorbini/8f31c46dcfd0543b42f356e5b1c6c2c8/raw/uno-badge-image-default-base-nightly.json)|
+| static | [`mentalsmash/uno:nightly-static`](https://hub.docker.com/repository/docker/mentalsmash/uno/tags?page=&page_size=&name=nightly&ordering=last_updated) |![latest static image version](https://img.shields.io/endpoint?url=https://gist.githubusercontent.com/asorbini/b310f08c34f051846877aeb59b0be311/raw/uno-badge-image-static-version-nightly-static.json)|![latest static image base image](https://img.shields.io/endpoint?url=https://gist.githubusercontent.com/asorbini/b0e38a84eb8679d5212e162fbb616773/raw/uno-badge-image-static-base-nightly-static.json)|
+
+
+## Host Installation
 
 **uno** is implemented using Python, and it only supports Linux hosts.
 So far, it has only been tested on Ubuntu 22.04, but it should
@@ -80,7 +89,7 @@ python3 -m venv -m uno-venv
 pip install ./uno
 ```
 
-## Middleware Setup
+### Middleware Setup
 
 `uno` supports different "middleware backends" to implement communication between agents.
 
@@ -97,7 +106,7 @@ Select and install one of the available plugins:
   pip install ./uno-middleware-connext
   ```
 
-## UVN Setup
+### UVN Setup
 
 1. Create a new UVN registry.
 
@@ -286,3 +295,88 @@ Select and install one of the available plugins:
 
 7. Configure static routes on the LAN's router to designate the agent's host
    as the gateway for other remote LANs.
+
+## Docker Installation
+
+**uno** can be provisioned on a host using a container with one of the prebuilt [Docker images](#docker-images)
+
+### UVN Setup
+
+<!-- 1. Create a directory to store your UVN's registry, e.g.:
+
+   ```sh
+   mkdir -p my-uvn
+   chmod 700 my-uvn
+   ``` -->
+
+1. Create `uvn.yaml` inside the UVN directory. `uno` will read this YAML file to your UVN's `cells`, `particles`, and `users` (beyond for the UVN's administrator).
+
+   For example:
+
+   ```yaml
+   users:
+     - email: jane@example.com
+       name: Jane Doe
+       password: janespassword
+   cells:
+     - name: public-cell
+       address: cell1.example.com
+       allowed_lans: [192.168.1.0/24]
+     - name: private-cell
+       allowed_lans: [192.168.2.0/24]
+       owner: jane@example.com
+     - name: relay-cell
+       address: relay-cell.example.com
+   particles:
+     - name: john
+     - name: jane
+       owner: jane@example.com
+   ```
+
+2. Initialize the registry:
+
+   ```sh
+   mkdir my-uvn
+   
+   chmod 700 my-uvn
+
+   docker run --rm \
+    -v $(pwd)/uvn.yaml:/uvn.yaml \
+    -v $(pwd)/my-uvn:/uvn
+    mentalsmash/uno:latest \
+    uno define uvn my-uvn \
+      --root /uvn \
+      --address registry.my-uvn.example.com \
+      --owner "John Doe <john@example.com" \
+      --password johnspassword \
+      --spec /uvn.yaml
+
+   # if your're not running as root, make sure
+   # the directory has the proper permissions
+   docker run --rm \
+     -v $(pwd)/uvn:/uvn \
+     fix-root-permissions \
+     $(id -u):$(id -g)
+   ```
+
+3. Deploy a cell agent package on the target host:
+
+   ```sh
+   mkdir -p my-uvn/cell1
+
+   chmod 700 my-uvn/cell1
+
+   docker create \
+     --init \
+     --name agent-cell1-my-uvn \
+     --hostname cell1 \
+     --net host \
+     --privileged \
+     -v $(pwd)/my-uvn__cell1.uvn-agent:/package.uvn-agent \
+     -v $(pwd)/my-uvn/cell1:/uvn \
+     --restart on-failure:5 \
+     mentalsmash/uno:latest \
+     agent
+  
+   docker start agent-cell1-my-uvn
+   ```

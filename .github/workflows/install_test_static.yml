@@ -64,20 +64,18 @@ jobs:
     strategy:
       matrix:
         platform: [amd64, arm64]
-    uses: ./.github/workflows/_release_validate.yml
+    uses: ./.github/workflows/_install_test.yml
     with:
       tag: ${{github.repository}}:${{ needs.check-trigger.outputs.IMAGE_TAG }}
       platform: ${{matrix.platform}}
-      flavor: static
 
   test-user:
     if: github.event_name == 'workflow_dispatch'
     strategy:
       matrix:
         platform: ${{ fromJson(inputs.platforms) }}
-    uses: ./.github/workflows/_release_validate.yml
+    uses: ./.github/workflows/_install_test.yml
     with:
       tag: ${{ inputs.tag }}
       platform: ${{matrix.platform}}
-      flavor: static
 

@@ -1,0 +1,17 @@
+users:
+  - email: jane@example.com
+    name: Jane Doe
+    password: janespassword
+cells:
+  - name: public-cell
+    address: cell1.example.com
+    allowed_lans: [192.168.1.0/24]
+  - name: private-cell
+    allowed_lans: [192.168.2.0/24]
+    owner: jane@example.com
+  - name: relay-cell
+    address: relay-cell.example.com
+particles:
+  - name: john
+  - name: jane
+    owner: jane@example.com
