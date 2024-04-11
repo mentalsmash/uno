@@ -31,7 +31,6 @@ jobs:
       DOCKER_FLAVOR_CONFIG: ${{steps.config.outputs.DOCKER_FLAVOR_CONFIG}}
       DOCKER_TAGS_CONFIG: ${{steps.config.outputs.DOCKER_TAGS_CONFIG}}
       FLAVOR: ${{steps.config.outputs.FLAVOR}}
-      TAG: ${{steps.config.outputs.TAG}}
       TAG_TEST: ${{steps.config.outputs.TAG_TEST}}
       UNO_MIDDLEWARE: ${{steps.config.outputs.UNO_MIDDLEWARE}}
     steps:
@@ -50,8 +49,7 @@ jobs:
             echo FLAVOR=${{env.FLAVOR}}
             echo BASE_TAG=${{env.BASE_TAG}}
             echo UNO_MIDDLEWARE=${{env.UNO_MIDDLEWARE}}
-            echo "TAG=${{github.repository}}:${{env.BASE_TAG}}${suffix}"
-            echo "TAG=${{github.repository}}-test:${{env.BASE_TAG}}${suffix}"
+            echo "TAG_TEST=${{github.repository}}-test:${{env.BASE_TAG}}${suffix}"
             echo 'DOCKER_TAGS_CONFIG<<EOF'
             if [ ${{ github.ref_type }} = branch ]; then
               # Add "nightly" tag with higher priority than type=ref
@@ -103,7 +101,7 @@ jobs:
     uses: ./.github/workflows/_release_push.yml
     secrets: inherit
     with:
-      tag: ${{needs.config.outputs.TAG}}
+      tag: ${{needs.config.outputs.TAG_TEST}}
       flavor: ${{ needs.config.outputs.FLAVOR }}
       tags-config: ${{ needs.config.outputs.DOCKER_TAGS_CONFIG }}
       flavor-config: ${{ needs.config.outputs.DOCKER_FLAVOR_CONFIG }}

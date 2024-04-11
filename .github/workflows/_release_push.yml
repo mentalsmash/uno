@@ -40,6 +40,7 @@ jobs:
         with:
           images: |
             ${{ github.repository }}
+            ghcr.io/${{ github.repository }}
           tags: ${{ inputs.tags-config }}
           flavor: ${{ inputs.flavor-config }}
     
@@ -56,14 +57,14 @@ jobs:
           username: ${{ secrets.DOCKERHUB_USERNAME }}
           password: ${{ secrets.DOCKERHUB_TOKEN }}
 
-      - name: Pull images from GitHub and push them to Docker Hub
+      - name: Publish images
         run: |
           docker image pull ${{inputs.tag}}
 
-          dockerhub_images="$(echo ${{steps.meta-docker.outputs.tags}} | tr , ' ')"
-          for tag in ${dockerhub_images}; do
+          images="$(echo ${{steps.meta-docker.outputs.tags}} | tr , ' ')"
+          for tag in ${images}; do
             docker image tag ${{inputs.tag}} ${tag}
           done
-          for tag in ${dockerhub_images}; do
+          for tag in ${images}; do
             docker image push ${tag}
           done

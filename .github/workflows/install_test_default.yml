@@ -1,13 +1,9 @@
-name: Install Test
-run-name: Test ${{github.ref_type == 'branch' && 'nightly' || 'stable'}} release from ${{github.ref_type}} ${{github.ref_name}}${{github.ref_type == 'branch' && '@' || ''}}${{github.ref_type == 'branch' && github.sha || ''}}
+name: Install Test (default)
+run-name: Test ${{github.ref_type == 'branch' && 'nightly' || 'stable'}} default release from ${{github.ref_type}} ${{github.ref_name}}${{github.ref_type == 'branch' && '@' || ''}}${{github.ref_type == 'branch' && github.sha || ''}}
 
 on:
   workflow_dispatch:
     inputs:
-      flavors:
-        description: Flavors to test (JSON array)
-        type: string
-        required: true
       platforms:
         description: Platforms to test (JSON array)
         type: string
@@ -15,10 +11,9 @@ on:
       tag:
         description: Image tag to test (e.g. mentalsmash/uno:latest)
         type: string
-        required: true
 
   workflow_run:
-    workflows: ["Release"]
+    workflows: ["Release (default)"]
     types: [completed]
 
 concurrency:
@@ -68,22 +63,20 @@ jobs:
     strategy:
       matrix:
         platform: [amd64, arm64]
-        flavor: [default, static]
     uses: ./.github/workflows/_release_validate.yml
     with:
       tag: ${{github.repository}}:${{ needs.check-trigger.outputs.IMAGE_TAG }}
       platform: ${{matrix.platform}}
-      flavor: ${{matrix.flavor}}
+      flavor: default
 
   test-user:
     if: github.event_name == 'workflow_dispatch'
     strategy:
       matrix:
         platform: ${{ fromJson(inputs.platforms) }}
-        flavor: ${{ fromJson(inputs.flavors) }}
     uses: ./.github/workflows/_release_validate.yml
     with:
       tag: ${{ inputs.tag }}
       platform: ${{matrix.platform}}
-      flavor: ${{matrix.flavor}}
+      flavor: default
 
