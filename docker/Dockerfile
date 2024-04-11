@@ -101,6 +101,8 @@ ENV UNO_VENV /opt/uno/venv
 COPY . ${UNO_DIR}
 
 RUN set -xe; \
+    # Delete .git directory
+    rm -rf ${UNO_DIR}/.git; \
     # Generate new virtual environment
     python3 -m venv ${UNO_VENV}; \
     # Install all Python packages in the virtual environment

@@ -26,19 +26,19 @@ jobs:
     if: github.event_name == 'workflow_run'
     runs-on: ubuntu-latest
     outputs:
-      DO_VALIDATE: ${{steps.run-config.outputs.DO_VALIDATE}}
-      IMAGE_TAG: ${{steps.run-config.outputs.IMAGE_TAG}}
+      DO_VALIDATE: ${{steps.config.outputs.DO_VALIDATE}}
+      IMAGE_TAG: ${{steps.config.outputs.IMAGE_TAG}}
     steps:
-      - name: "Ignore non-release upstream jobs"
-        id: run-config
+      - name: "Generate test configuration"
+        id: config
         run: |
           do_validate=y
-          case ${{github.ref_type}} in
+          case "${{github.ref_type}}" in
             tag)
               image_tag=latest
               ;;
             branch)
-              case ${{github.ref_name}} in
+              case "${{github.ref_name}}" in
                 master)
                   image_tag=nightly
                   ;;
@@ -48,7 +48,7 @@ jobs:
               esac
               ;;
           esac
-          echo (
+          (
             echo IMAGE_TAG=${image_tag}
             echo DO_VALIDATE=${do_validate}
           ) >> ${GITHUB_OUTPUT}
@@ -56,7 +56,7 @@ jobs:
         run: |
           echo "upstream job for ${{github.ref_type}} ${{github.ref_name}} failed with conclusion '${{github.event.workflow_run.conclusion}}'"
           exit 1
-        if: steps.run-config.outputs.DO_VALIDATE && github.event.workflow_run.conclusion != 'success'
+        if: steps.config.outputs.DO_VALIDATE && github.event.workflow_run.conclusion != 'success'
 
   test-trigger:
     needs: check-trigger

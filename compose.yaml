@@ -1,0 +1,21 @@
+services:
+  test-runner:
+    build:
+      context: .
+      dockerfile: docker/Dockerfile
+      tags:
+        - mentalsmash/uno-test-runner:latest
+      args:
+        DEV: y
+        UNO_MIDDLEWARE: uno_middleware_connext
+        BASE_IMAGE: ubuntu:22.04
+  test-runner-static:
+    build:
+      context: .
+      dockerfile: docker/Dockerfile
+      tags:
+        - mentalsmash/uno-test-runner:latest
+      args:
+        DEV: y
+        UNO_MIDDLEWARE: uno.middleware.native
+        BASE_IMAGE: ubuntu:24.04

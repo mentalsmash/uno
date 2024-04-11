@@ -89,8 +89,8 @@ jobs:
 
   test:
     needs:
-      - build
       - config
+      - build
     strategy:
       matrix:
         platform: [amd64, arm64]
@@ -103,7 +103,6 @@ jobs:
 
   push:
     needs:
-      - build
       - config
       - test
     uses: ./.github/workflows/_release_push.yml
@@ -123,4 +122,3 @@ jobs:
     with:
       base-image: ${{ needs.config.outputs.BASE_TAG }}
       flavor: ${{ needs.config.outputs.FLAVOR }}
-  
