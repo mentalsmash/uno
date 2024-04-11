@@ -16,6 +16,8 @@
 ###############################################################################
 from ..cli_helpers import cli_command_main
 from .parser import uno_parser
+import uno
+
 def main():
-  return cli_command_main(uno_parser)
+  return cli_command_main(uno_parser, version=uno.__version__)
 
