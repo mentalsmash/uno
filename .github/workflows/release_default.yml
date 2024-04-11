@@ -46,6 +46,7 @@ jobs:
               tag=nightly
               ;;
           esac
+          sha_short=$(cd src/uno && git rev-parse --short HEAD)
           (
             echo FLAVOR=${{env.FLAVOR}}
             echo BASE_TAG=${{env.BASE_TAG}}
@@ -53,7 +54,8 @@ jobs:
             echo TAG_TEST=ghcr.io/${{github.repository}}-test:${tag}${{env.TAG_SUFFIX}}
             echo 'DOCKER_TAGS_CONFIG<<EOF'
             if [ ${{ github.ref_type }} = branch ]; then
-              echo "type=raw,value=${tag}${{env.TAG_SUFFIX}},priority=601"
+              echo "type=raw,value=${tag}${{env.TAG_SUFFIX}},priority=650"
+              echo "type=raw,value=${sha_short},priority=625"
               if [ ${{ github.ref_name}} = master ]; then
                 # Add branch name as a tag only for "master"
                 echo 'type=ref,event=branch'
