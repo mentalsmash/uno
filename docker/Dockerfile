@@ -146,13 +146,11 @@ RUN set -xe; \
       # Initialize ~/.ssh
       mkdir -p /home/${TEST_USER}/.ssh; \
       touch /home/${TEST_USER}/.ssh/authorized_keys; \
-      cp ${UNO_DIR}/docker/dev/test_key.ed25519.key      /home/${TEST_USER}/.ssh/id_ed25519; \
-      cp ${UNO_DIR}/docker/dev/test_key.ed25519.key.pub  /home/${TEST_USER}/.ssh/id_ed25519.pub; \
-      # Adjust private key's permissions
-      chown -R ${TEST_USER}:${TEST_USER} /home/${TEST_USER}/.ssh; \
-      chmod 600 /home/${TEST_USER}/.ssh/id_ed25519; \
-      # Enable key for SSH login
+      # Generate a private key and configure it as an authorized key
+      ssh-keygen -t ed25519 -N '' -C uno@test -f /home/${TEST_USER}/.ssh/id_ed25519; \
       cat /home/${TEST_USER}/.ssh/id_ed25519.pub >> /home/${TEST_USER}/.ssh/authorized_keys; \
+      # Adjust permissions
+      chown -R ${TEST_USER}:${TEST_USER} /home/${TEST_USER}/.ssh; \
     fi
 
 ###############################################################################

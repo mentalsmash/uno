@@ -1,6 +1,6 @@
 name: Release (default)
 run-name: |
-  release (default) [${{github.ref_type == 'tag' && 'stable' || 'nightly' }} from ${{github.ref_name}}${{github.ref_type == 'branch' && '@' || ''}}${{github.ref_type == 'branch' && github.sha || ''}}]
+  release (default) [${{github.ref_type == 'tag' && 'stable' || 'nightly' }}, ${{github.ref_name}}]
 
 on:
   push:

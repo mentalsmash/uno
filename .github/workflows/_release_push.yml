@@ -1,6 +1,6 @@
 name: Release Step (Push Image)
 run-name: |
-  release (${{inputs.flavor}}) - push image [${{github.ref_type == 'branch' && 'nightly' || 'stable'}} from ${{github.ref_name}}${{github.ref_type == 'branch' && '@' || ''}}${{github.ref_type == 'branch' && github.sha || ''}}]
+  release (${{inputs.flavor}}) - push image [${{github.ref_type == 'branch' && 'nightly' || 'stable'}}, ${{github.ref_name}}]
 
 on:
   workflow_call:
