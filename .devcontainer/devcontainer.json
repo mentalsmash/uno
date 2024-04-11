@@ -1,0 +1,9 @@
+{
+  "image": "mcr.microsoft.com/devcontainers/universal:2",
+  "features": {
+    "ghcr.io/devcontainers/features/docker-in-docker:2": {},
+    "ghcr.io/devcontainers-contrib/features/apt-packages:1": {
+      "packages": "frr,git,gnupg2,iproute2,iptables,iputils-ping,lighttpd,lighttpd-mod-openssl,psmisc,openssl,python3-dev,python3-pip,python3-venv,qrencode,tar,xz-utils,wireguard,wireguard-tools"
+    }
+  }
+}

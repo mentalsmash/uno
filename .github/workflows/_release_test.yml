@@ -165,7 +165,7 @@ jobs:
         id: integration-tests
         run: |
           . venv/bin/activate
-          pytest -s -v --junit-xml=test-results/uno-test-results-integration-${{ steps.config.outputs.TEST_ID }}.xml \
+          pytest -s -v --junit-xml=test-results/uno-test-results-integration-${{ needs.test_config.outputs.TEST_ID }}.xml \
             src/uno/test/integration
         env:
           RTI_LICENSE_FILE: ${{ github.workspace }}/rti_license.dat

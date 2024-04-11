@@ -61,11 +61,7 @@ jobs:
             echo 'DOCKER_TAGS_CONFIG<<EOF'
             if [ ${{ github.ref_type }} = branch ]; then
               echo "type=raw,value=${tag},priority=650"
-              if [ ${{ github.ref_name}} = master ]; then
-                # Add branch name/sha as a tag only for "master"
-                echo 'type=ref,event=branch'
-                echo "type=raw,value=${{github.ref_name}}-${sha_short},priority=625"
-              fi
+              echo 'type=ref,event=branch'
             fi
             echo 'type=semver,pattern={{version}}'
             echo 'type=semver,pattern={{major}}.{{minor}}'
