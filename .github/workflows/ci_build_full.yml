@@ -1,7 +1,14 @@
-name: Release (Test Build)
+name: CI (Full Build)
 
 on:
   workflow_dispatch:
+
+  push:
+    branches-ignore:
+      - master
+      - v1
+      - sql
+      - installer
 
 concurrency:
   group: test-${{ github.ref }}
@@ -27,7 +34,7 @@ jobs:
           - build-platform: arm64
             base-image: ubuntu:24.04
             uno-middleware: uno.middleware.native
-    uses: ./.github/workflows/build_and_test.yml
+    uses: ./.github/workflows/ci_build.yml
     secrets: inherit
     with:
       build-platform: ${{matrix.build-platform}}

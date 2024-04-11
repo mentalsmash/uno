@@ -27,9 +27,11 @@ jobs:
     outputs:
       BUILD_TYPE: ${{steps.config.outputs.BUILD_TYPE}}
       TAG_DEFAULT: ${{steps.config.outputs.TAG_DEFAULT}}
+      TAG_TEST_DEFAULT: ${{steps.config.outputs.TAG_TEST_DEFAULT}}
       TAGS_CONFIG_DEFAULT: ${{steps.config.outputs.TAGS_CONFIG_DEFAULT}}
       FLAVOR_CONFIG_DEFAULT: ${{steps.config.outputs.FLAVOR_CONFIG_DEFAULT}}
       TAG_STATIC: ${{steps.config.outputs.TAG_STATIC}}
+      TAG_TEST_STATIC: ${{steps.config.outputs.TAG_TEST_STATIC}}
       TAGS_CONFIG_STATIC: ${{steps.config.outputs.TAGS_CONFIG_STATIC}}
       FLAVOR_CONFIG_STATIC: ${{steps.config.outputs.FLAVOR_CONFIG_STATIC}}
     steps:
@@ -63,9 +65,11 @@ jobs:
               case "${{github.ref_type}}" in
                 branch)
                   echo "TAG_${SUFFIX_ID}=${{github.repository}}:nightly${suffix}"
+                  echo "TAG_TEST_${SUFFIX_ID}=${{github.repository}}-test:nightly${suffix}"
                   ;;
                 tag)
                   echo "TAG_${SUFFIX_ID}=${{github.repository}}:latest${suffix}"
+                  echo "TAG_TEST_${SUFFIX_ID}=${{github.repository}}-test:latest${suffix}"
                   ;;
               esac
             ) >> $GITHUB_OUTPUT
@@ -116,17 +120,17 @@ jobs:
         include:
           - platform: amd64
             image-type: default
-            tag: ${{ needs.config.outputs.TAG_DEFAULT }}
+            tag: ${{ needs.config.outputs.TAG_TEST_DEFAULT }}
           - platform: arm64
             image-type: default
-            tag: ${{ needs.config.outputs.TAG_DEFAULT }}
+            tag: ${{ needs.config.outputs.TAG_TEST_DEFAULT }}
           - platform: amd64
             image-type: default
-            tag: ${{ needs.config.outputs.TAG_STATIC }}
+            tag: ${{ needs.config.outputs.TAG_TEST_STATIC }}
           - platform: arm64
             image-type: default
-            tag: ${{ needs.config.outputs.TAG_STATIC }}
-    uses: ./.github/workflows/release_image_test.yml
+            tag: ${{ needs.config.outputs.TAG_TEST_STATIC }}
+    uses: ./.github/workflows/release_validate.yml
     secrets: inherit
     with:
       tag: ${{matrix.tag}}
@@ -143,13 +147,15 @@ jobs:
         include:
           - image-type: default
             tag: ${{ needs.config.outputs.TAG_DEFAULT }}
+            tag-test: ${{ needs.config.outputs.TAG_TEST_DEFAULT }}
             tags-config: ${{ needs.config.outputs.TAGS_CONFIG_DEFAULT }}
             flavor-config: ${{ needs.config.outputs.FLAVOR_CONFIG_DEFAULT }}
           - image-type: static
             tag: ${{ needs.config.outputs.TAG_STATIC }}
+            tag-test: ${{ needs.config.outputs.TAG_TEST_STATIC }}
             tags-config: ${{ needs.config.outputs.TAGS_CONFIG_STATIC }}
             flavor-config: ${{ needs.config.outputs.FLAVOR_CONFIG_STATIC }}
-    uses: ./.github/workflows/release_images_push.yml
+    uses: ./.github/workflows/release_push.yml
     secrets: inherit
     with:
       tag: ${{matrix.tag}}

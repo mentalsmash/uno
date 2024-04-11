@@ -1,4 +1,4 @@
-name: Build and test
+name: CI (Build)
 
 on:
   workflow_call:
@@ -16,6 +16,29 @@ on:
         type: boolean
         default: true
       run-integration:
+        type: boolean
+        default: true
+
+  workflow_dispatch:
+    inputs:
+      uno-middleware:
+        description: "uno middleware plugin"
+        type: string
+        required: true
+      base-image:
+        description: "base OS image"
+        type: string
+        required: true
+      build-platform:
+        description: "linux build platform"
+        type: string
+        required: true
+      run-unit:
+        description: "run unit tests"
+        type: boolean
+        default: true
+      run-integration:
+        description: "run integration tests"
         type: boolean
         default: true
 

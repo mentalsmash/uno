@@ -65,7 +65,7 @@ jobs:
         uses: docker/metadata-action@v5
         with:
           images: |
-            ghcr.io/${{ github.repository }}
+            ghcr.io/${{ github.repository }}-test
           tags: ${{ inputs.tags-config }}
           flavor: ${{ inputs.flavor-config }}
 
@@ -76,7 +76,7 @@ jobs:
           username: ${{ github.actor }}
           password: ${{ secrets.GITHUB_TOKEN }}
     
-      - name: Build images and push to GitHub
+      - name: Build images and push images to GitHub
         uses: docker/build-push-action@v5
         with:
           file: src/uno/docker/Dockerfile
