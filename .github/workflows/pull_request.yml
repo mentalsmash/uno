@@ -41,8 +41,8 @@ jobs:
           case ${{github.event_name}} in
             pull_request_review)
               case "${{github.event.review.state}}" in
-                APPROVED)
-                  echo "Pull request ${{github.ref_name}} has been APPROVED. Performing full test."
+                approved)
+                  echo "Pull request ${{github.ref_name}} has been approved. Performing full test."
                   full=y
                   ;;
                 *)
@@ -51,7 +51,7 @@ jobs:
               esac
               ;;
             pull_request)
-              echo "Pull request ${{github.ref_name}} NOT APPROVED but updated. Performing basic test."
+              echo "Pull request ${{github.ref_name}} NOT APPROVED (${{github.event.review.state}}) but updated. Performing basic test."
               basic=y
               ;;
           esac
