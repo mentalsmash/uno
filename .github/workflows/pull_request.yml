@@ -1,19 +1,15 @@
 name: Pull Request
 run-name: |
-  PR #${{github.event.number}} ${{github.event.pull_request.title}} [${{github.event_name == 'pull_request' && 'changed' || 'reviewed, ' }}${{github.event_name == 'pull_request' && github.event.review.state || '' }}]
+  PR #${{github.event.number}} ${{github.event.pull_request.title}} [${{github.event_name == 'pull_request' && 'changed' || 'reviewed, ' }}${{github.event_name == 'pull_request' && '' || github.event.review.state }}]
 
 on:
   pull_request:
     branches:
       - master
-    paths:
-      # No sense in doing these tests for other files, e.g. docs
-      - 'pyproject.toml'
-      - 'uno/**/*'
-      - 'plugins/**/*'
-      - 'test/**/*'
-      - 'docker/**/*'
-      - '.github/**/*'
+    paths-ignore:
+      # No sense in doing these tests for these file
+      - 'README.md'
+      - 'docs/**/*'
     types:
       - opened
       - ready_for_review
