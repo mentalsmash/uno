@@ -35,6 +35,12 @@ jobs:
       TAG_TEST: ${{steps.config.outputs.TAG_TEST}}
       UNO_MIDDLEWARE: ${{steps.config.outputs.UNO_MIDDLEWARE}}
     steps:
+      - name: Clone uno
+        uses: actions/checkout@v4
+        with:
+          path: src/uno
+          submodules: true
+
       - name: Configure build
         id: config
         run: |

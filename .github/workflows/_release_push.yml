@@ -30,7 +30,7 @@ jobs:
         with:
           path: src/uno
           submodules: true
-      
+ 
       - name: Extract image metadata
         id: meta-docker
         uses: docker/metadata-action@v5
