@@ -1,6 +1,6 @@
 name: Install Test (static)
 run-name: |
-  install test (static) [${{github.ref_type == 'branch' && 'nightly' || 'stable'}}, ${{github.ref_name}}]
+  install test (static) [${{github.ref_type == 'branch' && 'nightly' || 'stable'}}, ${{github.ref_name}}${{github.ref_type == 'branch' && '@' || ''}}${{github.ref_type == 'branch' && github.sha || ''}}]
 
 on:
   workflow_dispatch:

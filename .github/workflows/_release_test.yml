@@ -23,7 +23,6 @@ jobs:
   test_config:
     runs-on: ubuntu-latest
     outputs:
-      BUILD_TYPE: ${{ steps.config.outputs.BUILD_TYPE }}
       TEST_ARTIFACT: ${{ steps.config.outputs.TEST_ARTIFACT }}
       TEST_ID: ${{ steps.config.outputs.TEST_ID }}
       TEST_IMAGE: ${{ steps.config.outputs.TEST_IMAGE }}
@@ -50,20 +49,20 @@ jobs:
               echo "invalid flavor: '${{inputs.flavor}}'"
               exit 1
           esac
-          image_tag=$(echo ${{inputs.tag}} | tr : -)
+          image_tag=$(echo ${{inputs.tag}}  | tr : -)
           case "${{github.ref_type}}" in
             branch)
-              build_type=nightly
               sha_short=$(cd src/uno && git rev-parse --short HEAD)
-              image_label=${image_tag}@${sha_short}
+              build_label=nightly
+              build_version=${sha_short}
               ;;
             tag)
-              build_type=release
-              image_label=${image_tag}@${{github.ref_name}}
+              build_label=release
+              build_version=${{github.ref_name}}
               ;;
           esac
           test_id=$(date +%Y%m%d-%H%M%S)
-          test_artifact=uno-test-${image_label}-${{ inputs.platform }}__${test_id}
+          test_artifact=uno-test-${{inputs.flavor}}-${{ inputs.platform }}-${build_label}__${build_version}__${test_id}
           test_image=${{ github.repository }}-test-runner:latest
           (
             case "${{ inputs.platform }}" in
@@ -74,7 +73,6 @@ jobs:
                 printf -- "RUNNER='%s'\n" '"ubuntu-latest"'
                 ;;
             esac
-            echo BUILD_TYPE=${build_type}
             echo TEST_IMAGE=${test_image}
             echo TEST_ARTIFACT=${test_artifact}
             echo TEST_ID=${test_id}

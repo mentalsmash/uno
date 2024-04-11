@@ -55,7 +55,6 @@ jobs:
     outputs:
       RUNNER: ${{ fromJson(steps.config.outputs.RUNNER) }}
       BUILD_ID: ${{ steps.config.outputs.BUILD_ID }}
-      BUILD_TYPE: ${{ steps.config.outputs.BUILD_TYPE }}
       TEST_ARTIFACT: ${{ steps.config.outputs.TEST_ARTIFACT }}
       TEST_IMAGE: ${{ steps.config.outputs.TEST_IMAGE }}
     steps:
@@ -76,11 +75,10 @@ jobs:
               middleware_type=default
               ;;
           esac
-          middleware_label=$(echo ${{inputs.uno-middleware}} | sed -r 's/uno.middleware.//')
           base_image=$(echo ${{inputs.base-image}} | tr : -)
-          image_version=${{github.ref_name}}
           case "${{github.ref_type}}" in
             tag)
+              image_version=${{github.ref_name}}
               build_type=release
               ;;
             *)
@@ -100,7 +98,7 @@ jobs:
               ;;
           esac
           build_id=$(date +%Y%m%d-%H%M%S)
-          test_artifact=uno-${middleware_label}-${image_version}__${{ inputs.build-platform }}-${base_image}__${build_id}
+          test_artifact=uno-ci-${build_type}-${{ inputs.build-platform }}__${image_version}__${build_id}
           test_image=${{ github.repository }}-test-runner:latest
           (
             case "${{ inputs.build-platform }}" in
@@ -114,7 +112,6 @@ jobs:
             echo TEST_ARTIFACT=${test_artifact}
             echo TEST_IMAGE=${test_image}
             echo BUILD_ID=${build_id}
-            echo BUILD_TYPE=${build_type}
           ) >> ${GITHUB_OUTPUT}
 
   build-n-test:
