@@ -2,28 +2,6 @@ name: Release (Test Image)
 run-name: Test ${{inputs.platform}} ${{github.ref_type == 'branch' && 'nightly' || 'release'}} image from ${{github.ref_type}} ${{github.ref_name}}${{github.ref_type == 'branch' && '@' || ''}}${{github.ref_type == 'branch' && github.sha || ''}}
 
 on:
-  workflow_dispatch:
-    inputs:
-      tag:
-        description: Image to test
-        type: string
-        required: true
-
-      platform:
-        description: Image Architecture
-        type: choice
-        options:
-          - amd64
-          - arm64
-  
-      image-type:
-        description: Image Type
-        type: choice
-        options:
-          - default
-          - static
-        default: default
-
   workflow_call:
     inputs:
       tag:
@@ -36,11 +14,9 @@ on:
         type: string
         required: true
 
-
 concurrency:
   group: release-test-image-${{ github.ref }}-${{ inputs.tag}}-${{ inputs.platform }}
   cancel-in-progress: true
-
 
 permissions:
   contents: read
@@ -81,7 +57,7 @@ jobs:
           case "${{github.ref_type}}" in
             branch)
               build_type=nightly
-              sha_short=$(git rev-parse --short HEAD)
+              sha_short=$(cd src/uno && git rev-parse --short HEAD)
               image_label=${image_tag}@${sha_short}
               ;;
             tag)

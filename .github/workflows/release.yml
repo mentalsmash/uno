@@ -1,11 +1,7 @@
 name: Release
-run-name: ${{github.ref_type == 'tag' && 'Stable' || 'Nightly' }} Release from ${{github.ref_type}} ${{github.ref_name}}${{github.ref_type == 'branch' && '@' || ''}}${{github.ref_type == 'branch' && github.sha || ''}}
+run-name: ${{github.ref_type == 'tag' && 'Stable' || 'Nightly' }} release from ${{github.ref_type}} ${{github.ref_name}}${{github.ref_type == 'branch' && '@' || ''}}${{github.ref_type == 'branch' && github.sha || ''}}
 
 on:
-  workflow_dispatch:
-
-  workflow_call:
-
   push:
     branches:
       - master
@@ -22,220 +18,27 @@ permissions:
   packages: write
 
 jobs:
-  config:
-    runs-on: ubuntu-latest
-    outputs:
-      BUILD_TYPE: ${{steps.config.outputs.BUILD_TYPE}}
-      TAG_DEFAULT: ${{steps.config.outputs.TAG_DEFAULT}}
-      TAG_TEST_DEFAULT: ${{steps.config.outputs.TAG_TEST_DEFAULT}}
-      TAGS_CONFIG_DEFAULT: ${{steps.config.outputs.TAGS_CONFIG_DEFAULT}}
-      FLAVOR_CONFIG_DEFAULT: ${{steps.config.outputs.FLAVOR_CONFIG_DEFAULT}}
-      TAG_STATIC: ${{steps.config.outputs.TAG_STATIC}}
-      TAG_TEST_STATIC: ${{steps.config.outputs.TAG_TEST_STATIC}}
-      TAGS_CONFIG_STATIC: ${{steps.config.outputs.TAGS_CONFIG_STATIC}}
-      FLAVOR_CONFIG_STATIC: ${{steps.config.outputs.FLAVOR_CONFIG_STATIC}}
-    steps:
-      - name: Configure build
-        id: config
-        run: |
-          # Configure ARM support
-          # Generatore action/metadata configuration
-          generate_tags_config()
-          {
-            suffix_id=$1
-            suffix=$2
-            (
-              echo "TAGS_CONFIG_${suffix_id}<<EOF"
-              if [ ${{ github.ref_type }} = branch ]; then
-                # Add "nightly" tag with higher priority than type=ref
-                echo 'type=raw,value=nightly${suffix},priority=601'
-              fi
-              echo 'type=ref,event=branch'
-              echo 'type=semver,pattern={{version}}'
-              echo 'type=semver,pattern={{major}}.{{minor}}'
-              echo 'type=semver,pattern={{major}}'
-              echo EOF
-            ) >> $GITHUB_OUTPUT
-            (
-              echo 'FLAVOR_CONFIG_${suffix_id}<<EOF'
-              echo 'suffix=${suffix},onlatest=true'
-              echo EOF
-            ) >> $GITHUB_OUTPUT
-            (
-              case "${{github.ref_type}}" in
-                branch)
-                  echo "TAG_${SUFFIX_ID}=${{github.repository}}:nightly${suffix}"
-                  echo "TAG_TEST_${SUFFIX_ID}=${{github.repository}}-test:nightly${suffix}"
-                  ;;
-                tag)
-                  echo "TAG_${SUFFIX_ID}=${{github.repository}}:latest${suffix}"
-                  echo "TAG_TEST_${SUFFIX_ID}=${{github.repository}}-test:latest${suffix}"
-                  ;;
-              esac
-            ) >> $GITHUB_OUTPUT
-          }
-          generate_tags_config DEFAULT
-          generate_tags_config STATIC -static
-          (
-            case "${{github.ref_type}}" in
-              tag)
-                echo BUILD_TYPE=stable
-                ;;
-              branch)
-                echo BUILD_TYPE=nightly
-                ;;
-            esac
-          ) >> ${GITHUB_OUTPUT}
-  build:
-    needs: config
+  flavors:
     strategy:
       matrix:
         include:
-          - image-type: default
-            uno-middleware: uno.middleware.native
-            base-image: ubuntu:24.04
-            tags-config: ${{ needs.config.outputs.TAGS_CONFIG_DEFAULT }}
-            flavor-config: ${{ needs.config.outputs.FLAVOR_CONFIG_DEFAULT }}
-          - image-type: static
-            uno-middleware: uno_middleware_connext
-            base-image: ubuntu:22.04
-            tags-config: ${{ needs.config.outputs.TAGS_CONFIG_STATIC }}
-            flavor-config: ${{ needs.config.outputs.FLAVOR_CONFIG_STATIC }}
-    uses: ./.github/workflows/release_build.yml
+          - base-image: ubuntu:22.04
+            flavor: default
+            base-tag: ${{github.ref_type == 'branch' && 'nightly' || 'latest'}}
+          - base-image: ubuntu:24.04
+            flavor: static
+            base-tag: ${{github.ref_type == 'branch' && 'nightly' || 'latest'}}
+    uses: ./.github/workflows/release_flavor.yml
+    with:
+      flavor: ${{matrix.flavor}}
+      base-image: ${{matrix.base-image}}
+
+
+  update_badges:
+    needs: flavors
+    uses: ./.github/workflows/release_badges.yml
     secrets: inherit
     with:
-      image-type: ${{ matrix.image-type }}
-      uno-middleware: ${{ matrix.uno-middleware }}
-      base-image: ${{ matrix.base-image }}
-      tags-config: ${{ matrix.tags-config }}
-      flavor-config: ${{ matrix.flavor-config }}
-      
-
-  test:
-    needs:
-      - build
-      - config
-    strategy:
-      matrix:
-        include:
-          - platform: amd64
-            image-type: default
-            tag: ${{ needs.config.outputs.TAG_TEST_DEFAULT }}
-          - platform: arm64
-            image-type: default
-            tag: ${{ needs.config.outputs.TAG_TEST_DEFAULT }}
-          - platform: amd64
-            image-type: default
-            tag: ${{ needs.config.outputs.TAG_TEST_STATIC }}
-          - platform: arm64
-            image-type: default
-            tag: ${{ needs.config.outputs.TAG_TEST_STATIC }}
-    uses: ./.github/workflows/release_validate.yml
-    secrets: inherit
-    with:
-      tag: ${{matrix.tag}}
-      platform: ${{ matrix.platform }}
-      image-type: ${{ matrix.image-type }}
-
-  push:
-    needs:
-      - build
-      - config
-      - test
-    strategy:
-      matrix:
-        include:
-          - image-type: default
-            tag: ${{ needs.config.outputs.TAG_DEFAULT }}
-            tag-test: ${{ needs.config.outputs.TAG_TEST_DEFAULT }}
-            tags-config: ${{ needs.config.outputs.TAGS_CONFIG_DEFAULT }}
-            flavor-config: ${{ needs.config.outputs.FLAVOR_CONFIG_DEFAULT }}
-          - image-type: static
-            tag: ${{ needs.config.outputs.TAG_STATIC }}
-            tag-test: ${{ needs.config.outputs.TAG_TEST_STATIC }}
-            tags-config: ${{ needs.config.outputs.TAGS_CONFIG_STATIC }}
-            flavor-config: ${{ needs.config.outputs.FLAVOR_CONFIG_STATIC }}
-    uses: ./.github/workflows/release_push.yml
-    secrets: inherit
-    with:
-      tag: ${{matrix.tag}}
-      image-type: ${{matrix.image-type}}
-      tags-config: ${{ matrix.tags-config }}
-      flavor-config: ${{ matrix.flavor-config }}
-
-
-  update_badges_stable:
-    needs:
-      - config
-      - push
-    if: needs.config.outputs.BUILD_TYPE == 'stable'
-    uses: ./.github/workflows/update_image_badges.yml
-    secrets: inherit
-    with:
-      tag-default:            latest
-      base-image-default:     ubuntu:22.04
-      tag-static:             latest-static
-      base-image-static:      ubuntu:24.04
-      badge-default-version: "29b57b0427def87cc3ef4ab81c956c29"
-      badge-default-base:    "2d53344e1ccfae961665e08432f18113"
-      badge-static-version:  "d73e338805c7d2c348a2d7149a66f66c"
-      badge-static-base:     "373e55438055b1222c9937797c949f9b"
-
-  update_badges_nightly:
-    needs:
-      - config
-      - push
-    if: needs.config.outputs.BUILD_TYPE == 'nightly'
-    uses: ./.github/workflows/update_image_badges.yml
-    secrets: inherit
-    with:
-      tag-default:            nightly
-      base-image-default:     ubuntu:22.04
-      tag-static:             nightly-static
-      base-image-static:      ubuntu:24.04
-      badge-default-version: "e7aab205f782cc0c6f394a2fece90509"
-      badge-default-base:    "8f31c46dcfd0543b42f356e5b1c6c2c8"
-      badge-static-version:  "b310f08c34f051846877aeb59b0be311"
-      badge-static-base:     "b0e38a84eb8679d5212e162fbb616773"
-
-  update_badge_release:
-    needs:
-      - config
-      - push
-    if: needs.config.outputs.BUILD_TYPE == 'stable'
-    runs-on: ubuntu-latest
-    steps:
-    - name: Clone uno
-      uses: actions/checkout@v4
-      with:
-        path: src/uno
-        submodules: true
-
-    - name: Generate derived variables
-      id: badge_cfg
-      run: |
-        SHA_SHORT=$(git rev-parse --short HEAD)
-        message=${{ github.ref_name }}
-        case ${{github.ref_type}} in
-          branch)
-            message="${message} @ ${SHA_SHORT}"
-            color=orange
-            ;;
-          tag)
-            color=green
-            ;;
-        esac
-        echo "MESSAGE=${message}" >> ${GITHUB_OUTPUT}
-        echo COLOR=${COLOR} >> ${GITHUB_OUTPUT}
-
-
-    - name: Update latest-release badge
-      uses: schneegans/dynamic-badges-action@v1.7.0
-      with:
-        auth: ${{ secrets.GIST_UPDATE_TOKEN }}
-        gistID: "fb644ccb3cbb57b2636f9eca808b9931"
-        filename: uno-badge-latest-release.json
-        label: Latest
-        message: ${{ steps.badge_cfg.outputs.MESSAGE }}
-        color: ${{ steps.badge_cfg.outputs.COLOR }}
+      base-image-static: ubuntu:24.04
+      base-image-default: ubuntu:22.04
 

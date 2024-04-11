@@ -1,0 +1,113 @@
+name: Release (Update Badges)
+run-name: Update badges for ${{github.ref_type == 'branch' && 'nightly' || 'stable'}} release from ${{github.ref_type}} ${{github.ref_name}}${{github.ref_type == 'branch' && '@' || ''}}${{github.ref_type == 'branch' && github.sha || ''}}
+
+concurrency:
+  group: release-update-badges-${{github.ref_type == 'branch' && 'nightly' || 'stable'}}
+  cancel-in-progress: true
+
+on:
+  workflow_call:
+    inputs:
+      base-image-static:
+        type: string
+        required: true
+      base-image-default:
+        type: string
+        required: true
+
+jobs:
+  update_badges:
+    runs-on: ubuntu-latest
+    steps:
+    - name: Clone uno
+      uses: actions/checkout@v4
+      with:
+        path: src/uno
+
+    - name: Generate badge configuration
+      id: config
+      run: |
+        case "${{github.ref_type}}" in
+          branch)
+            sha_short=$(cd src/uno && git rev-parse --short HEAD)
+            version=${sha_short}
+            color_version=orange
+            tag=latest
+            badge_default_version=29b57b0427def87cc3ef4ab81c956c29
+            badge_default_base=2d53344e1ccfae961665e08432f18113
+            badge_static_version=d73e338805c7d2c348a2d7149a66f66c
+            badge_static_base=373e55438055b1222c9937797c949f9b
+            ;;
+          tag)
+            version=${{github.ref_name}}
+            color_version=green
+            tag=nightly
+            badge_default_version=e7aab205f782cc0c6f394a2fece90509
+            badge_default_base=8f31c46dcfd0543b42f356e5b1c6c2c8
+            badge_static_version=b310f08c34f051846877aeb59b0be311
+            badge_static_base=b0e38a84eb8679d5212e162fbb616773
+            ;;
+        esac
+        (
+          echo VERSION=${version}
+          echo COLOR_VERSION=${color_version}
+          echo COLOR_BASE=blue
+          echo TAG_DEFAULT=${tag}
+          echo TAG_STATIC=${tag}-static
+          echo BADGE_DEFAULT_VERSION=${badge_default_version}
+          echo BADGE_DEFAULT_BASE=${badge_default_base}
+          echo BADGE_STATIC_VERSION=${badge_static_version}
+          echo BADGE_STATIC_BASE=${badge_static_base}
+        ) >> ${GITHUB_OUTPUT}
+
+    - name: Update default version badge
+      uses: schneegans/dynamic-badges-action@v1.7.0
+      with:
+        auth: ${{ secrets.GIST_UPDATE_TOKEN }}
+        gistID: ${{ steps.config.outputs.BADGE_DEFAULT_VERSION }}
+        filename: uno-badge-image-default-version-${{ steps.config.outputs.TAG_DEFAULT }}.json
+        label: version
+        message: ${{ steps.config.outputs.VERSION }}
+        color: ${{ steps.config.outputs.COLOR_VERSION }}
+
+    - name: Update default base image badge
+      uses: schneegans/dynamic-badges-action@v1.7.0
+      with:
+        auth: ${{ secrets.GIST_UPDATE_TOKEN }}
+        gistID: ${{ steps.config.outputs.BADGE_DEFAULT_VERSION }}
+        filename: uno-badge-image-default-base-${{ steps.config.outputs.TAG_DEFAULT }}.json
+        label: base image
+        message: ${{ inputs.base-image-default }}
+        color: ${{ steps.config.outputs.COLOR_BASE }}
+
+    - name: Update static version badge
+      uses: schneegans/dynamic-badges-action@v1.7.0
+      with:
+        auth: ${{ secrets.GIST_UPDATE_TOKEN }}
+        gistID: ${{ steps.config.outputs.BADGE_STATIC_VERSION }}
+        filename: uno-badge-image-static-version-${{ steps.config.outputs.TAG_STATIC }}.json
+        label: version
+        message: ${{ steps.config.outputs.VERSION }}
+        color: ${{ steps.config.outputs.COLOR_VERSION }}
+
+    - name: Update static base image badge
+      uses: schneegans/dynamic-badges-action@v1.7.0
+      with:
+        auth: ${{ secrets.GIST_UPDATE_TOKEN }}
+        gistID: ${{ steps.config.outputs.BADGE_STATIC_BASE }}
+        filename: uno-badge-image-static-base-${{ steps.config.outputs.TAG_STATIC }}.json
+        label: base image
+        message: ${{ inputs.base-image-static }}
+        color: ${{ steps.config.outputs.COLOR_BASE }}
+
+    - name: Update latest-release badge
+      if: ${{github.ref_type == 'tag'}}
+      uses: schneegans/dynamic-badges-action@v1.7.0
+      with:
+        auth: ${{ secrets.GIST_UPDATE_TOKEN }}
+        gistID: "fb644ccb3cbb57b2636f9eca808b9931"
+        filename: uno-badge-latest-release.json
+        label: Latest
+        message: ${{ steps.config.outputs.VERSION }}
+        color: ${{ steps.config.outputs.COLOR_VERSION }}
+

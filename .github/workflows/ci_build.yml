@@ -43,7 +43,7 @@ on:
         default: true
 
 concurrency:
-  group: test-build-${{ github.ref }}-${{ inputs.uno-middleware }}-${{ inputs.build-platform }}-${{ inputs.base-image }}
+  group: ci-build-${{ github.ref }}-${{ inputs.uno-middleware }}-${{ inputs.build-platform }}-${{ inputs.base-image }}
   cancel-in-progress: true
 
 permissions:

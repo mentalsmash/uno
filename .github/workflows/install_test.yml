@@ -3,15 +3,26 @@ run-name: Test ${{github.ref_type == 'branch' && 'nightly' || 'stable'}} release
 
 on:
   workflow_dispatch:
-
-  workflow_call:
+    inputs:
+      flavors:
+        description: Flavors to test (JSON array)
+        type: string
+        required: true
+      platforms:
+        description: Platforms to test (JSON array)
+        type: string
+        required: true
+      tag:
+        description: Image tag to test (e.g. mentalsmash/uno:latest)
+        type: string
+        required: true
 
   workflow_run:
     workflows: ["Release"]
     types: [completed]
 
 concurrency:
-  group: release-install-test-${{ github.ref }}
+  group: install-test-${{ github.ref }}
   cancel-in-progress: true
 
 jobs:
@@ -51,16 +62,28 @@ jobs:
           exit 1
         if: steps.run-config.outputs.DO_VALIDATE && github.event.workflow_run.conclusion != 'success'
 
-  test:
+  test-trigger:
     needs: check-trigger
     if: needs.check-trigger.outputs.DO_VALIDATE
     strategy:
       matrix:
         platform: [amd64, arm64]
         image-type: [default, static]
-    uses: ./.github/workflows/release_validate_image.yml
+    uses: ./.github/workflows/release_validate.yml
     with:
       tag: ${{github.repository}}:${{ needs.check-trigger.outputs.IMAGE_TAG }}
+      platform: ${{matrix.platform}}
+      image-type: ${{matrix.image-type}}
+
+  test-user:
+    if: github.event_name == 'workflow_dispatch'
+    strategy:
+      matrix:
+        platform: ${{ fromJson(inputs.platforms) }}
+        image-type: ${{ fromJson(inputs.flavors) }}
+    uses: ./.github/workflows/release_validate.yml
+    with:
+      tag: ${{ inputs.tag }}
       platform: ${{matrix.platform}}
       image-type: ${{matrix.image-type}}
 

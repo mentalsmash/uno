@@ -3,15 +3,10 @@ name: CI (Full Build)
 on:
   workflow_dispatch:
 
-  push:
-    branches-ignore:
-      - master
-      - v1
-      - sql
-      - installer
+  workflow_call:
 
 concurrency:
-  group: test-${{ github.ref }}
+  group: ci-build-full-${{ github.ref }}
   cancel-in-progress: true
 
 permissions:
