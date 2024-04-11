@@ -142,9 +142,16 @@ class UvnNet(AgentService):
       self._iptables_install(nic, [
         "-A", chain, "-s", str(subnet), "-i", nic, "-j", "ACCEPT",
       ], noop=noop)
-      if docker_installed:
+    
+    if docker_installed:
+      for other_nic in sorted((
+        *([self.agent.root_vpn.config.intf.name] if self.agent.root_vpn else []),
+        *([self.agent.particles_vpn.config.intf.name] if self.agent.particles_vpn else []),
+        *(vpn.config.intf.name for vpn in self.agent.backbone_vpns),
+        *(lan.nic.name for lan in self.agent.lans),
+        )):
         self._iptables_install(nic, [
-          "-I", "DOCKER-USER", "-s", str(subnet), "-i", nic, "-j", "ACCEPT",
+          "-I", "DOCKER-USER", "-i", nic, "-o", other_nic, "-j", "ACCEPT",
         ], noop=noop)
 
     # Drop everything else coming through the interface
