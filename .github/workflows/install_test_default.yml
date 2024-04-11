@@ -17,7 +17,7 @@ on:
     types: [completed]
 
 concurrency:
-  group: install-test-${{ github.ref }}
+  group: install-test-default-${{ github.ref }}
   cancel-in-progress: true
 
 jobs:
