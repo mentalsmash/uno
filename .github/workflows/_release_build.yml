@@ -83,6 +83,7 @@ jobs:
           file: src/uno/docker/Dockerfile
           tags: ${{ steps.meta-github.outputs.tags }}
           labels: ${{ steps.meta-github.outputs.labels }}
+          annotations: ${{ steps.meta-github.outputs.annotations }}
           push: true
           context: src/uno
           platforms: linux/amd64,linux/arm64

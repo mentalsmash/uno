@@ -58,22 +58,14 @@ jobs:
         run: |
           docker image pull ${{inputs.tag}}
 
-      - name: List images
-        id: list-images
-        run: |
-          (
-            printf -- "IMAGES='%s'\n" \
-              "$(echo "${{steps.meta-docker.outputs.tags}}" | xargs | tr , ' ')"
-          ) >> ${GITHUB_OUTPUT}
-
       - name: Tag images
         run: |
-          for tag in ${{steps.list-images.outputs.IMAGES}}; do
+          for tag in $(echo "${{steps.meta-docker.outputs.tags}}" | xargs | tr , ' '); do
             docker image tag ${{inputs.tag}} ${tag}
           done
       
       - name: Push images
         run: |
-          for tag in ${{steps.list-images.outputs.IMAGES}}; do
+          for tag in $(echo "${{steps.meta-docker.outputs.tags}}" | xargs | tr , ' '); do
             docker image push ${tag}
           done
