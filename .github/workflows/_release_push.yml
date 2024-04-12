@@ -52,7 +52,7 @@ jobs:
           set -x
           tags="$(echo "${{steps.meta-docker.outputs.tags}}" | xargs | tr , ' ')"
           for tag in ${tags}; do
-            docker buildx imagetools -t ${tag} ${{inputs.tag}}
+            docker buildx imagetools create -t ${tag} ${{inputs.tag}}
           done
 
       - name: Extract GitHub metadata
