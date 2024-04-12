@@ -72,35 +72,35 @@ jobs:
             echo EOF
           ) >> $GITHUB_OUTPUT
 
-  # build:
-  #   needs: config
-  #   uses: ./.github/workflows/_release_build.yml
-  #   secrets: inherit
-  #   with:
-  #     flavor: ${{ needs.config.outputs.FLAVOR }}
-  #     uno-middleware: ${{ needs.config.outputs.UNO_MIDDLEWARE }}
-  #     base-tag: ${{ needs.config.outputs.BASE_TAG }}
-  #     tags-config: ${{ needs.config.outputs.DOCKER_TAGS_CONFIG }}
-  #     flavor-config: ${{ needs.config.outputs.DOCKER_FLAVOR_CONFIG }}
+  build:
+    needs: config
+    uses: ./.github/workflows/_release_build.yml
+    secrets: inherit
+    with:
+      flavor: ${{ needs.config.outputs.FLAVOR }}
+      uno-middleware: ${{ needs.config.outputs.UNO_MIDDLEWARE }}
+      base-tag: ${{ needs.config.outputs.BASE_TAG }}
+      tags-config: ${{ needs.config.outputs.DOCKER_TAGS_CONFIG }}
+      flavor-config: ${{ needs.config.outputs.DOCKER_FLAVOR_CONFIG }}
 
-  # test:
-  #   needs:
-  #     - config
-  #     - build
-  #   strategy:
-  #     matrix:
-  #       platform: [amd64, arm64]
-  #   uses: ./.github/workflows/_release_test.yml
-  #   secrets: inherit
-  #   with:
-  #     tag: ${{needs.config.outputs.TAG}}
-  #     platform: ${{ matrix.platform }}
-  #     flavor: ${{ needs.config.outputs.FLAVOR }}
+  test:
+    needs:
+      - config
+      - build
+    strategy:
+      matrix:
+        platform: [amd64, arm64]
+    uses: ./.github/workflows/_release_test.yml
+    secrets: inherit
+    with:
+      tag: ${{needs.config.outputs.TAG}}
+      platform: ${{ matrix.platform }}
+      flavor: ${{ needs.config.outputs.FLAVOR }}
 
   push:
     needs:
       - config
-      # - test
+      - test
     uses: ./.github/workflows/_release_push.yml
     secrets: inherit
     with:
