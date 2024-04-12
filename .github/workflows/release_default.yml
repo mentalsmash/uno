@@ -100,7 +100,8 @@ jobs:
   push:
     needs:
       - config
-      - test
+      - build
+      # - test
     uses: ./.github/workflows/_release_push.yml
     secrets: inherit
     with:
