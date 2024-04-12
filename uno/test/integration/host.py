@@ -235,6 +235,11 @@ class Host:
       l for c in self.experiment.registry.uvn.cells.values()
         for l in c.allowed_lans
     }
+    missing_lans = expected_lans - self.cell_reachable_networks
+    unexpected_lans = self.cell_reachable_networks - expected_lans
+    if missing_lans:
+      self.log.warning("not routed to {} lans: {}", len(missing_lans), missing_lans)
+    assert len(unexpected_lans) == 0, f"{len(unexpected_lans)} unexpected reachable network: {unexpected_lans}"
     return expected_lans == self.cell_reachable_networks
 
 
