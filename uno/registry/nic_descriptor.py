@@ -15,17 +15,13 @@
 # along with this program. If not, see <https://www.gnu.org/licenses/>.
 ###############################################################################
 import ipaddress
-from typing import Sequence, TYPE_CHECKING
+from typing import Sequence
 from .versioned import Versioned
 
 from ..core.ip import (
   ipv4_netmask_to_cidr,
   list_local_nics,
-  ipv4_nic_network,
 )
-
-if TYPE_CHECKING:
-  from .database import Database
 
 class NicDescriptor(Versioned):
   PROPERTIES = [

@@ -16,13 +16,12 @@
 ###############################################################################
 from typing import Iterable, Generator, Callable, TYPE_CHECKING
 import json
-from functools import cached_property
 
 from ..core.paired_map import PairedValuesMap
 
 from .wg_key import WireGuardKeyPair, WireGuardPsk
 from .versioned import Versioned, disabled_if, error_if, static_if, dispatch_if
-from .database_object import inject_db_cursor, inject_db_transaction, TransactionHandler
+from .database_object import inject_db_cursor
 
 if TYPE_CHECKING:
   from .database import Database

@@ -15,7 +15,6 @@
 # along with this program. If not, see <https://www.gnu.org/licenses/>.
 ###############################################################################
 from typing import Generator
-from types import ModuleType
 from pathlib import Path
 import ipaddress
 import tempfile

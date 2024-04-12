@@ -91,7 +91,6 @@ class CrossedDeploymentStrategy(StaticDeploymentStrategy):
     peer_ids = [*public_peers_id, *private_peers_id]
 
     if len(self.private_peers) >= len(self.public_peers):
-      from math import floor
       # partition_size, remaining = floor(len(self.private_peers) / len(self.public_peers))
       partition_size, remaining = divmod(len(self.private_peers), len(self.public_peers))
       

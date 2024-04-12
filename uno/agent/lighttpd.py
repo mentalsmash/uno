@@ -14,9 +14,7 @@
 # You should have received a copy of the GNU Affero General Public License
 # along with this program. If not, see <https://www.gnu.org/licenses/>.
 ###############################################################################
-import os
 from pathlib import Path
-import time
 from typing import Iterable
 import subprocess
 
@@ -173,7 +171,7 @@ class Lighttpd:
       # TODO(asorbini) check that lighttpd actually stopped
       lighttpd_stopped = True
       log.activity("stopped")
-    except Exception as e:
+    except Exception:
       log.error("error while stopping:")
       if lighttpd_stopped:
         log.error("failed to stop lighttpd. Please check your system.")

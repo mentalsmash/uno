@@ -14,13 +14,11 @@
 # You should have received a copy of the GNU Affero General Public License
 # along with this program. If not, see <https://www.gnu.org/licenses/>.
 ###############################################################################
-from typing import Generator, Iterable, Mapping, Callable
+from typing import Generator, Iterable, Mapping
 from pathlib import Path
 import sqlite3
-import yaml
 import json
 from importlib.resources import files, as_file
-from functools import cached_property, wraps
 import tempfile
 
 from collections import namedtuple
@@ -28,7 +26,6 @@ from collections import namedtuple
 from .versioned import Versioned
 
 from ..data import database as db_data
-from ..core.time import Timestamp
 from ..core.exec import exec_command
 from ..core.log import Logger
 
@@ -129,11 +126,11 @@ class Database:
   def next_id(self, target: DatabaseObject|type[DatabaseObject]) -> int:
     table = self.SCHEMA.lookup_id_table_by_object(target)
     next_id = self._db.execute(
-      f"SELECT next FROM next_id WHERE target = ?",
+      "SELECT next FROM next_id WHERE target = ?",
       (table,)).fetchone().next
     next_id += 1
     self._db.execute(
-      f"UPDATE next_id SET next = ? WHERE target = ?",
+      "UPDATE next_id SET next = ? WHERE target = ?",
       (next_id, table))
     return next_id
 

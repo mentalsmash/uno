@@ -242,7 +242,7 @@ def ipv4_resolve_address(ip, ns=None, cache=True, resolv_cache={}):
       if cache:
         resolv_cache[i_ip] = hostname
       return hostname
-    except StopIteration as e:
+    except StopIteration:
       pass
   try:
     hostname = ipv4_nslookup(i_ip)
@@ -314,7 +314,7 @@ def ipv4_get_route(target: ipaddress.IPv4Address) -> ipaddress.IPv4Address:
     l_split = list(filter(len, line.split()))
     try:
       gw = ipaddress.ip_address(l_split[2])
-    except Exception as e:
+    except Exception:
       continue
     return gw
   return ipv4_default_gateway()

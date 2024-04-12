@@ -14,13 +14,10 @@
 # You should have received a copy of the GNU Affero General Public License
 # along with this program. If not, see <https://www.gnu.org/licenses/>.
 ###############################################################################
-from pathlib import Path
-from functools import cached_property
-from typing import Generator
 
 from ..core.exec import exec_command
 from ..core.wg import WireGuardInterface
-from .agent_service import AgentService, StopAgentServiceError, AgentStaticService
+from .agent_service import AgentService, StopAgentServiceError
 
 
 class UvnNet(AgentService):
@@ -79,7 +76,7 @@ class UvnNet(AgentService):
     for vpn in self.agent.vpn_interfaces:
       try:
         vpn.stop(assert_stopped=assert_stopped)
-      except Exception as e:
+      except Exception:
         if not assert_stopped:
           raise
         self.log.warning("failed to stop VPN interface: {}", vpn)

@@ -19,7 +19,7 @@ from typing import Callable
 import argparse
 from operator import attrgetter
 
-from uno.core.log import Logger, level as log_level
+from uno.core.log import Logger
 from uno.core.ask import ask_assume_no, ask_assume_yes
 
 class SortingHelpFormatter(argparse.HelpFormatter):

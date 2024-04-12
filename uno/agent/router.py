@@ -15,11 +15,7 @@
 # along with this program. If not, see <https://www.gnu.org/licenses/>.
 ###############################################################################
 from pathlib import Path
-from typing import TYPE_CHECKING, Iterable
-import threading
-import signal
-import subprocess
-import os
+from typing import Iterable
     
 
 from .render import Templates
@@ -27,11 +23,6 @@ from ..core.wg import WireGuardInterface
 from ..core.exec import exec_command
 from ..registry.cell import Cell
 from .agent_service import AgentService
-from .agent_service import AgentStaticService
-from .systemd import Systemd
-
-if TYPE_CHECKING:
-  from .agent import Agent
 
 
 class Router(AgentService):

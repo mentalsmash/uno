@@ -11,7 +11,6 @@ from ..core.time import Timestamp
 from .cell import Cell
 from .uvn import Uvn
 from .particle import Particle
-from .database import Database
 from .versioned import Versioned
 
 if TYPE_CHECKING:

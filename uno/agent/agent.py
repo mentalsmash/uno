@@ -38,7 +38,6 @@ from ..middleware import (
 
 from ..registry.uvn import Uvn
 from ..registry.cell import Cell
-from ..registry.particle import Particle
 from ..registry.lan_descriptor import LanDescriptor
 from ..registry.nic_descriptor import NicDescriptor
 from ..registry.deployment import P2pLinksMap
@@ -46,7 +45,6 @@ from ..registry.id_db import IdentityDatabase
 from ..registry.versioned import disabled_if, error_if, max_rate
 from ..registry.package import Packager
 from ..registry.registry import Registry
-from ..registry.key_id import KeyId
 from ..registry.database_object import (
   OwnableDatabaseObject,
   DatabaseObjectOwner,
@@ -1410,7 +1408,7 @@ class Agent(
           raise RuntimeError(f"the agent failed to exit in {max_wait} seconds")
         time.sleep(.1)
       self.log.warning("agent daemon stopped: {}", agent_pid)
-    except Exception as e:
+    except Exception:
       raise RuntimeError("failed to terminate agent process: {}", agent_pid)
     finally:
       self.static.delete_marker()

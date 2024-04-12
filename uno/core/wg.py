@@ -505,7 +505,7 @@ class WireGuardInterface:
       try:
         addr = ipaddress.ip_address(endp_split[0])
         port = int(endp_split[1])
-      except Exception as e:
+      except Exception:
         addr = "<unknown>"
         port = "<unknown>"
       endpoints[l_split[0]] = {

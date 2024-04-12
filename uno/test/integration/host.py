@@ -356,7 +356,7 @@ class Host:
 
 
   def wait_stop(self, stop_process: subprocess.Popen) -> None:
-    rc = stop_process.wait(self.experiment.config["container_stop_timeout"]);
+    rc = stop_process.wait(self.experiment.config["container_stop_timeout"])
     assert rc == 0, f"failed to stop docker container: {self.container_name}"
 
 
@@ -738,7 +738,7 @@ class Host:
       return None
     try:
       return int(pid)
-    except Exception as e:
+    except Exception:
       self.log.warning("failed to parse agent pid: '{}'", pid)
       return None
 

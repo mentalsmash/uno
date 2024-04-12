@@ -18,7 +18,6 @@ from uno.middleware import Middleware
 
 from .native_condition import NativeCondition
 from .native_participant import NativeParticipant
-from .native_waitset import NativeWaitset
 
 class NativeMiddleware(Middleware):
   CONDITION = NativeCondition

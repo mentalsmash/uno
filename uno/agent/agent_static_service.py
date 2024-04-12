@@ -18,20 +18,14 @@ from typing import TYPE_CHECKING
 from pathlib import Path
 from functools import cached_property
 
-from uno.registry.database import Database
-from uno.registry.versioned import Versioned
 
-from ..core.exec import shell_which, exec_command
+from ..core.exec import shell_which
 
-from .render import Templates
-from .runnable import Runnable
-from .systemd import Systemd
 from .systemd_service import SystemdService
 
 
 if TYPE_CHECKING:
   from .agent import Agent
-  from .agent_service import AgentService
 
 
 class AgentStaticService(SystemdService):

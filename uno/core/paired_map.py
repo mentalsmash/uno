@@ -14,7 +14,7 @@
 # You should have received a copy of the GNU Affero General Public License
 # along with this program. If not, see <https://www.gnu.org/licenses/>.
 ###############################################################################
-from typing import Callable, Union, Sequence
+from typing import Callable, Sequence
 
 class PairedValuesMap(dict):
   @classmethod

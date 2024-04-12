@@ -18,7 +18,6 @@ from typing import Callable
 import argparse
 
 from uno.agent.agent import Agent, AgentReload
-from uno.registry.package import Packager
 from uno.agent.systemd import Systemd
 
 def agent_action(action: Callable[[argparse.Namespace, Agent], None]) -> Callable[[argparse.Namespace], None]:

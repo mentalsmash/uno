@@ -15,7 +15,6 @@
 # along with this program. If not, see <https://www.gnu.org/licenses/>.
 ###############################################################################
 from pathlib import Path
-from enum import Enum
 
 from uno.core.log import Logger
 from uno.registry.versioned import Versioned

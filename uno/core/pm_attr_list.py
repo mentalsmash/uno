@@ -19,7 +19,6 @@ Additional changes to allow list-wide and table-wide attributes
 by Paul Melis, 2022
 """
 
-import xml.etree.ElementTree as ET
 from markdown import Extension
 from markdown.treeprocessors import Treeprocessor
 import re

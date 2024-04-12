@@ -150,7 +150,7 @@ def registry_action(action: Callable[[argparse.Namespace, Registry], None]) -> C
       changed = registry.generate_artifacts()
     else:
       registry.log.info("unchanged")
-  return _wrapped;
+  return _wrapped
 
 
 def registry_define_uvn(args: argparse.Namespace) -> None:

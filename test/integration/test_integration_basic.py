@@ -18,9 +18,8 @@ from itertools import chain
 from typing import Generator
 from pathlib import Path
 import pytest
-import contextlib
 
-from uno.test.integration import Experiment, Host, Experiment, Network
+from uno.test.integration import Host, Experiment, Network
 from uno.test.integration.experiments.basic import BasicExperiment
 from uno.test.integration.units.ping_test import ping_test
 from uno.test.integration.units.ssh_client_test import ssh_client_test

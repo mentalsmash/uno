@@ -19,7 +19,7 @@ from pathlib import Path
 import pytest
 import subprocess
 
-from uno.test.integration import Experiment, Host, Experiment, agent_test
+from uno.test.integration import Host, Experiment, agent_test
 from uno.test.integration.experiments.basic import BasicExperiment
 
 def load_experiment() -> Experiment:

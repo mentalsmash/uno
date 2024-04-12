@@ -21,7 +21,6 @@ from .cell import Cell
 from .uvn import Uvn
 from .particle import Particle
 
-from .versioned import Versioned
 
 class KeyId:
   class Type(Enum):
@@ -103,7 +102,7 @@ class KeyId:
     try:
       key_info = yaml.safe_load(key_desc[key_info_start:key_info_end])
       return KeyId.deserialize(key_info)
-    except Exception as e:
+    except Exception:
       raise ValueError("failed to parse key description", key_desc)
 
 

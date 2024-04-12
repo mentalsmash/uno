@@ -18,7 +18,7 @@ from typing import TYPE_CHECKING
 
 from uno.registry.database import Database
 from ..core.wg import genkeypair, genkeypreshared
-from .versioned import Versioned, serialize_enum
+from .versioned import Versioned
 
 if TYPE_CHECKING:
   from .database import Database
