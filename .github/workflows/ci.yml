@@ -166,7 +166,7 @@ jobs:
           docker run --rm \
             -v $(pwd):/workspace \
             -w /workspace \
-            -v $(pwd)/rti_license.dat:/rti_license.dat \
+            -v $(pwd)/src/uno-ci/resource/rti/rti_license.dat:/rti_license.dat \
             -e LOG_LEVEL=activity \
             -e DEBUG=y \
             ${{ needs.config.outputs.TEST_IMAGE }} \
@@ -204,7 +204,7 @@ jobs:
           pytest -s -v --junit-xml=test-results/uno-test-results-integration-${{ needs.config.outputs.BUILD_ID }}.xml \
             src/uno/test/integration
         env:
-          RTI_LICENSE_FILE: ${{ github.workspace }}/rti_license.dat
+          RTI_LICENSE_FILE: ${{ github.workspace }}/src/uno-ci/resource/rti/rti_license.dat
           DEBUG: y
           LOG_LEVEL: activity
           UNO_MIDDLEWARE: ${{ inputs.uno-middleware }}
