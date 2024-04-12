@@ -38,6 +38,8 @@ services:
       dockerfile: docker/Dockerfile
       tags:
         - mentalsmash/uno-test-runner:latest-arm64
+      platforms:
+        - linux/arm64
       args:
         DEV: y
         UNO_MIDDLEWARE: uno_middleware_connext
