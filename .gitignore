@@ -17,3 +17,5 @@ experiment.log
 *.uvn-agent
 uvn.networks
 uno.db
+.pytest_cache
+.ruff_cache
