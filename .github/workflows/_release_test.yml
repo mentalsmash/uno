@@ -67,7 +67,16 @@ jobs:
           (
             case "${{ inputs.platform }}" in
               arm64)
-                printf -- "RUNNER='%s'\n" '["self-hosted", "linux", "arm64"]'
+                case "${{inputs.flavor}}" in
+                  default)
+                    # Force full test suite to run on "beefier" rpi5 nodes
+                    printf -- "RUNNER='%s'\n" '["self-hosted", "linux", "arm64", "rpi5"]'
+                    ;;
+                  *)
+                    # Other test suites can run on any arm64 node
+                    printf -- "RUNNER='%s'\n" '["self-hosted", "linux", "arm64"]'
+                    ;;
+                esac
                 ;;
               amd64)
                 printf -- "RUNNER='%s'\n" '"ubuntu-latest"'
