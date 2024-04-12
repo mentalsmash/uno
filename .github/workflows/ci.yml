@@ -151,7 +151,7 @@ jobs:
               cp src/uno-ci/resource/rti/rti_license.dat rti_license.dat
               case '${{ inputs.build-platform }}' in
                 arm64)
-                  cp src/uno-ci-arm/resource/rti/rti.connext-7.1.0-cp310-cp310-linux_aarch64.whl \
+                  cp src/uno-ci-arm/resource/rti/rti.connext-*-linux_*.whl \
                      src/uno
                   ;;
               esac
@@ -204,9 +204,12 @@ jobs:
             uno.middleware.native)
               ;;
             *)
-              if [ '${{ inputs.uno-middleware }}/${{ inputs.build-platform}}' = uno_middleware_connext/arm64 ]; then
-                pip3 install src/uno-ci-arm/resource/rti/rti.connext-7.1.0-cp310-cp310-linux_aarch64.whl
-              fi
+              # Check if there is a valid rti.connext wheel for this system
+              for rti_whl in $(find src/uno-ci-arm/resource/rti -mindepth 1 -maxdepth 1 -name "rti.connext*$(uname -m).whl" | sort); do
+                if pip3 install -U ${rti_whl}; then
+                  break
+                fi
+              done
               pip3 install -U -e src/uno/plugins/${{ inputs.uno-middleware }}
               ;;
           esac
