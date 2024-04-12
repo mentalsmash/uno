@@ -134,7 +134,7 @@ jobs:
           context: src/uno
           platforms: ${{ inputs.platform }}
           build-args: |
-            BASE_IMAGE=${{ inputs.tag }}
+            BASE_IMAGE=ghcr.io/${{ inputs.tag }}
     
       - name: Run unit tests
         run: |
