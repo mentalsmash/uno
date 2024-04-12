@@ -33,7 +33,7 @@ def ssh_client_test(experiment: Experiment, test_config: Iterable[tuple[Host, Ho
       capture_output=True)
 
   def _wait(host: Host, server: Host, test: subprocess.Popen, timeout: float=60.) -> None:
-    stdout, stderr = test.communicate(timeout=timeout)
+    stdout, stderr = test.communicate(timeout=experiment.config["test_timeout"])
     rc = test.wait(timeout)
     assert rc == 0, f"SSH FAILED {host} → {server}@{server.default_address}: rc = {rc}"
     assert stdout.decode().strip() == f"THIS_IS_A_TEST_ON {server.hostname}", f"SSH FAILED {host} → {server}@{server.default_address}: invalid output"

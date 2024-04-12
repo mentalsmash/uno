@@ -157,7 +157,9 @@ class Experiment:
       "interactive": False,
       "image": "mentalsmash/uno-test-runner:latest",
       "uvn_fully_routed_timeout": 60,
+      "container_start_timeout": 60,
       "container_stop_timeout": 60,
+      "test_timeout": 60,
     }
 
 

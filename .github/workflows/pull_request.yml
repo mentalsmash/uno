@@ -1,17 +1,15 @@
 name: Pull Request
+run-name: |
+  PR #${{github.event.pull_request.number}} [${{github.event_name == 'pull_request' && 'changed' || 'reviewed, ' }}${{github.event_name == 'pull_request' && '' || github.event.review.state }}] ${{github.event.pull_request.title}}
 
 on:
   pull_request:
     branches:
       - master
-    paths:
-      # No sense in doing these tests for other files, e.g. docs
-      - 'pyproject.toml'
-      - 'uno/**/*'
-      - 'plugins/**/*'
-      - 'test/**/*'
-      - 'docker/**/*'
-      - '.github/**/*'
+    paths-ignore:
+      # No sense in doing these tests for these file
+      - 'README.md'
+      - 'docs/**/*'
     types:
       - opened
       - ready_for_review
@@ -22,7 +20,7 @@ on:
     types: [submitted]
 
 concurrency:
-  group: pr-test-${{ github.ref }}
+  group: pr-test-${{ github.ref }}-${{github.event_name}}
   cancel-in-progress: true
 
 jobs:
@@ -31,24 +29,27 @@ jobs:
     if: ${{ !github.event.pull_request.draft }}
     runs-on: ubuntu-latest
     outputs:
-      BASIC: ${{ steps.check-approved.outputs.BASIC }}
-      FULL: ${{ steps.check-approved.outputs.FULL }}
+      BASIC: ${{ steps.config.outputs.BASIC }}
+      FULL: ${{ steps.config.outputs.FULL }}
     steps:
       - name: "Generate job configuration from PR status"
-        id: check-approved
+        id: config
         run: |
+          echo "Generating test configuration for pull-request ${{github.ref_name}} on event: ${{github.event_name}}..."
           case ${{github.event_name}} in
             pull_request_review)
               case "${{github.event.review.state}}" in
-                APPROVED)
+                approved)
+                  echo "Pull request ${{github.ref_name}} has been approved. Performing full test."
                   full=y
                   ;;
                 *)
-                  basic=y
+                  echo "Pull request ${{github.ref_name}} NOT APPROVED yet (${{github.event.review.state}}). Skipping tests while waiting for approval."
                   ;;
               esac
               ;;
             pull_request)
+              echo "Pull request ${{github.ref_name}} NOT APPROVED (${{github.event.review.state}}) but updated. Performing basic test."
               basic=y
               ;;
           esac

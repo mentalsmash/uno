@@ -54,18 +54,17 @@ jobs:
           username: ${{ secrets.DOCKERHUB_USERNAME }}
           password: ${{ secrets.DOCKERHUB_TOKEN }}
 
-      - name: Pull image
+      - name: Pull/tag/push images
         run: |
-          docker image pull ${{inputs.tag}}
-
-      - name: Tag images
-        run: |
-          for tag in $(echo "${{steps.meta-docker.outputs.tags}}" | xargs | tr , ' '); do
-            docker image tag ${{inputs.tag}} ${tag}
-          done
-      
-      - name: Push images
-        run: |
-          for tag in $(echo "${{steps.meta-docker.outputs.tags}}" | xargs | tr , ' '); do
-            docker image push ${tag}
+          set -x
+          tags="$(echo "${{steps.meta-docker.outputs.tags}}" | xargs | tr , ' ')"
+          platforms="amd64 arm64"
+          for platform in ${platforms}; do
+            docker image pull --platform linux/${platform} ${{inputs.tag}}
+            for tag in ${tags}; do
+              docker image tag ${{inputs.tag}} ${tag}
+              docker image push ${tag}
+              docker rmi -f ${tag}
+            done
+            docker rmi -f ${{inputs.tag}}
           done

@@ -109,12 +109,14 @@ RUN set -xe; \
     . ${UNO_VENV}/bin/activate; \
     # Make sure pip and setuptools are up to date
     pip3 install -U pip setuptools; \
-    # Check if the user passed a Connext wheel in the root of the context
-    rti_wheel=$(find ${UNO_DIR} -mindepth 1 -maxdepth 1 -name "rti.connext*$(uname -m).whl" | head -1); \
-    if [ -f "${rti_wheel}" ]; then \
-      pip3 install -U ${rti_wheel}; \
-      rm -f ${rti_wheel}; \
-    fi; \
+    # Check if the user passed a Connext wheel in the root of the context.
+    # Try to install them iteratively (in sorted order), stop as soon as
+    # one installs cleanly.
+    for rti_whl in $(find ${UNO_DIR} -mindepth 1 -maxdepth 1 -name "rti.connext*$(uname -m).whl" | sort); do \
+      if pip3 install -U ${rti_whl}; then \
+        break; \
+      fi; \
+    done; \
     rm -f ${UNO_DIR}/*.whl; \
     # reinstall uno and the middleware in "editable" mode
     # so that they may be overwritten from the host (for development)

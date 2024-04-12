@@ -27,7 +27,8 @@ concurrency:
 
 jobs:
   build:
-    runs-on: ubuntu-latest
+    # runs-on: ubuntu-latest
+    runs-on: ["self-hosted", "linux", "x64"]
     steps:
       - name: Clone uno
         uses: actions/checkout@v4
@@ -50,7 +51,8 @@ jobs:
           # Configure ARM support
           case '${{ inputs.uno-middleware }}' in
             uno_middleware_connext)
-              cp src/uno-ci-arm/resource/rti/rti.connext-7.1.0-cp310-cp310-linux_aarch64.whl \
+              # Copy available wheels, the right one will be picked up by the Dockerfile
+              cp src/uno-ci-arm/resource/rti/rti.connext-*-linux_*.whl \
                  src/uno
               ;;
           esac

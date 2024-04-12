@@ -44,7 +44,7 @@ class SortingHelpFormatter(argparse.HelpFormatter):
 
 
 
-def cli_parser_args_common(parser: argparse._SubParsersAction|argparse.ArgumentParser):
+def cli_parser_args_common(parser: argparse._SubParsersAction|argparse.ArgumentParser, version: str|None=None):
   parser.add_argument("-r", "--root",
     metavar="DIR",
     default=Path.cwd(),
@@ -85,9 +85,11 @@ def cli_command(parent: argparse._SubParsersAction|argparse.ArgumentParser, name
   return command
 
 
-def cli_command_main(define_parser: Callable[[argparse._SubParsersAction], None]):
+def cli_command_main(define_parser: Callable[[argparse._SubParsersAction], None], version: str|None=None):
   parser = argparse.ArgumentParser(
     formatter_class=SortingHelpFormatter)
+  if version is not None:
+    parser.add_argument("--version", action="version", version=version)
   define_parser(parser)
   args = parser.parse_args()
 
