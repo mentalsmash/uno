@@ -136,7 +136,7 @@ jobs:
         uses: actions/checkout@v4
         with:
           repository: mentalsmash/uno-ci
-          token: ${{ secrets.GITHUB_TOKEN }}
+          token: ${{ secrets.UNO_CI_PAT }}
           ref: master
           path: src/uno-ci
         if: inputs.uno-middleware == 'uno_middleware_connext'
