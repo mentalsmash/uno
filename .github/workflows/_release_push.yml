@@ -54,7 +54,9 @@ jobs:
             docker buildx imagetools create -t ${tag} \
               $(printf -- "%s" "${DOCKER_METADATA_OUTPUT_ANNOTATIONS}" |
                 while read -r line; do
-                  printf -- "--annotation '%s' " "${line}"
+                  printf -- "--annotation "
+                  printf -- "\'%s\'" "${line}"
+                  printf -- " "
                 done) \
               ${{inputs.tag}}
           done
