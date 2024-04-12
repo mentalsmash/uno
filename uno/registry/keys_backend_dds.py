@@ -2,8 +2,8 @@
 # (C) Copyright 2020-2024 Andrea Sorbini
 #
 # This program is free software: you can redistribute it and/or modify
-# it under the terms of the GNU Affero General Public License as 
-# published by the Free Software Foundation, either version 3 of the 
+# it under the terms of the GNU Affero General Public License as
+# published by the Free Software Foundation, either version 3 of the
 # License, or (at your option) any later version.
 #
 # This program is distributed in the hope that it will be useful,
@@ -61,30 +61,29 @@ class DdsKeysBackend(KeysBackend):
       UvnTopic.CELL_ID,
       UvnTopic.UVN_ID,
       UvnTopic.BACKBONE,
-    ]
+    ],
   }
 
   def INITIAL_CA(self) -> CertificateAuthority:
     return CertificateAuthority(
       root=self.root / "ca",
-      id=CertificateSubject(org=self.org, cn="Identity Certificate Authority"))
-
+      id=CertificateSubject(org=self.org, cn="Identity Certificate Authority"),
+    )
 
   def INITIAL_PERM_CA(self) -> CertificateAuthority:
     return CertificateAuthority(
       root=self.root / "ca-perm",
-      id=CertificateSubject(org=self.org, cn="Permissions Certificate Authority"))
+      id=CertificateSubject(org=self.org, cn="Permissions Certificate Authority"),
+    )
 
   INITIAL_KEYS_DIR = lambda self: self.root / "private"
   INITIAL_CERTS_DIR = lambda self: self.root / "public"
   INITIAL_PERMISSIONS_DIR = lambda self: self.root / "permissions"
   INITIAL_GOVERNANCE = lambda self: self.root / "governance.xml.p7s"
 
-
   @property
   def not_before(self) -> str:
     return self.init_ts.format(self.GRANT_TIME_FORMAT)
-  
 
   @property
   def not_after(self) -> str:
@@ -96,30 +95,28 @@ class DdsKeysBackend(KeysBackend):
       day=not_before.day,
       hour=not_before.hour,
       minute=not_before.minute,
-      second=not_before.second)
+      second=not_before.second,
+    )
     return not_after.strftime(self.GRANT_TIME_FORMAT)
 
-  
   def permissions(self, id: str) -> Path:
     return self.permissions_dir / f"{id}-permissions.xml.p7s"
-
 
   def key(self, id: KeyId) -> Path:
     return self.keys_dir / id.key_type.name.lower() / f"{id.owner}/{id.target}-key.pem"
 
-
   def cert(self, id: KeyId) -> Path:
     return self.certs_dir / id.key_type.name.lower() / f"{id.owner}/{id.target}-cert.pem"
 
-
   def csr(self, id: KeyId) -> Path:
     return self.certs_dir / id.key_type.name.lower() / f"{id.owner}/{id.target}-cert.csr"
-  
 
-  def search_keys(self,
-      owner: str|None = None,
-      target: str|None = None,
-      key_type: str|KeyId.Type|None = None) -> Generator[Key, None, int]:
+  def search_keys(
+    self,
+    owner: str | None = None,
+    target: str | None = None,
+    key_type: str | KeyId.Type | None = None,
+  ) -> Generator[Key, None, int]:
     lookup_count = 0
     if key_type is not None and not isinstance(key_type, KeyId.Type):
       key_type = KeyId.Type[key_type.upper()]
@@ -138,17 +135,12 @@ class DdsKeysBackend(KeysBackend):
         lookup_count += 1
         yield key
     return lookup_count
-    
 
-  def load_key(self,
-      key: Key,
-      with_privkey: bool = False,
-      passphrase: str|None = None) -> Key:
+  def load_key(self, key: Key, with_privkey: bool = False, passphrase: str | None = None) -> Key:
     if with_privkey:
       key.privkey = self.key(key.id).read_text()
     key.pubkey = self.cert(key.id).read_text()
     return key
-
 
   def generate_key(self, id: KeyId) -> Key:
     if id.key_type == KeyId.Type.ROOT:
@@ -169,14 +161,14 @@ class DdsKeysBackend(KeysBackend):
     else:
       raise NotImplementedError()
 
-
   def _assert_peer(self, key_id: KeyId, published: Iterable[str], subscribed: Iterable[str]) -> Key:
     subject = CertificateSubject(
       cn=key_id.target,
       org=self.ca.id.org,
       country=self.ca.id.country,
       state=self.ca.id.state,
-      location=self.ca.id.location)
+      location=self.ca.id.location,
+    )
     peer_key = self.key(key_id)
     peer_cert = self.cert(key_id)
     peer_cert.parent.mkdir(parents=True, exist_ok=True, mode=0o700)
@@ -186,30 +178,29 @@ class DdsKeysBackend(KeysBackend):
     peer_perms.parent.mkdir(parents=True, exist_ok=True, mode=0o700)
     tmp_file_h = tempfile.NamedTemporaryFile()
     tmp_file = Path(tmp_file_h.name)
-    Templates.generate(tmp_file, "dds/permissions.xml", {
-      "peer": key_id.target,
-      "subject": subject,
-      "published": published,
-      "subscribed": subscribed,
-      "not_before": self.not_before,
-      "not_after": self.not_after,
-    }, mode=0o644)
+    Templates.generate(
+      tmp_file,
+      "dds/permissions.xml",
+      {
+        "peer": key_id.target,
+        "subject": subject,
+        "published": published,
+        "subscribed": subscribed,
+        "not_before": self.not_before,
+        "not_after": self.not_after,
+      },
+      mode=0o644,
+    )
     self.perm_ca.sign_file(tmp_file, peer_perms, mode=0o644)
     key = Key(backend=self, id=key_id)
     return self.load_key(key, with_privkey=True)
 
-
-
-  def import_key(self,
-      key_id: KeyId,
-      base_dir: Path,
-      key_files: Iterable[Path]) -> Key:
+  def import_key(self, key_id: KeyId, base_dir: Path, key_files: Iterable[Path]) -> Key:
     key_files = set(key_files)
-    def _find_file(filename: str) -> str|None:
+
+    def _find_file(filename: str) -> str | None:
       rel_path = f"{key_id.key_type.name.lower()}/{key_id.owner}/{key_id.target}-{filename}"
-      return next(
-        (f for f in key_files
-          if str(f) == rel_path), None)
+      return next((f for f in key_files if str(f) == rel_path), None)
 
     cert = _find_file("cert.pem")
     key = _find_file("key.pem")
@@ -247,11 +238,7 @@ class DdsKeysBackend(KeysBackend):
 
     return Key(backend=self, id=key_id)
 
-
-  def export_key(self,
-      key: Key,
-      output_dir: Path,
-      with_privkey: bool = False) -> set[Path]:
+  def export_key(self, key: Key, output_dir: Path, with_privkey: bool = False) -> set[Path]:
     exported = set()
     key_dir = output_dir / f"{key.id.key_type.name.lower()}/{key.id.owner}/{key.id.target}"
 
@@ -290,48 +277,28 @@ class DdsKeysBackend(KeysBackend):
       exec_command(["cp", "-av", self.perm_ca.cert, ca_pem])
       exported.add(ca_pem.relative_to(output_dir))
 
-
     return exported
 
-
-  def sign_file(self,
-      key: Key,
-      input: Path,
-      output: Path) -> None:
+  def sign_file(self, key: Key, input: Path, output: Path) -> None:
     if key.id.key_type != KeyId.Type.ROOT:
       raise ValueError("unsupported key type", key)
     self.ca.sign_file(input, output)
 
-
-  def verify_signature(self,
-      key: Key,
-      input: Path,
-      output: Path) -> None:
+  def verify_signature(self, key: Key, input: Path, output: Path) -> None:
     if key.id.key_type != KeyId.Type.ROOT:
       raise ValueError("unsupported key type", key)
     self.ca.verify_signature(input, output)
 
-
-  def encrypt_file(self,
-      key: Key,
-      input: Path,
-      output: Path) -> None:
+  def encrypt_file(self, key: Key, input: Path, output: Path) -> None:
     cert = self.cert(key.id)
     self.ca.encrypt_file(cert, input, output)
 
-
-  def decrypt_file(self,
-      key: Key,
-      input: Path,
-      output: Path) -> None:
+  def decrypt_file(self, key: Key, input: Path, output: Path) -> None:
     key = self.key(key.id)
     self.ca.decrypt_file(key, input, output)
-
 
   def drop_key(self, key: Key) -> None:
     raise NotImplementedError()
 
-
   def drop_keys(self) -> None:
     raise NotImplementedError()()
-

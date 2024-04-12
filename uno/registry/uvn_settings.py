@@ -2,8 +2,8 @@
 # (C) Copyright 2020-2024 Andrea Sorbini
 #
 # This program is free software: you can redistribute it and/or modify
-# it under the terms of the GNU Affero General Public License as 
-# published by the Free Software Foundation, either version 3 of the 
+# it under the terms of the GNU Affero General Public License as
+# published by the Free Software Foundation, either version 3 of the
 # License, or (at your option) any later version.
 #
 # This program is distributed in the hope that it will be useful,
@@ -32,16 +32,13 @@ class DeploymentSettings(Versioned):
     "strategy_args",
   ]
 
-
   def prepare_strategy(self, val: str | DeploymentStrategyKind) -> DeploymentStrategyKind:
     return prepare_enum(self.db, DeploymentStrategyKind, val)
-
 
   def prepare_strategy_args(self, val: str | dict) -> dict:
     if isinstance(val, str):
       val = self.yaml_load(val)
     return val
-
 
 
 class UvnSettings(Versioned):
@@ -78,28 +75,22 @@ class UvnSettings(Versioned):
     if self.deployment is None:
       self.deployment = self.new_child(DeploymentSettings)
 
-
   def prepare_timing_profile(self, val: str | TimingProfile) -> TimingProfile:
     return prepare_enum(self.db, TimingProfile, val)
-
 
   def prepare_root_vpn(self, val: str | dict | RootVpnSettings) -> RootVpnSettings:
     return self.new_child(RootVpnSettings, val)
 
-
   def prepare_particles_vpn(self, val: str | dict | ParticlesVpnSettings) -> ParticlesVpnSettings:
     return self.new_child(ParticlesVpnSettings, val)
 
-
   def prepare_backbone_vpn(self, val: str | dict | BackboneVpnSettings) -> BackboneVpnSettings:
     return self.new_child(BackboneVpnSettings, val)
-
 
   def prepare_deployment(self, val: str | dict | DeploymentSettings) -> DeploymentSettings:
     settings = self.new_child(DeploymentSettings, val)
     return settings
 
-  
   @property
   def nested(self) -> Generator[Versioned, None, None]:
     yield self.root_vpn

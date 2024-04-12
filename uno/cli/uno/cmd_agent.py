@@ -2,8 +2,8 @@
 # (C) Copyright 2020-2024 Andrea Sorbini
 #
 # This program is free software: you can redistribute it and/or modify
-# it under the terms of the GNU Affero General Public License as 
-# published by the Free Software Foundation, either version 3 of the 
+# it under the terms of the GNU Affero General Public License as
+# published by the Free Software Foundation, either version 3 of the
 # License, or (at your option) any later version.
 #
 # This program is distributed in the hope that it will be useful,
@@ -20,16 +20,19 @@ import argparse
 from uno.agent.agent import Agent, AgentReload
 from uno.agent.systemd import Systemd
 
-def agent_action(action: Callable[[argparse.Namespace, Agent], None]) -> Callable[[argparse.Namespace], None]:
+
+def agent_action(
+  action: Callable[[argparse.Namespace, Agent], None],
+) -> Callable[[argparse.Namespace], None]:
   def _wrapped(args: argparse.Namespace) -> None:
-    agent = Agent.open(args.root,
-      enable_systemd=getattr(args, "systemd", False))
+    agent = Agent.open(args.root, enable_systemd=getattr(args, "systemd", False))
     while True:
       try:
         action(args, agent)
         break
       except AgentReload as e:
         agent = agent.reload(agent=e.agent)
+
   return _wrapped
 
 
@@ -46,14 +49,13 @@ def agent_install_cloud(args: argparse.Namespace) -> None:
     root=args.root,
     provider_class=provider_config["class"],
     provider_args=provider_config["args"],
-    storage_args=storage_config)
+    storage_args=storage_config,
+  )
 
 
 @agent_action
 def agent_sync(args: argparse.Namespace, agent: Agent) -> None:
-  agent.spin_until_consistent(
-    max_spin_time=args.max_wait_time,
-    config_only=args.consistent_config)
+  agent.spin_until_consistent(max_spin_time=args.max_wait_time, config_only=args.consistent_config)
 
 
 @agent_action
@@ -78,7 +80,7 @@ def agent_service_install(args: argparse.Namespace, agent: Agent) -> None:
     Systemd.enable_service(tgt_svc)
   if args.start:
     Systemd.start_service(tgt_svc)
-    
+
 
 @agent_action
 def agent_service_remove(args: argparse.Namespace, agent: Agent) -> None:
@@ -103,14 +105,19 @@ def agent_service_status(args: argparse.Namespace, agent: Agent) -> None:
   table = []
   for svc in agent.static_services:
     current_marker = svc.current_marker
-    table.append([
-      # Name
-      svc.name,
-      # Active
-      svc.active,
-      # Consistent
-      current_marker is None or current_marker == agent.registry_id,
-    ])
+    table.append(
+      [
+        # Name
+        svc.name,
+        # Active
+        svc.active,
+        # Consistent
+        current_marker is None or current_marker == agent.registry_id,
+      ]
+    )
 
-  print(tabulate(table, headers=["Name", "Active", "Consistent"], tablefmt="rounded_outline", showindex=True))
-
+  print(
+    tabulate(
+      table, headers=["Name", "Active", "Consistent"], tablefmt="rounded_outline", showindex=True
+    )
+  )

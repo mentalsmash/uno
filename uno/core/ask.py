@@ -2,8 +2,8 @@
 # (C) Copyright 2020-2024 Andrea Sorbini
 #
 # This program is free software: you can redistribute it and/or modify
-# it under the terms of the GNU Affero General Public License as 
-# published by the Free Software Foundation, either version 3 of the 
+# it under the terms of the GNU Affero General Public License as
+# published by the Free Software Foundation, either version 3 of the
 # License, or (at your option) any later version.
 #
 # This program is distributed in the hope that it will be useful,
@@ -20,21 +20,27 @@ import os
 
 
 from .log import Logger
+
 log = Logger.sublogger("ask")
 
 
 QUERY_ASSUME_YES = False
-def ask_assume_yes(value: bool=True):
+
+
+def ask_assume_yes(value: bool = True):
   global QUERY_ASSUME_YES
   QUERY_ASSUME_YES = value
 
+
 QUERY_ASSUME_NO = False
-def ask_assume_no(value: bool=True):
+
+
+def ask_assume_no(value: bool = True):
   global QUERY_ASSUME_NO
   QUERY_ASSUME_NO = value
 
 
-def ask_yes_no(question, full_answer=False, return_answer: bool=False) -> bool:
+def ask_yes_no(question, full_answer=False, return_answer: bool = False) -> bool:
   if QUERY_ASSUME_NO:
     log.debug(question)
     log.debug("assuming 'no' answer.")
@@ -53,14 +59,22 @@ def ask_yes_no(question, full_answer=False, return_answer: bool=False) -> bool:
 
   valid = {"Yes": True, "No": False}
   if not full_answer:
-    valid.update({
-      "y": True, "Y": True, "n": False, "N": False,
-      "yes": True, "YES": True, "no": False, "NO": False,
-    })
+    valid.update(
+      {
+        "y": True,
+        "Y": True,
+        "n": False,
+        "N": False,
+        "yes": True,
+        "YES": True,
+        "no": False,
+        "NO": False,
+      }
+    )
     prompt = " [y/N] "
   else:
     prompt = " [Yes/No] "
-  
+
   while True:
     sys.stdout.write(question + prompt)
     choice = input()
@@ -75,8 +89,8 @@ def ask_yes_no(question, full_answer=False, return_answer: bool=False) -> bool:
         sys.stdout.write("\nPlease respond with 'Yes' or 'No'.\n\n")
       else:
         sys.stdout.write("\nPlease respond with 'yes' or 'no' " "(or 'y' or 'n').\n\n")
-  
+
   if not result and not return_answer:
     raise RuntimeError("command aborted on 'no' answer to question")
-  
+
   return result

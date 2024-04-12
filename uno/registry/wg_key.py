@@ -2,8 +2,8 @@
 # (C) Copyright 2020-2024 Andrea Sorbini
 #
 # This program is free software: you can redistribute it and/or modify
-# it under the terms of the GNU Affero General Public License as 
-# published by the Free Software Foundation, either version 3 of the 
+# it under the terms of the GNU Affero General Public License as
+# published by the Free Software Foundation, either version 3 of the
 # License, or (at your option) any later version.
 #
 # This program is distributed in the hope that it will be useful,
@@ -22,6 +22,7 @@ from .versioned import Versioned
 
 if TYPE_CHECKING:
   from .database import Database
+
 
 class WireGuardKeyPair(Versioned):
   PROPERTIES = [
@@ -60,7 +61,6 @@ class WireGuardKeyPair(Versioned):
     "key_id": True,
     "dropped": True,
   }
-
 
   @classmethod
   def generate_new(cls, db: "Database", **properties) -> dict:
@@ -105,7 +105,6 @@ class WireGuardPsk(Versioned):
     "key_id": True,
     "dropped": True,
   }
-
 
   @classmethod
   def generate_new(cls, db: "Database", **properties) -> dict:

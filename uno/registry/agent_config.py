@@ -3,6 +3,7 @@ from .database_object import OwnableDatabaseObject
 from .uvn import Uvn
 from .cell import Cell
 
+
 class AgentConfig(Versioned, OwnableDatabaseObject):
   PROPERTIES = [
     "config_id",
@@ -10,10 +11,7 @@ class AgentConfig(Versioned, OwnableDatabaseObject):
   REQ_PROPERTIES = [
     "config_id",
   ]
-  EQ_PROPERTIES = [
-    "owner_id",
-    "config_id"
-  ]
+  EQ_PROPERTIES = ["owner_id", "config_id"]
   STR_PROPERTIES = [
     "owner",
     "config_id",
@@ -26,5 +24,3 @@ class AgentConfig(Versioned, OwnableDatabaseObject):
   ]
   DB_EXPORTABLE = True
   DB_IMPORTABLE = False
- 
-

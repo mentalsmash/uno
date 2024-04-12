@@ -2,8 +2,8 @@
 # (C) Copyright 2020-2024 Andrea Sorbini
 #
 # This program is free software: you can redistribute it and/or modify
-# it under the terms of the GNU Affero General Public License as 
-# published by the Free Software Foundation, either version 3 of the 
+# it under the terms of the GNU Affero General Public License as
+# published by the Free Software Foundation, either version 3 of the
 # License, or (at your option) any later version.
 #
 # This program is distributed in the hope that it will be useful,
@@ -19,6 +19,7 @@ from uno.middleware import Middleware
 from .native_condition import NativeCondition
 from .native_participant import NativeParticipant
 
+
 class NativeMiddleware(Middleware):
   CONDITION = NativeCondition
   PARTICIPANT = NativeParticipant
@@ -26,4 +27,3 @@ class NativeMiddleware(Middleware):
   @classmethod
   def supports_agent(cls) -> bool:
     return False
-

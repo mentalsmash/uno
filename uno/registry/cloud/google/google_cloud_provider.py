@@ -2,8 +2,8 @@
 # (C) Copyright 2020-2024 Andrea Sorbini
 #
 # This program is free software: you can redistribute it and/or modify
-# it under the terms of the GNU Affero General Public License as 
-# published by the Free Software Foundation, either version 3 of the 
+# it under the terms of the GNU Affero General Public License as
+# published by the Free Software Foundation, either version 3 of the
 # License, or (at your option) any later version.
 #
 # This program is distributed in the hope that it will be useful,
@@ -29,6 +29,7 @@ from uno.core.exec import exec_command
 from .google_drive_cloud_storage import GoogleDriveCloudStorage
 from .gmail_cloud_email_server import GmailCloudEmailServer
 
+
 class GoogleCloudProvider(CloudProvider):
   AUTH_SCOPES = [
     "openid",
@@ -51,11 +52,9 @@ class GoogleCloudProvider(CloudProvider):
     super().__init__(**properties)
     self.__cached_services = {}
 
-
   @classmethod
   def svc_class(cls) -> str:
     return "google"
-
 
   def prepare_credentials_file(self, val: str | Path) -> None:
     internal_credentials = self.INITIAL_CREDENTIALS_FILE()
@@ -67,22 +66,18 @@ class GoogleCloudProvider(CloudProvider):
     # return Path(val)
     return None
 
-
   def serialize_credentials_file(self, val: Path) -> str:
     return str(val)
-
 
   def _validate(self) -> None:
     if not self.credentials_file.exists():
       raise RuntimeError("Google OAuth credentials file missing", self.credentials_file)
 
-
   @property
   def token_file(self) -> Path:
     return self.root / "token.json"
 
-
-  def create_api_service(self, api: str, version: str="v3", refresh: bool=False) -> None:
+  def create_api_service(self, api: str, version: str = "v3", refresh: bool = False) -> None:
     if not refresh:
       cached = self.__cached_services.get(api)
       if cached is not None:
@@ -105,18 +100,15 @@ class GoogleCloudProvider(CloudProvider):
         self.log.info("credentials refreshed")
       else:
         self.log.warning("new credentials required")
-        flow = InstalledAppFlow.from_client_secrets_file(
-            self.credentials_file, self.AUTH_SCOPES
-        )
+        flow = InstalledAppFlow.from_client_secrets_file(self.credentials_file, self.AUTH_SCOPES)
         creds = flow.run_local_server(port=0)
         self.log.warning("new credentials generated")
       # Save the credentials for the next run
       with self.token_file.open("w") as token:
         token.write(creds.to_json())
       self.log.activity("credentials stored to disk: {}", self.token_file)
-    
+
     self.log.info("connecting to Google {} API...", api.capitalize())
     self.__cached_services[api] = build(api, version, credentials=creds)
     self.log.warning("connected to Google {} API", api.capitalize())
     return self.__cached_services[api]
-

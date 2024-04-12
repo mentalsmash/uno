@@ -2,8 +2,8 @@
 # (C) Copyright 2020-2024 Andrea Sorbini
 #
 # This program is free software: you can redistribute it and/or modify
-# it under the terms of the GNU Affero General Public License as 
-# published by the Free Software Foundation, either version 3 of the 
+# it under the terms of the GNU Affero General Public License as
+# published by the Free Software Foundation, either version 3 of the
 # License, or (at your option) any later version.
 #
 # This program is distributed in the hope that it will be useful,
@@ -47,11 +47,13 @@ class CloudStorageFileType(Enum):
 
 
 class CloudStorageFile:
-  def __init__(self,
-      type: CloudStorageFileType,
-      name: str,
-      local_path: Path | None = None,
-      remote_url: str | None = None) -> None:
+  def __init__(
+    self,
+    type: CloudStorageFileType,
+    name: str,
+    local_path: Path | None = None,
+    remote_url: str | None = None,
+  ) -> None:
     self.type = type
     self.name = name
     self.local_path = local_path
@@ -62,19 +64,15 @@ class CloudStorageFile:
       return False
     return self.type == other.type and self.name == other.name
 
-
   def __hash__(self) -> int:
     return hash((self.type, self.name))
-
 
   def __str__(self) -> str:
     return f"{self.type.name.lower()}({self.name})"
 
 
-
 class CloudStorage(Versioned):
   RegisteredPlugins: dict[str, type["CloudStorage"]] = {}
-
 
   PROPERTIES = [
     "root",
@@ -86,23 +84,19 @@ class CloudStorage(Versioned):
   def prepare_root(self, val: str | Path) -> Path:
     return Path(val)
 
-
   # def __update_str_repr__(self) -> str:
   #   cls_name = self.log.camelcase_to_kebabcase(CloudStorage.__qualname__)
   #   self._str_repr = f"{cls_name}({self.parent})"
 
-
   @property
   def provider(self) -> "CloudProvider":
     from .cloud_provider import CloudProvider
-    assert(isinstance(self.parent, CloudProvider))
-    return self.parent
 
+    assert isinstance(self.parent, CloudProvider)
+    return self.parent
 
   def upload(self, files: list[CloudStorageFile]) -> list[CloudStorageFile]:
     raise NotImplementedError()
 
-
   def download(self, files: list[CloudStorageFile]) -> list[CloudStorageFile]:
     raise NotImplementedError()
-

@@ -2,8 +2,8 @@
 # (C) Copyright 2020-2024 Andrea Sorbini
 #
 # This program is free software: you can redistribute it and/or modify
-# it under the terms of the GNU Affero General Public License as 
-# published by the Free Software Foundation, either version 3 of the 
+# it under the terms of the GNU Affero General Public License as
+# published by the Free Software Foundation, either version 3 of the
 # License, or (at your option) any later version.
 #
 # This program is distributed in the hope that it will be useful,
@@ -31,11 +31,11 @@ class GoogleDriveCloudStorage(CloudStorage):
   PROPERTIES = [
     "upload_folder",
   ]
+
   def INITIAL_UPLOAD_FOLDER(self) -> str | None:
     if self.folder_id_file.exists():
       return self.folder_id_file.read_text()
     return None
-
 
   def prepare_upload_folder(self, val: str) -> None:
     if not val:
@@ -49,32 +49,27 @@ class GoogleDriveCloudStorage(CloudStorage):
       self.updated_property("upload_folder")
     return result
 
-
   def _validate(self) -> None:
     if self.upload_folder is None:
       raise RuntimeError("no upload folder specified")
-
 
   @property
   def folder_id_file(self) -> Path:
     return self.root / "folder.id"
 
-
   @cached_property
   def __remote_files(self) -> dict[str, str]:
     return self.__list_remote_files(self.upload_folder)
-
 
   @cached_property
   def __service(self) -> Resource:
     return self.provider.create_api_service("drive")
 
-
   def upload(self, files: list[CloudStorageFile]) -> list[CloudStorageFile]:
     self.log.info("uploading {} files to Google Drive", len(files))
     for i, file in enumerate(files):
       try:
-        self.log.activity("uploading [{}/{}] {}", i+1, len(files), file.local_path)
+        self.log.activity("uploading [{}/{}] {}", i + 1, len(files), file.local_path)
         media = MediaFileUpload(file.local_path, mimetype=file.type.mimetype())
         # If a file with the same name already exists in the remote folder
         # reuse its fileId and update its contents, otherwise create a new one
@@ -94,18 +89,17 @@ class GoogleDriveCloudStorage(CloudStorage):
         else:
           # file_metadata["fileId"] = existing_id
           uploaded_file = (
-            self.__service.files()
-            .update(media_body=media, fileId=existing_id)
-            .execute()
+            self.__service.files().update(media_body=media, fileId=existing_id).execute()
           )
           file.remote_url = existing_id
-        self.log.info("uploaded [{}/{}] {} -> {}", i+1, len(files), file.local_path, file.remote_url)
+        self.log.info(
+          "uploaded [{}/{}] {} -> {}", i + 1, len(files), file.local_path, file.remote_url
+        )
       except Exception as e:
         self.log.error("upload failed: {}", file.local_path)
         self.log.exception(e)
         raise CloudStorageError("upload failed", file)
     return files
-
 
   def __list_remote_files(self, folder_id: str) -> dict[str, str]:
     remote_files = {}
@@ -114,15 +108,15 @@ class GoogleDriveCloudStorage(CloudStorage):
       while True:
         # pylint: disable=maybe-no-member
         response = (
-            self.__service.files()
-            .list(
-                # q=f"mimeType='{mimetype}'",
-                q=f"'{folder_id}' in parents",
-                spaces="drive",
-                fields="nextPageToken, files(id, name)",
-                pageToken=page_token,
-            )
-            .execute()
+          self.__service.files()
+          .list(
+            # q=f"mimeType='{mimetype}'",
+            q=f"'{folder_id}' in parents",
+            spaces="drive",
+            fields="nextPageToken, files(id, name)",
+            pageToken=page_token,
+          )
+          .execute()
         )
         for file in response.get("files", []):
           remote_files[file.get("name")] = file.get("id")
@@ -138,7 +132,6 @@ class GoogleDriveCloudStorage(CloudStorage):
 
     return remote_files
 
-
   def download(self, files: list[CloudStorageFile]) -> list[CloudStorageFile]:
     # Make sure we query the remote files if we need them
     self.__dict__.pop("__remote_files", None)
@@ -152,11 +145,19 @@ class GoogleDriveCloudStorage(CloudStorage):
         file_data = io.FileIO(file.local_path, mode="w")
         downloader = MediaIoBaseDownload(file_data, request)
         done = False
-        self.log.activity("starting download [{}/{}] {} -> {}", i+1, len(files), file.remote_url, file.local_path)
+        self.log.activity(
+          "starting download [{}/{}] {} -> {}", i + 1, len(files), file.remote_url, file.local_path
+        )
         while done is False:
           status, done = downloader.next_chunk()
-          self.log.activity("download [{}/{}] progress: {}% {}", i+1, len(files), int(status.progress() * 100), file.local_path)
-        self.log.info("downloaded [{}/{}] {}", i+1, len(files), file.local_path)
+          self.log.activity(
+            "download [{}/{}] progress: {}% {}",
+            i + 1,
+            len(files),
+            int(status.progress() * 100),
+            file.local_path,
+          )
+        self.log.info("downloaded [{}/{}] {}", i + 1, len(files), file.local_path)
       except Exception as e:
         self.log.error("download failed: {}", file.local_path)
         self.log.exception(e)

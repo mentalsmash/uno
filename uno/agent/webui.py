@@ -2,8 +2,8 @@
 # (C) Copyright 2020-2024 Andrea Sorbini
 #
 # This program is free software: you can redistribute it and/or modify
-# it under the terms of the GNU Affero General Public License as 
-# published by the Free Software Foundation, either version 3 of the 
+# it under the terms of the GNU Affero General Public License as
+# published by the Free Software Foundation, either version 3 of the
 # License, or (at your option) any later version.
 #
 # This program is distributed in the hope that it will be useful,
@@ -37,11 +37,9 @@ class WebUi(AgentService):
     self._update_ui = True
     self._lighttpd = None
     super().__init__(**properties)
-  
 
   def check_runnable(self) -> bool:
     return isinstance(self.agent.owner, Cell)
-
 
   @property
   def listen_port(self) -> int:
@@ -50,11 +48,9 @@ class WebUi(AgentService):
     else:
       raise NotImplementedError()
 
-
   @property
   def min_update_delay(self) -> int:
     return self.agent.uvn.settings.timing_profile.status_min_delay
-
 
   @cached_property
   def doc_root(self) -> Path:
@@ -62,29 +58,32 @@ class WebUi(AgentService):
     self.mkdir(doc_root)
     return doc_root
 
-
   def _spin_once(self) -> None:
-    if (not self._update_ui and self._last_update_ts
-      and int(Timestamp.now().subtract(self._last_update_ts).total_seconds()) < self.min_update_delay):
+    if (
+      not self._update_ui
+      and self._last_update_ts
+      and int(Timestamp.now().subtract(self._last_update_ts).total_seconds())
+      < self.min_update_delay
+    ):
       return
     self.views.index_html(self.agent, self.doc_root)
     self._last_update_ts = Timestamp.now()
     self._update_ui = False
 
-
   def request_update(self) -> None:
     self._update_ui = True
 
-
   def _start(self) -> None:
-    assert(self._lighttpd is None)
+    assert self._lighttpd is None
 
     self.root.mkdir(exist_ok=True, parents=True)
     self.doc_root.mkdir(exist_ok=True, parents=True)
-    
+
     secrets = []
     for user in self.agent.registry.active_users.values():
-      secret_line = htdigest_generate(user.email, user.realm, password_hash=user.password[len("htdigest:"):])
+      secret_line = htdigest_generate(
+        user.email, user.realm, password_hash=user.password[len("htdigest:") :]
+      )
       secrets.append(secret_line)
 
     self._lighttpd = Lighttpd(
@@ -96,9 +95,9 @@ class WebUi(AgentService):
       secret="\n".join(secrets),
       auth_realm=self.agent.uvn.name,
       protected_paths=["^/particles"],
-      bind_addresses=list(self.agent.bind_addresses))
+      bind_addresses=list(self.agent.bind_addresses),
+    )
     self._lighttpd.start()
-
 
   def _stop(self, assert_stopped: bool) -> None:
     if self._lighttpd is None:
@@ -107,4 +106,3 @@ class WebUi(AgentService):
       self._lighttpd.stop()
     finally:
       self._lighttpd = None
-

@@ -2,8 +2,8 @@
 # (C) Copyright 2020-2024 Andrea Sorbini
 #
 # This program is free software: you can redistribute it and/or modify
-# it under the terms of the GNU Affero General Public License as 
-# published by the Free Software Foundation, either version 3 of the 
+# it under the terms of the GNU Affero General Public License as
+# published by the Free Software Foundation, either version 3 of the
 # License, or (at your option) any later version.
 #
 # This program is distributed in the hope that it will be useful,
@@ -19,12 +19,17 @@ import ipaddress
 from typing import Iterable
 from uno.test.integration import Experiment, Host
 
-def ping_test(experiment: Experiment, ping_config: Iterable[tuple[Host, Host, ipaddress.IPv4Address]], batch_size: int|None=None):
+
+def ping_test(
+  experiment: Experiment,
+  ping_config: Iterable[tuple[Host, Host, ipaddress.IPv4Address]],
+  batch_size: int | None = None,
+):
   ping_count = 3
   ping_max_wait = 10
   if batch_size is None:
     batch_size = len(experiment.networks)
-  
+
   # Start tests in batches using popen, then wait for them to terminate
   def _wait_batch(batch: list[tuple[Host, Host, ipaddress.IPv4Address, subprocess.Popen]]):
     for host, other_host, address, test in batch:
@@ -43,4 +48,3 @@ def ping_test(experiment: Experiment, ping_config: Iterable[tuple[Host, Host, ip
   if batch:
     _wait_batch(batch)
     batch = []
-

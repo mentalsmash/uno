@@ -2,8 +2,8 @@
 # (C) Copyright 2020-2024 Andrea Sorbini
 #
 # This program is free software: you can redistribute it and/or modify
-# it under the terms of the GNU Affero General Public License as 
-# published by the Free Software Foundation, either version 3 of the 
+# it under the terms of the GNU Affero General Public License as
+# published by the Free Software Foundation, either version 3 of the
 # License, or (at your option) any later version.
 #
 # This program is distributed in the hope that it will be useful,
@@ -20,6 +20,7 @@ from ..core.ip import ipv4_netmask_to_cidr
 
 from .versioned import Versioned
 
+
 class VpnSettings(Versioned):
   PROPERTIES = [
     "port",
@@ -31,7 +32,7 @@ class VpnSettings(Versioned):
     "masquerade",
     "forward",
     "tunnel",
-    "keepalive"
+    "keepalive",
   ]
   REQ_PROPERTIES = [
     "port",
@@ -47,7 +48,7 @@ class VpnSettings(Versioned):
     "masquerade",
     "forward",
     "tunnel",
-    "keepalive"
+    "keepalive",
   ]
   INITIAL_ALLOWED_IPS = lambda self: set()
   INITIAL_MASQUERADE = False
@@ -55,19 +56,15 @@ class VpnSettings(Versioned):
   INITIAL_TUNNEL = False
   INITIAL_KEEPALIVE = 25
 
-
   def prepare_subnet(self, val: str | int | ipaddress.IPv4Network) -> ipaddress.IPv4Network:
     return ipaddress.ip_network(val)
 
-
-  def serialize_subnet(self, val: ipaddress.IPv4Network, public: bool=False) -> str:
+  def serialize_subnet(self, val: ipaddress.IPv4Network, public: bool = False) -> str:
     return str(val)
-
 
   @property
   def base_ip(self) -> ipaddress.IPv4Address:
     return self.subnet.network_address
-
 
   @property
   def netmask(self) -> int:
@@ -104,4 +101,3 @@ class BackboneVpnSettings(VpnSettings):
   INITIAL_LINK_NETMASK = 31
   INITIAL_PEER_MTU = 1320
   INITIAL_FORWARD = True
-

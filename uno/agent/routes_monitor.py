@@ -2,8 +2,8 @@
 # (C) Copyright 2020-2024 Andrea Sorbini
 #
 # This program is free software: you can redistribute it and/or modify
-# it under the terms of the GNU Affero General Public License as 
-# published by the Free Software Foundation, either version 3 of the 
+# it under the terms of the GNU Affero General Public License as
+# published by the Free Software Foundation, either version 3 of the
 # License, or (at your option) any later version.
 #
 # This program is distributed in the hope that it will be useful,
@@ -24,6 +24,7 @@ import signal
 from ..registry.cell import Cell
 from ..core.ip import ipv4_list_routes
 from .agent_service import AgentService, AgentServiceListener
+
 
 class RoutesMonitorEvent(Enum):
   LOCAL_ROUTES = 1
@@ -46,7 +47,6 @@ class RoutesMonitor(AgentService):
     self._monitor_thread_started = threading.Semaphore(0)
     super().__init__(**properties)
 
-
   def check_runnable(self) -> bool:
     return isinstance(self.agent.owner, Cell)
 
@@ -54,25 +54,21 @@ class RoutesMonitor(AgentService):
   def routes_file(self) -> Path:
     return self.log_dir / "routes.local"
 
-
   def _process_updates(self) -> None:
     new_routes, gone_routes = self.poll_routes()
     if new_routes or gone_routes:
       self.notify_listeners("local-routes", new_routes, gone_routes)
-
 
   def _read_routes(self) -> set[str]:
     if not self.routes_file.exists():
       return set()
     return set(l for l in self.routes_file.read_text().splitlines() if l)
 
-
   def _write_routes(self, routes: set[str]) -> None:
     with self.routes_file.open("wt") as output:
       for r in routes:
         output.write(r)
         output.write("\n")
-
 
   def poll_routes(self) -> tuple[set[str], set[str]]:
     current_routes = ipv4_list_routes()
@@ -84,20 +80,20 @@ class RoutesMonitor(AgentService):
     self._write_routes(current_routes)
     return (new_routes, gone_routes)
 
-
   def _start(self) -> None:
     self.poll_routes()
-    self._monitor = subprocess.Popen(["ip", "monitor", "route"],
+    self._monitor = subprocess.Popen(
+      ["ip", "monitor", "route"],
       stdin=subprocess.DEVNULL,
       stdout=subprocess.PIPE,
       stderr=subprocess.DEVNULL,
       preexec_fn=os.setpgrp,
-      text=True)
+      text=True,
+    )
     self._monitor_thread = threading.Thread(target=self._monitor_thread_run)
     self._monitor_thread_active = True
     self._monitor_thread.start()
     self._monitor_thread_started.acquire()
-
 
   def _stop(self, assert_stopped: bool) -> None:
     if self._monitor is not None:
@@ -107,7 +103,6 @@ class RoutesMonitor(AgentService):
         self._monitor_thread.join()
         self._monitor_thread = None
       self._monitor = None
-
 
   def _monitor_thread_run(self):
     self.log.activity("starting to monitor kernel routes")

@@ -2,8 +2,8 @@
 # (C) Copyright 2020-2024 Andrea Sorbini
 #
 # This program is free software: you can redistribute it and/or modify
-# it under the terms of the GNU Affero General Public License as 
-# published by the Free Software Foundation, either version 3 of the 
+# it under the terms of the GNU Affero General Public License as
+# published by the Free Software Foundation, either version 3 of the
 # License, or (at your option) any later version.
 #
 # This program is distributed in the hope that it will be useful,
@@ -40,11 +40,13 @@ class CloudStorageFileType(Enum):
 
 
 class CloudStorageFile:
-  def __init__(self,
-      type: CloudStorageFileType,
-      name: str,
-      local_path: Path | None = None,
-      remote_url: str | None = None) -> None:
+  def __init__(
+    self,
+    type: CloudStorageFileType,
+    name: str,
+    local_path: Path | None = None,
+    remote_url: str | None = None,
+  ) -> None:
     self.type = type
     self.name = name
     self.local_path = local_path
@@ -55,20 +57,15 @@ class CloudStorageFile:
       return False
     return self.type == other.type and self.name == other.name
 
-
   def __hash__(self) -> int:
     return hash((self.type, self.name))
-
 
   def __str__(self) -> str:
     return f"{self.type.name.lower()}({self.name})"
 
 
-
-
 class CloudStorage(Versioned):
   RegisteredPlugins: dict[str, type["CloudStorage"]] = {}
-
 
   PROPERTIES = [
     "root",
@@ -81,33 +78,26 @@ class CloudStorage(Versioned):
   def prepare_root(self, val: str | Path) -> Path:
     return Path(val)
 
-
   def __init_subclass__(cls, *a, **kw) -> None:
     cls_svc_class = cls.svc_class()
-    assert(cls_svc_class not in CloudStorage.RegisteredPlugins)
+    assert cls_svc_class not in CloudStorage.RegisteredPlugins
     CloudStorage.RegisteredPlugins[cls.svc_class()] = cls
     super().__init_subclass__(*a, **kw)
-
 
   # def connect(self) -> None:
   #   raise NotImplementedError()
 
-
   # def disconnect(self) -> None:
   #   raise NotImplementedError()
-
 
   def upload(self, files: list[CloudStorageFile]) -> list[CloudStorageFile]:
     raise NotImplementedError()
 
-
   def download(self, files: list[CloudStorageFile]) -> list[CloudStorageFile]:
     raise NotImplementedError()
-
 
   @classmethod
   def svc_class(cls) -> str:
     cls_name = cls.__qualname__
     cls_name = cls_name[0].lower() + cls_name[1:]
     return Logger.camelcase_to_kebabcase(cls_name)
-

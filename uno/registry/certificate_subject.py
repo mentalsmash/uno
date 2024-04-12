@@ -2,8 +2,8 @@
 # (C) Copyright 2020-2024 Andrea Sorbini
 #
 # This program is free software: you can redistribute it and/or modify
-# it under the terms of the GNU Affero General Public License as 
-# published by the Free Software Foundation, either version 3 of the 
+# it under the terms of the GNU Affero General Public License as
+# published by the Free Software Foundation, either version 3 of the
 # License, or (at your option) any later version.
 #
 # This program is distributed in the hope that it will be useful,
@@ -18,19 +18,21 @@ from pathlib import Path
 
 from ..core.exec import exec_command
 
+
 class CertificateSubject:
-  def __init__(self,
-      org: str,
-      cn: str,
-      country: str|None="US",
-      state: str|None="Denial",
-      location: str|None="Springfield") -> None:
+  def __init__(
+    self,
+    org: str,
+    cn: str,
+    country: str | None = "US",
+    state: str | None = "Denial",
+    location: str | None = "Springfield",
+  ) -> None:
     self.org = org
     self.cn = cn
     self.country = country
     self.state = state
     self.location = location
-
 
   def __eq__(self, other: object) -> bool:
     if isinstance(other, str):
@@ -45,18 +47,16 @@ class CertificateSubject:
       and self.location == other.location
     )
 
-
   def __hash__(self) -> int:
     return hash((self.org, self.cn, self.country, self.state, self.location))
-
 
   def __str__(self) -> str:
     return f"/C={self.country}/ST={self.state}/L={self.location}/O={self.org}/CN={self.cn}"
 
-
   @staticmethod
   def parse(val: str) -> "CertificateSubject":
     import re
+
     subject_re = re.compile(r"/C=([^/]+)/ST=([^/]+)/L=([^/]+)/O=([^/]+)/CN=([^/]+)")
     subject_m = subject_re.match(val)
     if not subject_m:
@@ -66,14 +66,18 @@ class CertificateSubject:
       state=subject_m.group(2),
       location=subject_m.group(3),
       org=subject_m.group(4),
-      cn=subject_m.group(5))
-
+      cn=subject_m.group(5),
+    )
 
   @staticmethod
   def extract(cert: Path) -> "CertificateSubject":
-    subject = exec_command(
-      ["openssl", "x509", "-noout", "-subject", "-in", cert],
-      capture_output=True).stdout.decode("utf-8").split("subject=")[1].strip().replace(" = ", "=").replace(", ", "/")
+    subject = (
+      exec_command(["openssl", "x509", "-noout", "-subject", "-in", cert], capture_output=True)
+      .stdout.decode("utf-8")
+      .split("subject=")[1]
+      .strip()
+      .replace(" = ", "=")
+      .replace(", ", "/")
+    )
     subject = "/" + subject
     return CertificateSubject.parse(subject)
-

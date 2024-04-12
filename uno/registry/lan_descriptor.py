@@ -2,8 +2,8 @@
 # (C) Copyright 2020-2024 Andrea Sorbini
 #
 # This program is free software: you can redistribute it and/or modify
-# it under the terms of the GNU Affero General Public License as 
-# published by the Free Software Foundation, either version 3 of the 
+# it under the terms of the GNU Affero General Public License as
+# published by the Free Software Foundation, either version 3 of the
 # License, or (at your option) any later version.
 #
 # This program is distributed in the hope that it will be useful,
@@ -18,6 +18,7 @@ import ipaddress
 from .nic_descriptor import NicDescriptor
 
 from .versioned import Versioned
+
 
 class LanDescriptor(Versioned):
   PROPERTIES = [
@@ -41,25 +42,21 @@ class LanDescriptor(Versioned):
     "gw",
   ]
 
-
   def prepare_gw(self, val: str | int | ipaddress.IPv4Address) -> ipaddress.IPv4Address:
     return ipaddress.ip_address(val)
 
-
-  def serialize_gw(self, val: ipaddress.IPv4Address, public: bool=False) -> str:
+  def serialize_gw(self, val: ipaddress.IPv4Address, public: bool = False) -> str:
     return str(val)
-
 
   def prepare_nic(self, val: str | dict | NicDescriptor) -> NicDescriptor:
     return self.new_child(NicDescriptor, val)
 
-
   def prepare_next_hop(self, val: str | int | ipaddress.IPv4Address) -> ipaddress.IPv4Address:
     return ipaddress.ip_address(val)
 
-
-  def serialize_next_hop(self, val: ipaddress.IPv4Address | None, public: bool=False) -> str | None:
+  def serialize_next_hop(
+    self, val: ipaddress.IPv4Address | None, public: bool = False
+  ) -> str | None:
     if val is None:
       return val
     return str(val)
-

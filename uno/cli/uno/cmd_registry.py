@@ -2,8 +2,8 @@
 # (C) Copyright 2020-2024 Andrea Sorbini
 #
 # This program is free software: you can redistribute it and/or modify
-# it under the terms of the GNU Affero General Public License as 
-# published by the Free Software Foundation, either version 3 of the 
+# it under the terms of the GNU Affero General Public License as
+# published by the Free Software Foundation, either version 3 of the
 # License, or (at your option) any later version.
 #
 # This program is distributed in the hope that it will be useful,
@@ -25,6 +25,7 @@ from uno.core.log import Logger
 
 def _get_collection_element(collection: list | dict, index_expr: str):
   import re
+
   # index_component_re = re.compile(r"\[([^\]]+)\]")
   # This regex can support "list" index expressions (e.g. "[[1, 2]]"), which are
   # parsed with a trailing "]" and not starting "[", so they must be fixed
@@ -40,7 +41,7 @@ def _get_collection_element(collection: list | dict, index_expr: str):
         int_index = int(index_component)
       except ValueError:
         int_index = None
-      
+
       # Get the index outside of try/except to avoid accidentally
       # masking an exception thrown by the getter
       if int_index is not None:
@@ -57,7 +58,7 @@ def _get_collection_element(collection: list | dict, index_expr: str):
         # A simple regular expression cannot do this, we would need a proper parser to
         # matched balanced parentheses.
         if index_component.endswith("]"):
-          assert(index_component[0] != "]")
+          assert index_component[0] != "]"
           index_component = "[" + index_component
 
         value_index = yaml.safe_load(index_component)
@@ -75,7 +76,9 @@ def _get_collection_element(collection: list | dict, index_expr: str):
       else:
         parsed_index = f"{parsed_index}[{index_component}]"
   except:
-    raise ValueError(f"failed to parse index expression '{index_expr}' after '{parsed_index}'", collection)
+    raise ValueError(
+      f"failed to parse index expression '{index_expr}' after '{parsed_index}'", collection
+    )
 
   if current_target is collection:
     raise ValueError("invalid index expression", index_expr)
@@ -94,15 +97,18 @@ optional index expressions. For example:
 
 The parser is limited, and it will ignore invalid characters between ']' and '.', and between ']' and '['.
 """
-  def _query_recur(cur: object | dict, query_component: str, remaining: list[str], fqattr: str = "") -> object:
+
+  def _query_recur(
+    cur: object | dict, query_component: str, remaining: list[str], fqattr: str = ""
+  ) -> object:
     index_start = query_component.find("[")
     if index_start > 0:
       attr = query_component[:index_start]
-      attr_index = query_component[len(attr):]
+      attr_index = query_component[len(attr) :]
     else:
       attr = query_component
       attr_index = None
-    
+
     if isinstance(cur, dict) and attr in cur:
       v = cur[attr]
     else:
@@ -121,12 +127,15 @@ The parser is limited, and it will ignore invalid characters between ']' and '.'
       fqattr = f"{fqattr}.{query_component}"
     else:
       fqattr = query_component
-    
+
     return _query_recur(v, remaining[0], remaining[1:])
 
   query_parts = query.split(".")
-  return _query_recur(serialized, query_parts[0], query_parts[1:], )
-
+  return _query_recur(
+    serialized,
+    query_parts[0],
+    query_parts[1:],
+  )
 
 
 def _print_result(args: argparse.Namespace, result: Versioned) -> None:
@@ -139,17 +148,20 @@ def _print_result(args: argparse.Namespace, result: Versioned) -> None:
     print(Versioned.yaml_dump(serialized, public=not Logger.DEBUG, json=print_json))
 
 
-def registry_action(action: Callable[[argparse.Namespace, Registry], None]) -> Callable[[argparse.Namespace], None]:
+def registry_action(
+  action: Callable[[argparse.Namespace, Registry], None],
+) -> Callable[[argparse.Namespace], None]:
   def _wrapped(args: argparse.Namespace) -> None:
     registry = Registry.open(args.root)
     # generate = action(args, registry)
     action(args, registry)
-    
+
     if registry.dirty:
       # changed = registry.generate_artifacts(force=getattr(args, "generate", False))
       changed = registry.generate_artifacts()
     else:
       registry.log.info("unchanged")
+
   return _wrapped
 
 
@@ -162,7 +174,8 @@ def registry_define_uvn(args: argparse.Namespace) -> None:
     password=args.password,
     root=args.root,
     registry_config=args.config_registry(args),
-    uvn_spec=registry_config["uvn_spec"])
+    uvn_spec=registry_config["uvn_spec"],
+  )
 
 
 @registry_action
@@ -193,10 +206,7 @@ def registry_rekey_uvn(args: argparse.Namespace, registry: Registry) -> bool:
 @registry_action
 def registry_define_cell(args: argparse.Namespace, registry: Registry) -> bool:
   owner = registry.load_user(args.owner) if args.owner else None
-  registry.add_cell(
-    name=args.name,
-    owner=owner,
-    **(args.config_cell(args) or {}))
+  registry.add_cell(name=args.name, owner=owner, **(args.config_cell(args) or {}))
   return True
 
 
@@ -230,9 +240,7 @@ def registry_delete_cell(args: argparse.Namespace, registry: Registry) -> bool:
 @registry_action
 def registry_rekey_cell(args: argparse.Namespace, registry: Registry) -> bool:
   cell = registry.load_cell(args.name)
-  registry.rekey_cell(cell,
-    root_vpn=args.root_vpn,
-    particles_vpn=args.particles_vpn)
+  registry.rekey_cell(cell, root_vpn=args.root_vpn, particles_vpn=args.particles_vpn)
   return True
 
 
@@ -253,10 +261,7 @@ def registry_unban_cell(args: argparse.Namespace, registry: Registry) -> bool:
 @registry_action
 def registry_define_particle(args: argparse.Namespace, registry: Registry) -> bool:
   owner = registry.load_user(args.owner) if args.owner else None
-  registry.add_particle(
-    name=args.name,
-    owner=owner,
-    **(args.config_particle(args) or {}))
+  registry.add_particle(name=args.name, owner=owner, **(args.config_particle(args) or {}))
   return True
 
 
@@ -324,7 +329,9 @@ def registry_unban_user(args: argparse.Namespace, registry: Registry) -> bool:
 
 @registry_action
 def registry_redeploy(args: argparse.Namespace, registry: Registry) -> bool:
-  config_deployment = (args.config_registry(args) or {}).get("uvn", {}).get("settings", {}).get("deployment")
+  config_deployment = (
+    (args.config_registry(args) or {}).get("uvn", {}).get("settings", {}).get("deployment")
+  )
   if config_deployment:
     registry.uvn.settings.deployment.configure(**config_deployment)
   registry.redeploy()
@@ -393,4 +400,3 @@ def registry_notify_particle(args: argparse.Namespace, registry: Registry) -> No
 def registry_notify_uvn(args: argparse.Namespace, registry: Registry) -> None:
   registry.configure(cloud_provider=args.config_registry(args)["cloud_provider"])
   registry.send_email(to=registry.uvn, **args.config_notify(args))
-

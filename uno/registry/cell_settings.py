@@ -2,8 +2,8 @@
 # (C) Copyright 2020-2024 Andrea Sorbini
 #
 # This program is free software: you can redistribute it and/or modify
-# it under the terms of the GNU Affero General Public License as 
-# published by the Free Software Foundation, either version 3 of the 
+# it under the terms of the GNU Affero General Public License as
+# published by the Free Software Foundation, either version 3 of the
 # License, or (at your option) any later version.
 #
 # This program is distributed in the hope that it will be useful,
@@ -17,6 +17,7 @@
 from .versioned import Versioned
 
 from .database_object import OwnableDatabaseObject
+
 
 class CellSettings(Versioned, OwnableDatabaseObject):
   DB_TABLE_PROPERTIES = [
@@ -34,4 +35,3 @@ class CellSettings(Versioned, OwnableDatabaseObject):
 
   INITIAL_ENABLE_PARTICLES_VPN = True
   INITIAL_HTTPD_PORT = 443
-

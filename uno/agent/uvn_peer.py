@@ -2,8 +2,8 @@
 # (C) Copyright 2020-2024 Andrea Sorbini
 #
 # This program is free software: you can redistribute it and/or modify
-# it under the terms of the GNU Affero General Public License as 
-# published by the Free Software Foundation, either version 3 of the 
+# it under the terms of the GNU Affero General Public License as
+# published by the Free Software Foundation, either version 3 of the
 # License, or (at your option) any later version.
 #
 # This program is distributed in the hope that it will be useful,
@@ -30,6 +30,7 @@ from ..core.wg import WireGuardInterface
 
 if TYPE_CHECKING:
   from .agent import Agent
+
 
 class UvnPeerStatus(Enum):
   DECLARED = 0
@@ -76,10 +77,8 @@ class UvnPeer(Versioned, DatabaseObjectOwner, OwnableDatabaseObject):
   DB_EXPORTABLE = False
   DB_IMPORTABLE = False
 
-
   # def __init__(self, **properties) -> None:
   #   super().__init__(**properties)
-
 
   def load_nested(self) -> None:
     self.vpn_interfaces = set(self.load_children(VpnInterfaceStatus, owner=self))
@@ -87,29 +86,25 @@ class UvnPeer(Versioned, DatabaseObjectOwner, OwnableDatabaseObject):
     #   status.configure(online=False)
     self.known_networks = set(self.load_children(LanStatus, owner=self))
 
-
   @property
   def name(self) -> str:
     return self.owner.name
 
-
-  def prepare_routed_networks(self, val: str|Iterable[dict|LanDescriptor]) -> set[LanDescriptor]:
+  def prepare_routed_networks(
+    self, val: str | Iterable[dict | LanDescriptor]
+  ) -> set[LanDescriptor]:
     if isinstance(val, str):
       val = self.yaml_load(val)
     return self.deserialize_collection(LanDescriptor, val, set, self.new_child)
 
-
-  def serialize_routed_networks(self, val: set[LanDescriptor], public: bool=False) -> list[dict]:
+  def serialize_routed_networks(self, val: set[LanDescriptor], public: bool = False) -> list[dict]:
     return [l.serialize() for l in val]
 
-
-  def prepare_ts_start(self, val: int|str|Timestamp) -> None:
+  def prepare_ts_start(self, val: int | str | Timestamp) -> None:
     return prepare_timestamp(self.db, val)
 
-
-  def prepare_status(self, val: str|UvnPeerStatus) -> UvnPeerStatus:
+  def prepare_status(self, val: str | UvnPeerStatus) -> UvnPeerStatus:
     return prepare_enum(self.db, UvnPeerStatus, val)
-
 
   def configure_vpn_interfaces(self, peer_vpn_stats: dict[WireGuardInterface, dict]) -> bool:
     changed = False
@@ -117,9 +112,14 @@ class UvnPeer(Versioned, DatabaseObjectOwner, OwnableDatabaseObject):
     for intf, intf_stats in peer_vpn_stats.items():
       intf_status = next((s for s in self.vpn_interfaces if s.intf == intf.config.intf.name), None)
       if intf_status is None:
-        intf_status = self.new_child(VpnInterfaceStatus, {
-          "intf": intf.config.intf.name,
-        }, owner=self, save=False)
+        intf_status = self.new_child(
+          VpnInterfaceStatus,
+          {
+            "intf": intf.config.intf.name,
+          },
+          owner=self,
+          save=False,
+        )
         changed = True
       changed_cfg = intf_status.configure(**intf_stats)
       changed = changed or len(changed_cfg) > 0
@@ -134,8 +134,7 @@ class UvnPeer(Versioned, DatabaseObjectOwner, OwnableDatabaseObject):
       self.db.delete(intf_status)
     return changed
 
-
-  def configure_known_networks(self, known_networks: None|dict[LanDescriptor, bool]) -> bool:
+  def configure_known_networks(self, known_networks: None | dict[LanDescriptor, bool]) -> bool:
     changed = False
     configured = set()
     for lan, reachable in (known_networks or {}).items():
@@ -157,34 +156,29 @@ class UvnPeer(Versioned, DatabaseObjectOwner, OwnableDatabaseObject):
       self.db.delete(known_net)
     return changed
 
-
   @property
   def agent(self) -> "Agent":
-    assert(self.parent.parent is not None)
+    assert self.parent.parent is not None
     return self.parent.parent
-
 
   @property
   def local(self) -> bool:
-    assert(self.owner is not None)
+    assert self.owner is not None
     return self.agent.owner == self.owner
 
-
   @property
-  def particle(self) -> Particle|None:
+  def particle(self) -> Particle | None:
     owner = self.owner
     if not isinstance(owner, Particle):
       return None
     return self.owner
 
-
   @property
-  def cell(self) -> Cell|None:
+  def cell(self) -> Cell | None:
     owner = self.owner
     if not isinstance(owner, Cell):
       return None
     return self.owner
-
 
   @property
   def registry(self) -> bool:
@@ -193,14 +187,12 @@ class UvnPeer(Versioned, DatabaseObjectOwner, OwnableDatabaseObject):
       return False
     return True
 
-
   @property
   def uvn(self) -> Uvn:
     if self.registry:
       return self.owner
     else:
       return self.owner.uvn
-
 
   @property
   def reachable_networks(self) -> Generator["LanStatus", None, None]:
@@ -209,7 +201,6 @@ class UvnPeer(Versioned, DatabaseObjectOwner, OwnableDatabaseObject):
         continue
       yield n
 
-
   @property
   def unreachable_networks(self) -> Generator["LanStatus", None, None]:
     for n in self.known_networks:
@@ -217,16 +208,13 @@ class UvnPeer(Versioned, DatabaseObjectOwner, OwnableDatabaseObject):
         continue
       yield n
 
-
   # def prepare_vpn_interfaces(self, vpn_stats: dict[WireGuardInterface, dict[str, object]]) -> "set[VpnInterfaceStatus]":
   #   self.configure_vpn_interfaces(vpn_stats)
   #   return self.vpn_interfaces
 
-
   # def prepare_known_networks(self, known_networks: None|list[dict]) -> "set[LanStatus]":
   #   self.configure_known_networks(known_networks)
   #   return self.known_networks
-
 
   @property
   def nested(self) -> Generator[Versioned, None, None]:
@@ -234,7 +222,6 @@ class UvnPeer(Versioned, DatabaseObjectOwner, OwnableDatabaseObject):
       yield status
     for net in self.known_networks:
       yield net
-
 
 
 class VpnInterfaceStatus(Versioned, OwnableDatabaseObject):
@@ -269,16 +256,18 @@ class VpnInterfaceStatus(Versioned, OwnableDatabaseObject):
   DB_EXPORTABLE = False
   DB_IMPORTABLE = False
 
-
   def __init__(self, **properties) -> None:
     super().__init__(**properties)
     self.log.local_level = self.log.Level.quiet
 
-
-  def serialize_allowed_ips(self, val: set[ipaddress.IPv4Network], public: bool=False) -> list[str]:
+  def serialize_allowed_ips(
+    self, val: set[ipaddress.IPv4Network], public: bool = False
+  ) -> list[str]:
     return list(map(str, sorted(val)))
 
-  def prepare_allowed_ips(self, val: str | list[str | ipaddress.IPv4Network]) -> set[ipaddress.IPv4Network]:
+  def prepare_allowed_ips(
+    self, val: str | list[str | ipaddress.IPv4Network]
+  ) -> set[ipaddress.IPv4Network]:
     if isinstance(val, str):
       val = self.yaml_load(val)
     return prepare_collection(self.db, val, ipaddress.IPv4Network, set)
@@ -293,11 +282,10 @@ class VpnInterfaceStatus(Versioned, OwnableDatabaseObject):
       val = self.yaml_load(val)
     return val
 
-  def serialize_endpoint(self, val: dict, public: bool=False) -> dict:
+  def serialize_endpoint(self, val: dict, public: bool = False) -> dict:
     val = dict(val)
     val["address"] = str(val["address"])
     return val
-
 
   # def prepare_intf(self, val: str | WireGuardInterface) -> WireGuardInterface | None:
   #   if isinstance(val, str):
@@ -347,13 +335,9 @@ class LanStatus(Versioned, OwnableDatabaseObject):
     super().__init__(**properties)
     self.log.local_level = self.log.Level.quiet
 
-
   @property
   def local(self) -> bool:
     return self.lan in self.owner.routed_networks
 
-
   def prepare_lan(self, val: str | dict | LanDescriptor) -> LanDescriptor:
     return self.new_child(LanDescriptor, val)
-
-

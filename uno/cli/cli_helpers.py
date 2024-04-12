@@ -2,8 +2,8 @@
 # (C) Copyright 2020-2024 Andrea Sorbini
 #
 # This program is free software: you can redistribute it and/or modify
-# it under the terms of the GNU Affero General Public License as 
-# published by the Free Software Foundation, either version 3 of the 
+# it under the terms of the GNU Affero General Public License as
+# published by the Free Software Foundation, either version 3 of the
 # License, or (at your option) any later version.
 #
 # This program is distributed in the hope that it will be useful,
@@ -22,11 +22,12 @@ from operator import attrgetter
 from uno.core.log import Logger
 from uno.core.ask import ask_assume_no, ask_assume_yes
 
+
 class SortingHelpFormatter(argparse.HelpFormatter):
   def add_arguments(self, actions):
-    actions = sorted(actions, key=attrgetter('option_strings'))
+    actions = sorted(actions, key=attrgetter("option_strings"))
     super(SortingHelpFormatter, self).add_arguments(actions)
-  
+
   def _iter_indented_subactions(self, action):
     try:
       get_subactions = action._get_subactions
@@ -36,58 +37,70 @@ class SortingHelpFormatter(argparse.HelpFormatter):
       self._indent()
       if isinstance(action, argparse._SubParsersAction):
         for subaction in sorted(get_subactions(), key=lambda x: x.dest):
-            yield subaction
+          yield subaction
       else:
         for subaction in get_subactions():
-            yield subaction
+          yield subaction
       self._dedent()
 
 
-
-def cli_parser_args_common(parser: argparse._SubParsersAction|argparse.ArgumentParser, version: str|None=None):
-  parser.add_argument("-r", "--root",
-    metavar="DIR",
-    default=Path.cwd(),
-    type=Path,
-    help="UVN root directory.")
-  parser.add_argument("-v", "--verbose",
+def cli_parser_args_common(
+  parser: argparse._SubParsersAction | argparse.ArgumentParser, version: str | None = None
+):
+  parser.add_argument(
+    "-r", "--root", metavar="DIR", default=Path.cwd(), type=Path, help="UVN root directory."
+  )
+  parser.add_argument(
+    "-v",
+    "--verbose",
     action="count",
     default=0,
-    help="Increase output verbosity. Repeat for increased verbosity.")
-  parser.add_argument("-q", "--quiet",
-    action="count",
-    default=False,
-    help="Suppress all logger output.")
+    help="Increase output verbosity. Repeat for increased verbosity.",
+  )
+  parser.add_argument(
+    "-q", "--quiet", action="count", default=False, help="Suppress all logger output."
+  )
   opts = parser.add_argument_group("User Interaction Options")
-  opts.add_argument("-y", "--yes",
-    help="Do not prompt the user with questions, and always assume "
-    "'yes' is the answer.",
+  opts.add_argument(
+    "-y",
+    "--yes",
+    help="Do not prompt the user with questions, and always assume " "'yes' is the answer.",
     action="store_true",
-    default=False)
-  opts.add_argument("--no",
-    help="Do not prompt the user with questions, and always assume "
-    "'no' is the answer.",
+    default=False,
+  )
+  opts.add_argument(
+    "--no",
+    help="Do not prompt the user with questions, and always assume " "'no' is the answer.",
     action="store_true",
-    default=False)
+    default=False,
+  )
 
 
-
-def cli_command_group(parent: argparse._SubParsersAction|argparse.ArgumentParser, name: str, title: str, help: str) -> argparse._SubParsersAction:
+def cli_command_group(
+  parent: argparse._SubParsersAction | argparse.ArgumentParser, name: str, title: str, help: str
+) -> argparse._SubParsersAction:
   cmd_group = parent.add_parser(name, formatter_class=SortingHelpFormatter, help=help)
   cmd_group_subparsers = cmd_group.add_subparsers(help=title)
   return cmd_group_subparsers
 
 
-def cli_command(parent: argparse._SubParsersAction|argparse.ArgumentParser, name: str, cmd: Callable[[argparse.Namespace], None], help: str, defaults: dict | None = None) -> argparse._SubParsersAction:
+def cli_command(
+  parent: argparse._SubParsersAction | argparse.ArgumentParser,
+  name: str,
+  cmd: Callable[[argparse.Namespace], None],
+  help: str,
+  defaults: dict | None = None,
+) -> argparse._SubParsersAction:
   command = parent.add_parser(name, help=help)
   command.set_defaults(cmd=cmd, **(defaults or {}))
   cli_parser_args_common(command)
   return command
 
 
-def cli_command_main(define_parser: Callable[[argparse._SubParsersAction], None], version: str|None=None):
-  parser = argparse.ArgumentParser(
-    formatter_class=SortingHelpFormatter)
+def cli_command_main(
+  define_parser: Callable[[argparse._SubParsersAction], None], version: str | None = None
+):
+  parser = argparse.ArgumentParser(formatter_class=SortingHelpFormatter)
   if version is not None:
     parser.add_argument("--version", action="version", version=version)
   define_parser(parser)
@@ -118,5 +131,5 @@ def cli_command_main(define_parser: Callable[[argparse._SubParsersAction], None]
     Logger.error("exception detected")
     Logger.exception(e)
     import sys
-    sys.exit(1)
 
+    sys.exit(1)

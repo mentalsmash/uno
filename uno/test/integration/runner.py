@@ -3,8 +3,8 @@
 # (C) Copyright 2020-2024 Andrea Sorbini
 #
 # This program is free software: you can redistribute it and/or modify
-# it under the terms of the GNU Affero General Public License as 
-# published by the Free Software Foundation, either version 3 of the 
+# it under the terms of the GNU Affero General Public License as
+# published by the Free Software Foundation, either version 3 of the
 # License, or (at your option) any later version.
 #
 # This program is distributed in the hope that it will be useful,
@@ -30,22 +30,19 @@ def _parser(parser: argparse.ArgumentParser) -> None:
   #############################################################################
   # uno host ...
   #############################################################################
-  cmd_host = cli_command(subparsers, "host",
-    cmd=runner_host,
-    help="Run an integration test host's main()")
+  cmd_host = cli_command(
+    subparsers, "host", cmd=runner_host, help="Run an integration test host's main()"
+  )
 
-  cmd_host.add_argument("test_case",
-    help="Test case that the runner is a part of.",
-    type=Path)
+  cmd_host.add_argument("test_case", help="Test case that the runner is a part of.", type=Path)
 
-  cmd_host.add_argument("container_name",
-    help="Name of the container where the runner is deployed")
+  cmd_host.add_argument("container_name", help="Name of the container where the runner is deployed")
 
 
 def runner_host(args: argparse.Namespace) -> None:
   # UNO_TEST_RUNNER must have been set in the environment
   # to signal that the code is running inside Docker
-  assert(bool(os.environ.get("UNO_TEST_RUNNER")))
+  assert bool(os.environ.get("UNO_TEST_RUNNER"))
   # Load test case file as a module
   test_case_filef = Path("/experiment") / args.test_case
   experiment: Experiment = Experiment.import_test_case(test_case_filef)
@@ -63,4 +60,3 @@ def main():
 
 if __name__ == "__main__":
   main()
-

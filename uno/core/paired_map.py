@@ -2,8 +2,8 @@
 # (C) Copyright 2020-2024 Andrea Sorbini
 #
 # This program is free software: you can redistribute it and/or modify
-# it under the terms of the GNU Affero General Public License as 
-# published by the Free Software Foundation, either version 3 of the 
+# it under the terms of the GNU Affero General Public License as
+# published by the Free Software Foundation, either version 3 of the
 # License, or (at your option) any later version.
 #
 # This program is distributed in the hope that it will be useful,
@@ -16,38 +16,31 @@
 ###############################################################################
 from typing import Callable, Sequence
 
+
 class PairedValuesMap(dict):
   @classmethod
   def pair_key(cls, peer_a: int, peer_b: int):
-    if (peer_a > peer_b):
+    if peer_a > peer_b:
       return (peer_b, peer_a)
     else:
       return (peer_a, peer_b)
 
-
   def generate_val(self, peer_a: int, peer_b: int) -> object:
     raise NotImplementedError()
 
-
-  def assert_pair(self,
-      peer_a: int,
-      peer_b: int,
-      val: object | Callable | None = None) -> object:
+  def assert_pair(self, peer_a: int, peer_b: int, val: object | Callable | None = None) -> object:
     k = self.pair_key(peer_a, peer_b)
     stored = self.get(k)
     generated = False
     if stored is None:
       stored = (
-        val() if callable(val) else
-        val if val is not None else
-        self.generate_val(peer_a, peer_b)
+        val() if callable(val) else val if val is not None else self.generate_val(peer_a, peer_b)
       )
       if stored is None:
         raise RuntimeError("failed to generate value")
       self[k] = stored
       generated = True
     return stored, generated
-
 
   def purge_peer(self, peer: int) -> dict[tuple[int, int], object]:
     purged = {}
@@ -59,10 +52,8 @@ class PairedValuesMap(dict):
       del self[k]
     return purged
 
-
   def get_pair(self, peer_a: int, peer_b: int) -> str:
     return self[self.pair_key(peer_a, peer_b)]
-
 
   @classmethod
   def pick(cls, peer_a: int, peer_b: int, peer_target: int, val: Sequence[object]) -> object:

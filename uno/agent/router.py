@@ -2,8 +2,8 @@
 # (C) Copyright 2020-2024 Andrea Sorbini
 #
 # This program is free software: you can redistribute it and/or modify
-# it under the terms of the GNU Affero General Public License as 
-# published by the Free Software Foundation, either version 3 of the 
+# it under the terms of the GNU Affero General Public License as
+# published by the Free Software Foundation, either version 3 of the
 # License, or (at your option) any later version.
 #
 # This program is distributed in the hope that it will be useful,
@@ -16,7 +16,7 @@
 ###############################################################################
 from pathlib import Path
 from typing import Iterable
-    
+
 
 from .render import Templates
 from ..core.wg import WireGuardInterface
@@ -27,7 +27,7 @@ from .agent_service import AgentService
 
 class Router(AgentService):
   USER = ["frr", "frr"]
-  
+
   FRR_CONF = "/etc/frr/frr.conf"
 
   STATIC_SERVICE = "router"
@@ -40,10 +40,8 @@ class Router(AgentService):
   #   self._watchfrr_thread_started = threading.Semaphore(0)
   #   self._watchfrr_thread_exit = threading.Semaphore(0)
 
-
   def check_runnable(self) -> bool:
     return isinstance(self.agent.owner, Cell)
-
 
   @property
   def frr_config(self) -> tuple[str, dict]:
@@ -57,6 +55,7 @@ class Router(AgentService):
         "bgp_as": vpn.config.peers[0].id,
         "subnet": vpn.config.intf.subnet,
       }
+
     #########################################################################
     # FRR configuration for cell agent
     #########################################################################
@@ -67,9 +66,7 @@ class Router(AgentService):
       "message_digest_key": f"{self.agent.uvn.name}-{self.agent.deployment.generation_ts}",
       "hostname": self.agent.owner.address,
       "root": _frr_serialize_vpn(self.agent.root_vpn),
-      "backbone": [
-        _frr_serialize_vpn(v) for v in self.agent.backbone_vpns
-      ],
+      "backbone": [_frr_serialize_vpn(v) for v in self.agent.backbone_vpns],
       "lans": [
         {
           "name": lan.nic.name,
@@ -78,19 +75,20 @@ class Router(AgentService):
           "subnet": lan.nic.subnet,
           "area": lan.nic.subnet.network_address,
           "gw": lan.gw,
-        } for lan in self.agent.lans
+        }
+        for lan in self.agent.lans
       ],
       "static_routes": [
         {
           "subnet": r["subnet"],
           "route_gw": r["route_gw"],
-        } for r in static_routes
+        }
+        for r in static_routes
       ],
       "router_id": str(self.agent.root_vpn.config.intf.address),
       "log_dir": self.log_dir,
     }
     return ("router/frr.bgp.conf", ctx)
-
 
   def _start(self) -> None:
     # Generate and install frr.conf
@@ -114,7 +112,6 @@ class Router(AgentService):
     # self._watchfrr_thread.start()
     # self._watchfrr_thread_started.acquire()
 
-
   def _watchfrr_thread_run(self):
     self.log.activity("starting FRR daemons...")
     self._watchfrr_thread_started.release()
@@ -127,8 +124,6 @@ class Router(AgentService):
         self.log.exception(e)
     self.log.activity("stopped")
 
-
-
   def _stop(self, assert_stopped: bool) -> None:
     exec_command(["service", "frr", "stop"])
     # if self._watchfrr is not None:
@@ -139,32 +134,28 @@ class Router(AgentService):
     #     self._watchfrr_thread = None
     #   self._watchfrr = None
 
-
-  def vtysh(self, cmd: Iterable[str|Path], output_file: Path|None=None) -> str|None:
+  def vtysh(self, cmd: Iterable[str | Path], output_file: Path | None = None) -> str | None:
     cmd = ["vtysh", "-E", "-c", *cmd]
-    result = exec_command(cmd,
+    result = exec_command(
+      cmd,
       fail_msg="failed to perform vtysh command",
       capture_output=not output_file,
-      output_file=output_file)
+      output_file=output_file,
+    )
     if not output_file:
       return result.stdout.decode("utf-8")
-
 
   def _generate_ospf_neighbors(self, output: Path) -> None:
     self.vtysh(["show ip ospf neighbor"], output_file=output)
 
-
   def _generate_ospf_routes(self, output: Path) -> None:
     self.vtysh(["show ip ospf route"], output_file=output)
-
 
   def _generate_ospf_interfaces(self, output: Path) -> str:
     self.vtysh(["show ip ospf interface"], output_file=output)
 
-
   def _generate_ospf_borders(self, output: Path) -> None:
     self.vtysh(["show ip ospf border-routers"], output_file=output)
-
 
   def _generate_ospf_lsa(self, output: Path) -> None:
     with output.open("wt") as output:
@@ -177,7 +168,6 @@ class Router(AgentService):
       output.write(self.vtysh(["show ip ospf database router"]))
       output.write("\n")
 
-
   def _generate_ospf_summary(self, output: Path) -> str:
     with output.open("wt") as output:
       output.write(self.vtysh(["show ip ospf database self-originate"]))
@@ -187,13 +177,11 @@ class Router(AgentService):
       output.write(self.vtysh(["show ip ospf neighbor"]))
       output.write("\n")
 
-
   @property
   def ospf_neighbors(self) -> Path:
     output = self.log_dir / "ospf.neighbors"
     self._generate_ospf_neighbors(output)
     return output
-
 
   @property
   def ospf_routes(self) -> Path:
@@ -201,13 +189,11 @@ class Router(AgentService):
     self._generate_ospf_neighbors(output)
     return output
 
-
   @property
   def ospf_interfaces(self) -> Path:
     output = self.log_dir / "ospf.interfaces"
     self._generate_ospf_neighbors(output)
     return output
-
 
   @property
   def ospf_borders(self) -> Path:
@@ -215,17 +201,14 @@ class Router(AgentService):
     self._generate_ospf_neighbors(output)
     return output
 
-
   @property
   def ospf_lsa(self) -> Path:
     output = self.log_dir / "ospf.lsa"
     self._generate_ospf_neighbors(output)
     return output
 
-
   @property
   def ospf_summary(self) -> Path:
     output = self.log_dir / "ospf.summary"
     self._generate_ospf_neighbors(output)
     return output
-

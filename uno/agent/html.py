@@ -14,48 +14,52 @@ from .router import Router
 from .render import Templates
 
 from ..core.log import Logger
+
 log = Logger.sublogger("html")
 
 if TYPE_CHECKING:
   from .agent import Agent
 
+
 def index_html(agent: "Agent", docroot: Path) -> None:
-    _index_html(
-      www_root=docroot,
-      generation_ts=Timestamp.now().format(),
-      peers=agent.peers,
-      deployment=agent.deployment,
-      ts_start=agent.init_ts,
-      backbone_vpns=agent.backbone_vpns,
-      cell=agent.owner,
-      lans=agent.lans,
-      particles_dir=agent.particles_dir,
-      particles_vpn=agent.particles_vpn,
-      peers_tester=agent.peers_tester,
-      root_vpn=agent.root_vpn,
-      router=agent.router,
-      uvn_status_plot=agent.uvn_status_plot,
-      uvn_backbone_plot=agent.uvn_backbone_plot,
-      vpn_stats=agent.vpn_stats)
+  _index_html(
+    www_root=docroot,
+    generation_ts=Timestamp.now().format(),
+    peers=agent.peers,
+    deployment=agent.deployment,
+    ts_start=agent.init_ts,
+    backbone_vpns=agent.backbone_vpns,
+    cell=agent.owner,
+    lans=agent.lans,
+    particles_dir=agent.particles_dir,
+    particles_vpn=agent.particles_vpn,
+    peers_tester=agent.peers_tester,
+    root_vpn=agent.root_vpn,
+    router=agent.router,
+    uvn_status_plot=agent.uvn_status_plot,
+    uvn_backbone_plot=agent.uvn_backbone_plot,
+    vpn_stats=agent.vpn_stats,
+  )
 
 
 def _index_html(
-    www_root: Path,
-    peers: UvnPeersList,
-    deployment: P2pLinksMap,
-    ts_start: Timestamp,
-    backbone_vpns: Iterable[WireGuardInterface]|None=None,
-    cell: Cell|None=None,
-    generation_ts: Timestamp|None=None,
-    lans: Iterable[LanDescriptor]|None=None,
-    particles_dir: Path|None=None,
-    particles_vpn: WireGuardInterface|None=None,
-    peers_tester: UvnPeersTester|None=None,
-    root_vpn: WireGuardInterface|None=None,
-    router: Router|None=None,
-    uvn_status_plot: Path|None=None,
-    uvn_backbone_plot: Path|None=None,
-    vpn_stats: dict|None=None) -> None:
+  www_root: Path,
+  peers: UvnPeersList,
+  deployment: P2pLinksMap,
+  ts_start: Timestamp,
+  backbone_vpns: Iterable[WireGuardInterface] | None = None,
+  cell: Cell | None = None,
+  generation_ts: Timestamp | None = None,
+  lans: Iterable[LanDescriptor] | None = None,
+  particles_dir: Path | None = None,
+  particles_vpn: WireGuardInterface | None = None,
+  peers_tester: UvnPeersTester | None = None,
+  root_vpn: WireGuardInterface | None = None,
+  router: Router | None = None,
+  uvn_status_plot: Path | None = None,
+  uvn_backbone_plot: Path | None = None,
+  vpn_stats: dict | None = None,
+) -> None:
   log.trace("regenerating agent status...")
 
   # Copy particle configurations if they exist
@@ -86,7 +90,7 @@ def _index_html(
     www_status_plot = www_status_plot.relative_to(www_root)
   else:
     www_status_plot = None
-  
+
   if uvn_backbone_plot and uvn_backbone_plot.is_file():
     www_backbone_plot = www_root / uvn_backbone_plot.name
     shutil.copy2(uvn_backbone_plot, www_backbone_plot)
@@ -99,36 +103,40 @@ def _index_html(
   online_peers = sum(1 for c in peers.online_cells)
   offline_peers = sum(1 for c in peers.cells) - online_peers
 
-
-  Templates.generate(index_html, "www/index.html", {
-    "cell": cell,
-    "deployment": deployment,
-    "backbone_plot": www_status_plot,
-    "backbone_plot_basic": www_backbone_plot,
-    "backbone_vpns": list(backbone_vpns or []),
-    "generation_ts": (generation_ts or Timestamp.now()).format(),
-    "lans": list(lans or []),
-    "particles_vpn": particles_vpn,
-    "peers": peers,
-    "peers_offline": offline_peers,
-    "peers_online": online_peers,
-    "peers_tester": peers_tester,
-    "registry_id": peers.registry_id or "",
-    "root_vpn": root_vpn,
-    "router": router,
-    # "ospf_summary": ospf_summary.relative_to(www_root),
-    # "ospf_lsa": ospf_lsa.relative_to(www_root),
-    # "ospf_routes": ospf_routes.relative_to(www_root),
-    "ts_start": ts_start.format() if ts_start else None,
-    "uvn": peers.uvn,
-    "uvn_settings": yaml.safe_dump(peers.uvn.settings.serialize()),
-    "vpn_stats": vpn_stats or {
-      "interfaces": {},
-      "traffic": {
-        "rx": 0,
-        "tx": 0,
+  Templates.generate(
+    index_html,
+    "www/index.html",
+    {
+      "cell": cell,
+      "deployment": deployment,
+      "backbone_plot": www_status_plot,
+      "backbone_plot_basic": www_backbone_plot,
+      "backbone_vpns": list(backbone_vpns or []),
+      "generation_ts": (generation_ts or Timestamp.now()).format(),
+      "lans": list(lans or []),
+      "particles_vpn": particles_vpn,
+      "peers": peers,
+      "peers_offline": offline_peers,
+      "peers_online": online_peers,
+      "peers_tester": peers_tester,
+      "registry_id": peers.registry_id or "",
+      "root_vpn": root_vpn,
+      "router": router,
+      # "ospf_summary": ospf_summary.relative_to(www_root),
+      # "ospf_lsa": ospf_lsa.relative_to(www_root),
+      # "ospf_routes": ospf_routes.relative_to(www_root),
+      "ts_start": ts_start.format() if ts_start else None,
+      "uvn": peers.uvn,
+      "uvn_settings": yaml.safe_dump(peers.uvn.settings.serialize()),
+      "vpn_stats": vpn_stats
+      or {
+        "interfaces": {},
+        "traffic": {
+          "rx": 0,
+          "tx": 0,
+        },
       },
     },
-  })
+  )
 
   log.debug("agent status updated")

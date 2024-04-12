@@ -2,8 +2,8 @@
 # (C) Copyright 2020-2024 Andrea Sorbini
 #
 # This program is free software: you can redistribute it and/or modify
-# it under the terms of the GNU Affero General Public License as 
-# published by the Free Software Foundation, either version 3 of the 
+# it under the terms of the GNU Affero General Public License as
+# published by the Free Software Foundation, either version 3 of the
 # License, or (at your option) any later version.
 #
 # This program is distributed in the hope that it will be useful,
@@ -15,10 +15,11 @@
 # along with this program. If not, see <https://www.gnu.org/licenses/>.
 ###############################################################################
 from enum import Enum
+
+
 class HostRole(Enum):
   HOST = 0
   ROUTER = 1
   CELL = 2
   REGISTRY = 3
   PARTICLE = 4
-

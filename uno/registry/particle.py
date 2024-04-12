@@ -2,8 +2,8 @@
 # (C) Copyright 2020-2024 Andrea Sorbini
 #
 # This program is free software: you can redistribute it and/or modify
-# it under the terms of the GNU Affero General Public License as 
-# published by the Free Software Foundation, either version 3 of the 
+# it under the terms of the GNU Affero General Public License as
+# published by the Free Software Foundation, either version 3 of the
 # License, or (at your option) any later version.
 #
 # This program is distributed in the hope that it will be useful,
@@ -28,11 +28,7 @@ if TYPE_CHECKING:
 
 
 class Particle(Versioned, OwnableDatabaseObject, DatabaseObjectOwner):
-  PROPERTIES = [
-    "uvn_id",
-    "name",
-    "excluded"
-  ]
+  PROPERTIES = ["uvn_id", "name", "excluded"]
   RO_PROPERTIES = [
     "uvn_id",
     "name",
@@ -58,11 +54,8 @@ class Particle(Versioned, OwnableDatabaseObject, DatabaseObjectOwner):
   @inject_db_cursor
   def uvn(self, cursor: Database.Cursor) -> "Uvn":
     from .uvn import Uvn
-    return next(self.db.load(Uvn, id=self.uvn_id, cursor=cursor))
 
+    return next(self.db.load(Uvn, id=self.uvn_id, cursor=cursor))
 
   def prepare_name(self, val: str) -> None:
     return prepare_name(self.db, val)
-
-
-

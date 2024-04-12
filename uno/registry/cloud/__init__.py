@@ -4,4 +4,3 @@ from .cloud_email_server import CloudEmailServer
 from .cloud_provider import CloudProvider
 
 from .google import GoogleCloudProvider
-

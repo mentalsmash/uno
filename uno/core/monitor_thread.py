@@ -2,8 +2,8 @@
 # (C) Copyright 2020-2024 Andrea Sorbini
 #
 # This program is free software: you can redistribute it and/or modify
-# it under the terms of the GNU Affero General Public License as 
-# published by the Free Software Foundation, either version 3 of the 
+# it under the terms of the GNU Affero General Public License as
+# published by the Free Software Foundation, either version 3 of the
 # License, or (at your option) any later version.
 #
 # This program is distributed in the hope that it will be useful,
@@ -33,10 +33,10 @@ class MonitorThread(threading.Thread):
   def trigger(self):
     with self._lock:
       if self._queued:
-          return
+        return
       self._queued = True
     self._sem_run.release()
-  
+
   def _do_monitor(self):
     raise NotImplementedError()
 

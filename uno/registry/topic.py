@@ -2,8 +2,8 @@
 # (C) Copyright 2020-2024 Andrea Sorbini
 #
 # This program is free software: you can redistribute it and/or modify
-# it under the terms of the GNU Affero General Public License as 
-# published by the Free Software Foundation, either version 3 of the 
+# it under the terms of the GNU Affero General Public License as
+# published by the Free Software Foundation, either version 3 of the
 # License, or (at your option) any later version.
 #
 # This program is distributed in the hope that it will be useful,
@@ -16,11 +16,11 @@
 ###############################################################################
 from enum import Enum
 
+
 class UvnTopic(Enum):
   UVN_ID = "uno/uvn"
   CELL_ID = "uno/cell"
   BACKBONE = "uno/config"
-
 
   @classmethod
   def parse(cls, topic_name: str) -> "UvnTopic":
@@ -28,4 +28,3 @@ class UvnTopic(Enum):
       if val.value == topic_name:
         return val
     raise KeyError(topic_name)
-

@@ -2,8 +2,8 @@
 # (C) Copyright 2020-2024 Andrea Sorbini
 #
 # This program is free software: you can redistribute it and/or modify
-# it under the terms of the GNU Affero General Public License as 
-# published by the Free Software Foundation, either version 3 of the 
+# it under the terms of the GNU Affero General Public License as
+# published by the Free Software Foundation, either version 3 of the
 # License, or (at your option) any later version.
 #
 # This program is distributed in the hope that it will be useful,
@@ -41,10 +41,9 @@ class CloudEmailServer(Versioned):
   @property
   def provider(self) -> "CloudProvider":
     from .cloud_provider import CloudProvider
-    assert(isinstance(self.parent, CloudProvider))
-    return self.parent
 
+    assert isinstance(self.parent, CloudProvider)
+    return self.parent
 
   def send(self, sender: str, to: list[str], subject: str, body: str) -> None:
     raise NotImplementedError()
-

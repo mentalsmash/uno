@@ -2,8 +2,8 @@
 # (C) Copyright 2020-2024 Andrea Sorbini
 #
 # This program is free software: you can redistribute it and/or modify
-# it under the terms of the GNU Affero General Public License as 
-# published by the Free Software Foundation, either version 3 of the 
+# it under the terms of the GNU Affero General Public License as
+# published by the Free Software Foundation, either version 3 of the
 # License, or (at your option) any later version.
 #
 # This program is distributed in the hope that it will be useful,
@@ -15,13 +15,12 @@
 # along with this program. If not, see <https://www.gnu.org/licenses/>.
 ###############################################################################
 
+
 class Condition:
   @property
   def trigger_value(self) -> bool:
     raise NotImplementedError()
 
-
   @trigger_value.setter
   def trigger_value(self, val: bool) -> None:
     raise NotImplementedError()
-

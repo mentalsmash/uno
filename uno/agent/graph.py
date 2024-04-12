@@ -2,8 +2,8 @@
 # (C) Copyright 2020-2024 Andrea Sorbini
 #
 # This program is free software: you can redistribute it and/or modify
-# it under the terms of the GNU Affero General Public License as 
-# published by the Free Software Foundation, either version 3 of the 
+# it under the terms of the GNU Affero General Public License as
+# published by the Free Software Foundation, either version 3 of the
 # License, or (at your option) any later version.
 #
 # This program is distributed in the hope that it will be useful,
@@ -36,12 +36,14 @@ COLOR_ON_EDGE = "#108708"
 COLOR_OFF_EDGE = "#d91319"
 COLOR_WARN_EDGE = "#e96607"
 
+
 def backbone_deployment_graph(
-    uvn: Uvn,
-    deployment: P2pLinksMap,
-    output_file: Path,
-    peers: UvnPeerStatus|None=None,
-    local_peer: UvnPeer|None=None) -> Path|None:
+  uvn: Uvn,
+  deployment: P2pLinksMap,
+  output_file: Path,
+  peers: UvnPeerStatus | None = None,
+  local_peer: UvnPeer | None = None,
+) -> Path | None:
   if len(uvn.cells) < 2:
     # We can only generate a graph if there are two or more cells
     return None
@@ -73,23 +75,33 @@ def backbone_deployment_graph(
     else:
       warn_nodes.append(node)
 
-
   def _store_edge_by_status(cell_1_status, cell_2_status, edge, public):
     if public:
-      if cell_1_status.status == UvnPeerStatus.ONLINE and cell_2_status.status == UvnPeerStatus.ONLINE:
+      if (
+        cell_1_status.status == UvnPeerStatus.ONLINE
+        and cell_2_status.status == UvnPeerStatus.ONLINE
+      ):
         public_edges.append(edge)
-      elif cell_1_status.status == UvnPeerStatus.OFFLINE or cell_2_status.status == UvnPeerStatus.OFFLINE:
+      elif (
+        cell_1_status.status == UvnPeerStatus.OFFLINE
+        or cell_2_status.status == UvnPeerStatus.OFFLINE
+      ):
         public_off_edges.append(edge)
       else:
         public_warn_edges.append(edge)
     else:
-      if cell_1_status.status == UvnPeerStatus.ONLINE and cell_2_status.status == UvnPeerStatus.ONLINE:
+      if (
+        cell_1_status.status == UvnPeerStatus.ONLINE
+        and cell_2_status.status == UvnPeerStatus.ONLINE
+      ):
         private_edges.append(edge)
-      elif cell_1_status.status == UvnPeerStatus.OFFLINE or cell_2_status.status == UvnPeerStatus.OFFLINE:
+      elif (
+        cell_1_status.status == UvnPeerStatus.OFFLINE
+        or cell_2_status.status == UvnPeerStatus.OFFLINE
+      ):
         private_off_edges.append(edge)
       else:
         private_warn_edges.append(edge)
-      
 
   for peer_a_id, peer_a in sorted(deployment.peers.items(), key=lambda t: t[1]["n"]):
     peer_a_cell = uvn.cells[peer_a_id]
@@ -98,7 +110,9 @@ def backbone_deployment_graph(
     else:
       on_nodes.append(peer_a_cell.name)
 
-    for peer_b_id, (peer_a_port_id, _, _, _) in sorted(peer_a["peers"].items(), key=lambda t: t[1][0]):
+    for peer_b_id, (peer_a_port_id, _, _, _) in sorted(
+      peer_a["peers"].items(), key=lambda t: t[1][0]
+    ):
       peer_b_cell = uvn.cells[peer_b_id]
       peer_b_port_id = deployment.peers[peer_b_id]["peers"][peer_a_id][0]
 
@@ -108,9 +122,9 @@ def backbone_deployment_graph(
         on_nodes.append(peer_b_cell.name)
 
       for edge in [
-            *([(peer_a_cell, peer_b_cell)] if peer_b_cell.address else []),
-            *([(peer_b_cell, peer_a_cell)] if peer_a_cell.address else [])
-          ]:
+        *([(peer_a_cell, peer_b_cell)] if peer_b_cell.address else []),
+        *([(peer_b_cell, peer_a_cell)] if peer_a_cell.address else []),
+      ]:
         cell_1, cell_2 = edge
         edge = (cell_1.name, cell_2.name)
         graph.add_edge(*edge)
@@ -130,37 +144,29 @@ def backbone_deployment_graph(
   plt.axis("off")
   pos = networkx.circular_layout(graph)
 
-
   for nodes, color in [
-        (local_nodes, COLOR_LOCAL_NODE),
-        (on_nodes,  COLOR_ON_NODE),
-        (off_nodes, COLOR_OFF_NODE),
-        (warn_nodes, COLOR_WARN_NODE),
-      ]:
+    (local_nodes, COLOR_LOCAL_NODE),
+    (on_nodes, COLOR_ON_NODE),
+    (off_nodes, COLOR_OFF_NODE),
+    (warn_nodes, COLOR_WARN_NODE),
+  ]:
     if not nodes:
       continue
-    networkx.draw_networkx_nodes(graph, pos,
-      nodelist=nodes,
-      node_color=color,
-      node_size=60)
-  
+    networkx.draw_networkx_nodes(graph, pos, nodelist=nodes, node_color=color, node_size=60)
+
   for edges, color, style in [
-        (public_edges,  COLOR_ON_EDGE, "solid"),
-        (public_off_edges,  COLOR_OFF_EDGE, "solid"),
-        (public_warn_edges,  COLOR_WARN_EDGE, "solid"),
-        (private_edges,  COLOR_ON_EDGE, "dotted"),
-        (private_off_edges,  COLOR_OFF_EDGE, "dotted"),
-        (private_warn_edges,  COLOR_WARN_EDGE, "dotted"),
-      ]:
+    (public_edges, COLOR_ON_EDGE, "solid"),
+    (public_off_edges, COLOR_OFF_EDGE, "solid"),
+    (public_warn_edges, COLOR_WARN_EDGE, "solid"),
+    (private_edges, COLOR_ON_EDGE, "dotted"),
+    (private_off_edges, COLOR_OFF_EDGE, "dotted"),
+    (private_warn_edges, COLOR_WARN_EDGE, "dotted"),
+  ]:
     if not edges:
       continue
-    networkx.draw_networkx_edges(graph, pos,
-      edgelist=edges,
-      edge_color=color,
-      style=style)
-  
-  networkx.draw_networkx_labels(graph, pos,
-      font_size=9)
+    networkx.draw_networkx_edges(graph, pos, edgelist=edges, edge_color=color, style=style)
+
+  networkx.draw_networkx_labels(graph, pos, font_size=9)
 
   output_file.parent.mkdir(parents=True, exist_ok=True)
   plt.savefig(str(output_file), dpi=200)
@@ -169,10 +175,7 @@ def backbone_deployment_graph(
   return output_file
 
 
-def cell_agent_status_plot(
-    agent: "Agent",
-    output_file: Path,
-    seed: int|None=None) -> None:
+def cell_agent_status_plot(agent: "Agent", output_file: Path, seed: int | None = None) -> None:
   graph = networkx.Graph()
 
   local_nodes = []
@@ -230,32 +233,27 @@ def cell_agent_status_plot(
   plt.margins(x=0.1, y=0.1, tight=True)
   plt.axis("off")
 
-  pos = networkx.spring_layout(graph, k=.3, iterations=100, seed=seed)
-  
+  pos = networkx.spring_layout(graph, k=0.3, iterations=100, seed=seed)
+
   for nodes, color in [
-        (local_nodes, COLOR_LOCAL_NODE),
-        (online_nodes,  COLOR_ON_NODE),
-        (offline_nodes, COLOR_OFF_NODE),
-        (warning_nodes, COLOR_WARN_NODE),
-      ]:
+    (local_nodes, COLOR_LOCAL_NODE),
+    (online_nodes, COLOR_ON_NODE),
+    (offline_nodes, COLOR_OFF_NODE),
+    (warning_nodes, COLOR_WARN_NODE),
+  ]:
     if not nodes:
       continue
-    networkx.draw_networkx_nodes(graph, pos,
-      nodelist=nodes,
-      node_color=color,
-      node_size=60)
-  
+    networkx.draw_networkx_nodes(graph, pos, nodelist=nodes, node_color=color, node_size=60)
+
   for edges, color in [
-        (online_edges,  COLOR_ON_EDGE),
-        (offline_edges, COLOR_OFF_EDGE),
-        (warning_edges, COLOR_WARN_EDGE),
-      ]:
+    (online_edges, COLOR_ON_EDGE),
+    (offline_edges, COLOR_OFF_EDGE),
+    (warning_edges, COLOR_WARN_EDGE),
+  ]:
     if not edges:
       continue
-    networkx.draw_networkx_edges(graph, pos,
-      edgelist=edges,
-      edge_color=color)
-  
+    networkx.draw_networkx_edges(graph, pos, edgelist=edges, edge_color=color)
+
   networkx.draw_networkx_labels(graph, pos, font_size=8)
 
   output_file.parent.mkdir(parents=True, exist_ok=True)

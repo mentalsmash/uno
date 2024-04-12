@@ -2,8 +2,8 @@
 # (C) Copyright 2020-2024 Andrea Sorbini
 #
 # This program is free software: you can redistribute it and/or modify
-# it under the terms of the GNU Affero General Public License as 
-# published by the Free Software Foundation, either version 3 of the 
+# it under the terms of the GNU Affero General Public License as
+# published by the Free Software Foundation, either version 3 of the
 # License, or (at your option) any later version.
 #
 # This program is distributed in the hope that it will be useful,
@@ -26,11 +26,15 @@ if TYPE_CHECKING:
   from .uvn_peers_tester import UvnPeersTester
 
 
-def _filter_find_lan_status_by_peer(peer_id: int, peers_tester: "UvnPeersTester") -> list[tuple[LanDescriptor, bool]]:
+def _filter_find_lan_status_by_peer(
+  peer_id: int, peers_tester: "UvnPeersTester"
+) -> list[tuple[LanDescriptor, bool]]:
   return peers_tester.find_status_by_peer(peer_id)
 
 
-def _filter_find_backbone_peer_by_address(addr: str, peers: "UvnPeersList", backbone_vpns: list[WireGuardInterface]) -> "UvnPeer | None":
+def _filter_find_backbone_peer_by_address(
+  addr: str, peers: "UvnPeersList", backbone_vpns: list[WireGuardInterface]
+) -> "UvnPeer | None":
   if not addr:
     return None
   addr = ipaddress.ip_address(addr)
@@ -42,22 +46,24 @@ def _filter_find_backbone_peer_by_address(addr: str, peers: "UvnPeersList", back
   return None
 
 
-def _filter_sort_peers(val: "UvnPeersList", enable_particles: bool=True) -> "Generator[UvnPeer, None, None]":
+def _filter_sort_peers(
+  val: "UvnPeersList", enable_particles: bool = True
+) -> "Generator[UvnPeer, None, None]":
   enable_particles = bool(enable_particles)
+
   def peer_type_id(v: "UvnPeer"):
-    return (
-      0 if v.registry else
-      1 if v.cell else
-      2
-    )
+    return 0 if v.registry else 1 if v.cell else 2
+
   for p in sorted(val, key=lambda v: (peer_type_id(v), v.id)):
     if not enable_particles and p.particle:
       continue
     yield p
 
+
 from ..core.render import Templates
+
 Templates.registry_filters(
   find_lan_status_by_peer=_filter_find_lan_status_by_peer,
   find_backbone_peer_by_address=_filter_find_backbone_peer_by_address,
-  sort_peers=_filter_sort_peers)
-
+  sort_peers=_filter_sort_peers,
+)

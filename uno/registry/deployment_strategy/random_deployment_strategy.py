@@ -2,8 +2,8 @@
 # (C) Copyright 2020-2024 Andrea Sorbini
 #
 # This program is free software: you can redistribute it and/or modify
-# it under the terms of the GNU Affero General Public License as 
-# published by the Free Software Foundation, either version 3 of the 
+# it under the terms of the GNU Affero General Public License as
+# published by the Free Software Foundation, either version 3 of the
 # License, or (at your option) any later version.
 #
 # This program is distributed in the hope that it will be useful,
@@ -28,12 +28,14 @@ class IncompleteSpanTree(Exception):
 
 
 class RandomDeploymentGraph:
-  def __init__(self,
-      peers: Iterable[int],
-      min_peer_edges: int,
-      ok_peer_edges: int,
-      max_peer_edges: int,
-      private_peers: Iterable[int]|None=None) -> None:
+  def __init__(
+    self,
+    peers: Iterable[int],
+    min_peer_edges: int,
+    ok_peer_edges: int,
+    max_peer_edges: int,
+    private_peers: Iterable[int] | None = None,
+  ) -> None:
     self.min_peer_edges = min_peer_edges
     self.ok_peer_edges = ok_peer_edges
     self.max_peer_edges = max_peer_edges
@@ -44,7 +46,6 @@ class RandomDeploymentGraph:
     self.full_peers = set()
     self.ok_peers = set()
     self.min_peers = set()
-
 
   def _store_edge(self, a: int, b: int) -> None:
     def _update_peer_status(p: int, p_edges: list[int]) -> None:
@@ -69,18 +70,16 @@ class RandomDeploymentGraph:
       b_edges.add(a)
       _update_peer_status(b, b_edges)
 
-  def _generate_new_spanning_tree(self,
-      private_first: bool=False,
-      public_first: bool=False):
+  def _generate_new_spanning_tree(self, private_first: bool = False, public_first: bool = False):
     visited = set()
     edges = list()
 
-    def _pick_random(peers: Iterable[int]|None) -> tuple[int, bool]:
+    def _pick_random(peers: Iterable[int] | None) -> tuple[int, bool]:
       peer = random.sample(list(peers), 1).pop()
       peer_public = peer in self.public_peers
       return peer, peer_public
 
-    def _pick_random_neighbor(current_public: bool=False) -> tuple[int, bool]:
+    def _pick_random_neighbor(current_public: bool = False) -> tuple[int, bool]:
       # if not current_public:
       #   neighbors = self.public_peers - visited
       # else:
@@ -104,7 +103,7 @@ class RandomDeploymentGraph:
     visited.add(current)
     while len(visited) < len(self.peers):
       other, other_public = _pick_random_neighbor(current_public)
-      assert(current_public or other_public)
+      assert current_public or other_public
       visited.add(other)
       edges.append((current, other))
       current = other
@@ -112,8 +111,7 @@ class RandomDeploymentGraph:
 
     return edges
 
-
-  def generate_edges(self, max_tries: int=100000) -> None:
+  def generate_edges(self, max_tries: int = 100000) -> None:
     validate = False
     for i in range(max_tries):
       try:
@@ -125,6 +123,7 @@ class RandomDeploymentGraph:
           validate = True
           return
       except IncompleteSpanTree as e:
+
         def test_partial() -> bool:
           return len(self.ok_peers) + len(self.full_peers) + len(self.min_peers) >= len(self.peers)
 
@@ -142,13 +141,20 @@ class RandomDeploymentGraph:
         if test_partial():
           return
         self.log.error("Failed to generate a backbone deployment with the 'random' strategy.")
-        self.log.error("You can try to run this command again, and it is possible that the generation will succeeed.")
+        self.log.error(
+          "You can try to run this command again, and it is possible that the generation will succeeed."
+        )
         self.log.error("If it continues to fail, adjust the min/ok/max parameters.")
-        self.log.error("In the worst case, you might have to define the deployment manually using the 'static' strategy.")
+        self.log.error(
+          "In the worst case, you might have to define the deployment manually using the 'static' strategy."
+        )
         import pprint
+
         self.log.warning("Allocated peer links: {}", pprint.pformat(self.peer_edges))
         self.log.warning("{}", pprint.pformat(self.peer_edges))
-        self.log.warning("- min: {}, ok: {}, max: {}", self.min_peer_edges, self.ok_peer_edges, self.max_peer_edges)
+        self.log.warning(
+          "- min: {}, ok: {}, max: {}", self.min_peer_edges, self.ok_peer_edges, self.max_peer_edges
+        )
         self.log.warning("- public peers [{}] = {}", len(self.public_peers), self.public_peers)
         self.log.warning("- private peers [{}] = {}", len(self.private_peers), self.private_peers)
         self.log.warning("- min peers [{}] = {}", len(self.min_peers), self.min_peers)
@@ -157,15 +163,17 @@ class RandomDeploymentGraph:
         raise RuntimeError("failed to generate requested edges")
       finally:
         if validate:
-          assert(len(self.ok_peers & self.full_peers) == 0)
-          assert(len(self.ok_peers & self.min_peers) == 0)
-          assert(len(self.full_peers & self.min_peers) == 0)
+          assert len(self.ok_peers & self.full_peers) == 0
+          assert len(self.ok_peers & self.min_peers) == 0
+          assert len(self.full_peers & self.min_peers) == 0
 
 
 class RandomDeploymentStrategy(StaticDeploymentStrategy):
   KIND = DeploymentStrategyKind.RANDOM
 
-  def _generate_deployment(self)  -> tuple[Sequence[int], Callable[[int], int], Sequence[Callable[[int], int]]]:
+  def _generate_deployment(
+    self,
+  ) -> tuple[Sequence[int], Callable[[int], int], Sequence[Callable[[int], int]]]:
     peers_count = len(self.peers)
     if peers_count <= 1:
       min_peers = 0
@@ -200,12 +208,9 @@ class RandomDeploymentStrategy(StaticDeploymentStrategy):
       min_peer_edges=self.min_peer_edges,
       ok_peer_edges=self.ok_peer_edges,
       max_peer_edges=self.max_peer_edges,
-      private_peers=self.private_peers)
+      private_peers=self.private_peers,
+    )
     graph.generate_edges()
 
-    self.static_deployment = tuple(
-      (p, tuple(peers))
-        for p, peers in graph.peer_edges.items()
-    )
+    self.static_deployment = tuple((p, tuple(peers)) for p, peers in graph.peer_edges.items())
     return super()._generate_deployment()
-

@@ -2,8 +2,8 @@
 # (C) Copyright 2020-2024 Andrea Sorbini
 #
 # This program is free software: you can redistribute it and/or modify
-# it under the terms of the GNU Affero General Public License as 
-# published by the Free Software Foundation, either version 3 of the 
+# it under the terms of the GNU Affero General Public License as
+# published by the Free Software Foundation, either version 3 of the
 # License, or (at your option) any later version.
 #
 # This program is distributed in the hope that it will be useful,
@@ -31,19 +31,16 @@ class NativeCondition(Condition):
     self.__waitset = None
     super().__init__()
 
-
   @property
   def _waitset(self) -> "NativeWaitset":
     with self._lock:
       return self.__waitset
-
 
   @_waitset.setter
   def _waitset(self, val: "NativeWaitset") -> None:
     with val._lock:
       with self._lock:
         self.__waitset = val
-
 
   @property
   def trigger_value(self) -> bool:
@@ -54,8 +51,7 @@ class NativeCondition(Condition):
           return self.__trigger_value
     else:
       with self._lock:
-          return self.__trigger_value
-
+        return self.__trigger_value
 
   @trigger_value.setter
   def trigger_value(self, val: bool) -> None:
@@ -74,7 +70,6 @@ class NativeCondition(Condition):
       with self._lock:
         return _update(None)
 
-
   def _changed(self) -> bool:
     waitset = self._waitset
     if waitset is not None:
@@ -87,4 +82,3 @@ class NativeCondition(Condition):
         changed = self.__changed
         self.__changed = False
     return changed
-

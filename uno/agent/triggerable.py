@@ -2,8 +2,8 @@
 # (C) Copyright 2020-2024 Andrea Sorbini
 #
 # This program is free software: you can redistribute it and/or modify
-# it under the terms of the GNU Affero General Public License as 
-# published by the Free Software Foundation, either version 3 of the 
+# it under the terms of the GNU Affero General Public License as
+# published by the Free Software Foundation, either version 3 of the
 # License, or (at your option) any later version.
 #
 # This program is distributed in the hope that it will be useful,
@@ -31,13 +31,11 @@ class Triggerrable:
     self._last_trigger_ts = None
     super().__init__()
 
-
   @property
   def trigger_delay(self) -> int:
     if self._last_trigger_ts is None:
       return self.max_trigger_delay + 1
     return int(Timestamp.now().subtract(self._last_trigger_ts).total_seconds())
-
 
   def trigger(self) -> None:
     self.log.debug("triggering")
@@ -48,7 +46,6 @@ class Triggerrable:
       self._triggered = True
     self.log.debug("trigger queued.")
     self._trigger_sem.release()
-
 
   def run(self) -> None:
     try:
@@ -72,7 +69,9 @@ class Triggerrable:
         test_length = int(test_end.subtract(self._last_trigger_ts).total_seconds())
         self.log.debug("trigger handled in {} seconds", test_length)
         if test_length > self.max_trigger_delay:
-          self.log.warning("handler took longer than max delay: {} > {}", test_length, self.max_trigger_delay)
+          self.log.warning(
+            "handler took longer than max delay: {} > {}", test_length, self.max_trigger_delay
+          )
     except Exception as e:
       self._service_active = False
       self.log.error("exception in service thread")
@@ -80,14 +79,12 @@ class Triggerrable:
       raise e
     self.log.debug("service stopped")
 
-
   def start_trigger_thread(self) -> None:
     if self._service_thread is not None:
       return
     self._service_active = True
     self._service_thread = threading.Thread(target=self.run)
     self._service_thread.start()
-
 
   def stop_trigger_thread(self) -> None:
     if self._service_thread is None:
@@ -99,10 +96,5 @@ class Triggerrable:
     finally:
       self._service_thread = None
 
-
   def _handle_trigger(self) -> None:
     raise NotImplementedError()
-
-
-
-

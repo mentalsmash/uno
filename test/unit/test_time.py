@@ -1,5 +1,5 @@
-
 from uno.core.time import Timestamp
+
 
 def test_basic():
   t = Timestamp.now()
@@ -10,4 +10,3 @@ def test_basic():
   assert t == p
   p_fmt = p.format()
   assert p_fmt == t_fmt
-

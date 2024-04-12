@@ -2,8 +2,8 @@
 # (C) Copyright 2020-2024 Andrea Sorbini
 #
 # This program is free software: you can redistribute it and/or modify
-# it under the terms of the GNU Affero General Public License as 
-# published by the Free Software Foundation, either version 3 of the 
+# it under the terms of the GNU Affero General Public License as
+# published by the Free Software Foundation, either version 3 of the
 # License, or (at your option) any later version.
 #
 # This program is distributed in the hope that it will be useful,
@@ -27,18 +27,15 @@ class NativeWaitset:
     self._conditions = []
     super().__init__()
 
-
   def attach(self, condition: NativeCondition):
     with self._lock:
       condition._waitset = self
       if condition not in self._conditions:
         self._conditions.append(condition)
 
-
   def detach(self, condition: NativeCondition):
     with self._lock:
       condition._waitset = None
-
 
   def wait(self) -> list[NativeCondition]:
     with self._lock:
@@ -48,5 +45,3 @@ class NativeWaitset:
         if cond._changed():
           active.append(cond)
     return active
-
-

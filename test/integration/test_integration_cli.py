@@ -2,8 +2,8 @@
 # (C) Copyright 2020-2024 Andrea Sorbini
 #
 # This program is free software: you can redistribute it and/or modify
-# it under the terms of the GNU Affero General Public License as 
-# published by the Free Software Foundation, either version 3 of the 
+# it under the terms of the GNU Affero General Public License as
+# published by the Free Software Foundation, either version 3 of the
 # License, or (at your option) any later version.
 #
 # This program is distributed in the hope that it will be useful,
@@ -22,10 +22,15 @@ from uno.test.integration.experiments.basic import BasicExperiment
 from uno.test.integration.units.ping_test import ping_test
 from uno.test.integration.units.ssh_client_test import ssh_client_test
 
+
 def load_experiment() -> Experiment:
-  return BasicExperiment.define(Path(__file__), config={
-    "use_cli": True,
-  })
+  return BasicExperiment.define(
+    Path(__file__),
+    config={
+      "use_cli": True,
+    },
+  )
+
 
 @pytest.fixture
 def experiment() -> Generator[Experiment, None, None]:
@@ -33,16 +38,26 @@ def experiment() -> Generator[Experiment, None, None]:
 
 
 @pytest.mark.skip(reason="unnecessary if SSH is tested")
-def test_ping(experiment: Experiment, the_hosts: list[Host], the_fully_routed_cell_networks: list[Network]):
+def test_ping(
+  experiment: Experiment, the_hosts: list[Host], the_fully_routed_cell_networks: list[Network]
+):
   # Try to ping every host from every other host
   experiment.log.activity("testing PING communication on {} hosts", len(the_hosts))
-  ping_test(experiment,
-    ((h, o, o.default_address) for h in the_hosts for o in experiment.other_hosts(h, the_hosts)))
+  ping_test(
+    experiment,
+    ((h, o, o.default_address) for h in the_hosts for o in experiment.other_hosts(h, the_hosts)),
+  )
 
 
-def test_ssh(experiment: Experiment, the_hosts: list[Host], the_fully_routed_cell_networks: list[Network]):
+def test_ssh(
+  experiment: Experiment, the_hosts: list[Host], the_fully_routed_cell_networks: list[Network]
+):
   # Try to connect with ssh
-  experiment.log.activity("testing SSH communication between {} hosts: {}", len(the_hosts), [h.container_name for h in the_hosts])
-  ssh_client_test(experiment, ((h, s)
-    for h in the_hosts
-      for s in experiment.other_hosts(h, the_hosts)))
+  experiment.log.activity(
+    "testing SSH communication between {} hosts: {}",
+    len(the_hosts),
+    [h.container_name for h in the_hosts],
+  )
+  ssh_client_test(
+    experiment, ((h, s) for h in the_hosts for s in experiment.other_hosts(h, the_hosts))
+  )

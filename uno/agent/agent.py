@@ -2,8 +2,8 @@
 # (C) Copyright 2020-2024 Andrea Sorbini
 #
 # This program is free software: you can redistribute it and/or modify
-# it under the terms of the GNU Affero General Public License as 
-# published by the Free Software Foundation, either version 3 of the 
+# it under the terms of the GNU Affero General Public License as
+# published by the Free Software Foundation, either version 3 of the
 # License, or (at your option) any later version.
 #
 # This program is distributed in the hope that it will be useful,
@@ -45,11 +45,7 @@ from ..registry.id_db import IdentityDatabase
 from ..registry.versioned import disabled_if, error_if, max_rate
 from ..registry.package import Packager
 from ..registry.registry import Registry
-from ..registry.database_object import (
-  OwnableDatabaseObject,
-  DatabaseObjectOwner,
-  inject_db_cursor
-)
+from ..registry.database_object import OwnableDatabaseObject, DatabaseObjectOwner, inject_db_cursor
 from ..registry.agent_config import AgentConfig
 from ..registry.database import Database
 from ..registry.topic import UvnTopic
@@ -64,6 +60,7 @@ from ..core.ip import (
 from .uvn_peers_list import UvnPeersList, UvnPeerListener
 from .uvn_peer import UvnPeer, UvnPeerStatus, LanStatus, VpnInterfaceStatus
 from .graph import backbone_deployment_graph, cell_agent_status_plot
+
 # from .agent_net import AgentNetworking
 from .uvn_net import UvnNet
 from .uvn_peers_tester import UvnPeersTester
@@ -76,7 +73,7 @@ from .agent_static_service import AgentStaticService
 
 
 class AgentReload(Exception):
-  def __init__(self, agent: "Agent | None"=None, *args) -> None:
+  def __init__(self, agent: "Agent | None" = None, *args) -> None:
     self.agent = agent
     super().__init__(*args)
 
@@ -88,24 +85,28 @@ class AgentTimedout(Exception):
 def registry_method(wrapped):
   return disabled_if(lambda self, *a, **kw: not isinstance(self.owner, Uvn))(wrapped)
 
+
 def cell_method(wrapped):
   return disabled_if(lambda self, *a, **kw: not isinstance(self.owner, Cell))(wrapped)
 
+
 def registry_exclusive_method(wrapped):
   return error_if(lambda self, *a, **kw: not isinstance(self.owner, Uvn))(wrapped)
+
 
 def cell_exclusive_method(wrapped):
   return error_if(lambda self, *a, **kw: not isinstance(self.owner, Cell))(wrapped)
 
 
 class Agent(
-    AgentConfig,
-    Runnable,
-    UvnPeerListener,
-    RoutesMonitorListener,
-    ParticipantEventsListener,
-    OwnableDatabaseObject,
-    DatabaseObjectOwner):
+  AgentConfig,
+  Runnable,
+  UvnPeerListener,
+  RoutesMonitorListener,
+  ParticipantEventsListener,
+  OwnableDatabaseObject,
+  DatabaseObjectOwner,
+):
   class SyncMode(Enum):
     IMMEDIATE = 0
     CONNECTED = 1
@@ -153,26 +154,26 @@ class Agent(
   DEFAULT_MIDDLEWARE = None
 
   @classmethod
-  def open(cls,
-      root: Path | None = None,
-      **config_args) -> "Agent":
+  def open(cls, root: Path | None = None, **config_args) -> "Agent":
     owner_id, config_id = Registry.load_local_id(root)
     db = Database(root)
     if owner_id is not None:
       owner = db.load_object_id(owner_id)
-      agent = next(db.load(Agent,
-        owner=owner,
-        where="config_id = ?",
-        params=(config_id,)))
-      assert(agent is not None)
-      assert(agent.config_id == config_id)
+      agent = next(db.load(Agent, owner=owner, where="config_id = ?", params=(config_id,)))
+      assert agent is not None
+      assert agent.config_id == config_id
     else:
       registry = Registry.open(root, db=db)
-      agent = db.new(Agent, {
-        "config_id": registry.config_id,
-      }, owner=registry.uvn, save=False)
-      assert(agent is not None)
-      assert(agent.config_id == registry.config_id)
+      agent = db.new(
+        Agent,
+        {
+          "config_id": registry.config_id,
+        },
+        owner=registry.uvn,
+        save=False,
+      )
+      assert agent is not None
+      assert agent.config_id == registry.config_id
     if config_args:
       agent.configure(**config_args)
       if not isinstance(agent.owner, Uvn):
@@ -180,9 +181,8 @@ class Agent(
     cls.log.info("loaded agent for {} at {}", agent.owner, agent.config_id)
     return agent
 
-
   @classmethod
-  def install_package(cls, package: Path, root: Path, exclude: list[str]|None=None) -> "Agent":
+  def install_package(cls, package: Path, root: Path, exclude: list[str] | None = None) -> "Agent":
     excluded = []
     Packager.extract_cell_agent_package(package, root, exclude=exclude)
     agent = cls._assert_agent(root)
@@ -192,42 +192,36 @@ class Agent(
     cls.log.warning("bootstrap completed: {}@{} [{}]", agent.owner, agent.uvn, agent.root)
     return agent
 
-
   @classmethod
-  def install_package_from_cloud(cls, uvn: str, cell: str, root: Path, storage_id: str, **storage_config) -> "Agent":
+  def install_package_from_cloud(
+    cls, uvn: str, cell: str, root: Path, storage_id: str, **storage_config
+  ) -> "Agent":
     import tempfile
+
     tmp_dir_h = tempfile.TemporaryDirectory()
     tmp_dir = Path(tmp_dir_h.name)
-    cell_package = Registry.import_cell_package_from_cloud(uvn=uvn, cell=cell, root=tmp_dir, storage_id=storage_id, **storage_config)
+    cell_package = Registry.import_cell_package_from_cloud(
+      uvn=uvn, cell=cell, root=tmp_dir, storage_id=storage_id, **storage_config
+    )
     return cls.install_package(cell_package, root)
-
 
   def _finish_import_id_db_keys(self) -> None:
     id_db_dir = self.root / ".id-import"
     if id_db_dir.is_dir():
-      package_files = [
-        f.relative_to(id_db_dir)
-          for f in id_db_dir.glob("**/*")
-      ]
+      package_files = [f.relative_to(id_db_dir) for f in id_db_dir.glob("**/*")]
       self.id_db.import_keys(id_db_dir, package_files)
       # self.net.generate_configuration()
       exec_command(["rm", "-rf", id_db_dir])
-
 
   @classmethod
   def _assert_agent(cls, root: Path) -> "Agent":
     owner_id, config_id = Registry.load_local_id(root)
     db = Database(root)
     owner = db.load_object_id(owner_id)
-    agent = next(db.load(Agent,
-      owner=owner,
-      where="config_id = ?",
-      params=(config_id,)), None)
+    agent = next(db.load(Agent, owner=owner, where="config_id = ?", params=(config_id,)), None)
     if agent is None:
       agent = db.new(Agent, {"config_id": config_id}, owner=owner)
     return agent
-
-
 
   @error_if("started")
   # Reloading of the registry agent is only supported without importing
@@ -252,21 +246,21 @@ class Agent(
       # Drop the downloaded cell package (stored in a temp file)
       agent._reload_package = None
 
-    new_agent = Agent.open(self.root,
+    new_agent = Agent.open(
+      self.root,
       enable_systemd=self.enable_systemd,
-      initial_active_static_services=self.initial_active_static_services)
+      initial_active_static_services=self.initial_active_static_services,
+    )
     if agent is not None:
       new_agent._finish_import_id_db_keys()
     new_agent.log.warning("loaded new configuration: {}", new_agent.registry_id)
     return new_agent
-
 
   def __init__(self, **properties) -> None:
     self._reload_agent = None
     self._reload_package = None
     self.reloading = False
     super().__init__(**properties)
-
 
   def load_nested(self) -> None:
     self.initial_active_static_services = [s.name for s in self.active_static_services]
@@ -275,20 +269,17 @@ class Agent(
     else:
       self.log.info("no static services detected")
 
-
   @cached_property
   def registry(self) -> Registry:
     return Registry.open(db=self.db, readonly=True)
-
 
   @cached_property
   def middleware(self) -> Middleware:
     return self.registry.middleware
 
-
   @cached_property
   @inject_db_cursor
-  def local_id(self, cursor: Database.Cursor) -> tuple[Uvn|Cell, str]:
+  def local_id(self, cursor: Database.Cursor) -> tuple[Uvn | Cell, str]:
     owner_id, config_id = Registry.load_local_id(self.db.root)
     if config_id is None:
       owner = self.uvn
@@ -297,14 +288,12 @@ class Agent(
       owner = self.db.load_object_id(owner_id, cursor=cursor)
     return (owner, config_id)
 
-
   @property
   def sync_mode(self) -> SyncMode:
     if self.registry.rekeyed_root_config_id is not None:
       return self.SyncMode.CONNECTED
     else:
       return self.SyncMode.IMMEDIATE
-
 
   @property
   def log_dir(self) -> Path:
@@ -314,16 +303,13 @@ class Agent(
       # log_dir.chmod(0o755)
     return log_dir
 
-
   @property
   def config_dir(self) -> Path:
     return self.root / "static"
 
-
   @property
   def particles_dir(self) -> Path:
     return self.root / "particles"
-
 
   @property
   def uvn_backbone_plot(self) -> Path:
@@ -334,7 +320,8 @@ class Agent(
         deployment=self.deployment,
         output_file=plot,
         peers=self.peers,
-        local_peer=self.peers.local)
+        local_peer=self.peers.local,
+      )
       self.uvn_backbone_plot_dirty = False
       if generated:
         self.log.debug("backbone plot generated: {}", plot)
@@ -343,7 +330,6 @@ class Agent(
         if plot.is_file():
           plot.unlink()
     return plot
-
 
   @property
   def uvn_status_plot(self) -> Path:
@@ -354,36 +340,29 @@ class Agent(
       self.log.debug("status plot generated: {}", status_plot)
     return status_plot
 
-
   @property
-  def local_object(self) -> Cell|Uvn:
+  def local_object(self) -> Cell | Uvn:
     return self.owner
-
 
   @property
   def registry_id(self) -> str:
     return self.registry.config_id
 
-
   @property
   def deployment(self) -> P2pLinksMap:
     return self.registry.deployment
-
 
   @property
   def uvn(self) -> Uvn:
     return self.registry.uvn
 
-
   @property
   def id_db(self) -> IdentityDatabase:
     return self.registry.id_db
 
-
   @property
   def root(self) -> Path:
     return self.registry.root
-
 
   @cached_property
   def peers(self) -> UvnPeersList:
@@ -391,11 +370,9 @@ class Agent(
     peers.listeners.append(self)
     return peers
 
-
   @cached_property
   def rti_license(self) -> Path:
     return self.root / "rti_license.dat"
-
 
   @property
   def allowed_lans(self) -> Generator[ipaddress.IPv4Network, None, None]:
@@ -404,20 +381,22 @@ class Agent(
     for l in self.owner.allowed_lans:
       yield l
 
-
   @cached_property
   def lans(self) -> set[LanDescriptor]:
     allowed_lans = set(self.allowed_lans)
+
     def _allowed_nic(nic: NicDescriptor) -> bool:
       for allowed_lan in allowed_lans:
         if nic.address in allowed_lan:
           return True
       return False
+
     if not allowed_lans:
       return set()
     lans = []
-    local_nics = NicDescriptor.list_local_networks(self,
-      skip=[i.config.intf.name for i in self.vpn_interfaces])
+    local_nics = NicDescriptor.list_local_networks(
+      self, skip=[i.config.intf.name for i in self.vpn_interfaces]
+    )
     self.log.debug("local network interfaces: {}", local_nics)
     for nic in local_nics:
       if not _allowed_nic(nic):
@@ -429,7 +408,6 @@ class Agent(
       self.log.info("LAN interface detected: {}", lan)
     return lans
 
-
   @property
   def bind_addresses(self) -> Generator[ipaddress.IPv4Address, None, None]:
     for l in self.lans:
@@ -437,18 +415,16 @@ class Agent(
     for v in self.vpn_interfaces:
       yield v.config.intf.address
 
-
   @cached_property
-  def root_vpn(self) -> WireGuardInterface|None:
+  def root_vpn(self) -> WireGuardInterface | None:
     vpn_config = self.registry.root_vpn_config(self.owner)
     if vpn_config is None:
       self.log.debug("root VPN disabled")
       return None
     return WireGuardInterface(vpn_config)
 
-
   @cached_property
-  def particles_vpn(self) -> WireGuardInterface|None:
+  def particles_vpn(self) -> WireGuardInterface | None:
     vpn_config = None
     if isinstance(self.owner, Cell):
       particles_vpn = self.registry.vpn_config.particles_vpn(self.owner)
@@ -459,7 +435,6 @@ class Agent(
       return None
     return WireGuardInterface(vpn_config)
 
-
   @cached_property
   def backbone_vpns(self) -> list[WireGuardInterface]:
     configs = []
@@ -467,37 +442,24 @@ class Agent(
       configs = self.registry.vpn_config.backbone_vpn.peer_config(self.owner.id)
     if not configs:
       self.log.debug("backbone VPN disabled")
-    return [
-      WireGuardInterface(config)
-        for config in configs
-    ]
-
+    return [WireGuardInterface(config) for config in configs]
 
   @property
   def vpn_interfaces(self) -> Generator[WireGuardInterface, None, None]:
-    for vpn in (
-        self.root_vpn,
-        self.particles_vpn,
-        *self.backbone_vpns):
+    for vpn in (self.root_vpn, self.particles_vpn, *self.backbone_vpns):
       if vpn is None:
         continue
       yield vpn
 
-
   @property
   def vpn_stats(self) -> Mapping[str, dict]:
     # now = Timestamp.now()
-    intf_stats = {
-      vpn: vpn.stat()
-        for vpn in self.vpn_interfaces
-    }
-    traffic_rx = sum(peer["transfer"]["recv"]
-      for stat in intf_stats.values()
-        for peer in stat["peers"].values()
+    intf_stats = {vpn: vpn.stat() for vpn in self.vpn_interfaces}
+    traffic_rx = sum(
+      peer["transfer"]["recv"] for stat in intf_stats.values() for peer in stat["peers"].values()
     )
-    traffic_tx = sum(peer["transfer"]["send"]
-      for stat in intf_stats.values()
-        for peer in stat["peers"].values()
+    traffic_tx = sum(
+      peer["transfer"]["send"] for stat in intf_stats.values() for peer in stat["peers"].values()
     )
     return {
       "interfaces": intf_stats,
@@ -509,7 +471,6 @@ class Agent(
     # self.vpn_stats_update_ts = now
     # return result
 
-
   @cached_property
   def participant(self) -> Participant:
     if not self.registry.middleware.supports_agent():
@@ -517,31 +478,25 @@ class Agent(
       raise RuntimeError("middleware does not support agents")
     return self.middleware.participant(self)
 
-
   @cached_property
-  def routes_monitor(self) -> RoutesMonitor|None:
+  def routes_monitor(self) -> RoutesMonitor | None:
     return self.new_service(RoutesMonitor)
 
-
   @cached_property
-  def router(self) -> Router|None:
+  def router(self) -> Router | None:
     return self.new_service(Router)
 
-
   @cached_property
-  def webui(self) -> WebUi|None:
+  def webui(self) -> WebUi | None:
     return self.new_service(WebUi)
 
-
   @cached_property
-  def peers_tester(self) -> UvnPeersTester|None:
+  def peers_tester(self) -> UvnPeersTester | None:
     return self.new_service(UvnPeersTester)
 
-
   @cached_property
-  def net(self) -> UvnNet|None:
+  def net(self) -> UvnNet | None:
     return self.new_service(UvnNet)
-
 
   @property
   def services(self) -> Generator[AgentService, None, None]:
@@ -550,7 +505,6 @@ class Agent(
     yield self.router
     yield self.peers_tester
     yield self.webui
-
 
   @property
   def iter_static_services(self) -> Generator[AgentStaticService, None, None]:
@@ -566,12 +520,9 @@ class Agent(
     agent_svc.previous_service = prev_svc
     yield agent_svc
 
-
   @cached_property
   def static_services(self) -> list[AgentStaticService]:
     return list(self.iter_static_services)
-
-
 
   @property
   def active_static_services(self) -> Generator[AgentStaticService, None, None]:
@@ -580,13 +531,14 @@ class Agent(
         continue
       yield svc
 
-
   @cached_property
   def static(self) -> AgentStaticService:
-    return self.new_child(AgentStaticService, {
-      "name": "agent",
-    })
-
+    return self.new_child(
+      AgentStaticService,
+      {
+        "name": "agent",
+      },
+    )
 
   def _validate(self) -> None:
     if not os.environ.get("UNO_AGENT_ALLOW_INVALID_NETWORKS", False):
@@ -596,11 +548,10 @@ class Agent(
 
       if allowed_lans and allowed_lans != enabled_lans:
         self.log.error("failed to detect all of the expected network interfaces:")
-        self.log.error("- expected: {}", ', '.join(sorted(allowed_lans)))
-        self.log.error("- detected: {}", ', '.join(sorted(enabled_lans)))
-        self.log.error("- missing : {}", ', '.join(sorted(allowed_lans - enabled_lans)))
+        self.log.error("- expected: {}", ", ".join(sorted(allowed_lans)))
+        self.log.error("- detected: {}", ", ".join(sorted(enabled_lans)))
+        self.log.error("- missing : {}", ", ".join(sorted(allowed_lans - enabled_lans)))
         raise RuntimeError("invalid network interfaces")
-
 
   @classmethod
   def stored_pid(cls) -> int | None:
@@ -613,7 +564,6 @@ class Agent(
       cls.log.error("failed to read PID file: {}", cls.PID_FILE)
       cls.log.exception(e)
       return None
-
 
   @classmethod
   def external_agent_process(cls) -> int | None:
@@ -638,7 +588,6 @@ class Agent(
         cls.delete_pid_file()
       return None
 
-
   @classmethod
   def delete_pid_file(cls) -> None:
     try:
@@ -647,7 +596,6 @@ class Agent(
       if cls.PID_FILE.is_file():
         raise e
 
-
   @classmethod
   def write_pid_file(cls) -> None:
     cls.PID_FILE.parent.mkdir(parents=True, exist_ok=True, mode=0o755)
@@ -655,12 +603,13 @@ class Agent(
     cls.PID_FILE.write_text(pid)
     cls.log.activity("PID file [{}]: {}", pid, cls.PID_FILE)
 
-
   @contextlib.contextmanager
   def _pid_file(self) -> Generator["Agent", None, None]:
     external_process = self.external_agent_process()
     if external_process is not None:
-      self.log.error("another instance of uno agent is already running on this host: {}", external_process)
+      self.log.error(
+        "another instance of uno agent is already running on this host: {}", external_process
+      )
       raise RuntimeError("agent already running on host", external_process)
     self.write_pid_file()
     try:
@@ -668,7 +617,6 @@ class Agent(
     finally:
       self.delete_pid_file()
       self.log.info("shutdown complete")
-
 
   @contextlib.contextmanager
   def _start_participant(self) -> Generator["Agent", None, None]:
@@ -682,13 +630,11 @@ class Agent(
       self.participant.stop()
       self.log.info("middleware stopped.")
 
-
   @contextlib.contextmanager
   def _on_started(self) -> Generator["Agent", None, None]:
     self.peers.online(
-      registry_id=self.registry_id,
-      routed_networks=self.lans,
-      ts_start=self.init_ts)
+      registry_id=self.registry_id, routed_networks=self.lans, ts_start=self.init_ts
+    )
     if self.enable_systemd:
       # Since the agent was started as a systemd unit, write static marker file
       self.static.write_marker()
@@ -709,14 +655,15 @@ class Agent(
       self.static.delete_marker()
       self.peers.offline()
 
-
   @registry_exclusive_method
-  def spin_until_consistent(self,
-      max_spin_time: int|None=None,
-      config_only: bool=False) -> None:
-    self.log.info("waiting until agents{} are consistent: {}",
-      ' and uvn' if not config_only else '',
-      self.registry_id)
+  def spin_until_consistent(
+    self, max_spin_time: int | None = None, config_only: bool = False
+  ) -> None:
+    self.log.info(
+      "waiting until agents{} are consistent: {}",
+      " and uvn" if not config_only else "",
+      self.registry_id,
+    )
 
     def _until_consistent() -> bool:
       if config_only and self.peers.status_consistent_config_uvn:
@@ -726,13 +673,17 @@ class Agent(
         self.log.warning("exit condition reached: consistent config and fully routed uvn")
         return True
       else:
-        self.log.debug("waiting for exit condition: consistent_config_uvn={}, fully_routed_uvn={}",
-          self.peers.status_consistent_config_uvn, self.peers.status_fully_routed_uvn)
+        self.log.debug(
+          "waiting for exit condition: consistent_config_uvn={}, fully_routed_uvn={}",
+          self.peers.status_consistent_config_uvn,
+          self.peers.status_fully_routed_uvn,
+        )
         return False
 
     rekeyed_state = {
       "stage": 0,
     }
+
     def _until_rekeyed_config_pushed() -> bool:
       if rekeyed_state["stage"] == 0:
         if self.peers.status_all_cells_connected:
@@ -752,20 +703,24 @@ class Agent(
           len(offline_cells),
           len(self.registry.rekeyed_cells),
           offline_cells,
-          self.registry.rekeyed_cells)
+          self.registry.rekeyed_cells,
+        )
       return False
 
     if self.registry.rekeyed_root_config_id is not None:
-      assert(len(self.registry.rekeyed_cells) > 0)
+      assert len(self.registry.rekeyed_cells) > 0
       self.log.warning(
         "pushing rekeyed configuration to {}/{} cells: {} → {}",
-        len(self.registry.rekeyed_cells), len(self.registry.uvn.cells), self.registry.rekeyed_root_config_id, self.registry.config_id)
+        len(self.registry.rekeyed_cells),
+        len(self.registry.uvn.cells),
+        self.registry.rekeyed_root_config_id,
+        self.registry.config_id,
+      )
       condition = _until_rekeyed_config_pushed
     else:
       condition = _until_consistent
 
     return self.spin(until=condition, max_spin_time=max_spin_time)
-
 
   @property
   def running_contexts(self) -> Generator[ContextManager, None, None]:
@@ -775,19 +730,15 @@ class Agent(
       yield svc
     yield self._on_started()
 
-
-  def spin(self,
-      until: Callable[[], bool]|None=None,
-      max_spin_time: int|None=None) -> None:
+  def spin(self, until: Callable[[], bool] | None = None, max_spin_time: int | None = None) -> None:
     with contextlib.ExitStack() as stack:
       for ctx_mgr in self.running_contexts:
         stack.enter_context(ctx_mgr)
       self._spin(until=until, max_spin_time=max_spin_time)
 
-
-  def _spin(self,
-      until: Callable[[], bool]|None=None,
-      max_spin_time: int|None=None) -> None:
+  def _spin(
+    self, until: Callable[[], bool] | None = None, max_spin_time: int | None = None
+  ) -> None:
     spin_start = Timestamp.now()
     self.log.debug("starting to spin on {}", spin_start)
     while True:
@@ -824,7 +775,6 @@ class Agent(
         self.reloading = True
         raise AgentReload(new_agent)
 
-
   @max_rate(2)
   def _update_peer_vpn_stats(self) -> None:
     peers = {}
@@ -840,13 +790,15 @@ class Agent(
         "vpn_interfaces": vpn_stats,
         # We assume there's only one vpn interface associated with a particle
         # so we update the peer's status based on the online flag
-        "status": None if not peer.particle else
-          UvnPeerStatus.ONLINE if online else
-          UvnPeerStatus.OFFLINE if peer.status == UvnPeerStatus.OFFLINE else
-          None #UvnPeerStatus.DECLARED
+        "status": None
+        if not peer.particle
+        else UvnPeerStatus.ONLINE
+        if online
+        else UvnPeerStatus.OFFLINE
+        if peer.status == UvnPeerStatus.OFFLINE
+        else None,  # UvnPeerStatus.DECLARED
       }
       self.peers.update_peer(peer, **update_args)
-
 
   def lookup_vpn_peer(self, vpn: WireGuardInterface, peer_id: int) -> UvnPeer:
     if vpn == self.root_vpn:
@@ -861,12 +813,10 @@ class Agent(
     else:
       raise NotImplementedError()
 
-
-  def new_service(self, svc_cls: type[AgentService], **properties) -> AgentService|None:
+  def new_service(self, svc_cls: type[AgentService], **properties) -> AgentService | None:
     svc = self.new_child(svc_cls, **properties)
     svc.listeners.append(self)
     return svc
-
 
   def on_remote_writers_status(self, topic: UvnTopic, online_writers: list[Handle]) -> None:
     matched_peers = []
@@ -880,10 +830,10 @@ class Agent(
     # might not be sent again. Don't transition peers we've never seen.
     offline_peers = [p for p in matched_peers if p.status == UvnPeerStatus.OFFLINE]
     if offline_peers:
-      self.log.activity("marking {} peers ONLINE on status: {}",
-        len(offline_peers), list(map(str, offline_peers)))
+      self.log.activity(
+        "marking {} peers ONLINE on status: {}", len(offline_peers), list(map(str, offline_peers))
+      )
       self.peers.update_all(offline_peers, status=UvnPeerStatus.ONLINE)
-
 
   def on_instance_offline(self, topic: UvnTopic, instance: Handle) -> None:
     if topic in (UvnTopic.CELL_ID, UvnTopic.UVN_ID):
@@ -894,12 +844,9 @@ class Agent(
       self.log.debug("peer writer offline: {}", peer)
       self.peers.update_peer(peer, status=UvnPeerStatus.OFFLINE)
 
-
-  def on_data(self,
-      topic: UvnTopic,
-      data: dict,
-      instance: Handle | None = None,
-      writer: Handle | None = None) -> None:
+  def on_data(
+    self, topic: UvnTopic, data: dict, instance: Handle | None = None, writer: Handle | None = None
+  ) -> None:
     if topic == UvnTopic.CELL_ID:
       self._on_reader_data_cell_info(data, instance, writer)
     elif topic == UvnTopic.UVN_ID:
@@ -910,60 +857,60 @@ class Agent(
       else:
         self._on_agent_config_received(data["package"])
 
-
   def on_condition_active(self, condition: Condition) -> None:
     svc = next((s for s in self.services if s.updated_condition == condition), None)
     if svc is not None:
       svc.process_updates()
 
-
-  def _on_reader_data_cell_info(self,
-      data: dict,
-      instance: Handle | None = None,
-      writer: Handle | None = None) -> None:
+  def _on_reader_data_cell_info(
+    self, data: dict, instance: Handle | None = None, writer: Handle | None = None
+  ) -> None:
     peer_uvn = data["uvn"]
     if peer_uvn != self.uvn.name:
-      self.log.debug("ignoring update from foreign agent: uvn={}, cell={}",
-        data['uvn'], data['cell'])
+      self.log.debug(
+        "ignoring update from foreign agent: uvn={}, cell={}", data["uvn"], data["cell"]
+      )
       return
 
     peer_cell_id = data["cell"]
     peer_cell = self.uvn.cells.get(peer_cell_id)
     if peer_cell is None:
       # Ignore sample from unknown cell
-      self.log.warning("ignoring update from unknown agent: uvn={}, cell={}",
-        data['uvn'], data['cell'])
+      self.log.warning(
+        "ignoring update from unknown agent: uvn={}, cell={}", data["uvn"], data["cell"]
+      )
       return
 
     self.log.info("cell info UPDATE: {}", peer_cell)
     peer = self.peers[peer_cell]
-    self.peers.update_peer(peer,
+    self.peers.update_peer(
+      peer,
       registry_id=data["registry_id"],
       status=UvnPeerStatus.ONLINE,
       routed_networks=data["routed_networks"],
       known_networks=data["known_networks"],
       instance=instance,
       writer=writer,
-      ts_start=data["ts_start"])
+      ts_start=data["ts_start"],
+    )
 
-
-  def _on_reader_data_uvn_info(self,
-      data: dict,
-      instance: Handle | None = None,
-      writer: Handle | None = None) -> UvnPeer | None:
+  def _on_reader_data_uvn_info(
+    self, data: dict, instance: Handle | None = None, writer: Handle | None = None
+  ) -> UvnPeer | None:
     peer_uvn = data["uvn"]
     if peer_uvn != self.uvn.name:
-      self.log.warning("ignoring update for foreign UVN: uvn={}", data['uvn'])
+      self.log.warning("ignoring update for foreign UVN: uvn={}", data["uvn"])
       return None
 
     self.log.info("uvn info UPDATE: {}", self.uvn)
-    self.peers.update_peer(self.peers.registry,
+    self.peers.update_peer(
+      self.peers.registry,
       status=UvnPeerStatus.ONLINE,
       # uvn=self.uvn,
       registry_id=data["registry_id"],
       instance=instance,
-      writer=writer)
-
+      writer=writer,
+    )
 
   def _on_agent_config_received(self, package: bytes) -> None:
     try:
@@ -999,8 +946,6 @@ class Agent(
     self.log.warning("new agent configuration available: {}", updated_agent.registry_id)
     self._reload_agent = updated_agent
 
-
-
   def on_event_online_cells(self, new_cells: set[UvnPeer], gone_cells: set[UvnPeer]) -> None:
     if gone_cells:
       self.log.warning("cells OFFLINE [{}]: {}", len(gone_cells), [c.name for c in gone_cells])
@@ -1015,33 +960,39 @@ class Agent(
     # Trigger peers tester
     self.peers_tester.trigger()
 
-
-  def on_event_online_particles(self, new_particles: set[UvnPeer], gone_particles: set[UvnPeer]) -> None:
+  def on_event_online_particles(
+    self, new_particles: set[UvnPeer], gone_particles: set[UvnPeer]
+  ) -> None:
     if gone_particles:
-      self.log.warning("particles OFFLINE [{}]: {}", len(gone_particles), [p.name for p in gone_particles])
+      self.log.warning(
+        "particles OFFLINE [{}]: {}", len(gone_particles), [p.name for p in gone_particles]
+      )
     if new_particles:
-      self.log.warning("particles ONLINE [{}]: {}", len(new_particles), [p.name for p in new_particles])
+      self.log.warning(
+        "particles ONLINE [{}]: {}", len(new_particles), [p.name for p in new_particles]
+      )
     # Update status plot
     self.uvn_status_plot_dirty = True
     # Update UI
     self.webui.request_update()
 
-
   def on_event_all_cells_connected(self) -> None:
     if not self.peers.status_all_cells_connected:
       offline_cells = sorted(self.peers.offline_cells, key=lambda c: c.name)
-      self.log.error("lost connection with {} cells: {}", len(offline_cells), [c.name for c in offline_cells])
+      self.log.error(
+        "lost connection with {} cells: {}", len(offline_cells), [c.name for c in offline_cells]
+      )
       # self.on_status_all_cells_connected(False)
     else:
       online_cells = sorted(self.peers.online_cells, key=lambda c: c.name)
-      self.log.warning("all {} cells connected: {}", len(online_cells), [c.name for c in online_cells])
+      self.log.warning(
+        "all {} cells connected: {}", len(online_cells), [c.name for c in online_cells]
+      )
     self.uvn_backbone_plot_dirty = True
-    if (self.sync_mode == self.SyncMode.CONNECTED
-        and self.peers.status_all_cells_connected):
+    if self.sync_mode == self.SyncMode.CONNECTED and self.peers.status_all_cells_connected:
       self._write_agent_configs()
     # Update UI
     self.webui.request_update()
-
 
   def on_event_registry_connected(self) -> None:
     if not self.peers.status_registry_connected:
@@ -1055,12 +1006,21 @@ class Agent(
     # Update UI
     self.webui.request_update()
 
-
-  def on_event_routed_networks(self, new_routed: set[LanDescriptor], gone_routed: set[LanDescriptor]) -> None:
+  def on_event_routed_networks(
+    self, new_routed: set[LanDescriptor], gone_routed: set[LanDescriptor]
+  ) -> None:
     if gone_routed:
-      self.log.warning("networks DETACHED [{}]: {}", len(gone_routed), sorted(f"{peer} → {lan}" for peer, lan in gone_routed))
+      self.log.warning(
+        "networks DETACHED [{}]: {}",
+        len(gone_routed),
+        sorted(f"{peer} → {lan}" for peer, lan in gone_routed),
+      )
     if new_routed:
-      self.log.info("networks ATTACHED [{}]: {}", len(new_routed), sorted(f"{peer} → {lan}" for peer, lan in new_routed))
+      self.log.info(
+        "networks ATTACHED [{}]: {}",
+        len(new_routed),
+        sorted(f"{peer} → {lan}" for peer, lan in new_routed),
+      )
 
     self._write_known_networks_file()
     # Update status plot
@@ -1070,52 +1030,78 @@ class Agent(
     # Trigger peers tester
     self.peers_tester.trigger()
 
-
   def on_event_routed_networks_discovered(self) -> None:
     if not self.peers.status_routed_networks_discovered:
       self.log.error("some networks were DETACHED from {}", self.uvn)
     else:
-      routed_networks = sorted(((c, l) for c in self.peers.cells for l in c.routed_networks),
-        key=lambda v: (v[0].id, v[1].nic.name, v[1].nic.subnet))
-      self.log.warning("all {} networks ATTACHED to {}: {}", len(routed_networks), self.uvn,
-        sorted(f"{c.name} → {l.nic.subnet}" for c, l in routed_networks))
+      routed_networks = sorted(
+        ((c, l) for c in self.peers.cells for l in c.routed_networks),
+        key=lambda v: (v[0].id, v[1].nic.name, v[1].nic.subnet),
+      )
+      self.log.warning(
+        "all {} networks ATTACHED to {}: {}",
+        len(routed_networks),
+        self.uvn,
+        sorted(f"{c.name} → {l.nic.subnet}" for c, l in routed_networks),
+      )
     # Update UI
     self.webui.request_update()
 
-
-  def on_event_consistent_config_cells(self, new_consistent: set[UvnPeer], gone_consistent: set[UvnPeer]) -> None:
+  def on_event_consistent_config_cells(
+    self, new_consistent: set[UvnPeer], gone_consistent: set[UvnPeer]
+  ) -> None:
     if gone_consistent:
-      self.log.warning("{} cells have INCONSISTENT configuration: {}",
-        len(gone_consistent), [c.name for c in gone_consistent])
+      self.log.warning(
+        "{} cells have INCONSISTENT configuration: {}",
+        len(gone_consistent),
+        [c.name for c in gone_consistent],
+      )
     if new_consistent:
-      self.log.info("{} cells have CONSISTENT configuration: {}",
-        len(new_consistent), [c.name for c in new_consistent])
+      self.log.info(
+        "{} cells have CONSISTENT configuration: {}",
+        len(new_consistent),
+        [c.name for c in new_consistent],
+      )
     # Update UI
     self.webui.request_update()
-
 
   def on_event_consistent_config_uvn(self) -> None:
     if not self.peers.status_consistent_config_uvn:
       inconsistent_cells = sorted(self.peers.inconsistent_config_cells, key=lambda c: c.name)
-      self.log.error("at least {} cells have inconsistent configuration: {}", len(inconsistent_cells), inconsistent_cells)
+      self.log.error(
+        "at least {} cells have inconsistent configuration: {}",
+        len(inconsistent_cells),
+        inconsistent_cells,
+      )
     else:
-      self.log.warning("all {} cells have consistent configuration: {}", len(self.registry.uvn.cells), self.registry_id)
+      self.log.warning(
+        "all {} cells have consistent configuration: {}",
+        len(self.registry.uvn.cells),
+        self.registry_id,
+      )
       self.uvn.log_deployment(deployment=self.deployment)
     # Update UI
     self.webui.request_update()
 
-
-  def on_event_local_reachable_networks(self, new_reachable: set[LanDescriptor], gone_reachable: set[LanDescriptor]) -> None:
+  def on_event_local_reachable_networks(
+    self, new_reachable: set[LanDescriptor], gone_reachable: set[LanDescriptor]
+  ) -> None:
     total_routed = sum(1 for c in self.uvn.cells.values() for n in c.allowed_lans)
 
     if gone_reachable:
-      self.log.error("networks UNREACHABLE (local) [{}/{}]: {}",
-        len(gone_reachable), total_routed,
-        sorted(str(status.lan.nic.subnet) for status in gone_reachable))
+      self.log.error(
+        "networks UNREACHABLE (local) [{}/{}]: {}",
+        len(gone_reachable),
+        total_routed,
+        sorted(str(status.lan.nic.subnet) for status in gone_reachable),
+      )
     if new_reachable:
-      self.log.warning("networks REACHABLE (local) [{}/{}]: {}",
-        len(new_reachable), total_routed,
-        sorted(str(status.lan.nic.subnet) for status in new_reachable))
+      self.log.warning(
+        "networks REACHABLE (local) [{}/{}]: {}",
+        len(new_reachable),
+        total_routed,
+        sorted(str(status.lan.nic.subnet) for status in new_reachable),
+      )
     self._write_reachable_networks_files()
     self._write_cell_info(self.peers.local)
     # Update status plot
@@ -1123,19 +1109,28 @@ class Agent(
     # Update UI
     self.webui.request_update()
 
-
-  def on_event_reachable_networks(self, new_reachable: set[tuple[UvnPeer, LanDescriptor]], gone_reachable: set[tuple[UvnPeer, LanDescriptor]]) -> None:
+  def on_event_reachable_networks(
+    self,
+    new_reachable: set[tuple[UvnPeer, LanDescriptor]],
+    gone_reachable: set[tuple[UvnPeer, LanDescriptor]],
+  ) -> None:
     total_routed = sum(1 for c in self.uvn.cells.values() for n in c.allowed_lans)
     other_cells = list(self.peers.other_cells)
     total_reachable = total_routed * len(other_cells)
     if gone_reachable:
-      self.log.error("networks UNREACHABLE (remote) [{}/{}]: {}",
-        len(gone_reachable), total_reachable,
-        sorted(f"{status.owner.name} → {status.lan.nic.subnet}" for status in gone_reachable))
+      self.log.error(
+        "networks UNREACHABLE (remote) [{}/{}]: {}",
+        len(gone_reachable),
+        total_reachable,
+        sorted(f"{status.owner.name} → {status.lan.nic.subnet}" for status in gone_reachable),
+      )
     if new_reachable:
-      self.log.warning("networks REACHABLE (remote) [{}/{}]: {}",
-        len(new_reachable), total_reachable,
-        sorted(f"{status.owner.name} → {status.lan.nic.subnet}" for status in new_reachable))
+      self.log.warning(
+        "networks REACHABLE (remote) [{}/{}]: {}",
+        len(new_reachable),
+        total_reachable,
+        sorted(f"{status.owner.name} → {status.lan.nic.subnet}" for status in new_reachable),
+      )
     # Update status plot
     self.uvn_status_plot_dirty = True
     # Update UI
@@ -1143,20 +1138,23 @@ class Agent(
     # Trigger peers tester
     self.peers_tester.trigger()
 
-
   def on_event_fully_routed_uvn(self) -> None:
     if not self.peers.status_fully_routed_uvn:
       self.log.error("{} is not fully routed", self.uvn)
     else:
       routed_networks = sorted(
         {(c, l) for c in self.peers.cells for l in c.routed_networks},
-        key=lambda n: (n[0].id, n[1].nic.name, n[1].nic.subnet))
-      self.log.warning("{} networks REACHABLE from {} cells in {}: {}",
-        len(routed_networks), len(self.uvn.cells), self.uvn,
-        sorted(f"{c.name} → {l.nic.subnet}" for c, l in routed_networks))
+        key=lambda n: (n[0].id, n[1].nic.name, n[1].nic.subnet),
+      )
+      self.log.warning(
+        "{} networks REACHABLE from {} cells in {}: {}",
+        len(routed_networks),
+        len(self.uvn.cells),
+        self.uvn,
+        sorted(f"{c.name} → {l.nic.subnet}" for c, l in routed_networks),
+      )
     # Update UI
     self.webui.request_update()
-
 
   def on_event_local_routes(self, new_routes: set[str], gone_routes: set[str]) -> None:
     for r in new_routes:
@@ -1168,15 +1166,15 @@ class Agent(
     # Update UI
     self.webui.request_update()
 
-
-  def on_event_vpn_connections(self, new_online: set[VpnInterfaceStatus], gone_online: set[VpnInterfaceStatus]) -> None:
+  def on_event_vpn_connections(
+    self, new_online: set[VpnInterfaceStatus], gone_online: set[VpnInterfaceStatus]
+  ) -> None:
     for vpn in new_online:
       self.log.warning("vpn ON: {}", vpn)
     for vpn in gone_online:
       self.log.warning("vpn OFF: {}", vpn)
     # Update UI
     self.webui.request_update()
-
 
   @cell_method
   def _write_reachable_networks_files(self) -> None:
@@ -1186,9 +1184,7 @@ class Agent(
         return
       with output_file.open("w") as output:
         for status in statuses:
-          output.write(
-            f"{status.lan.nic.subnet}"
-            "\n")
+          output.write(f"{status.lan.nic.subnet}" "\n")
           # # if status.lan in local_lans:
           # #   continue
           # output.writelines(" ".join([
@@ -1200,45 +1196,51 @@ class Agent(
 
     # local_lans = sorted(self.lans, key=lambda v: (v.nic.name, v.nic.subnet))
     output_file: Path = self.log_dir / self.REACHABLE_NETWORKS_TABLE_FILENAME
-    _write_output(output_file,
-      sorted(self.peers.local.reachable_networks,
-        key=lambda v: (v.lan.nic.name, v.lan.nic.subnet)))
+    _write_output(
+      output_file,
+      sorted(self.peers.local.reachable_networks, key=lambda v: (v.lan.nic.name, v.lan.nic.subnet)),
+    )
     output_file: Path = self.log_dir / self.UNREACHABLE_NETWORKS_TABLE_FILENAME
-    _write_output(output_file,
-      sorted(self.peers.local.unreachable_networks,
-        key=lambda v: (v.lan.nic.name, v.lan.nic.subnet)))
-
+    _write_output(
+      output_file,
+      sorted(
+        self.peers.local.unreachable_networks, key=lambda v: (v.lan.nic.name, v.lan.nic.subnet)
+      ),
+    )
 
   @cell_method
   def _write_known_networks_file(self) -> None:
     # Write peer status to file
     lans = sorted(self.lans, key=lambda v: (v.nic.name, v.nic.subnet))
+
     def _write_output(output_file: Path, sites: Iterable[LanDescriptor]) -> None:
       with output_file.open("w") as output:
         for site in sites:
-          output.writelines(" ".join([
-              f"{site.nic.subnet.network_address}/{site.nic.netmask}",
-              str(lan.nic.address),
-              "\n"
-            ]) for lan in lans)
-    output_file= self.log_dir / self.KNOWN_NETWORKS_TABLE_FILENAME
-    _write_output(output_file,
-      sorted((net for peer in self.peers for net in peer.routed_networks if net not in lans),
-        key=lambda s: (s.nic.name, s.nic.subnet)))
-    output_file= self.log_dir / self.LOCAL_NETWORKS_TABLE_FILENAME
-    _write_output(output_file, lans)
+          output.writelines(
+            " ".join(
+              [f"{site.nic.subnet.network_address}/{site.nic.netmask}", str(lan.nic.address), "\n"]
+            )
+            for lan in lans
+          )
 
+    output_file = self.log_dir / self.KNOWN_NETWORKS_TABLE_FILENAME
+    _write_output(
+      output_file,
+      sorted(
+        (net for peer in self.peers for net in peer.routed_networks if net not in lans),
+        key=lambda s: (s.nic.name, s.nic.subnet),
+      ),
+    )
+    output_file = self.log_dir / self.LOCAL_NETWORKS_TABLE_FILENAME
+    _write_output(output_file, lans)
 
   @registry_method
   def _write_uvn_info(self) -> None:
-    self.participant.uvn_info(
-      uvn=self.uvn,
-      registry_id=self.registry_id)
+    self.participant.uvn_info(uvn=self.uvn, registry_id=self.registry_id)
     self.log.activity("published uvn info: {}", self.uvn.name)
 
-
   @registry_method
-  def _write_agent_configs(self, target_cells: list[Cell]|None=None):
+  def _write_agent_configs(self, target_cells: list[Cell] | None = None):
     cells_dir = self.registry.root / "cells"
     for cell in self.uvn.cells.values():
       if target_cells is not None and cell not in target_cells:
@@ -1254,28 +1256,27 @@ class Agent(
       # self.registry.id_db.backend.decrypt_file(key, enc_package, dec_package)
 
       self.participant.cell_agent_config(
-        uvn=self.uvn,
-        cell_id=cell.id,
-        registry_id=self.registry_id,
-        package=cell_package)
+        uvn=self.uvn, cell_id=cell.id, registry_id=self.registry_id, package=cell_package
+      )
       self.log.activity("published agent configuration: {}", cell)
-
 
   @cell_method
   def _write_cell_info(self, peer: UvnPeer) -> None:
-    assert(peer.cell is not None)
+    assert peer.cell is not None
     self.participant.cell_agent_status(
       uvn=peer.uvn,
       cell_id=peer.cell.id,
       registry_id=peer.registry_id,
       ts_start=peer.init_ts,
       lans=peer.routed_networks,
-      known_networks=dict((
-        *((n.lan, True) for n in peer.reachable_networks),
-        *((n.lan, False) for n in peer.unreachable_networks),
-      )))
+      known_networks=dict(
+        (
+          *((n.lan, True) for n in peer.reachable_networks),
+          *((n.lan, False) for n in peer.unreachable_networks),
+        )
+      ),
+    )
     self.log.activity("published cell info: {}", peer.cell)
-
 
   @cell_method
   def _write_particle_configurations(self) -> None:
@@ -1285,14 +1286,14 @@ class Agent(
     if not particles_vpn_config:
       return
     for particle in self.registry.uvn.particles.values():
-    # for particle_id, particle_client_cfg in particles_vpn_config.peer_configs.items():
+      # for particle_id, particle_client_cfg in particles_vpn_config.peer_configs.items():
       particle_client_cfg = particles_vpn_config.peer_config(particle.id)
       particle = self.uvn.particles[particle.id]
       Packager.write_particle_configuration(
-        particle, self.owner, particle_client_cfg, self.particles_dir)
+        particle, self.owner, particle_client_cfg, self.particles_dir
+      )
 
-
-  def find_backbone_peer_by_address(self, addr: str | ipaddress.IPv4Address) -> UvnPeer|None:
+  def find_backbone_peer_by_address(self, addr: str | ipaddress.IPv4Address) -> UvnPeer | None:
     addr = ipaddress.ip_address(addr)
     for vpn in self.backbone_vpns:
       if vpn.config.peers[0].address == addr:
@@ -1300,7 +1301,6 @@ class Agent(
       elif vpn.config.intf.address == addr:
         return self.peers.local
     return None
-
 
   def start_static_services(self, up_to: str | None = None) -> None:
     if up_to is None:
@@ -1333,8 +1333,7 @@ class Agent(
           self.log.exception(svc_e)
       raise
 
-
-  def stop_static_services(self, down_to: str | None = None, cleanup: bool=False) -> None:
+  def stop_static_services(self, down_to: str | None = None, cleanup: bool = False) -> None:
     if down_to is None:
       down_to = self.net.static.name
     tgt_svc = next((s for s in self.static_services if s.name == down_to), None)
@@ -1365,7 +1364,6 @@ class Agent(
     if errors:
       raise RuntimeError("errors while stopping services", errors)
 
-
   def start_static(self) -> None:
     agent_pid = self.external_agent_process()
     if agent_pid is not None:
@@ -1373,22 +1371,22 @@ class Agent(
       return
     # Start agent as a separate process
     import subprocess
+
     verbose_flag = self.log.verbose_flag
     agent_cmd = [
-      self.static.uno_bin, "agent",
-        "--systemd",
-        "-r", self.root,
-        *([verbose_flag] if verbose_flag else []),
+      self.static.uno_bin,
+      "agent",
+      "--systemd",
+      "-r",
+      self.root,
+      *([verbose_flag] if verbose_flag else []),
     ]
     self.log.warning("starting agent daemon: {}", " ".join(map(str, agent_cmd)))
-    agent_process = subprocess.Popen(agent_cmd,
-      start_new_session=True,
-      stdin=subprocess.DEVNULL)
+    agent_process = subprocess.Popen(agent_cmd, start_new_session=True, stdin=subprocess.DEVNULL)
     self.log.warning("agent daemon started: {}", agent_process.pid)
 
     # self.enable_systemd = True
     # self.spin()
-
 
   def stop_static(self) -> None:
     try:
@@ -1406,14 +1404,13 @@ class Agent(
           break
         if Timestamp.now().subtract(ts_start).total_seconds() >= max_wait:
           raise RuntimeError(f"the agent failed to exit in {max_wait} seconds")
-        time.sleep(.1)
+        time.sleep(0.1)
       self.log.warning("agent daemon stopped: {}", agent_pid)
     except Exception:
       raise RuntimeError("failed to terminate agent process: {}", agent_pid)
     finally:
       self.static.delete_marker()
 
-    
   # def _restore_static_services(self, services: list[str]) -> None:
   #   self.log.warning("restoring systemd services: {}", services)
   #   for svc in self.static_services:
@@ -1423,4 +1420,3 @@ class Agent(
   #       self.log.warning("service still active: {}", svc.name)
   #       continue
   #     svc.up()
-

@@ -2,8 +2,8 @@
 # (C) Copyright 2020-2024 Andrea Sorbini
 #
 # This program is free software: you can redistribute it and/or modify
-# it under the terms of the GNU Affero General Public License as 
-# published by the Free Software Foundation, either version 3 of the 
+# it under the terms of the GNU Affero General Public License as
+# published by the Free Software Foundation, either version 3 of the
 # License, or (at your option) any later version.
 #
 # This program is distributed in the hope that it will be useful,
@@ -32,9 +32,7 @@ class UvnPeersTester(AgentService, Triggerrable):
     "ping_len",
     "ping_count",
   ]
-  SERIALIZED_PROPERTIES = [
-    "max_trigger_delay"
-  ]
+  SERIALIZED_PROPERTIES = ["max_trigger_delay"]
   INITIAL_PING_LEN = 3
   INITIAL_PING_COUNT = 3
 
@@ -43,42 +41,38 @@ class UvnPeersTester(AgentService, Triggerrable):
     self._peers_status = {}
     self._last_result = None
 
-
   def check_runnable(self) -> bool:
     return isinstance(self.agent.owner, Cell)
-
 
   @property
   def max_trigger_delay(self) -> int:
     return self.agent.uvn.settings.timing_profile.tester_max_delay
 
-
   @property
   def tested_peers(self) -> Iterable[UvnPeer]:
     return self.agent.peers.cells
 
-
   def find_status_by_lan(self, lan: LanDescriptor) -> bool:
-    reachable_subnets = [status.lan.nic.subnet for status in self.agent.peers.local.reachable_networks]
+    reachable_subnets = [
+      status.lan.nic.subnet for status in self.agent.peers.local.reachable_networks
+    ]
     return lan.nic.subnet in reachable_subnets
 
-
   def find_status_by_peer(self, peer_id: int) -> Iterable[tuple[LanDescriptor, bool]]:
-    reachable_subnets = [status.lan.nic.subnet for status in self.agent.peers.local.reachable_networks]
+    reachable_subnets = [
+      status.lan.nic.subnet for status in self.agent.peers.local.reachable_networks
+    ]
     return [
       (l, reachable)
-        for l in self.agent.peers[peer_id].routed_networks
-          for reachable in [True if l.nic.subnet in reachable_subnets else False]
+      for l in self.agent.peers[peer_id].routed_networks
+      for reachable in [True if l.nic.subnet in reachable_subnets else False]
     ]
-
 
   def _start(self) -> None:
     self.start_trigger_thread()
 
-
-  def _stop(self, assert_stopped: bool=False) -> None:
+  def _stop(self, assert_stopped: bool = False) -> None:
     self.stop_trigger_thread()
-
 
   def _handle_trigger(self) -> None:
     tested_peers = list(self.tested_peers)
@@ -102,28 +96,20 @@ class UvnPeersTester(AgentService, Triggerrable):
         else:
           unreachable.append((peer, lan))
 
-    self._last_result = dict((
-      *((l, True) for p, l in reachable),
-      *((l, False) for p, l in unreachable)
-    ))
+    self._last_result = dict(
+      (*((l, True) for p, l in reachable), *((l, False) for p, l in unreachable))
+    )
 
     self.updated_condition.trigger_value = True
 
-
   def _process_updates(self) -> None:
-    self.agent.peers.update_peer(self.agent.peers.local,
-      known_networks=self._last_result)
-
+    self.agent.peers.update_peer(self.agent.peers.local, known_networks=self._last_result)
 
   def _ping_test(self, peer: UvnPeer, lan: LanDescriptor) -> bool:
     log.activity(f"[LAN] PING start: {peer}/{lan}")
     result = exec_command(
-        ["ping",
-            "-w", str(self.ping_len),
-            "-c", str(self.ping_count),
-            str(lan.gw)],
-        noexcept=True)
+      ["ping", "-w", str(self.ping_len), "-c", str(self.ping_count), str(lan.gw)], noexcept=True
+    )
     result = result.returncode == 0
     log.activity(f"[LAN] PING {'OK' if result else 'FAILED'}: {peer}/{lan}")
     return result
-  

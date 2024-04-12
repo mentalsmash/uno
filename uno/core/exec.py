@@ -2,8 +2,8 @@
 # (C) Copyright 2020-2024 Andrea Sorbini
 #
 # This program is free software: you can redistribute it and/or modify
-# it under the terms of the GNU Affero General Public License as 
-# published by the Free Software Foundation, either version 3 of the 
+# it under the terms of the GNU Affero General Public License as
+# published by the Free Software Foundation, either version 3 of the
 # License, or (at your option) any later version.
 #
 # This program is distributed in the hope that it will be useful,
@@ -23,47 +23,54 @@ from .log import Logger
 
 log = Logger.sublogger("exec")
 
+
 def shell_which(command: str) -> Path | None:
-  cmd_path = exec_command([f"which {command} || true"], shell=True, capture_output=True).stdout.decode().strip()
+  cmd_path = (
+    exec_command([f"which {command} || true"], shell=True, capture_output=True)
+    .stdout.decode()
+    .strip()
+  )
   if not cmd_path:
     return None
   return Path(cmd_path)
 
 
 def exec_command(
-    cmd_args: Sequence[Union[str, Path]],
-    fail_msg: str|None = None,
-    root: bool = False,
-    shell: bool = False,
-    cwd: Path|None = None,
-    noexcept: bool = False,
-    output_file: Path|None = None,
-    capture_output: bool=False,
-    debug: bool=False):
+  cmd_args: Sequence[Union[str, Path]],
+  fail_msg: str | None = None,
+  root: bool = False,
+  shell: bool = False,
+  cwd: Path | None = None,
+  noexcept: bool = False,
+  output_file: Path | None = None,
+  capture_output: bool = False,
+  debug: bool = False,
+):
   if root and os.geteuid() != 0:
     cmd_args = ["sudo", *cmd_args]
 
   debug = debug or log.DEBUG
 
-  run_args = {"shell": shell,}
+  run_args = {
+    "shell": shell,
+  }
 
   if cwd is not None:
     run_args["cwd"] = cwd
     log.trace("cd {}", cwd)
 
-  log.trace(" ".join(["{}"]*len(cmd_args)), *cmd_args)
+  log.trace(" ".join(["{}"] * len(cmd_args)), *cmd_args)
 
   try:
     if output_file is not None:
       output_file.parent.mkdir(exist_ok=True, parents=True)
       with output_file.open("w") as outfile:
-        result = subprocess.run(cmd_args,
-          stdout=outfile,
-          stderr=outfile,
-          check=not noexcept,
-          **run_args)
+        result = subprocess.run(
+          cmd_args, stdout=outfile, stderr=outfile, check=not noexcept, **run_args
+        )
     else:
       import sys
+
       if capture_output:
         stdout = subprocess.PIPE
         stderr = subprocess.PIPE
@@ -74,11 +81,9 @@ def exec_command(
         stdout = subprocess.DEVNULL
         stderr = subprocess.DEVNULL
 
-      result = subprocess.run(cmd_args,
-        stdout=stdout,
-        stderr=stderr,
-        check=not noexcept,
-        **run_args)
+      result = subprocess.run(
+        cmd_args, stdout=stdout, stderr=stderr, check=not noexcept, **run_args
+      )
   except subprocess.CalledProcessError as e:
     log.command(cmd_args, e.returncode, e.stdout, e.stderr)
     raise
