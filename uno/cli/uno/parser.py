@@ -704,7 +704,8 @@ def uno_parser(parser: argparse.ArgumentParser):
   #############################################################################
   # uno service remove ...
   #############################################################################
-  cmd_service_disable = cli_command(
+  # cmd_service_disable
+  cli_command(
     grp_service,
     "remove",
     cmd=agent_service_remove,
@@ -742,7 +743,8 @@ def uno_parser(parser: argparse.ArgumentParser):
   #############################################################################
   # uno service status
   #############################################################################
-  cmd_service_statis = cli_command(
+  # cmd_service_statis
+  cli_command(
     grp_service,
     "status",
     cmd=agent_service_status,

@@ -130,8 +130,12 @@ class Agent(
   INITIAL_UVN_STATUS_PLOT_DIRTY = True
   INITIAL_ENABLE_SYSTEMD = False
   INITIAL_SYNC_MODE = SyncMode.IMMEDIATE
-  INITIAL_STARTED_SERVICES = lambda self: []
-  INITIAL_INITIAL_ACTIVE_STATIC_SERVICES = lambda self: []
+
+  def INITIAL_STARTED_SERVICES(self) -> list[str]:
+    return []
+
+  def INITIAL_INITIAL_ACTIVE_STATIC_SERVICES(self) -> list[str]:
+    return []
 
   DB_TABLE = "agents"
   DB_OWNER = [Uvn, Cell]
@@ -183,7 +187,6 @@ class Agent(
 
   @classmethod
   def install_package(cls, package: Path, root: Path, exclude: list[str] | None = None) -> "Agent":
-    excluded = []
     Packager.extract_cell_agent_package(package, root, exclude=exclude)
     agent = cls._assert_agent(root)
     if agent.registry.middleware.supports_agent():
@@ -378,8 +381,8 @@ class Agent(
   def allowed_lans(self) -> Generator[ipaddress.IPv4Network, None, None]:
     if not isinstance(self.owner, Cell):
       return
-    for l in self.owner.allowed_lans:
-      yield l
+    for lan in self.owner.allowed_lans:
+      yield lan
 
   @cached_property
   def lans(self) -> set[LanDescriptor]:
@@ -410,8 +413,8 @@ class Agent(
 
   @property
   def bind_addresses(self) -> Generator[ipaddress.IPv4Address, None, None]:
-    for l in self.lans:
-      yield l.nic.address
+    for lan in self.lans:
+      yield lan.nic.address
     for v in self.vpn_interfaces:
       yield v.config.intf.address
 
@@ -1035,14 +1038,14 @@ class Agent(
       self.log.error("some networks were DETACHED from {}", self.uvn)
     else:
       routed_networks = sorted(
-        ((c, l) for c in self.peers.cells for l in c.routed_networks),
+        ((c, lan) for c in self.peers.cells for lan in c.routed_networks),
         key=lambda v: (v[0].id, v[1].nic.name, v[1].nic.subnet),
       )
       self.log.warning(
         "all {} networks ATTACHED to {}: {}",
         len(routed_networks),
         self.uvn,
-        sorted(f"{c.name} → {l.nic.subnet}" for c, l in routed_networks),
+        sorted(f"{c.name} → {lan.nic.subnet}" for c, lan in routed_networks),
       )
     # Update UI
     self.webui.request_update()
@@ -1143,7 +1146,7 @@ class Agent(
       self.log.error("{} is not fully routed", self.uvn)
     else:
       routed_networks = sorted(
-        {(c, l) for c in self.peers.cells for l in c.routed_networks},
+        {(c, lan) for c in self.peers.cells for lan in c.routed_networks},
         key=lambda n: (n[0].id, n[1].nic.name, n[1].nic.subnet),
       )
       self.log.warning(
@@ -1151,7 +1154,7 @@ class Agent(
         len(routed_networks),
         len(self.uvn.cells),
         self.uvn,
-        sorted(f"{c.name} → {l.nic.subnet}" for c, l in routed_networks),
+        sorted(f"{c.name} → {lan.nic.subnet}" for c, lan in routed_networks),
       )
     # Update UI
     self.webui.request_update()

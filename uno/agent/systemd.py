@@ -19,10 +19,9 @@ from functools import cached_property
 
 from ..core.exec import exec_command, shell_which
 from ..core.log import Logger
+from .systemd_service import SystemdService
 
 log = Logger.sublogger("systemd")
-
-from .systemd_service import SystemdService
 
 
 class _Systemd:

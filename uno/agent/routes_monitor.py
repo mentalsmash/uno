@@ -62,7 +62,7 @@ class RoutesMonitor(AgentService):
   def _read_routes(self) -> set[str]:
     if not self.routes_file.exists():
       return set()
-    return set(l for l in self.routes_file.read_text().splitlines() if l)
+    return set(lan for lan in self.routes_file.read_text().splitlines() if lan)
 
   def _write_routes(self, routes: set[str]) -> None:
     with self.routes_file.open("wt") as output:

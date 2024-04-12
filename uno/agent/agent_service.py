@@ -97,8 +97,8 @@ class AgentService(Runnable):
     if isinstance(event, str):
       assert issubclass(self.LISTENER, AgentServiceListener)
       event = self.LISTENER.EVENT[event.upper().replace("-", "_")]
-    for l in self.listeners:
-      getattr(l, f"on_event_{event.name.lower()}")(*args)
+    for listener in self.listeners:
+      getattr(listener, f"on_event_{event.name.lower()}")(*args)
 
   @disabled_if("runnable", neg=True)
   def process_updates(self) -> None:

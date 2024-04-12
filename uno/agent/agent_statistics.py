@@ -44,8 +44,11 @@ class DeployedConfig(Versioned, OwnableDatabaseObject):
     "deploy_count",
   ]
 
-  INITIAL_LAST_DEPLOYED_ON = lambda self: self.first_deployed_on
-  INITIAL_DEPLOY_COUNT = 0
+  def INITIAL_LAST_DEPLOYED_ON(self) -> Timestamp:
+    return self.first_deployed_on
+
+  def INITIAL_DEPLOY_COUNT(self) -> int:
+    return 0
 
   def prepare_first_deployed_on(self, val: str | dict | Timestamp):
     return prepare_timestamp(self.db, val)

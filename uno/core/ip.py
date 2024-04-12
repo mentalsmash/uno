@@ -19,6 +19,7 @@ import ipaddress
 import socket
 from .exec import exec_command
 import json
+import re
 
 from .log import Logger
 
@@ -301,8 +302,8 @@ def ipv4_list_routes(oneline=True, resolve=True, split=True) -> set[str]:
 def ipv4_resolve_address(ip, ns=None, cache=True, resolv_cache={}):
   try:
     i_ip = ipaddress.ip_address(ip)
-  except:
-    return item
+  except Exception:
+    return ip
   if cache:
     hostname = resolv_cache.get(i_ip)
     if hostname:
@@ -320,11 +321,8 @@ def ipv4_resolve_address(ip, ns=None, cache=True, resolv_cache={}):
     if cache:
       resolv_cache[i_ip] = hostname
     return hostname
-  except:
+  except Exception:
     return ip
-
-
-import re
 
 
 def ipv4_resolve_text(text, ns=None, cache=True):

@@ -75,7 +75,7 @@ def _get_collection_element(collection: list | dict, index_expr: str):
         parsed_index = f"[{index_component}]"
       else:
         parsed_index = f"{parsed_index}[{index_component}]"
-  except:
+  except Exception:
     raise ValueError(
       f"failed to parse index expression '{index_expr}' after '{parsed_index}'", collection
     )
@@ -157,8 +157,7 @@ def registry_action(
     action(args, registry)
 
     if registry.dirty:
-      # changed = registry.generate_artifacts(force=getattr(args, "generate", False))
-      changed = registry.generate_artifacts()
+      _ = registry.generate_artifacts()
     else:
       registry.log.info("unchanged")
 
@@ -167,8 +166,7 @@ def registry_action(
 
 def registry_define_uvn(args: argparse.Namespace) -> None:
   registry_config = args.config_registry(args)
-  uvn_spec = registry_config["uvn_spec"]
-  registry = Registry.create(
+  _ = Registry.create(
     name=args.name,
     owner=args.owner,
     password=args.password,

@@ -15,10 +15,11 @@
 # along with this program. If not, see <https://www.gnu.org/licenses/>.
 ###############################################################################
 from typing import Generator, TYPE_CHECKING
+import ipaddress
 
 from ..core.wg import WireGuardInterface
 from ..registry.lan_descriptor import LanDescriptor
-import ipaddress
+from ..core.render import Templates
 
 if TYPE_CHECKING:
   from .uvn_peers_list import UvnPeersList
@@ -59,8 +60,6 @@ def _filter_sort_peers(
       continue
     yield p
 
-
-from ..core.render import Templates
 
 Templates.registry_filters(
   find_lan_status_by_peer=_filter_find_lan_status_by_peer,

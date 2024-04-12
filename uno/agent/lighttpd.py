@@ -22,9 +22,9 @@ from .render import Templates
 from ..core.exec import exec_command
 from ..core.time import Timer
 from ..core.log import Logger
+from ..registry.certificate_subject import CertificateSubject
 
 log = Logger.sublogger("lighttpd")
-from ..registry.certificate_subject import CertificateSubject
 
 
 class Lighttpd:
@@ -149,7 +149,7 @@ class Lighttpd:
         try:
           detected_pid.append(int(self._lighttpd_pid.read_text()))
           return True
-        except:
+        except Exception:
           return False
 
       timer = Timer(

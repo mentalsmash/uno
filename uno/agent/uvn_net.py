@@ -248,10 +248,10 @@ class UvnNet(AgentService):
       noop=noop,
     )
     for nic in (
-      *(l.nic.name for l in sorted(self.agent.lans, key=lambda l: l.nic.name)),
+      *(lan.nic.name for lan in sorted(self.agent.lans, key=lambda lan: lan.nic.name)),
       *(
         v.config.intf.name
-        for v in sorted(self.agent.vpn_interfaces, key=lambda l: l.config.intf.name)
+        for v in sorted(self.agent.vpn_interfaces, key=lambda lan: lan.config.intf.name)
         if v != vpn
       ),
     ):

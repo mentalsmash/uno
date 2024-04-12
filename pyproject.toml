@@ -63,3 +63,6 @@ build-backend = "poetry.core.masonry.api"
 line-length = 100
 indent-width = 2
 target-version = "py39"
+
+[tool.ruff.lint]
+ignore = ["E741"]

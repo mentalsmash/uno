@@ -60,9 +60,15 @@ class UvnPeer(Versioned, DatabaseObjectOwner, OwnableDatabaseObject):
     "owner",
   ]
   INITIAL_STATUS = UvnPeerStatus.DECLARED
-  INITIAL_ROUTED_NETWORKS = lambda self: set()
-  INITIAL_VPN_INTERFACES = lambda self: set()
-  INITIAL_KNOWN_NETWORKS = lambda self: set()
+
+  def INITIAL_ROUTED_NETWORKS(self) -> set["LanStatus"]:
+    return set()
+
+  def INITIAL_VPN_INTERFACES(self) -> set["LanStatus"]:
+    return set()
+
+  def INITIAL_KNOWN_NETWORKS(self) -> set["LanStatus"]:
+    return set()
 
   DB_TABLE = "peers"
   DB_OWNER = [Uvn, Cell, Particle]
@@ -98,7 +104,7 @@ class UvnPeer(Versioned, DatabaseObjectOwner, OwnableDatabaseObject):
     return self.deserialize_collection(LanDescriptor, val, set, self.new_child)
 
   def serialize_routed_networks(self, val: set[LanDescriptor], public: bool = False) -> list[dict]:
-    return [l.serialize() for l in val]
+    return [lan.serialize() for lan in val]
 
   def prepare_ts_start(self, val: int | str | Timestamp) -> None:
     return prepare_timestamp(self.db, val)
@@ -245,9 +251,15 @@ class VpnInterfaceStatus(Versioned, OwnableDatabaseObject):
     "owner",
   ]
   INITIAL_ONLINE = False
-  INITIAL_TRANSFER = lambda self: {"recv": 0, "send": 0}
-  INITIAL_ENDPOINT = lambda self: {"address": None, "port": None}
-  INITIAL_ALLOWED_IPS = lambda self: set()
+
+  def INITIAL_TRANSFER(self) -> dict:
+    return {"recv": 0, "send": 0}
+
+  def INITIAL_ENDPOINT(self) -> dict:
+    return {"address": None, "port": None}
+
+  def INITIAL_ALLOWED_IPS(self) -> set:
+    return set()
 
   DB_TABLE = "peers_vpn_status"
   DB_OWNER = UvnPeer

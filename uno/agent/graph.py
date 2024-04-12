@@ -114,7 +114,6 @@ def backbone_deployment_graph(
       peer_a["peers"].items(), key=lambda t: t[1][0]
     ):
       peer_b_cell = uvn.cells[peer_b_id]
-      peer_b_port_id = deployment.peers[peer_b_id]["peers"][peer_a_id][0]
 
       if peers:
         _store_node_by_status(peer_b_cell.name, peers[peer_b_id].status)
@@ -139,7 +138,7 @@ def backbone_deployment_graph(
 
   plt.clf()
 
-  fig = plt.figure(1, figsize=(100, 100), dpi=200)
+  _ = plt.figure(1, figsize=(100, 100), dpi=200)
   plt.margins(x=0.1, y=0.1)
   plt.axis("off")
   pos = networkx.circular_layout(graph)
@@ -229,7 +228,7 @@ def cell_agent_status_plot(agent: "Agent", output_file: Path, seed: int | None =
 
   plt.clf()
 
-  fig = plt.figure(1, figsize=(100, 100), dpi=200)
+  _ = plt.figure(1, figsize=(100, 100), dpi=200)
   plt.margins(x=0.1, y=0.1, tight=True)
   plt.axis("off")
 
