@@ -51,7 +51,7 @@ jobs:
       - name: Tag images on Docker Hub
         run: |
           src/uno/scripts/tag_release_images.py \
-            -t ${{inputs.tag}} -m "${{steps.meta-docker.outputs.json}}"
+            -t ${{inputs.tag}} -m '${{steps.meta-docker.outputs.json}}'
 
       - name: Extract GitHub metadata
         id: meta-gh
@@ -74,4 +74,4 @@ jobs:
       - name: Tag images on GitHub
         run: |
           src/uno/scripts/tag_release_images.py \
-            -t ${{inputs.tag}} -m "${{steps.meta-gh.outputs.json}}"
+            -t ${{inputs.tag}} -m '${{steps.meta-gh.outputs.json}}'

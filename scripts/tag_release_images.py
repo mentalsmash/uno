@@ -28,9 +28,7 @@ for generated_tag in metadata["tags"]:
   subprocess.run([
     "docker", "buildx", "imagetools", "create",
       "-t", generated_tag,
-      *(tkn
-        for annotation in metadata["annotations"]
-          for tkn in ["--annotation", annotation]),
+      *annotations,
       source_tag,
-  ])
+  ], check=True)
 
