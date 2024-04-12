@@ -61,13 +61,30 @@ class BasicExperiment(Experiment):
         "particles_count": 1,
         "public_agent": True,
         "uvn_name": "test-uvn",
-        "uvn_owner": "root@internet",
+        "uvn_owner": "root@example.com",
         "uvn_owner_password": "abc",
         "public_net": "internet",
         "public_net_subnet": ipaddress.ip_network("10.230.255.0/24"),
         "registry_host": "registry.internet",
         "registry_host_address": ipaddress.ip_address("10.230.255.254"),
         "use_cli": False,
+        "uvn_users": [
+          {
+            "name": "John Doe",
+            "email": "john@example.com",
+            "password": "johnspassword",
+          },
+          {
+            "name": "Jane Doe",
+            "email": "jane@example.com",
+            "password": "janespassword",
+          },
+        ],
+        "uvn_owners": {
+          0: "root@example.com",
+          1: "jane@example.com",
+          2: "john@example.com",
+        },
       }
     )
     return default_cfg
@@ -92,6 +109,17 @@ class BasicExperiment(Experiment):
       self.config["uvn_owner_password"],
     )
 
+    for user in self.config["uvn_users"]:
+      self.uno(
+        "define",
+        "user",
+        user["email"],
+        "-n",
+        user["name"],
+        "-p",
+        user["password"]
+      )
+
     for i, subnet in enumerate(self.config["networks"]):
       self.uno(
         "define",
@@ -102,41 +130,44 @@ class BasicExperiment(Experiment):
         "-a",
         f"router.net{i+1}.{self.config['public_net']}",
         "-o",
-        self.config["uvn_owner"],
+        self.config["uvn_owners"][i%len(self.config["uvn_owners"])],
       )
 
     # Define some cells for "relay" agents
-    for relay_i in range(self.config["relays_count"]):
+    for i in range(self.config["relays_count"]):
       self.uno(
         "define",
         "cell",
-        f"relay{relay_i+1}",
+        f"relay{i+1}",
         "-a",
-        f"relay{relay_i+1}.{self.config['public_net']}",
+        f"relay{i+1}.{self.config['public_net']}",
         "-o",
-        self.config["uvn_owner"],
+        self.config["uvn_owners"][i%len(self.config["uvn_owners"])],
       )
 
     # Define particles
-    for p_i in range(self.config["particles_count"]):
-      self.uno("define", "particle", f"particle{p_i+1}", "-o", self.config["uvn_owner"])
+    for i in range(self.config["particles_count"]):
+      self.uno("define", "particle", f"particle{i+1}",
+        "-o", self.config["uvn_owners"][i%len(self.config["uvn_owners"])])
 
   def define_uvn(self) -> None:
     if self.config["use_cli"]:
       return self._define_uvn_cli()
-
+    
     return self.define_uvn_from_config(
       name=self.config["uvn_name"],
       owner=self.config["uvn_owner"],
       address=self.config["registry_host"] if self.config["registry_host"] else None,
       password=self.config["uvn_owner_password"],
       uvn_spec={
+        "users": self.config["uvn_users"],
         "cells": [
           *(
             {
               "name": f"cell{i+1}",
               "address": f"router.net{i+1}.{self.config['public_net']}",
               "allowed_lans": [str(subnet)],
+              "owner": self.config["uvn_owners"][i%len(self.config["uvn_owners"])],
             }
             for i, subnet in enumerate(self.config["networks"])
           ),
@@ -144,6 +175,7 @@ class BasicExperiment(Experiment):
             {
               "name": f"relay{i+1}",
               "address": f"relay{i+1}.{self.config['public_net']}",
+              "owner": self.config["uvn_owners"][i%len(self.config["uvn_owners"])],
             }
             for i in range(self.config["relays_count"])
           ),
@@ -151,6 +183,7 @@ class BasicExperiment(Experiment):
         "particles": [
           {
             "name": f"particle{i+1}",
+            "owner": self.config["uvn_owners"][i%len(self.config["uvn_owners"])],
           }
           for i in range(self.config["particles_count"])
         ],
@@ -191,9 +224,9 @@ class BasicExperiment(Experiment):
         )
 
     # Define "relay" agent hosts
-    for relay_i in range(self.config["relays_count"]):
+    for i in range(self.config["relays_count"]):
       address = internet.allocate_address()
-      hostname = f"relay{relay_i+1}"
+      hostname = f"relay{i+1}"
       cell = next(c for c in self.registry.uvn.cells.values() if c.name == hostname)
       cell_package = self.registry.cells_dir / Packager.cell_archive_file(cell)
       internet.define_agent(
@@ -205,9 +238,9 @@ class BasicExperiment(Experiment):
       )
 
     # Define "particle" hosts
-    for p_i in range(self.config["particles_count"]):
+    for i in range(self.config["particles_count"]):
       address = internet.allocate_address()
-      hostname = f"particle{p_i+1}"
+      hostname = f"particle{i+1}"
       particle = next(p for p in self.registry.uvn.particles.values() if p.name == hostname)
       particle_package = self.registry.particles_dir / Packager.particle_archive_file(particle)
       internet.define_particle(

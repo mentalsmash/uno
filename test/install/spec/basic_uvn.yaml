@@ -1,17 +1,30 @@
 users:
+  - email: john@example.com
+    name: John Doe
+    password: johnspassword
   - email: jane@example.com
     name: Jane Doe
     password: janespassword
 cells:
-  - name: public-cell
+  - name: cell1
     address: cell1.example.com
     allowed_lans: [192.168.1.0/24]
-  - name: private-cell
+    owner: root@example.com
+  - name: cell2
+    address: cell2.example.com
     allowed_lans: [192.168.2.0/24]
+    owner: john@example.com
+  - name: cell3
+    address: cell3.example.com
+    allowed_lans: [192.168.3.0/24]
     owner: jane@example.com
+  - name: cell4
+    allowed_lans: [192.168.4.0/24]
+    owner: root@example.com
   - name: relay-cell
     address: relay-cell.example.com
 particles:
   - name: john
+    owner: john@example.com
   - name: jane
     owner: jane@example.com

@@ -419,8 +419,10 @@ class Registry(Versioned):
     uvn_config = uvn_spec.get("config")
     if uvn_config:
       self.uvn.configure(**uvn_config)
-    for cfg in uvn_spec.get("user", []):
+    for cfg in uvn_spec.get("users", []):
       user = self.add_user(email=cfg["email"], password=cfg["password"], **cfg.get("config", {}))
+    # Save changes at this point so we can look up users from the database
+    self.db.save(self)
     for cfg in uvn_spec.get("cells", []):
       owner = cfg.get("owner")
       if owner:
