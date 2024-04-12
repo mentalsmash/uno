@@ -350,8 +350,8 @@ class Host:
     return subprocess.Popen(["docker", "stop", "-s", "SIGINT", "-t", str(self.experiment.config["container_stop_timeout"]), self.container_name])
 
 
-  def wait_stop(self, stop_process: subprocess.Popen, timeout: int=30) -> None:
-    rc = stop_process.wait(timeout)
+  def wait_stop(self, stop_process: subprocess.Popen) -> None:
+    rc = stop_process.wait(self.experiment.config["container_stop_timeout"]);
     assert rc == 0, f"failed to stop docker container: {self.container_name}"
 
 
@@ -397,9 +397,9 @@ class Host:
     return self.status_file.read_text() == "READY"
 
 
-  def wait_ready(self, timeout: int=60) -> None:
+  def wait_ready(self) -> None:
     self.log.activity("waiting for container to be up")
-    Timer(timeout, .5, lambda: self.ready, self.log,
+    Timer(self.experiment.config["container_start_timeout"], .5, lambda: self.ready, self.log,
       f"waiting for container {self.container_name} to be up",
       f"container {self.container_name} not ready yet...",
       f"container {self.container_name} ready",
@@ -702,24 +702,24 @@ class Host:
     finally:
       import signal
       server.send_signal(signal.SIGINT)
-      server.wait(timeout=30)
+      server.wait(timeout=self.experiment.config["container_stop_timeout"])
       # self.exec("killall", "sshd")
       self.log.activity("stopped SSH server")
 
 
 
   @contextlib.contextmanager
-  def uno_agent(self, wait_exit: bool=False, start_timeout: bool=60, stop_timeout: bool=60, graceful: bool=True) -> Generator[subprocess.Popen, None, None]:
+  def uno_agent(self, wait_exit: bool=False, graceful: bool=True) -> Generator[subprocess.Popen, None, None]:
     agent = self.uno("agent", popen=True)
     if agent.poll():
       raise RuntimeError("failed to start uno agent", self)
-    self.uno_agent_wait_ready(timeout=start_timeout)
+    self.uno_agent_wait_ready(timeout=self.experiment.config["container_start_timeout"])
     try:
       yield agent
     finally:
       self.uno_agent_request_stop()
       if wait_exit:
-        self.uno_agent_wait_exit(timeout=stop_timeout, graceful=graceful)
+        self.uno_agent_wait_exit(timeout=self.experiment.config["container_stop_timeout"], graceful=graceful)
 
 
   def uno_agent_pid(self) -> int | None:
