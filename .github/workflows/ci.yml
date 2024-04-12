@@ -1,4 +1,6 @@
 name: CI
+run-name: |
+  CI test (${{inputs.uno-middleware}}, ${{inputs.base-image}}, ${{inputs.build-platform}}) ${{inputs.run-unit && '[U]' || ''}}${{inputs.run-unit && '[I]' || ''}}[${{github.ref_name}}${{github.ref_type == 'branch' && '@' || ''}}${{github.ref_type == 'branch' && github.sha || ''}}]
 
 on:
   workflow_call:
@@ -100,7 +102,16 @@ jobs:
           (
             case "${{ inputs.build-platform }}" in
               arm64)
-                printf -- "RUNNER='%s'\n" '["self-hosted", "linux", "arm64"]'
+                case "${{inputs.uno-middleware}}" in
+                  *connext*)
+                    # Force full test suite to run on "beefier" rpi5 nodes
+                    printf -- "RUNNER='%s'\n" '["self-hosted", "linux", "arm64", "rpi5"]'
+                    ;;
+                  *)
+                    # Other test suites can run on any arm64 node
+                    printf -- "RUNNER='%s'\n" '["self-hosted", "linux", "arm64"]'
+                    ;;
+                esac
                 ;;
               amd64)
                 printf -- "RUNNER='%s'\n" '"ubuntu-latest"'
@@ -155,7 +166,7 @@ jobs:
           docker run --rm \
             -v $(pwd):/workspace \
             -w /workspace \
-            -e RTI_LICENSE_FILE=/workspace/rti_license.dat \
+            -v $(pwd)/rti_license.dat:/rti_license.dat \
             -e LOG_LEVEL=activity \
             -e DEBUG=y \
             ${{ needs.config.outputs.TEST_IMAGE }} \
