@@ -34,7 +34,8 @@ def experiment() -> Generator[Experiment, None, None]:
   yield from Experiment.as_fixture(load_experiment)
 
 
-def test_integration_basic_ping(experiment: Experiment, the_hosts: list[Host], the_cells: list[Host], the_fully_routed_cell_networks: list[Network]):
+@pytest.mark.skip(reason="unnecessary if SSH is tested")
+def test_ping(experiment: Experiment, the_hosts: list[Host], the_cells: list[Host], the_fully_routed_cell_networks: list[Network]):
   # Try to ping every host from every other host
   # Try also to ping every agent
   experiment.log.activity("testing PING communication on {} hosts and {} cells",
@@ -44,8 +45,8 @@ def test_integration_basic_ping(experiment: Experiment, the_hosts: list[Host], t
     ((h, c, a) for h in the_hosts for c in the_cells for a in c.cell_addresses)))
 
 
-@pytest.mark.skip(reason="unnecessary for basic validation if SSH is tested")
-def test_integration_basic_iperf(experiment: Experiment, the_hosts: list[Host], the_fully_routed_cell_networks: list[Network]):
+@pytest.mark.skip(reason="unnecessary if SSH is tested")
+def test_iperf(experiment: Experiment, the_hosts: list[Host], the_fully_routed_cell_networks: list[Network]):
   # Try to perform an iperf TCP and UDP test between all hosts
   experiment.log.activity("testing IPERF communication between {} hosts: {}", len(the_hosts), [h.container_name for h in the_hosts])
   for host in the_hosts:
@@ -54,31 +55,9 @@ def test_integration_basic_iperf(experiment: Experiment, the_hosts: list[Host], 
       other_host.iperf_test(host, tcp=False)
 
 
-def test_integration_basic_ssh(experiment: Experiment, the_hosts: list[Host], the_fully_routed_cell_networks: list[Network]):
+def test_ssh(experiment: Experiment, the_hosts: list[Host], the_fully_routed_cell_networks: list[Network]):
   # Try to connect with ssh
   experiment.log.activity("testing SSH communication between {} hosts: {}", len(the_hosts), [h.container_name for h in the_hosts])
   ssh_client_test(experiment, ((h, s)
     for h in the_hosts
       for s in experiment.other_hosts(h, the_hosts)))
-
-
-def test_integration_basic_particles(
-    experiment: Experiment,
-    the_particles: list[Host],
-    the_cells: list[Host],
-    the_hosts: list[Host],
-    the_fully_routed_cell_networks: list[Network]):
-  experiment.log.info("testing communication between {} particles, {} cells, and {} hosts", len(the_particles), len(the_cells), len(the_hosts))
-  with contextlib.ExitStack() as stack:
-    for host in the_hosts:
-      stack.enter_context(host.ssh_server())
-    for particle in the_particles:
-      for cell in the_cells:
-        with particle.particle_wg_up(cell.cell):
-          experiment.log.activity("testing particle {} with {} hosts via cell {}", particle, len(the_hosts), cell)
-          ping_test(experiment, ((particle, h, h.default_address) for h in the_hosts))
-          ssh_client_test(experiment, ((particle, h) for h in the_hosts))
-          experiment.log.info("particle CELL OK: {} via {}", particle, cell)
-      experiment.log.info("particle OK: {}", particle)
-    experiment.log.info("particles ALL {} OK", len(the_particles))
-

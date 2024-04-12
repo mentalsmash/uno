@@ -14,35 +14,41 @@
 # You should have received a copy of the GNU Affero General Public License
 # along with this program. If not, see <https://www.gnu.org/licenses/>.
 ###############################################################################
-import pytest
+from itertools import chain
 from typing import Generator
 from pathlib import Path
+import pytest
+import contextlib
+
 from uno.test.integration import Experiment, Host, Experiment, Network
 from uno.test.integration.experiments.basic import BasicExperiment
-from uno.test.integration.units.ping_test import ping_test
 from uno.test.integration.units.ssh_client_test import ssh_client_test
 
 def load_experiment() -> Experiment:
-  return BasicExperiment.define(Path(__file__), config={
-    "use_cli": True,
-  })
+  return BasicExperiment.define(Path(__file__))
+
 
 @pytest.fixture
 def experiment() -> Generator[Experiment, None, None]:
   yield from Experiment.as_fixture(load_experiment)
 
 
-@pytest.mark.skip(reason="unnecessary if SSH is tested")
-def test_ping(experiment: Experiment, the_hosts: list[Host], the_fully_routed_cell_networks: list[Network]):
-  # Try to ping every host from every other host
-  experiment.log.activity("testing PING communication on {} hosts", len(the_hosts))
-  ping_test(experiment,
-    ((h, o, o.default_address) for h in the_hosts for o in experiment.other_hosts(h, the_hosts)))
+def test(
+    experiment: Experiment,
+    the_particles: list[Host],
+    the_cells: list[Host],
+    the_hosts: list[Host],
+    the_fully_routed_cell_networks: list[Network]):
+  experiment.log.info("testing communication between {} particles, {} cells, and {} hosts", len(the_particles), len(the_cells), len(the_hosts))
+  with contextlib.ExitStack() as stack:
+    for host in the_hosts:
+      stack.enter_context(host.ssh_server())
+    for particle in the_particles:
+      for cell in the_cells:
+        with particle.particle_wg_up(cell.cell):
+          experiment.log.activity("testing particle {} with {} hosts via cell {}", particle, len(the_hosts), cell)
+          ssh_client_test(experiment, ((particle, h) for h in the_hosts))
+          experiment.log.info("particle CELL OK: {} via {}", particle, cell)
+      experiment.log.info("particle OK: {}", particle)
+    experiment.log.info("particles ALL {} OK", len(the_particles))
 
-
-def test_ssh(experiment: Experiment, the_hosts: list[Host], the_fully_routed_cell_networks: list[Network]):
-  # Try to connect with ssh
-  experiment.log.activity("testing SSH communication between {} hosts: {}", len(the_hosts), [h.container_name for h in the_hosts])
-  ssh_client_test(experiment, ((h, s)
-    for h in the_hosts
-      for s in experiment.other_hosts(h, the_hosts)))

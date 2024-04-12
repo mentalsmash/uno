@@ -75,5 +75,5 @@ jobs:
           set -x
           tags="$(echo "${{steps.meta-gh.outputs.tags}}" | xargs | tr , ' ')"
           for tag in ${tags}; do
-            docker buildx imagetools -t ${tag} ghcr.io/${{inputs.tag}}
+            docker buildx imagetools create -t ${tag} ghcr.io/${{inputs.tag}}
           done

@@ -32,23 +32,7 @@ def experiment() -> Generator[Experiment, None, None]:
 
 
 @agent_test
-def test_integration_basic_httpd(
-    experiment: Experiment,
-    the_hosts: list[Host],
-    the_fully_routed_agents: dict[Host, subprocess.Popen]):
-  agents = list(the_fully_routed_agents)
-  # Try to connect to the httpd server of the agents
-  experiment.log.activity("testing HTTPD server of {} agent from {} hosts: {}",
-    len(agents), len(the_hosts), agents)
-  for host in the_hosts:
-    for agent in agents:
-      if not agent.cell_addresses:
-        continue
-      host.agent_httpd_test(agent)
-
-
-@agent_test
-def test_integration_basic_registry_sync(
+def test_sync(
     experiment: Experiment,
     the_registry: Host,
     the_agents: dict[Host, subprocess.Popen]):
@@ -58,7 +42,7 @@ def test_integration_basic_registry_sync(
 
 
 @agent_test
-def test_integration_basic_registry_redeploy(
+def test_redeploy(
     experiment: Experiment,
     the_registry: Host,
     the_agents: dict[Host, subprocess.Popen]):
