@@ -19,7 +19,7 @@ permissions:
   packages: write
 
 env:
-  BASE_TAG: ubuntu:24.04
+  BASE_TAG: ubuntu:22.04
   FLAVOR: static
   TAG_SUFFIX: '-static'
   UNO_MIDDLEWARE: uno.middleware.native

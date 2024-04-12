@@ -15,19 +15,9 @@ jobs:
   build-n-test:
     strategy:
       matrix:
-        include:
-          - build-platform: amd64
-            base-image: ubuntu:22.04
-            uno-middleware: uno_middleware_connext
-          - build-platform: arm64
-            base-image: ubuntu:22.04
-            uno-middleware: uno_middleware_connext
-          - build-platform: amd64
-            base-image: ubuntu:24.04
-            uno-middleware: uno.middleware.native
-          - build-platform: arm64
-            base-image: ubuntu:24.04
-            uno-middleware: uno.middleware.native
+        build-platform: [amd64, arm64]
+        base-image: [ubuntu:22.04]
+        uno-middleware: [uno_middleware_connext, uno.middleware.native]
     uses: ./.github/workflows/ci.yml
     secrets: inherit
     with:
