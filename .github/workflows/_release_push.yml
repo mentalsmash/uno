@@ -37,6 +37,7 @@ jobs:
         with:
           images: |
             ${{ github.repository }}
+            ghcr.io/${{ github.repository }}
           tags: ${{ inputs.tags-config }}
           flavor: ${{ inputs.flavor-config }}
         env:
@@ -48,21 +49,21 @@ jobs:
           username: ${{ secrets.DOCKERHUB_USERNAME }}
           password: ${{ secrets.DOCKERHUB_TOKEN }}
 
-      - name: Tag images on Docker Hub
-        run: |
-          src/uno/scripts/tag_release_images.py \
-            -t ${{inputs.tag}} -m '${{steps.meta-docker.outputs.json}}'
+      # - name: Tag images on Docker Hub
+      #   run: |
+      #     src/uno/scripts/tag_release_images.py \
+      #       -t ${{inputs.tag}} -m '${{steps.meta-docker.outputs.json}}'
 
-      - name: Extract GitHub metadata
-        id: meta-gh
-        uses: docker/metadata-action@v5
-        with:
-          images: |
-            ghcr.io/${{ github.repository }}
-          tags: ${{ inputs.tags-config }}
-          flavor: ${{ inputs.flavor-config }}
-        env:
-          DOCKER_METADATA_ANNOTATIONS_LEVELS: manifest,index
+      # - name: Extract GitHub metadata
+      #   id: meta-gh
+      #   uses: docker/metadata-action@v5
+      #   with:
+      #     images: |
+      #       ghcr.io/${{ github.repository }}
+      #     tags: ${{ inputs.tags-config }}
+      #     flavor: ${{ inputs.flavor-config }}
+      #   env:
+      #     DOCKER_METADATA_ANNOTATIONS_LEVELS: manifest,index
     
       - name: Log in to GitHub
         uses: docker/login-action@v3
@@ -71,7 +72,20 @@ jobs:
           username: ${{ github.actor }}
           password: ${{ secrets.GITHUB_TOKEN }}
  
-      - name: Tag images on GitHub
-        run: |
-          src/uno/scripts/tag_release_images.py \
-            -t ${{inputs.tag}} -m '${{steps.meta-gh.outputs.json}}'
+      # - name: Tag images on GitHub
+      #   run: |
+      #     src/uno/scripts/tag_release_images.py \
+      #       -t ${{inputs.tag}} -m '${{steps.meta-gh.outputs.json}}'
+
+      - name: Build and push test images
+        uses: docker/build-push-action@v5
+        with:
+          file: src/uno/docker/release/Dockerfile
+          tags: ${{ steps.meta-docker.outputs.tags }}
+          labels: ${{ steps.meta-docker.outputs.labels }}
+          annotations: ${{ steps.meta-docker.outputs.annotations }}
+          push: true
+          context: src/uno
+          platforms: linux/amd64,linux/arm64
+          build-args: |
+            BASE_IMAGE=${{ inputs.tag }}
