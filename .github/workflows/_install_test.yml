@@ -84,6 +84,8 @@ jobs:
 
           RTI_LICENSE_FILE=src/uno-ci/resource/rti/rti_license.dat \
           UNO_IMAGE=${{inputs.tag}} \
+          PLATFORM=${{inputs.platform}} \
+          FORCE_PULL=yes \
           pytest -s -v src/uno/test/install/test_install_docker.py
 
 

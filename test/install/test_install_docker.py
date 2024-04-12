@@ -23,12 +23,17 @@ def test_install_docker():
   tmp_dir_h = tempfile.TemporaryDirectory()
   uvn_dir = Path(tmp_dir_h.name)
   test_dir = Path(__file__).parent
+  force_pull = bool(os.environ.get("FORCE_PULL", False))
+  platform = os.environ.get("PLATFORM", "amd64")
   rti_license = os.environ.get("RTI_LICENSE_FILE")
   uno_image = os.environ.get("UNO_IMAGE", "mentalsmash/uno:latest")
   
   try:
     subprocess.run([
-      "docker", "run", "--rm",
+      "docker", "run",
+      "--rm",
+      *(["--pull=always"] if force_pull else []),
+      f"--platform=linux/{platform}",
       "-v", f"{test_dir.parent.parent}:/uno",
       "-v", f"{uvn_dir}:/uvn",
       "-v", f"{test_dir}/spec/basic_uvn.yaml:/uvn.yaml",
@@ -45,14 +50,13 @@ def test_install_docker():
       "docker", "run", "--rm",
         "-v", f"{uvn_dir}:/uvn",
         "-v", f"{test_dir.parent.parent}:/uno",
-        "--privileged",
+        f"--platform=linux/{platform}",
         uno_image,
         "fix-root-permissions", f"{os.getuid()}:{os.getgid()}", "/uno"
     ], check=True)
   finally:
     subprocess.run([
       "docker", "run", "--rm",
-        "--privileged",
         "-v", f"{uvn_dir}:/uvn",
         "-v", f"{test_dir.parent.parent}:/uno",
         "ubuntu:latest",
