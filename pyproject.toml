@@ -43,9 +43,8 @@ sphinxemoji = "^0.2.0"
 sphinx-tabs = "^3.4.4"
 
 [tool.poetry.dev-dependencies]
-flake8 = "^7.0.0"
 ruff = "^0.3.7"
-
+pre-commit = "^3.7.0"
 
 [tool.pytest.ini_options]
 addopts = [
