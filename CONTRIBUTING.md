@@ -43,12 +43,12 @@ The release process consists of the following steps:
 The `<tag>` used by the generated image depends on the type of release, and the
 "flavor" of `uno` being released:
 
-| Release Type | Flavor | Image Tag |
-|--------------|--------|-----------|
-| stable | default | `latest` |
-| stable | static  | `latest-static` |
-| nightly | default | `nightly` |
-| nightly | static  | `nightly-static` |
+| Event | Release Type | Flavor | Image Tag |
+|-------|--------------|--------|-----------|
+| push tag without a `/` in the name | stable | default | `latest` |
+| push tag without a `/` in the name | stable | static  | `latest-static` |
+| push commit to `master` | nightly | default | `nightly` |
+| push commit to `master` | nightly | static  | `nightly-static` |
 
 ### Pull Request Process
 
