@@ -20,3 +20,13 @@ from .crossed_deployment_strategy import CrossedDeploymentStrategy
 from .circular_deployment_strategy import CircularDeploymentStrategy
 from .random_deployment_strategy import RandomDeploymentStrategy
 from .fullmesh_deployment_strategy import FullMeshDeploymentStrategy
+
+__all__ = [
+  DeploymentStrategy,
+  DeploymentStrategyKind,
+  StaticDeploymentStrategy,
+  CrossedDeploymentStrategy,
+  CircularDeploymentStrategy,
+  RandomDeploymentStrategy,
+  FullMeshDeploymentStrategy,
+]

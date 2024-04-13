@@ -310,13 +310,13 @@ class WireGuardInterface:
       try:
         self.log.debug("making sure interface doesn't exist")
         exec_command(["ip", "link", "delete", "dev", self.config.intf.name])
-      except:
+      except Exception:
         raise WireGuardError(f"failed to delete wireguard interface: {self.config.intf.name}")
     # Create interface
     try:
       self.log.debug("creating WireGuard interface")
       exec_command(["ip", "link", "add", "dev", self.config.intf.name, "type", "wireguard"])
-    except:
+    except Exception:
       raise WireGuardError(f"failed to create wireguard interface: {self.config.intf.name}")
     # Set MTU
     if self.config.intf.mtu:
@@ -325,7 +325,7 @@ class WireGuardInterface:
         exec_command(
           ["ip", "link", "set", "dev", self.config.intf.name, "mtu", str(self.config.intf.mtu)]
         )
-      except:
+      except Exception:
         raise WireGuardError(
           f"failed to set interface MTU: {self.config.intf.name}, {self.config.intf.mtu}"
         )
@@ -353,7 +353,7 @@ class WireGuardInterface:
       tmp_file_h = NamedTemporaryFile(prefix=f"{self.config.intf.name}-", suffix="-wgconf")
       wg_config = Path(tmp_file_h.name)
       Templates.generate(wg_config, *self.config.template_args, mode=0o600)
-    except:
+    except Exception:
       raise WireGuardError(
         f"failed to generate configuration for wireguard interface: {self.config.intf.name}"
       )
@@ -361,12 +361,12 @@ class WireGuardInterface:
     try:
       self.log.debug("making sure interface is disabled")
       exec_command(["ip", "link", "set", "down", "dev", self.config.intf.name])
-    except:
+    except Exception:
       raise WireGuardError(f"failed to disable wireguard interface: {self.config.intf.name}")
     try:
       self.log.debug("resetting interface configuration")
       exec_command(["ip", "address", "flush", "dev", self.config.intf.name])
-    except:
+    except Exception:
       raise WireGuardError(f"failed to reset wireguard interface: {self.config.intf.name}")
     # Configure interface with the expected address
     try:
@@ -383,7 +383,7 @@ class WireGuardInterface:
           f"{self.config.intf.address}/{self.config.intf.netmask}",
         ]
       )
-    except:
+    except Exception:
       raise WireGuardError(
         f"failed to configure address on wireguard interface: {self.config.intf.name}, {self.config.intf.address}/{self.config.intf.netmask}"
       )
@@ -391,7 +391,7 @@ class WireGuardInterface:
     try:
       self.log.debug("configuring WireGuard")
       exec_command(["wg", "setconf", self.config.intf.name, wg_config])
-    except:
+    except Exception:
       raise WireGuardError(
         f"failed to set wireguard configuration on interface: {self.config.intf.name}"
       )
@@ -399,7 +399,7 @@ class WireGuardInterface:
     try:
       self.log.debug("enabling interface")
       exec_command(["ip", "link", "set", "up", "dev", self.config.intf.name])
-    except:
+    except Exception:
       raise WireGuardError(f"failed to enable wireguard interface: {self.config.intf.name}")
     # # Allow configured IP addresses
     # for p in self._list_peers():
@@ -434,7 +434,7 @@ class WireGuardInterface:
   def _list_peers(self) -> Iterable[str]:
     try:
       result = exec_command(["wg", "show", self.config.intf.name, "peers"], capture_output=True)
-    except:
+    except Exception:
       raise WireGuardError(f"failed to list wireguard peers: {self.config.intf.name}")
     result_lines = result.stdout.decode("utf-8").strip().splitlines()
     # result_lines = set(result_lines)
@@ -445,7 +445,7 @@ class WireGuardInterface:
       result = exec_command(
         ["wg", "show", self.config.intf.name, "latest-handshakes"], capture_output=True
       )
-    except:
+    except Exception:
       raise WireGuardError(f"failed to list interfacec handshakes: {self.config.intf.name}")
     handshakes = {}
     for line in result.stdout.decode("utf-8").strip().splitlines():
@@ -456,7 +456,7 @@ class WireGuardInterface:
   def _list_transfer(self) -> Mapping[str, Mapping[str, int]]:
     try:
       result = exec_command(["wg", "show", self.config.intf.name, "transfer"], capture_output=True)
-    except:
+    except Exception:
       raise WireGuardError(f"failed to list interface transfer amounts: {self.config.intf.name}")
     transfers = {}
     for line in result.stdout.decode("utf-8").strip().splitlines():
@@ -467,7 +467,7 @@ class WireGuardInterface:
   def _list_endpoints(self) -> Mapping[str, Mapping[str, int]]:
     try:
       result = exec_command(["wg", "show", self.config.intf.name, "endpoints"], capture_output=True)
-    except:
+    except Exception:
       raise WireGuardError(f"failed to list endpoints for interface: {self.config.intf.name}")
     endpoints = {}
     for line in result.stdout.decode("utf-8").strip().splitlines():
@@ -487,7 +487,7 @@ class WireGuardInterface:
       result = exec_command(
         ["wg", "show", self.config.intf.name, "allowed-ips"], capture_output=True
       )
-    except:
+    except Exception:
       raise WireGuardError(f"failed to list peers for interface: {self.config.intf.name}")
     allowed_ips = {}
     for line in result.stdout.decode("utf-8").strip().splitlines():
@@ -523,7 +523,7 @@ class WireGuardInterface:
         ]
       )
       self.log.activity("allowed #{} = [{}]", peer.id, ", ".join(allowed_ips_str))
-    except:
+    except Exception:
       raise WireGuardError(f"failed to set allowed peers on interface: {self.config.intf.name}")
     # allowed_ips_set = self._list_allowed_ips_peer(peer)
     # if allowed_ips ^ allowed_ips_set:

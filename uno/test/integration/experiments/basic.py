@@ -110,15 +110,7 @@ class BasicExperiment(Experiment):
     )
 
     for user in self.config["uvn_users"]:
-      self.uno(
-        "define",
-        "user",
-        user["email"],
-        "-n",
-        user["name"],
-        "-p",
-        user["password"]
-      )
+      self.uno("define", "user", user["email"], "-n", user["name"], "-p", user["password"])
 
     for i, subnet in enumerate(self.config["networks"]):
       self.uno(
@@ -130,7 +122,7 @@ class BasicExperiment(Experiment):
         "-a",
         f"router.net{i+1}.{self.config['public_net']}",
         "-o",
-        self.config["uvn_owners"][i%len(self.config["uvn_owners"])],
+        self.config["uvn_owners"][i % len(self.config["uvn_owners"])],
       )
 
     # Define some cells for "relay" agents
@@ -142,18 +134,23 @@ class BasicExperiment(Experiment):
         "-a",
         f"relay{i+1}.{self.config['public_net']}",
         "-o",
-        self.config["uvn_owners"][i%len(self.config["uvn_owners"])],
+        self.config["uvn_owners"][i % len(self.config["uvn_owners"])],
       )
 
     # Define particles
     for i in range(self.config["particles_count"]):
-      self.uno("define", "particle", f"particle{i+1}",
-        "-o", self.config["uvn_owners"][i%len(self.config["uvn_owners"])])
+      self.uno(
+        "define",
+        "particle",
+        f"particle{i+1}",
+        "-o",
+        self.config["uvn_owners"][i % len(self.config["uvn_owners"])],
+      )
 
   def define_uvn(self) -> None:
     if self.config["use_cli"]:
       return self._define_uvn_cli()
-    
+
     return self.define_uvn_from_config(
       name=self.config["uvn_name"],
       owner=self.config["uvn_owner"],
@@ -167,7 +164,7 @@ class BasicExperiment(Experiment):
               "name": f"cell{i+1}",
               "address": f"router.net{i+1}.{self.config['public_net']}",
               "allowed_lans": [str(subnet)],
-              "owner": self.config["uvn_owners"][i%len(self.config["uvn_owners"])],
+              "owner": self.config["uvn_owners"][i % len(self.config["uvn_owners"])],
             }
             for i, subnet in enumerate(self.config["networks"])
           ),
@@ -175,7 +172,7 @@ class BasicExperiment(Experiment):
             {
               "name": f"relay{i+1}",
               "address": f"relay{i+1}.{self.config['public_net']}",
-              "owner": self.config["uvn_owners"][i%len(self.config["uvn_owners"])],
+              "owner": self.config["uvn_owners"][i % len(self.config["uvn_owners"])],
             }
             for i in range(self.config["relays_count"])
           ),
@@ -183,7 +180,7 @@ class BasicExperiment(Experiment):
         "particles": [
           {
             "name": f"particle{i+1}",
-            "owner": self.config["uvn_owners"][i%len(self.config["uvn_owners"])],
+            "owner": self.config["uvn_owners"][i % len(self.config["uvn_owners"])],
           }
           for i in range(self.config["particles_count"])
         ],
@@ -253,6 +250,4 @@ class BasicExperiment(Experiment):
     if self.config["registry_host"]:
       hostname, netname = self.config["registry_host"].split(".")
       net = next(n for n in self.networks if n.name == netname)
-      registry_h = net.define_registry(
-        hostname=hostname, address=self.config["registry_host_address"]
-      )
+      _ = net.define_registry(hostname=hostname, address=self.config["registry_host_address"])

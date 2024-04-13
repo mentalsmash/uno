@@ -21,6 +21,29 @@ services:
         DEV: y
         UNO_MIDDLEWARE: uno_middleware_connext
         BASE_IMAGE: ubuntu:22.04
+  uno-arm64:
+    build:
+      context: .
+      dockerfile: docker/Dockerfile
+      tags:
+        - mentalsmash/uno:dev-arm64
+      platforms:
+        - linux/arm64
+      args:
+        UNO_MIDDLEWARE: uno_middleware_connext
+        BASE_IMAGE: ubuntu:22.04
+  test-runner-arm64:
+    build:
+      context: .
+      dockerfile: docker/Dockerfile
+      tags:
+        - mentalsmash/uno-test-runner:latest-arm64
+      platforms:
+        - linux/arm64
+      args:
+        DEV: y
+        UNO_MIDDLEWARE: uno_middleware_connext
+        BASE_IMAGE: ubuntu:22.04
   #############################################################################
   # uno (default) edge images
   #############################################################################

@@ -58,8 +58,10 @@ class Cell(Versioned, OwnableDatabaseObject, DatabaseObjectOwner):
   DB_IMPORT_DROPS_EXISTING = True
 
   INITIAL_EXCLUDED = False
+
   # INITIAL_SETTINGS = lambda self: self.new_child(CellSettings)
-  INITIAL_ALLOWED_LANS = lambda self: set()
+  def INITIAL_ALLOWED_LANS(self) -> set:
+    return set()
 
   def load_nested(self) -> None:
     if self.settings is None:

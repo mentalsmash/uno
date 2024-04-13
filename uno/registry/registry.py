@@ -18,6 +18,7 @@ from pathlib import Path
 from typing import Iterable, Generator
 from functools import cached_property
 import hashlib
+import pprint
 
 from ..core.ask import ask_yes_no
 from ..core.time import Timestamp
@@ -105,8 +106,12 @@ class Registry(Versioned):
     "agent_configs",
     # "strategy",
   ]
-  INITIAL_RTI_LICENSE = lambda self: self.root / "rti_license.dat"
-  INITIAL_CONFIG_ID = lambda self: self.generate_config_id()
+
+  def INITIAL_RTI_LICENSE(self) -> Path:
+    return self.root / "rti_license.dat"
+
+  def INITIAL_CONFIG_ID(self) -> str:
+    return self.generate_config_id()
 
   DB_TABLE = "registry"
   DB_TABLE_PROPERTIES = [
@@ -420,14 +425,14 @@ class Registry(Versioned):
     if uvn_config:
       self.uvn.configure(**uvn_config)
     for cfg in uvn_spec.get("users", []):
-      user = self.add_user(email=cfg["email"], password=cfg["password"], **cfg.get("config", {}))
+      _ = self.add_user(email=cfg["email"], password=cfg["password"], **cfg.get("config", {}))
     # Save changes at this point so we can look up users from the database
     self.db.save(self)
     for cfg in uvn_spec.get("cells", []):
       owner = cfg.get("owner")
       if owner:
         owner = self.load_user(owner)
-      cell = self.add_cell(
+      _ = self.add_cell(
         name=cfg["name"],
         owner=owner,
         address=cfg.get("address"),
@@ -438,7 +443,7 @@ class Registry(Versioned):
       owner = cfg.get("owner")
       if owner:
         owner = self.load_user(owner)
-      particle = self.add_particle(name=cfg["name"], owner=owner, **cfg.get("config", {}))
+      _ = self.add_particle(name=cfg["name"], owner=owner, **cfg.get("config", {}))
 
   @disabled_if("readonly", error=True)
   def add_cell(self, name: str, owner: User | None = None, **cell_config) -> Cell:
@@ -741,11 +746,7 @@ class Registry(Versioned):
   @disabled_if("readonly")
   def generate_artifacts(self, force: bool = False) -> bool:
     def _print_changes(cur: Versioned, changed_elements_vals: dict, depth: int = 0) -> None:
-      import pprint
-
       indent = "  " * depth
-      # changed_elements = set(changed_elements_vals.keys())
-      logger = self.log.info if depth == 0 else self.log.activity
       if len(changed_elements_vals) > 0:
         if depth == 0:
           self.log.info("{}{}: {} changed elements", indent, cur, len(changed_elements_vals))
@@ -759,16 +760,10 @@ class Registry(Versioned):
             "*" if ch.dirty else "",
             "^" if not ch.saved else "",
             len(ch.changed_properties),
-            # ", ".join(sorted(ch.changed_properties)),
             pprint.pformat(ch.changed_properties),
             len(nested_changes),
-            # ", ".join(repr(o) for o in nested_changes)
             pprint.pformat(list(nested_changes)),
           )
-
-          # for o in nested_changes:
-          #   _print_changes(o, nested_changes, depth+1)
-        # _log_changed(changed_elements_vals)
       else:
         self.log.info("{}{}: nothing changed", indent, self)
 
@@ -1021,7 +1016,7 @@ class Registry(Versioned):
         for particle_archive in [Packager.particle_archive_file(particle)]
       ),
     ]
-    uploaded = storage.upload(archives)
+    _ = storage.upload(archives)
 
   @classmethod
   def import_cell_package_from_cloud(

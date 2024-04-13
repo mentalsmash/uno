@@ -128,9 +128,9 @@ if __name__ == "__main__":
         if args.dry_run:
           print(f'would delete {v["id"]}')
         else:
-        #   r = s.delete
+          #   r = s.delete
           print(
             'https://api.github.com/user/packages/' f'container/{args.container}/versions/{v["id"]}'
           )
-        #   r.raise_for_status()
+          #   r.raise_for_status()
           print(f'deleted {v["id"]}')

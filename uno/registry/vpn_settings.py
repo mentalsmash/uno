@@ -50,7 +50,10 @@ class VpnSettings(Versioned):
     "tunnel",
     "keepalive",
   ]
-  INITIAL_ALLOWED_IPS = lambda self: set()
+
+  def INITIAL_ALLOWED_IPS(self) -> set:
+    return set()
+
   INITIAL_MASQUERADE = False
   INITIAL_FORWARD = False
   INITIAL_TUNNEL = False

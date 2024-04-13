@@ -162,9 +162,9 @@ class UvnPeersList(Versioned):
     if self.local.status != UvnPeerStatus.ONLINE:
       self.log.trace("notification disabled by !ONLINE: {}", event)
       return
-    for l in self.listeners:
-      self.log.trace("notifying listener: {} -> {}", event, l)
-      getattr(l, f"on_event_{event.name.lower()}")(*args)
+    for listener in self.listeners:
+      self.log.trace("notifying listener: {} -> {}", event, listener)
+      getattr(listener, f"on_event_{event.name.lower()}")(*args)
 
   @property
   def agent(self) -> "Agent":
@@ -282,12 +282,12 @@ class UvnPeersList(Versioned):
 
   @property
   def fully_routed_cells(self) -> Generator[UvnPeer, None, None]:
-    expected_subnets = {l for c in self.uvn.cells.values() for l in c.allowed_lans}
+    expected_subnets = {lan for c in self.uvn.cells.values() for lan in c.allowed_lans}
     if not expected_subnets:
       return
 
     for c in self.cells:
-      c_reachable = {l.lan.nic.subnet for l in c.reachable_networks}
+      c_reachable = {status.lan.nic.subnet for status in c.reachable_networks}
       if expected_subnets and (
         len(c_reachable) < len(expected_subnets)
         or (expected_subnets & c_reachable) != expected_subnets
@@ -445,8 +445,8 @@ class UvnPeersList(Versioned):
       for c, prev_vals in changed
       if isinstance(c, UvnPeer) and not c.registry and "routed_networks" in prev_vals
     }
-    prev_routed = {(c, l) for c, routed in changed_routed.items() for l in routed}
-    current_routed = {(c, l) for c in changed_routed for l in c.routed_networks}
+    prev_routed = {(c, lan) for c, routed in changed_routed.items() for lan in routed}
+    current_routed = {(c, lan) for c in changed_routed for lan in c.routed_networks}
     gone_routed = prev_routed - current_routed
     new_routed = current_routed - prev_routed
     if gone_routed or new_routed:
@@ -455,8 +455,8 @@ class UvnPeersList(Versioned):
       ###########################################################################
       # Check if we've discovered all expected networks
       ###########################################################################
-      routed_subnets = set(l.nic.subnet for c in self.cells for l in c.routed_networks)
-      expected_subnets = set(l for c in self.uvn.cells.values() for l in c.allowed_lans)
+      routed_subnets = set(lan.nic.subnet for c in self.cells for lan in c.routed_networks)
+      expected_subnets = set(lan for c in self.uvn.cells.values() for lan in c.allowed_lans)
       routed_networks_discovered = routed_subnets == expected_subnets
       if routed_networks_discovered != self.status_routed_networks_discovered:
         self.status_routed_networks_discovered = routed_networks_discovered

@@ -1,4 +1,6 @@
 name: CI
+run-name: |
+  CI test (${{inputs.uno-middleware}}, ${{inputs.base-image}}, ${{inputs.build-platform}}) ${{inputs.run-unit && '[U]' || ''}}${{inputs.run-unit && '[I]' || ''}}[${{github.ref_name}}${{github.ref_type == 'branch' && '@' || ''}}${{github.ref_type == 'branch' && github.sha || ''}}]
 
 on:
   workflow_call:
@@ -95,12 +97,22 @@ jobs:
           esac
           image_version="$(echo ${image_version} | tr / -)"
           build_id=$(date +%Y%m%d-%H%M%S)
-          test_artifact=uno-ci-${build_type}-${{ inputs.build-platform }}__${image_version}__${build_id}
+          middleware_id=$(echo ${{inputs.uno-middleware}} | sed -e 's/uno.middleware.//')
+          test_artifact=uno-ci-${build_type}-${middleware_id}-${{ inputs.build-platform }}__${image_version}__${build_id}
           test_image=${{ github.repository }}-test-runner:latest
           (
             case "${{ inputs.build-platform }}" in
               arm64)
-                printf -- "RUNNER='%s'\n" '["self-hosted", "linux", "arm64"]'
+                case "${{inputs.uno-middleware}}" in
+                  *connext*)
+                    # Force full test suite to run on "beefier" rpi5 nodes
+                    printf -- "RUNNER='%s'\n" '["self-hosted", "linux", "arm64", "rpi5"]'
+                    ;;
+                  *)
+                    # Other test suites can run on any arm64 node
+                    printf -- "RUNNER='%s'\n" '["self-hosted", "linux", "arm64"]'
+                    ;;
+                esac
                 ;;
               amd64)
                 printf -- "RUNNER='%s'\n" '"ubuntu-latest"'
@@ -130,34 +142,10 @@ jobs:
           path: src/uno-ci
         if: inputs.uno-middleware == 'uno_middleware_connext'
 
-      - name: Clone ARM support files
-        uses: actions/checkout@v4
-        with:
-          repository: mentalsmash/uno-ci-arm
-          token: ${{ secrets.UNO_CI_ARM_PAT }}
-          ref: master
-          path: src/uno-ci-arm
-        if: inputs.build-platform == 'arm64' && inputs.uno-middleware == 'uno_middleware_connext'
-
       - name: Set up Docker Buildx
         uses: docker/setup-buildx-action@v3
         with:
           driver-opts: network=host
-
-      - name: Configure build environment
-        run: |
-          case '${{ inputs.uno-middleware }}' in
-            uno_middleware_connext)
-              cp src/uno-ci/resource/rti/rti_license.dat rti_license.dat
-              case '${{ inputs.build-platform }}' in
-                arm64)
-                  cp src/uno-ci-arm/resource/rti/rti.connext-*-linux_*.whl \
-                     src/uno
-                  ;;
-              esac
-              ;;
-          esac
-          mkdir -p test-results
 
       - name: Build tester image
         uses: docker/build-push-action@v5
@@ -175,10 +163,11 @@ jobs:
       - name: Run unit tests
         if: inputs.run-unit
         run: |
+          mkdir -p test-results
           docker run --rm \
             -v $(pwd):/workspace \
             -w /workspace \
-            -e RTI_LICENSE_FILE=/workspace/rti_license.dat \
+            -v $(pwd)/src/uno-ci/resource/rti/rti_license.dat:/rti_license.dat \
             -e LOG_LEVEL=activity \
             -e DEBUG=y \
             ${{ needs.config.outputs.TEST_IMAGE }} \
@@ -204,12 +193,6 @@ jobs:
             uno.middleware.native)
               ;;
             *)
-              # Check if there is a valid rti.connext wheel for this system
-              for rti_whl in $(find src/uno-ci-arm/resource/rti -mindepth 1 -maxdepth 1 -name "rti.connext*$(uname -m).whl" | sort); do
-                if pip3 install -U ${rti_whl}; then
-                  break
-                fi
-              done
               pip3 install -U -e src/uno/plugins/${{ inputs.uno-middleware }}
               ;;
           esac
@@ -217,11 +200,12 @@ jobs:
       - name: Run integration tests
         if: inputs.run-integration
         run: |
+          mkdir -p test-results
           . venv/bin/activate
           pytest -s -v --junit-xml=test-results/uno-test-results-integration-${{ needs.config.outputs.BUILD_ID }}.xml \
             src/uno/test/integration
         env:
-          RTI_LICENSE_FILE: ${{ github.workspace }}/rti_license.dat
+          RTI_LICENSE_FILE: ${{ github.workspace }}/src/uno-ci/resource/rti/rti_license.dat
           DEBUG: y
           LOG_LEVEL: activity
           UNO_MIDDLEWARE: ${{ inputs.uno-middleware }}

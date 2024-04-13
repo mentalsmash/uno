@@ -35,27 +35,6 @@ jobs:
           path: src/uno
           submodules: true
 
-      - name: Clone ARM support files
-        uses: actions/checkout@v4
-        with:
-          repository: mentalsmash/uno-ci-arm
-          token: ${{ secrets.UNO_CI_ARM_PAT }}
-          ref: master
-          path: src/uno-ci-arm
-        if: inputs.uno-middleware == 'uno_middleware_connext'
-
-      - name: Configure build
-        id: config
-        run: |
-          # Configure ARM support
-          case '${{ inputs.uno-middleware }}' in
-            uno_middleware_connext)
-              # Copy available wheels, the right one will be picked up by the Dockerfile
-              cp src/uno-ci-arm/resource/rti/rti.connext-*-linux_*.whl \
-                 src/uno
-              ;;
-          esac
-
       - name: Set up QEMU
         uses: docker/setup-qemu-action@v3
 

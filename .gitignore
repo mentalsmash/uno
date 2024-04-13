@@ -19,3 +19,6 @@ uvn.networks
 uno.db
 .pytest_cache
 .ruff_cache
+venv
+.venv
+poetry.lock

@@ -25,9 +25,8 @@ class StaticDeploymentStrategy(DeploymentStrategy):
   PROPERTIES = ["static_deployment"]
   # RO_PROPERTIES = ["static_deployment"]
 
-  INITIAL_STATIC_DEPLOYMENT = lambda self: tuple(
-    (p, tuple(peers)) for p, peers in self.args.get("peers_map", [])
-  )
+  def INITIAL_STATIC_DEPLOYMENT(self) -> tuple:
+    return tuple((p, tuple(peers)) for p, peers in self.args.get("peers_map", []))
 
   def _generate_deployment(
     self,

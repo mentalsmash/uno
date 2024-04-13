@@ -80,7 +80,7 @@ jobs:
     strategy:
       matrix:
         build-platform: [amd64, arm64]
-        base-image: [ubuntu:22.04]
+        base-image: ["ubuntu:22.04"]
         uno-middleware: [uno_middleware_connext, uno.middleware.native]
         exclude:
           - build-platform: amd64
