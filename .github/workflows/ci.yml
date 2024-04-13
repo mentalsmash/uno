@@ -144,7 +144,7 @@ jobs:
             uno.middleware.native)
               ;;
             *)
-              pip3 install -U -e src/uno/plugins/${{ inputs.uno-middleware }}
+              pip3 install -U -e plugins/${{ inputs.uno-middleware }}
               ;;
           esac
 
