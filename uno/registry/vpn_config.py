@@ -50,8 +50,11 @@ class CentralizedVpnConfig(Versioned):
     "settings",
     "keymat",
   ]
-  INITIAL_PEER_IDS = lambda self: {}
-  INITIAL_PEER_ENDPOINTS = lambda self: {}
+  def INITIAL_PEER_IDS(self) -> dict:
+    return {}
+
+  def INITIAL_PEER_ENDPOINTS(self) -> dict:
+    return {}
 
   def prepare_root_config(self, val: str | dict | WireGuardConfig) -> WireGuardConfig:
     return self.new_child(WireGuardConfig, val)
@@ -182,8 +185,11 @@ class P2pVpnConfig(Versioned):
     "keymat",
     "deployment",
   ]
-  INITIAL_PEER_IDS = lambda self: []
-  INITIAL_PEER_ENDPOINTS = lambda self: {}
+  def INITIAL_PEER_IDS(self) -> list:
+    return []
+
+  def INITIAL_PEER_ENDPOINTS(self) -> dict:
+    return {}
 
   def __init__(self, **properties) -> None:
     super().__init__(**properties)
@@ -331,7 +337,7 @@ class UvnVpnConfig(Versioned):
     self.uvn.settings.backbone_vpn.allowed_ips = sorted(
       {
         *self.uvn.settings.backbone_vpn.allowed_ips,
-        *[str(l) for c in self.uvn.cells.values() for l in c.allowed_lans],
+        *[str(lan) for c in self.uvn.cells.values() for lan in c.allowed_lans],
       }
     )
     cells = sorted(self.uvn.cells.values(), key=lambda v: v.id)

@@ -63,9 +63,9 @@ class UvnPeersTester(AgentService, Triggerrable):
       status.lan.nic.subnet for status in self.agent.peers.local.reachable_networks
     ]
     return [
-      (l, reachable)
-      for l in self.agent.peers[peer_id].routed_networks
-      for reachable in [True if l.nic.subnet in reachable_subnets else False]
+      (lan, reachable)
+      for lan in self.agent.peers[peer_id].routed_networks
+      for reachable in [True if lan.nic.subnet in reachable_subnets else False]
     ]
 
   def _start(self) -> None:
@@ -97,7 +97,7 @@ class UvnPeersTester(AgentService, Triggerrable):
           unreachable.append((peer, lan))
 
     self._last_result = dict(
-      (*((l, True) for p, l in reachable), *((l, False) for p, l in unreachable))
+      (*((lan, True) for p, lan in reachable), *((lan, False) for p, lan in unreachable))
     )
 
     self.updated_condition.trigger_value = True

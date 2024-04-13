@@ -76,10 +76,17 @@ class DdsKeysBackend(KeysBackend):
       id=CertificateSubject(org=self.org, cn="Permissions Certificate Authority"),
     )
 
-  INITIAL_KEYS_DIR = lambda self: self.root / "private"
-  INITIAL_CERTS_DIR = lambda self: self.root / "public"
-  INITIAL_PERMISSIONS_DIR = lambda self: self.root / "permissions"
-  INITIAL_GOVERNANCE = lambda self: self.root / "governance.xml.p7s"
+  def INITIAL_KEYS_DIR(self) -> Path:
+    return self.root / "private"
+
+  def INITIAL_CERTS_DIR(self) -> Path:
+    return self.root / "public"
+
+  def INITIAL_PERMISSIONS_DIR(self) -> Path:
+    return self.root / "permissions"
+
+  def INITIAL_GOVERNANCE(self) -> Path:
+    return self.root / "governance.xml.p7s"
 
   @property
   def not_before(self) -> str:

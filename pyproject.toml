@@ -64,5 +64,5 @@ line-length = 100
 indent-width = 2
 target-version = "py39"
 
-[tool.ruff.lint]
-ignore = ["E741"]
+# [tool.ruff.lint]
+# ignore = ["E741"]

@@ -295,7 +295,7 @@ def ipv4_list_routes(oneline=True, resolve=True, split=True) -> set[str]:
   result = exec_command(cmd, fail_msg="failed to list routes", capture_output=True)
   results = result.stdout.decode("utf-8")
   if split:
-    results = frozenset(l for l in results.splitlines() if l)
+    results = frozenset(line for line in results.splitlines() if line)
   return results
 
 

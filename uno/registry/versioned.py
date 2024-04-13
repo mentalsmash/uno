@@ -114,11 +114,15 @@ def disabled_if(
   neg: bool = False,
 ):
   if isinstance(condition, str):
-    check_condition = lambda self, *a, **kw: getattr(self, condition)
+    def check_condition(self, *a, **kw) -> bool:
+      return getattr(self, condition)
   else:
-    check_condition = lambda self, *a, **kw: condition(self, *a, **kw)
+    def check_condition(self, *a, **kw) -> bool:
+      return condition(self, *a, **kw)
   if isinstance(dispatch, str):
-    dispatch_other = lambda self, *a, **kw: getattr(self, dispatch)(*a, **kw)
+    def _dispatch_method(self, *a, **kw) -> object:
+      return getattr(self, dispatch)(*a, **kw)
+    dispatch_other = _dispatch_method
   elif dispatch is not None:
     dispatch_other = dispatch
   else:
@@ -150,9 +154,11 @@ def error_if(condition: str | Predicate, neg: bool = False):
 
 def static_if(condition: str | Predicate, retval: object | type | Callable[[], object]):
   if isinstance(retval, type) or callable(retval):
-    dispatch = lambda self, *a, **kw: retval()
+    def dispatch(self, *a, **kw) -> object:
+      return retval()
   else:
-    dispatch = lambda self, *a, **kw: retval
+    def dispatch(self, *a, **kw) -> object:
+      return retval
   return disabled_if(condition, dispatch=dispatch)
 
 
@@ -534,8 +540,11 @@ class Versioned(DatabaseObject):
   RO_PROPERTIES = []
 
   INITIAL_READONLY = False
-  INITIAL_INIT_TS = lambda self: Timestamp.now()
-  INITIAL_GENERATION_TS = lambda self: Timestamp.now()
+  def INITIAL_INIT_TS(self) -> Timestamp:
+    return Timestamp.now()
+
+  def INITIAL_GENERATION_TS(self) -> Timestamp:
+    return Timestamp.now()
 
   DB_TABLE_PROPERTIES = [
     "id",
@@ -930,7 +939,9 @@ class Versioned(DatabaseObject):
     force: bool = False,
   ) -> Iterable[object]:
     if not load_child:
-      load_child = lambda cls, child: cls(child)
+      def _load_child(cls, child):
+        return cls(child)
+      load_child = _load_child
     if not val:
       return collection_cls()
     if isinstance(val, str):
@@ -975,7 +986,9 @@ def prepare_collection(
   mkelement: Callable[[object], object] | None = None,
 ) -> "Iterable[Versioned]":
   if elements_cls and hasattr(elements_cls, "deserialize_args"):
-    deserializer = lambda v: db.deserialize(elements_cls, v)[0]
+    def _deserializer(v):
+      return db.deserialize(elements_cls, v)[0]
+    deserializer = _deserializer
   elif mkelement:
     deserializer = mkelement
   elif elements_cls:

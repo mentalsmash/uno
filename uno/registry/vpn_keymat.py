@@ -57,8 +57,11 @@ class VpnKeysMap(Versioned, PairedValuesMap):
   ]
   KEYS: WireGuardKeyPair | WireGuardKeyPair | None = None
   INITIAL_PREFER_DROPPED = False
-  INITIAL_DROPPED = lambda self: {}
-  INITIAL_DELETED = lambda self: {}
+  def INITIAL_DROPPED(self) -> dict:
+    return {}
+
+  def INITIAL_DELETED(self) -> dict:
+    return {}
 
   def __init__(self, db: "Database", **kwargs) -> None:
     super().__init__(db=db, **kwargs)
@@ -357,8 +360,11 @@ class CentralizedVpnKeyMaterial(Versioned):
 
   INITIAL_READONLY = False
   INITIAL_PREFER_DROPPED = False
-  INITIAL_DROPPED = lambda self: set()
-  INITIAL_DELETED = lambda self: set()
+  def INITIAL_DROPPED(self) -> set:
+    return set()
+
+  def INITIAL_DELETED(self) -> set:
+    return set()
 
   @inject_db_cursor
   def load_root_key(self, cursor: "Database.Cursor") -> WireGuardKeyPair | None:

@@ -14,7 +14,7 @@
 # You should have received a copy of the GNU Affero General Public License
 # along with this program. If not, see <https://www.gnu.org/licenses/>.
 ###############################################################################
-from typing import Generator
+from typing import Generator, Callable
 from pathlib import Path
 from functools import cached_property
 
@@ -110,8 +110,6 @@ def _filter_pluralize(number: int, singular: str = "", plural: str = "s"):
   else:
     return plural
 
-
-from typing import Callable
 
 OutputProcessor = Callable[[str], str]
 

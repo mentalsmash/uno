@@ -22,6 +22,7 @@ import threading
 from pathlib import Path
 from collections import namedtuple
 import os
+import re
 from functools import cached_property
 
 import logging
@@ -454,7 +455,7 @@ class UvnLogger:
   def format_dir(cls, val: Path) -> str:
     try:
       return str(val.relative_to(Path.cwd())) or "."
-    except:
+    except Exception:
       return str(val)
 
 

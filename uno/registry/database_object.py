@@ -2,6 +2,7 @@ from functools import cached_property
 from typing import Generator, Callable, TYPE_CHECKING
 from functools import wraps
 from collections.abc import Iterable
+import yaml
 
 if TYPE_CHECKING:
   from .database import Database
@@ -190,10 +191,7 @@ class _OmittedValue:
     return "<omitted>"
 
 
-import yaml
-
 yaml.add_representer(_OmittedValue, lambda dumper, data: dumper.represent_none(None))
-
 
 TransactionHandler = Callable[[Callable[[], None], None], None]
 
@@ -379,7 +377,7 @@ class DatabaseObject:
   def validate(self) -> None:
     try:
       self._validate()
-    except:
+    except Exception:
       raise ValidationError(self)
 
   def _validate(self) -> None:

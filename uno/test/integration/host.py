@@ -47,7 +47,7 @@ def _read_networks_file(logger, file: Path) -> set[ipaddress.IPv4Network]:
   def _parse(line):
     try:
       return ipaddress.ip_network(line)
-    except:
+    except Exception:
       logger.error("{} invalid line: '{}'", file, line)
       return None
 
@@ -224,7 +224,7 @@ class Host:
 
   @property
   def cell_fully_routed(self) -> bool:
-    expected_lans = {l for c in self.experiment.registry.uvn.cells.values() for l in c.allowed_lans}
+    expected_lans = {lan for c in self.experiment.registry.uvn.cells.values() for lan in c.allowed_lans}
     missing_lans = expected_lans - self.cell_reachable_networks
     unexpected_lans = self.cell_reachable_networks - expected_lans
     if missing_lans:
@@ -257,7 +257,7 @@ class Host:
     def _lookup_net(netaddr: str) -> "Network|None":
       try:
         subnet = ipaddress.ip_network(netaddr)
-      except:
+      except Exception:
         return None
       return next((n for n in self.experiment.networks if n.subnet == subnet), None)
 

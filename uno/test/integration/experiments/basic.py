@@ -253,6 +253,6 @@ class BasicExperiment(Experiment):
     if self.config["registry_host"]:
       hostname, netname = self.config["registry_host"].split(".")
       net = next(n for n in self.networks if n.name == netname)
-      registry_h = net.define_registry(
+      _ = net.define_registry(
         hostname=hostname, address=self.config["registry_host_address"]
       )

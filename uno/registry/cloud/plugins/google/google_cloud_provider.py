@@ -43,7 +43,8 @@ class GoogleCloudProvider(CloudProvider):
     "credentials_file",
   ]
 
-  INITIAL_CREDENTIALS_FILE = lambda self: self.root / "credentials.json"
+  def INITIAL_CREDENTIALS_FILE(self) -> Path:
+    return self.root / "credentials.json"
 
   STORAGE = GoogleDriveCloudStorage
   EMAIL_SERVER = GmailCloudEmailServer

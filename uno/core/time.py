@@ -15,6 +15,7 @@
 # along with this program. If not, see <https://www.gnu.org/licenses/>.
 ###############################################################################
 from datetime import datetime, timezone, timedelta
+from typing import Callable
 import time
 
 from .log import UvnLogger
@@ -74,9 +75,6 @@ class Timestamp:
 _epoch = datetime.fromtimestamp(0)
 _epoch = _epoch.replace(tzinfo=timezone.utc)
 Timestamp.EPOCH = Timestamp(_epoch)
-
-
-from typing import Callable
 
 
 class Timer:
