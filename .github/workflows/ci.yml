@@ -103,7 +103,7 @@ jobs:
           test_artifact=uno-ci-${build_type}-${middleware_id}-${{ inputs.build-platform }}__${image_version}__${build_id}
           test_image=${{ github.repository }}-test-runner:latest
           base_image_tag=$(echo "${{ inputs.base-image }}" | tr : -)
-          test_base_image=mentalsmash/uno-ci-base-tester${base_image_tag}
+          test_base_image=ghcr.io/mentalsmash/uno-ci-base-tester${base_image_tag}
           (
             case "${{ inputs.build-platform }}" in
               arm64)
