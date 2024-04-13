@@ -32,7 +32,10 @@ sdnotify = "^0.3.2"
 tabulate = "^0.9.0"
 termcolor = "^2.4.0"
 
-[tool.poetry.doc-dependencies]
+[tool.poetry.group.docs]
+optional = true
+
+[tool.poetry.group.docs.dependencies]
 docutils = "^0.18.1"
 m2r = "^0.3.1"
 mistune = "^0.8.4"
@@ -42,7 +45,10 @@ sphinxcontrib-programoutput = "^0.17"
 sphinxemoji = "^0.2.0"
 sphinx-tabs = "^3.4.4"
 
-[tool.poetry.dev-dependencies]
+[tool.poetry.group.dev]
+optional = true
+
+[tool.poetry.group.dev.dependencies]
 ruff = "^0.3.7"
 pre-commit = "^3.7.0"
 
