@@ -1,5 +1,16 @@
 # uno
 
+- [Project Status](#project-status)
+- [Docker Images](#docker-images)
+  - [Stable Images](#stable-images)
+  - [Nightly Images](#nightly-images)
+- [Host Installation](#host-installation)
+  - [Middleware Setup](#middleware-setup)
+  - [UVN Setup](#uvn-setup)
+- [Docker Installation](#docker-installation)
+  - [Registry Setup](#registry-setup)
+  - [AGent Deployment](#agent-deployment)
+
 **uno** is a tool for linking multiple LANs into a single routing domain over the public Internet.
 
 LANs are interconnected by local agents deployed within them to act as gateways to
@@ -359,7 +370,10 @@ or by cloning the repository and building an image locally.
      $(id -u):$(id -g)
    ```
 
-3. Deploy a cell agent package on the target host:
+### Agent Deployment
+
+Deploy a cell agent package on the target host by mounting the package onto
+a container, along with a directory where to extract it:
 
    ```sh
    mkdir -p my-uvn/cell1

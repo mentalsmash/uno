@@ -14,7 +14,7 @@
 # You should have received a copy of the GNU Affero General Public License
 # along with this program. If not, see <https://www.gnu.org/licenses/>.
 ###############################################################################
-from typing import Generator
+from typing import Callable
 from pathlib import Path
 import pytest
 import contextlib
@@ -29,12 +29,12 @@ def load_experiment() -> Experiment:
 
 
 @pytest.fixture
-def experiment() -> Generator[Experiment, None, None]:
-  yield from Experiment.as_fixture(load_experiment)
+def experiment_loader() -> Callable[[], None]:
+  return load_experiment
 
 
 def test(
-  experiment: Experiment,
+  experiment: BasicExperiment,
   the_particles: list[Host],
   the_cells: list[Host],
   the_hosts: list[Host],
@@ -46,16 +46,27 @@ def test(
     len(the_cells),
     len(the_hosts),
   )
+
+  def _test_particle_w_cell(particle, cell):
+    with particle.particle_wg_up(cell.cell):
+      experiment.log.activity(
+        "testing particle {} with {} hosts via cell {}", particle, len(the_hosts), cell
+      )
+      ssh_client_test(experiment, ((particle, h) for h in the_hosts))
+      experiment.log.info("particle CELL OK: {} via {}", particle, cell)
+
   with contextlib.ExitStack() as stack:
     for host in the_hosts:
       stack.enter_context(host.ssh_server())
     for particle in the_particles:
+      experiment.log.info("particle tests BEGIN: {}", particle)
       for cell in the_cells:
-        with particle.particle_wg_up(cell.cell):
-          experiment.log.activity(
-            "testing particle {} with {} hosts via cell {}", particle, len(the_hosts), cell
-          )
-          ssh_client_test(experiment, ((particle, h) for h in the_hosts))
-          experiment.log.info("particle CELL OK: {} via {}", particle, cell)
-      experiment.log.info("particle OK: {}", particle)
-    experiment.log.info("particles ALL {} OK", len(the_particles))
+        experiment.log.info("particle test BEGIN: {}, {}", particle, cell)
+        if not cell.cell.enable_particles_vpn:
+          with pytest.raises(Exception):
+            _test_particle_w_cell(particle, cell)
+          continue
+        else:
+          _test_particle_w_cell(particle, cell)
+      experiment.log.info("particle test OK: {}", particle)
+    experiment.log.info("particle tests ALL {} OK", len(the_particles))

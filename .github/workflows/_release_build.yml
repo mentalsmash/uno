@@ -35,6 +35,19 @@ jobs:
           path: src/uno
           submodules: true
 
+      - name: Install poetry
+        uses: abatilo/actions-poetry@v2
+
+      - name: Validate code
+        run: |
+          . src/uno/.venv/bin/activate
+          ruff check
+
+      - name: Validate code format
+        run: |
+          . src/uno/.venv/bin/activate
+          ruff format --check
+
       - name: Set up QEMU
         uses: docker/setup-qemu-action@v3
 

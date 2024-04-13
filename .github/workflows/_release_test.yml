@@ -142,7 +142,7 @@ jobs:
             -v $(pwd):/workspace \
             -w /workspace \
             -e RTI_LICENSE_FILE=/workspace/rti_license.dat \
-            -e LOG_LEVEL=activity \
+            -e VERBOSITY=activity \
             -e DEBUG=y \
             ${{ needs.test_config.outputs.TEST_IMAGE }} \
             pytest -s -v --junit-xml=test-results/uno-test-results-unit-${{ needs.test_config.outputs.TEST_ID }}.xml \
@@ -179,7 +179,7 @@ jobs:
         env:
           RTI_LICENSE_FILE: ${{ github.workspace }}/rti_license.dat
           DEBUG: y
-          LOG_LEVEL: activity
+          VERBOSITY: activity
           UNO_MIDDLEWARE: ${{ needs.test_config.outputs.UNO_MIDDLEWARE }}
 
       - name: Restore permissions changed by integration tests

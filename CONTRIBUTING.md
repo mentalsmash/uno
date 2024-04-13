@@ -126,7 +126,7 @@ ruff format
 3. Clone `uno`'s repository:
 
    ```sh
-   git clone https://github.com/mentalsmash/uno
+   git clone --recurse-submodules https://github.com/mentalsmash/uno
    ```
 
 4. Create a virtual environment with all dependencies:
@@ -160,7 +160,7 @@ ruff format
 2. Clone `uno`'s repository:
 
    ```sh
-   git clone https://github.com/mentalsmash/uno
+   git clone --recurse-submodules https://github.com/mentalsmash/uno
    ```
 
 3. Create a virtual environment:
@@ -201,6 +201,31 @@ ruff format
 which can be used to spin up a development environment using [Codespaces](https://github.com/features/codespaces),
 (and some of the free hours that most accounts receive from GitHub).
 
+### RTI Connext DDS
+
+By default, `uno` uses [RTI Connext DDS](https://www.rti.com) to implement a "synchronization databus" between
+its agents. In order to use the default middleware (`uno_middleware_connext`), a valid RTI license file must
+be provided via the `RTI_LICENSE_FILE` environment variable, or by copying into the root of a `uno` clone.
+
+[You can request a free evaluation license from RTI](https://www.rti.com/free-trial).
+
+If you don't have/don't want to get a free license from RTI, you can still use `uno` with the alternative,
+"static" middleware (`uno.middleware.native`). No agent functionality will be available, and the UVN will
+need to be reconfigured by hand.
+
+1. Once you have obtained `rti_license.dat`, copy (or symlink) it in the root of
+   the `uno/` directory, so that it will be automatically picked up by tests:
+
+   ```sh
+   ln -s /path/to/rti_license.data .
+   ```
+
+2. Install `uno_middleware_connext`:
+
+   ```sh
+   pip install -e plugins/uno_middleware_connext
+   ```
+
 ### Testing
 
 #### Local Testing
@@ -221,7 +246,7 @@ The image also supports mounting the local copy of the `uno` package for testing
 2. Use it to run the unit tests without having to install `uno`'s system dependencies
 
    ```sh
-   docker run --rm -v $(pwd)/uno:/uno -w /uno \
+   docker run --rm -v $(pwd):/uno -w /uno \
      mentalsmash/uno-test-runner:latest \
      pytest -s -v test/unit
    ```
@@ -229,7 +254,24 @@ The image also supports mounting the local copy of the `uno` package for testing
 3. Use it (implicitly) to run the integration tests:
 
    ```sh
-   pytest -s -v test/integration
+   DEV=y pytest -s -v test/integration
+   ```
+
+   The `DEV` variable tells the integration test framework to mount the `uno` package from the host
+   to test changes made to it after building the image.
+   If unspecified, the image will use the version of `uno` installed during build.
+
+   For increased logging verbosity try:
+
+   ```sh
+   VERBOSITY=debug DEBUG=y DEV=y pytest -s -v test/integration
+   ```
+
+   To persist the test directories created by each experiment
+   after the tester terminates:
+
+   ```sh
+   TEST_DIR=/tmp/uno-test DEV=y pytest -s -v test/integration
    ```
 
 4. You can also build a test "release" image (`mentalsmash/uno:dev`) with:

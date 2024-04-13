@@ -18,6 +18,7 @@ import os
 import subprocess
 from pathlib import Path
 from typing import Sequence, Union
+import sys
 
 from .log import Logger
 
@@ -35,6 +36,10 @@ def shell_which(command: str) -> Path | None:
   return Path(cmd_path)
 
 
+def _debug_log(fmt: str, *args):
+  return print(fmt.format(*args), file=sys.stderr)
+
+
 def exec_command(
   cmd_args: Sequence[Union[str, Path]],
   fail_msg: str | None = None,
@@ -50,6 +55,7 @@ def exec_command(
     cmd_args = ["sudo", *cmd_args]
 
   debug = debug or log.DEBUG
+  logger = log.trace if not debug else _debug_log
 
   run_args = {
     "shell": shell,
@@ -57,9 +63,9 @@ def exec_command(
 
   if cwd is not None:
     run_args["cwd"] = cwd
-    log.trace("cd {}", cwd)
+    logger("+ cd {}", cwd)
 
-  log.trace(" ".join(["{}"] * len(cmd_args)), *cmd_args)
+  logger("+ " + " ".join(["{}"] * len(cmd_args)), *cmd_args)
 
   try:
     if output_file is not None:
@@ -69,8 +75,6 @@ def exec_command(
           cmd_args, stdout=outfile, stderr=outfile, check=not noexcept, **run_args
         )
     else:
-      import sys
-
       if capture_output:
         stdout = subprocess.PIPE
         stderr = subprocess.PIPE

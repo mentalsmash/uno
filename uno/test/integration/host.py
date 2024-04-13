@@ -70,7 +70,9 @@ class Host:
     default_network: "Network",
     role: HostRole,
     upstream_network: "Network|None" = None,
+    cell: Cell | None = None,
     cell_package: Path | None = None,
+    particle: Particle | None = None,
     particle_package: Path | None = None,
     image: str | None = None,
     port_forward: "dict[tuple[Network, int], Host]|None" = None,
@@ -84,10 +86,14 @@ class Host:
     self.upstream_network = upstream_network
     assert self.upstream_network is None or upstream_network in self.networks
     self.role = role
+    self.cell = cell
     self.cell_package = cell_package.resolve() if cell_package else None
-    assert self.role != HostRole.CELL or self.cell_package is not None
+    assert self.role != HostRole.CELL or (self.cell_package is not None and self.cell is not None)
+    self.particle = particle
     self.particle_package = particle_package.resolve() if particle_package else None
-    assert self.role != HostRole.PARTICLE or self.particle_package is not None
+    assert self.role != HostRole.PARTICLE or (
+      self.particle_package is not None and self.particle is not None
+    )
     self.image = image or self.experiment.config["image"]
     self.port_forward = dict(port_forward or {})
     self.log = Logger.sublogger(self.container_name)
@@ -276,11 +282,31 @@ class Host:
 
   @property
   def local_router_ready(self) -> bool:
-    # self.log.warning("local networks: {}", self.locally_routed_networks)
-    # self.log.warning("  uvn networks: {}", self.experiment.uvn_networks)
-    return (
+    ready = (
       self.locally_routed_networks & self.experiment.uvn_networks
     ) == self.experiment.uvn_networks
+    self.log.debug("   uvn networks: {}", self.experiment.uvn_networks)
+    self.log.debug("routed networks: {}", self.locally_routed_networks)
+    self.log.debug("   router ready: {}", ready)
+    return ready
+
+  def log_configuration(self) -> None:
+    self.log.info("host configuration:")
+    self.log.info("- hostname: {}", self.hostname)
+    self.log.info("- container_name: {}", self.container_name)
+    self.log.info("- networks [{}]:", len(self.networks))
+    for net, addr in self.networks.items():
+      self.log.info("  - {}: {}", net, addr)
+    self.log.info("- upstream network: {}", self.upstream_network)
+    self.log.info("- role: {}", self.role)
+    self.log.info("- cell: {}", self.cell)
+    self.log.info("- cell package: {}", self.cell_package)
+    self.log.info("- particle: {}", self.particle)
+    self.log.info("- particle package: {}", self.particle_package)
+    self.log.info("- image: {}", self.image)
+    self.log.info("- port_forward [{}]:", len(self.port_forward))
+    for (net, port), host in self.port_forward.items():
+      self.log.info("  - {}:{} → {}", net, port, host)
 
   def create(self) -> None:
     # # The uno package must have been imported from a cloned repository on the host
@@ -338,7 +364,8 @@ class Host:
           if self.experiment.Dev
           else []
         ),
-        *(["-e", f"LOG_LEVEL={self.log.LevelEnv}"] if self.log.LevelEnv else []),
+        *(["-e", f"VERBOSITY={self.log.LevelEnv}"] if self.log.LevelEnv else []),
+        *(["-e", "DEBUG=y"] if self.log.DEBUG else []),
         self.image,
         "/uno/uno/test/integration/runner.py",
         "host",
@@ -362,14 +389,30 @@ class Host:
       )
 
   def start(self, wait: bool = False) -> subprocess.Popen:
-    self.log.warning("starting container")
+    self.log.info("starting container")
     result = subprocess.Popen(["docker", "start", self.container_name])
     if wait:
       self.wait_ready()
       self.log.activity("started")
     return result
 
+  def print_logs(self, output_file: Path | None = None) -> None:
+    if self.log.DEBUG:
+      import sys
+
+      print("{} {} [host logs] {}".format("=" * 20, self.container_name, "=" * 20), file=sys.stderr)
+      exec_command(["docker", "logs", self.container_name])
+      print(
+        "{} //{} [host logs] {}".format("=" * 19, self.container_name, "=" * 19), file=sys.stderr
+      )
+    if output_file is None:
+      output_file = self.test_dir / "container.log"
+    exec_command(["docker", "logs", self.container_name], output_file=output_file)
+    self.log.debug("generated host logs: {}", output_file)
+
   def stop(self) -> subprocess.Popen:
+    if self.log.DEBUG:
+      self.print_logs()
     self.log.debug("stopping container")
     return subprocess.Popen(
       [
@@ -563,8 +606,8 @@ class Host:
 
     # Add static routes for UVN networks via the router's default network's public agent
     # Add also a static route for the backbone vpn and root vpn addresses
-    if self.default_network.public_agent:
-      agent_addr = self.default_network.public_agent.networks[self.default_network]
+    if self.default_network.designated_agent:
+      agent_addr = self.default_network.designated_agent.networks[self.default_network]
       other_cell_networks = [
         lan
         for cell in self.experiment.registry.uvn.cells.values()
@@ -661,11 +704,15 @@ class Host:
 
   @contextlib.contextmanager
   def _uno_service_up(self) -> Generator["Host", None, None]:
+    self.log.activity("starting uno services")
     self.uno("service", "up")
+    self.log.info("started uno services")
     try:
       yield self
     finally:
+      self.log.activity("stopping uno services")
       self.uno("service", "down")
+      self.log.info("stopped uno services")
 
   def _run_host(self) -> None:
     self._run_forever()

@@ -14,7 +14,7 @@
 # You should have received a copy of the GNU Affero General Public License
 # along with this program. If not, see <https://www.gnu.org/licenses/>.
 ###############################################################################
-from typing import Generator
+from typing import Callable
 from pathlib import Path
 import pytest
 import subprocess
@@ -28,23 +28,20 @@ def load_experiment() -> Experiment:
 
 
 @pytest.fixture
-def experiment() -> Generator[Experiment, None, None]:
-  yield from Experiment.as_fixture(load_experiment)
+def experiment_loader() -> Callable[[], None]:
+  return load_experiment
 
 
 @agent_test
-def test_httpd(
-  experiment: Experiment,
-  the_hosts: list[Host],
-  the_fully_routed_agents: dict[Host, subprocess.Popen],
+def test_redeploy_default(
+  experiment: Experiment, the_registry: Host, the_agents: dict[Host, subprocess.Popen]
 ):
-  agents = list(the_fully_routed_agents)
-  # Try to connect to the httpd server of the agents
-  experiment.log.activity(
-    "testing HTTPD server of {} agent from {} hosts: {}", len(agents), len(the_hosts), agents
-  )
-  for host in the_hosts:
-    for agent in agents:
-      if not agent.cell_addresses:
-        continue
-      host.agent_httpd_test(agent)
+  """Generate, and push a new deployment, using the default deployment strategy.
+  Verify that the UVN regain consistency afterwards."""
+  the_registry.uno("redeploy")
+  the_registry.uno("service", "down")
+  the_registry.uno("sync", "--max-wait-time", "300")
+  # TODO(asorbini) investigate why the following test
+  # fails sometimes on ARM
+  for agent in the_agents.keys():
+    assert agent.cell_fully_routed

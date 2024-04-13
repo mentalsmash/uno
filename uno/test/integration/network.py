@@ -19,7 +19,8 @@ from pathlib import Path
 import ipaddress
 
 from uno.core.exec import exec_command
-from uno.registry.uvn import Uvn
+from uno.registry.cell import Cell
+from uno.registry.particle import Particle
 
 from .host import Host
 from .host_role import HostRole
@@ -34,12 +35,18 @@ class Network:
     experiment: "Experiment",
     name: str,
     subnet: ipaddress.IPv4Network,
-    masquerade: bool = False,
+    i: int,
+    private_lan: bool = False,
+    transit_wan: bool = False,
+    masquerade_docker: bool = False,
   ) -> None:
     self.experiment = experiment
     self.name = name
     self.subnet = subnet
-    self.masquerade = masquerade
+    self.i = i
+    self.private_lan = private_lan
+    self.transit_wan = transit_wan
+    self.masquerade_docker = masquerade_docker
     self.hosts: list[Host] = []
     self.agents: list[Host] = []
     self.public_agent: Host | None = None
@@ -47,6 +54,7 @@ class Network:
     self.registry: Host | None = None
     self.particles: list[Host] = []
     self.addresses = []
+    self.log = self.experiment.log.sublogger(self.name)
 
   def __str__(self) -> str:
     return f"Network({self.name})"
@@ -99,6 +107,12 @@ class Network:
       return self.router.default_address
     return self.default_router
 
+  @property
+  def designated_agent(self) -> Host | None:
+    if self.public_agent is not None:
+      return self.public_agent
+    return next(iter(self.agents), None)
+
   def allocate_address(self) -> ipaddress.IPv4Address:
     next_i = len(self.addresses) + 1
     addr = self.subnet.network_address + 1 + next_i
@@ -117,7 +131,7 @@ class Network:
         "bridge",
         f"--subnet={self.subnet}",
         "-o",
-        f"com.docker.network.bridge.enable_ip_masquerade={'true' if self.masquerade else 'false'}",
+        f"com.docker.network.bridge.enable_ip_masquerade={'true' if self.masquerade_docker else 'false'}",
         "-o",
         f"com.docker.network.bridge.name=br_{self.name}",
         self.name,
@@ -143,7 +157,7 @@ class Network:
     self.router = Host(
       experiment=self.experiment,
       hostname="router",
-      container_name=f"{self.experiment.name}-router.{self.name}",
+      container_name=f"{self.experiment.name}-{self.name}-router",
       networks=networks,
       default_network=self,
       upstream_network=upstream_network,
@@ -182,12 +196,13 @@ class Network:
   def define_agent(
     self,
     address: ipaddress.IPv4Address,
+    cell: Cell,
     cell_package: Path,
     hostname: str | None = None,
     container_name: str | None = None,
     adjacent_networks: dict["Network", ipaddress.IPv4Address] | None = None,
     public: bool = True,
-    uvn: Uvn | None = None,
+    agent_ports: list[int] | None = None,
     **host_args,
   ) -> "Host":
     assert address in self.subnet
@@ -208,6 +223,7 @@ class Network:
       networks=networks,
       default_network=self,
       role=HostRole.CELL,
+      cell=cell,
       cell_package=cell_package,
       **host_args,
     )
@@ -215,10 +231,11 @@ class Network:
       assert self.router is not None
       assert self.public_agent is None
       # Make sure the router forwards the necessary ports
-      self.router.port_forward.update({(self, port): agent for port in uvn.agent_ports})
       self.public_agent = agent
     else:
       self.agents.append(agent)
+    if agent_ports:
+      self.router.port_forward.update({(self, port): agent for port in agent_ports})
     self.experiment.hosts.append(agent)
     return agent
 
@@ -251,6 +268,7 @@ class Network:
   def define_particle(
     self,
     address: ipaddress.IPv4Address,
+    particle: Particle,
     particle_package: Path,
     hostname: str | None = None,
     container_name: str | None = None,
@@ -266,6 +284,7 @@ class Network:
       experiment=self.experiment,
       hostname=hostname,
       container_name=container_name,
+      particle=particle,
       particle_package=particle_package,
       networks={self: address},
       default_network=self,
@@ -275,3 +294,17 @@ class Network:
     self.particles.append(particle)
     self.experiment.hosts.append(particle)
     return particle
+
+  def log_configuration(self) -> None:
+    self.log.info("network configuration:")
+    self.log.info("- addresses [{}]: {}", len(self.addresses), self.addresses)
+    self.log.info("- agents [{}]: {}", len(self.agents), self.agents)
+    self.log.info("- hosts [{}]: {}", len(self.hosts), self.hosts)
+    self.log.info("- i: {}", self.i)
+    self.log.info("- particles [{}]: {}", len(self.particles), self.particles)
+    self.log.info("- private: {}", self.private_lan)
+    self.log.info("- public agent: {}", self.public_agent)
+    self.log.info("- registry: {}", self.registry)
+    self.log.info("- router: {}", self.router)
+    self.log.info("- subnet: {}", self.subnet)
+    self.log.info("- wan: {}", self.transit_wan)

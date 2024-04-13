@@ -8,6 +8,8 @@ services:
       dockerfile: docker/Dockerfile
       tags:
         - mentalsmash/uno:dev
+      platforms:
+      - linux/amd64
       args:
         UNO_MIDDLEWARE: uno_middleware_connext
         BASE_IMAGE: ubuntu:22.04
@@ -17,6 +19,8 @@ services:
       dockerfile: docker/Dockerfile
       tags:
         - mentalsmash/uno-test-runner:latest
+      platforms:
+      - linux/amd64
       args:
         DEV: y
         UNO_MIDDLEWARE: uno_middleware_connext

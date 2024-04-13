@@ -133,6 +133,31 @@ jobs:
           path: src/uno
           submodules: true
 
+      - name: Install poetry
+        uses: abatilo/actions-poetry@v2
+
+      - name: Install uno & (dev) dependencies
+        run: |
+          cd src/uno
+          poetry install --with=dev
+          case '${{ inputs.uno-middleware }}' in
+            uno.middleware.native)
+              ;;
+            *)
+              pip3 install -U -e src/uno/plugins/${{ inputs.uno-middleware }}
+              ;;
+          esac
+
+      - name: Validate code
+        run: |
+          . src/uno/.venv/bin/activate
+          ruff check
+
+      - name: Validate code format
+        run: |
+          . src/uno/.venv/bin/activate
+          ruff format --check
+
       - name: Clone build support files
         uses: actions/checkout@v4
         with:
@@ -168,7 +193,7 @@ jobs:
             -v $(pwd):/workspace \
             -w /workspace \
             -v $(pwd)/src/uno-ci/resource/rti/rti_license.dat:/rti_license.dat \
-            -e LOG_LEVEL=activity \
+            -e VERBOSITY=activity \
             -e DEBUG=y \
             ${{ needs.config.outputs.TEST_IMAGE }} \
             pytest -s -v --junit-xml=test-results/uno-test-results-unit-${{ needs.config.outputs.BUILD_ID }}.xml \
@@ -182,32 +207,17 @@ jobs:
             ${{ needs.config.outputs.TEST_IMAGE }} \
             fix-root-permissions $(id -u):$(id -g) /workspace
 
-      - name: Setup integration tests
-        if: inputs.run-integration
-        run: |
-          python3 -m venv venv
-          . venv/bin/activate
-          pip3 install -U pip setuptools
-          pip3 install -U -e src/uno
-          case '${{ inputs.uno-middleware }}' in
-            uno.middleware.native)
-              ;;
-            *)
-              pip3 install -U -e src/uno/plugins/${{ inputs.uno-middleware }}
-              ;;
-          esac
-
       - name: Run integration tests
         if: inputs.run-integration
         run: |
           mkdir -p test-results
-          . venv/bin/activate
+          . src/uno/.venv/bin/activate
           pytest -s -v --junit-xml=test-results/uno-test-results-integration-${{ needs.config.outputs.BUILD_ID }}.xml \
             src/uno/test/integration
         env:
           RTI_LICENSE_FILE: ${{ github.workspace }}/src/uno-ci/resource/rti/rti_license.dat
           DEBUG: y
-          LOG_LEVEL: activity
+          VERBOSITY: activity
           UNO_MIDDLEWARE: ${{ inputs.uno-middleware }}
 
       - name: Restore permissions changed by integration tests

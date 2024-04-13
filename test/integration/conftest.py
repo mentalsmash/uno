@@ -16,10 +16,15 @@
 ###############################################################################
 import pytest
 import subprocess
-from typing import Generator
+from typing import Generator, Callable
 
 from uno.test.integration import Experiment, Host, HostRole, Network
 from uno.core.time import Timer
+
+
+@pytest.fixture
+def experiment(experiment_loader: Callable[[], None]) -> Generator[Experiment, None, None]:
+  yield from Experiment.as_fixture(experiment_loader)
 
 
 @pytest.fixture

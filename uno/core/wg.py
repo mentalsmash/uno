@@ -288,10 +288,10 @@ class WireGuardInterface:
   def __repr__(self) -> str:
     return f"{self.__class__.__qualname__}({self.config.intf.name})"
 
-  def start(self, noop: bool = False) -> None:
+  def start(self, noop: bool = False, root: Path | None = None) -> None:
     if not noop:
       self.create()
-      self.bring_up()
+      self.bring_up(root=root)
     else:
       self.up = True
       self.created = True
@@ -347,11 +347,14 @@ class WireGuardInterface:
     self.created = False
     self.log.activity("deleted")
 
-  def bring_up(self):
+  def bring_up(self, root: Path | None = None):
     try:
-      # Generate a temporary file with wg configuration
-      tmp_file_h = NamedTemporaryFile(prefix=f"{self.config.intf.name}-", suffix="-wgconf")
-      wg_config = Path(tmp_file_h.name)
+      if root is None:
+        # Generate a temporary file with wg configuration
+        tmp_file_h = NamedTemporaryFile(prefix=f"{self.config.intf.name}-", suffix="-wgconf")
+        wg_config = Path(tmp_file_h.name)
+      else:
+        wg_config = root / f"{self.config.intf.name}.conf"
       Templates.generate(wg_config, *self.config.template_args, mode=0o600)
     except Exception:
       raise WireGuardError(
