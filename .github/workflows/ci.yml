@@ -97,7 +97,8 @@ jobs:
           esac
           image_version="$(echo ${image_version} | tr / -)"
           build_id=$(date +%Y%m%d-%H%M%S)
-          test_artifact=uno-ci-${build_type}-${{ inputs.build-platform }}__${image_version}__${build_id}
+          middleware_id=$(echo ${{inputs.uno-middleware}} | sed -e 's/uno.middleware.//')
+          test_artifact=uno-ci-${build_type}-${middleware_id}-${{ inputs.build-platform }}__${image_version}__${build_id}
           test_image=${{ github.repository }}-test-runner:latest
           (
             case "${{ inputs.build-platform }}" in
