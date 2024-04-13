@@ -138,13 +138,14 @@ jobs:
           path: src/uno
           submodules: true
 
-      - name: Install poetry
-        uses: abatilo/actions-poetry@v2
-
-      - name: Install uno & (dev) dependencies
+      - name: Bootstrap uno with poetry
         run: |
+          python3 -m venv poetry-venv
+          . poetry-venv/bin/activate
+          pip3 install -U poetry
+          deactivate
           cd src/uno
-          poetry install --with=dev
+          ${GITHUB_WORKSPACE}/poetry-venv/bin/poetry install --with=dev
           . .venv/bin/activate
           case '${{ inputs.uno-middleware }}' in
             uno.middleware.native)

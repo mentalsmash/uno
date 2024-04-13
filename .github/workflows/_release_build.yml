@@ -35,8 +35,14 @@ jobs:
           path: src/uno
           submodules: true
 
-      - name: Install poetry
-        uses: abatilo/actions-poetry@v2
+      - name: Bootstrap dev dependencies with poetry
+        run: |
+          python3 -m venv poetry-venv
+          . poetry-venv/bin/activate
+          pip install -U poetry
+          deactivate
+          cd src/uno
+          ${GITHUB_WORKSPACE}/poetry-venv/bin/poetry install --with=dev
 
       - name: Validate code
         run: |
