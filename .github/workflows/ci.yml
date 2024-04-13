@@ -140,6 +140,7 @@ jobs:
         run: |
           cd src/uno
           poetry install --with=dev
+          . .venv/bin/activate
           case '${{ inputs.uno-middleware }}' in
             uno.middleware.native)
               ;;
