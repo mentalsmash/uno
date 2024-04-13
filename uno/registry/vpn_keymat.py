@@ -57,6 +57,7 @@ class VpnKeysMap(Versioned, PairedValuesMap):
   ]
   KEYS: WireGuardKeyPair | WireGuardKeyPair | None = None
   INITIAL_PREFER_DROPPED = False
+
   def INITIAL_DROPPED(self) -> dict:
     return {}
 
@@ -360,6 +361,7 @@ class CentralizedVpnKeyMaterial(Versioned):
 
   INITIAL_READONLY = False
   INITIAL_PREFER_DROPPED = False
+
   def INITIAL_DROPPED(self) -> set:
     return set()
 

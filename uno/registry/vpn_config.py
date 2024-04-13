@@ -50,6 +50,7 @@ class CentralizedVpnConfig(Versioned):
     "settings",
     "keymat",
   ]
+
   def INITIAL_PEER_IDS(self) -> dict:
     return {}
 
@@ -185,6 +186,7 @@ class P2pVpnConfig(Versioned):
     "keymat",
     "deployment",
   ]
+
   def INITIAL_PEER_IDS(self) -> list:
     return []
 

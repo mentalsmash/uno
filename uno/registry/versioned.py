@@ -114,14 +114,19 @@ def disabled_if(
   neg: bool = False,
 ):
   if isinstance(condition, str):
+
     def check_condition(self, *a, **kw) -> bool:
       return getattr(self, condition)
   else:
+
     def check_condition(self, *a, **kw) -> bool:
       return condition(self, *a, **kw)
+
   if isinstance(dispatch, str):
+
     def _dispatch_method(self, *a, **kw) -> object:
       return getattr(self, dispatch)(*a, **kw)
+
     dispatch_other = _dispatch_method
   elif dispatch is not None:
     dispatch_other = dispatch
@@ -154,11 +159,14 @@ def error_if(condition: str | Predicate, neg: bool = False):
 
 def static_if(condition: str | Predicate, retval: object | type | Callable[[], object]):
   if isinstance(retval, type) or callable(retval):
+
     def dispatch(self, *a, **kw) -> object:
       return retval()
   else:
+
     def dispatch(self, *a, **kw) -> object:
       return retval
+
   return disabled_if(condition, dispatch=dispatch)
 
 
@@ -540,6 +548,7 @@ class Versioned(DatabaseObject):
   RO_PROPERTIES = []
 
   INITIAL_READONLY = False
+
   def INITIAL_INIT_TS(self) -> Timestamp:
     return Timestamp.now()
 
@@ -939,8 +948,10 @@ class Versioned(DatabaseObject):
     force: bool = False,
   ) -> Iterable[object]:
     if not load_child:
+
       def _load_child(cls, child):
         return cls(child)
+
       load_child = _load_child
     if not val:
       return collection_cls()
@@ -986,8 +997,10 @@ def prepare_collection(
   mkelement: Callable[[object], object] | None = None,
 ) -> "Iterable[Versioned]":
   if elements_cls and hasattr(elements_cls, "deserialize_args"):
+
     def _deserializer(v):
       return db.deserialize(elements_cls, v)[0]
+
     deserializer = _deserializer
   elif mkelement:
     deserializer = mkelement

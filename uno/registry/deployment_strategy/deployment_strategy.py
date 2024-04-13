@@ -51,6 +51,7 @@ class DeploymentStrategy(Versioned):
   EQ_PROPERTIES = [
     "KIND",
   ]
+
   def INITIAL_ARGS(self) -> dict:
     return {}
 

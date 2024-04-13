@@ -58,6 +58,7 @@ class Cell(Versioned, OwnableDatabaseObject, DatabaseObjectOwner):
   DB_IMPORT_DROPS_EXISTING = True
 
   INITIAL_EXCLUDED = False
+
   # INITIAL_SETTINGS = lambda self: self.new_child(CellSettings)
   def INITIAL_ALLOWED_LANS(self) -> set:
     return set()

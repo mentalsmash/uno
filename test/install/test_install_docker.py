@@ -19,6 +19,7 @@ import tempfile
 import subprocess
 import os
 
+
 def test_install_docker():
   tmp_dir_h = tempfile.TemporaryDirectory()
   uvn_dir = Path(tmp_dir_h.name)
@@ -27,38 +28,72 @@ def test_install_docker():
   platform = os.environ.get("PLATFORM", "amd64")
   rti_license = os.environ.get("RTI_LICENSE_FILE")
   uno_image = os.environ.get("UNO_IMAGE", "mentalsmash/uno:latest")
-  
+
   try:
-    subprocess.run([
-      "docker", "run",
-      "--rm",
-      *(["--pull=always"] if force_pull else []),
-      f"--platform=linux/{platform}",
-      "-v", f"{test_dir.parent.parent}:/uno",
-      "-v", f"{uvn_dir}:/uvn",
-      "-v", f"{test_dir}/spec/basic_uvn.yaml:/uvn.yaml",
-      *(["-v", f"{Path(rti_license).resolve()}:/rti_license.dat"] if rti_license else []),
-      uno_image,
-      "uno", "define", "uvn", "my-uvn",
-        "--address", "registry.my-uvn.example.com",
-        "--owner", "Root <root@example.com>",
-        "--password", "rootspassword",
-        "--spec", "/uvn.yaml",
-        "-vv"
-    ], check=True)
-    subprocess.run([
-      "docker", "run", "--rm",
-        "-v", f"{uvn_dir}:/uvn",
-        "-v", f"{test_dir.parent.parent}:/uno",
+    subprocess.run(
+      [
+        "docker",
+        "run",
+        "--rm",
+        *(["--pull=always"] if force_pull else []),
+        f"--platform=linux/{platform}",
+        "-v",
+        f"{test_dir.parent.parent}:/uno",
+        "-v",
+        f"{uvn_dir}:/uvn",
+        "-v",
+        f"{test_dir}/spec/basic_uvn.yaml:/uvn.yaml",
+        *(["-v", f"{Path(rti_license).resolve()}:/rti_license.dat"] if rti_license else []),
+        uno_image,
+        "uno",
+        "define",
+        "uvn",
+        "my-uvn",
+        "--address",
+        "registry.my-uvn.example.com",
+        "--owner",
+        "Root <root@example.com>",
+        "--password",
+        "rootspassword",
+        "--spec",
+        "/uvn.yaml",
+        "-vv",
+      ],
+      check=True,
+    )
+    subprocess.run(
+      [
+        "docker",
+        "run",
+        "--rm",
+        "-v",
+        f"{uvn_dir}:/uvn",
+        "-v",
+        f"{test_dir.parent.parent}:/uno",
         f"--platform=linux/{platform}",
         uno_image,
-        "fix-root-permissions", f"{os.getuid()}:{os.getgid()}", "/uno"
-    ], check=True)
+        "fix-root-permissions",
+        f"{os.getuid()}:{os.getgid()}",
+        "/uno",
+      ],
+      check=True,
+    )
   finally:
-    subprocess.run([
-      "docker", "run", "--rm",
-        "-v", f"{uvn_dir}:/uvn",
-        "-v", f"{test_dir.parent.parent}:/uno",
+    subprocess.run(
+      [
+        "docker",
+        "run",
+        "--rm",
+        "-v",
+        f"{uvn_dir}:/uvn",
+        "-v",
+        f"{test_dir.parent.parent}:/uno",
         "ubuntu:latest",
-        "chown", "-R", f"{os.getuid()}:{os.getgid()}", "/uvn", "/uno"
-    ], check=True)
+        "chown",
+        "-R",
+        f"{os.getuid()}:{os.getgid()}",
+        "/uvn",
+        "/uno",
+      ],
+      check=True,
+    )

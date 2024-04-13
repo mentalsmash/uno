@@ -106,6 +106,7 @@ class Registry(Versioned):
     "agent_configs",
     # "strategy",
   ]
+
   def INITIAL_RTI_LICENSE(self) -> Path:
     return self.root / "rti_license.dat"
 

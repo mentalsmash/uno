@@ -224,7 +224,9 @@ class Host:
 
   @property
   def cell_fully_routed(self) -> bool:
-    expected_lans = {lan for c in self.experiment.registry.uvn.cells.values() for lan in c.allowed_lans}
+    expected_lans = {
+      lan for c in self.experiment.registry.uvn.cells.values() for lan in c.allowed_lans
+    }
     missing_lans = expected_lans - self.cell_reachable_networks
     unexpected_lans = self.cell_reachable_networks - expected_lans
     if missing_lans:
