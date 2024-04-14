@@ -141,14 +141,13 @@ class Registry(Versioned):
   ):
     if not name:
       raise ValueError("a name is required")
-
     uvn_spec = uvn_spec or {}
     # Parse and validate arguments
-    owner_spec_id = uvn_spec.get("owner")
     if owner:
-      owner_name, owner_email = User.parse_user_id(owner)
+      owner_email, owner_name = User.parse_user_id(owner)
     else:
       owner_name = None
+      owner_spec_id = uvn_spec.get("owner")
       if owner_spec_id:
         owner_email = owner_spec_id
       else:
@@ -204,7 +203,6 @@ class Registry(Versioned):
         db_file.unlink()
 
     db = Database(root, create=True)
-
     owner = db.new(
       User,
       {

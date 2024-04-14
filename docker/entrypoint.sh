@@ -22,6 +22,11 @@ if [ -f /package.uvn-agent -a -z "$(find ${UVN_DIR} -mindepth 1 -maxdepth 1)" ];
 fi
 # Perform requested action, or custom command:
 case "$1" in
+# Define a new UVN registry
+define)
+  shift
+  exec uno define uvn $@
+  ;;
 # Start an agent for a cell or the registry
 agent)
   shift

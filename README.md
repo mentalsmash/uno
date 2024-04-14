@@ -1,20 +1,9 @@
 # uno
 
-- [Project Status](#project-status)
-- [Docker Images](#docker-images)
-  - [Stable Images](#stable-images)
-  - [Nightly Images](#nightly-images)
-- [Host Installation](#host-installation)
-  - [Middleware Setup](#middleware-setup)
-  - [UVN Setup](#uvn-setup)
-- [Docker Installation](#docker-installation)
-  - [Registry Setup](#registry-setup)
-  - [AGent Deployment](#agent-deployment)
-
 **uno** is a tool for linking multiple LANs into a single routing domain over the public Internet.
 
-LANs are interconnected by agent nodes deployed within them, which act as gateways
-to other LANs. The agent nodes establish redudant VPN links between them to carry out the
+LANs are interconnected by agent nodes which act as gateways to other LANs. The agent nodes
+establish redudant VPN links between them to carry out the
 [BGP protocol](https://en.wikipedia.org/wiki/Border_Gateway_Protocol) and find routes to every
 other LAN.
 
@@ -56,21 +45,150 @@ in this example are reachable through a public address.
 
 ![uvn example](docs/static/uvn.png "UVN Example")
 
-## Docker Images
-
-| Tag | Version | Base OS |
-|-----|---------|------------|
-| [`mentalsmash/uno:latest`](https://hub.docker.com/r/mentalsmash/uno/tags?page=&page_size=&ordering=&name=latest) |![latest default image version](https://img.shields.io/endpoint?url=https://gist.githubusercontent.com/asorbini/29b57b0427def87cc3ef4ab81c956c29/raw/uno-badge-image-default-version-latest.json)|![latest default image base image](https://img.shields.io/endpoint?url=https://gist.githubusercontent.com/asorbini/2d53344e1ccfae961665e08432f18113/raw/uno-badge-image-default-base-latest.json)|
-| [`mentalsmash/uno:nightly`](https://hub.docker.com/r/mentalsmash/uno/tags?page=&page_size=&ordering=&name=nightly) |![latest default image version](https://img.shields.io/endpoint?url=https://gist.githubusercontent.com/asorbini/e7aab205f782cc0c6f394a2fece90509/raw/uno-badge-image-default-version-nightly.json)|![latest default image base image](https://img.shields.io/endpoint?url=https://gist.githubusercontent.com/asorbini/8f31c46dcfd0543b42f356e5b1c6c2c8/raw/uno-badge-image-default-base-nightly.json)|
-
-## Host Installation
+## Installation
 
 **uno** is implemented using Python, and it only supports Linux hosts.
 So far, it has only been tested on Ubuntu 22.04, but it should
 be possible to run it on other distributions as well, provided that the
 right system dependencies have been installed.
 
-On Debian-like systems, **uno**'s system dependencies can be installed with the following packages:
+There are three officially supported methods of installation:
+
+- From a [Docker image](#docker-images) (recommended).
+
+- From a [Debian package](#debian-packages).
+
+- From this repository using a [Python virtual environment](#python-virtual-environment).
+
+### Docker Images
+
+**uno** can be provisioned on a host using one of the prebuilt Docker images:
+
+| Tag | Version | Base OS |
+|-----|---------|------------|
+| [`mentalsmash/uno:latest`](https://hub.docker.com/r/mentalsmash/uno/tags?page=&page_size=&ordering=&name=latest) |![latest default image version](https://img.shields.io/endpoint?url=https://gist.githubusercontent.com/asorbini/29b57b0427def87cc3ef4ab81c956c29/raw/uno-badge-image-default-version-latest.json)|![latest default image base image](https://img.shields.io/endpoint?url=https://gist.githubusercontent.com/asorbini/2d53344e1ccfae961665e08432f18113/raw/uno-badge-image-default-base-latest.json)|
+| [`mentalsmash/uno:nightly`](https://hub.docker.com/r/mentalsmash/uno/tags?page=&page_size=&ordering=&name=nightly) |![latest default image version](https://img.shields.io/endpoint?url=https://gist.githubusercontent.com/asorbini/e7aab205f782cc0c6f394a2fece90509/raw/uno-badge-image-default-version-nightly.json)|![latest default image base image](https://img.shields.io/endpoint?url=https://gist.githubusercontent.com/asorbini/8f31c46dcfd0543b42f356e5b1c6c2c8/raw/uno-badge-image-default-base-nightly.json)|
+
+The docker images allow **uno** to be used without installing any dependency other than [Docker](https://www.docker.com/):
+
+```sh
+docker run --rm mentalsmash/uno:latest uno -h
+```
+
+The images expect the **registry**/**agent** directory to be mounted in `/uvn`, which allows
+you to persist files across runs. The images will also automatically pick up an RTI Connext DDS
+license mounted at `/rti_license.dat`.
+
+For example, to initialize a new **UVN** create a file named `uvn.yml`:
+
+```yaml
+# An "asymmetric" UVN with two cells, one behind NAT.
+# The registry will be deployed within the "public" cell.
+address: cell1.example.com
+owner: john@example.com
+users:
+  - email: john@example.com
+    name: John Doe
+    password: johnspassword
+  - email: jane@example.com
+    name: Jane Doe
+    password: janespassword
+cells:
+  - name: cell1
+    address: cell1.example.com
+    allowed_lans: [192.168.1.0/24]
+  - name: cell2
+    allowed_lans: [192.168.2.0/24]
+    owner: jane@example.com
+particles:
+  - name: john
+  - name: jane
+    owner: jane@example.com
+```
+
+Mount `uvn.yml` on a container and use `uno define uvn` to initialize the **registry** (using the
+`define` alias):
+
+```sh
+mkdir my-uvn/
+chmod 700 my-uvn/
+
+docker run --rm \
+  -v $(pwd)/my-uvn:/uvn \
+  -v $(pwd)/uvn.yml:/uvn.yml \
+  -v $(pwd)/rti_license.dat:/rti_license.dat \
+  mentalsmash/uno:latest \
+  define my-uvn -s /uvn.yml
+
+# See the generated cell agent and particle packages:
+ls -l my-uvn/cells my-uvn/particles
+```
+
+The images make it easy to deploy agents by mounting their package as `/package.uvn-agent`:
+
+```sh
+mkdir -p my-uvn/cell1
+chmod 700 my-uvn/cell1
+
+docker create \
+  --init \
+  --name my-uvn-cell1 \
+  --net host \
+  --privileged \
+  -v $(pwd)/my-uvn__cell1.uvn-agent:/package.uvn-agent \
+  -v $(pwd)/my-uvn:/uvn \
+  --restart always \
+  --stop-signal SIGINT \
+  mentalsmash/uno:latest \
+  agent
+
+docker start my-uvn-cell1
+```
+
+The images can be passed any arbitrary command, but they also support some special "actions"
+which act as aliases to some commonly used `uno` CLI commands
+
+| Action | Description | CLI command |
+|--------|-------------|------------------------|
+|`agent`|Run the **agent** instance for a **cell** or the **registry** | `uno agent ...` |
+|`define`|Initialize a new UVN **registry** | `uno define uvn ...` |
+|`down`|Disconnect the host from the **UVN**. Only useful with `--net host`.| `uno service down ...`|
+|`redeploy`|Regenerate **UVN** deployment configuration in the **registry** | `uno redeploy ...` |
+|`sync`|Enable the **registry**'s **agent** to make sure that all **cells** are at the latest **UVN** configuration.| `uno sync ...`|
+|`up`|Connect the host to the **UVN**. Only useful with `--net host`.| `uno service up ...`|
+
+The special action `fix-root-permissions` is available to
+make sure that all files generated by a container (which runs as `root`) are owned by the correct user:
+
+```sh
+docker run --rm -v $(pwd)/my-uvn mentalsmash/uno:latest fix-root-permissions $(id -u):$(id -g)
+```
+
+### Debian Packages
+
+Pregenerated `.deb` packages for `amd64` and `arm64` hosts are available on the [Releases page](https://github.com/mentalsmash/uno/releases).
+
+The packages contain a "bundled" version of **uno** generated with [PyInstaller](https://pyinstaller.org/),
+which is tested on Ubuntu 22.04, but should run on other similar distributions too.
+
+After downloading the package, install it with `apt`:
+
+```sh
+apt install /path/to/uno_<version>_<arch>.deb
+
+uno -h
+```
+
+**uno** will be installed under `/opt/uno`, and it will be automatically available in the `PATH`
+via a symlink in `/usr/bin/`.
+
+### Python Virtual Environment
+
+**uno** can be installed manually from this repository, using a Python Virtual Environment.
+
+When using this installation method, all of **uno**'s system dependencies must be already
+provisioned on the system. On Debian-like systems, this can be achieved by installing
+the following packages:
 
 ```sh
 sudo apt install --no-install-recommends \
@@ -92,22 +210,34 @@ sudo apt install --no-install-recommends \
   wireguard-tools
 ```
 
-After installing the system dependencies, you can install **uno** from
-this git repository and [one of the available middlewares](#middleware-setup):
+After installing the system dependencies, clone **uno** and install
+it in fresh virtual environment. It is recommended to install **uno**
+with root credentials to prevent other users from being able to
+modify its installation.
 
 ```sh
-git clone --recurse-submodules https://github.com/mentalsmash/uno
+mkdir -p /opt/uno
 
-python3 -m venv -m uno-venv
+cd /opt/uno
 
-. ./uno-venv/bin/activate
+git clone https://github.com/mentalsmash/uno -b <tag> src
 
+python3 -m venv -m venv
+
+. ./venv/bin/activate
+
+pip3 install ./src
+
+# You can skip this step if you are creating a static deployment 
 pip3 install rti.connext
-
-pip3 install ./uno
 ```
 
-### UVN Setup
+The executable `/opt/uno/venv/bin/uno` can be used directly without
+first activating the virtual environment. You can add the `/opt/uno/venv/bin/`
+directory to `PATH` for quicker access (or just link the executable to
+a directory already in your `PATH`, e.g. `/usr/local/bin`).
+
+## Step-by-Step UVN Setup
 
 1. Create a new UVN registry.
 
@@ -296,84 +426,3 @@ pip3 install ./uno
 7. Configure static routes on the LAN's router to designate the agent's host
    as the gateway for other remote LANs.
 
-## Docker Installation
-
-**uno** can be provisioned on a host using a container with one of the prebuilt [Docker images](#docker-images),
-or by cloning the repository and building an image locally.
-
-### Registry Setup
-
-1. Create `uvn.yaml` inside the UVN directory. `uno` will read the UVN configuration from this YAML file:.
-
-   For example:
-
-   ```yaml
-   address: registry.my-uvn.example.com
-   owner: john@example.com
-   users:
-     - email: john@example.com
-       name: John Doe
-       password: johnspassword
-     - email: jane@example.com
-       name: Jane Doe
-       password: janespassword
-   cells:
-     - name: public-cell
-       address: cell1.example.com
-       allowed_lans: [192.168.1.0/24]
-     - name: private-cell
-       allowed_lans: [192.168.2.0/24]
-       owner: jane@example.com
-     - name: relay-cell
-       address: relay-cell.example.com
-   particles:
-     - name: john
-     - name: jane
-       owner: jane@example.com
-   ```
-
-2. Initialize the registry:
-
-   ```sh
-   mkdir my-uvn
-   
-   chmod 700 my-uvn
-
-   docker run --rm \
-    -v $(pwd)/uvn.yaml:/uvn.yaml \
-    -v $(pwd)/my-uvn:/uvn \
-    -v $(pwd)/rti_license.dat:/rti_license.dat \
-    mentalsmash/uno:latest \
-    uno define uvn my-uvn --spec /uvn.yaml
-
-   # make sure the directory has the proper permissions
-   docker run --rm \
-     -v $(pwd)/my-uvn:/uvn \
-     fix-root-permissions \
-     $(id -u):$(id -g)
-   ```
-
-### Agent Deployment
-
-Deploy a cell agent package on the target host by mounting the package onto
-a container, along with a directory where to extract it:
-
-   ```sh
-   mkdir -p my-uvn/cell1
-
-   chmod 700 my-uvn/cell1
-
-   docker create \
-     --init \
-     --name agent-cell1-my-uvn \
-     --net host \
-     --privileged \
-     -v $(pwd)/my-uvn__cell1.uvn-agent:/package.uvn-agent \
-     -v $(pwd)/my-uvn/cell1:/uvn \
-     --restart on-failure:5 \
-     --stop-signal SIGINT \
-     mentalsmash/uno:latest \
-     agent
-  
-   docker start agent-cell1-my-uvn
-   ```
