@@ -22,22 +22,41 @@ from uno.test.integration import Experiment, Host
 
 
 def ssh_client_test(
-  experiment: Experiment, test_config: Iterable[tuple[Host, Host]], batch_size: int | None = None
+  experiment: Experiment,
+  test_config: Iterable[tuple[Host, Host]],
+  batch_size: int | None = None,
+  timeout: int = 10,
 ):
   def _start(host: Host, server: Host) -> subprocess.Popen:
     # Connect via SSH and run a "dummy" test (e.g. verify that the hostname is what we expect)
     # We mostly want to make sure we can establish an SSH connection through the UVN
     experiment.log.activity("SSH START: {} → {}@{}", host, server, server.default_address)
-    host.exec(
-      "sh", "-c", f"ssh-keyscan -p 22 -H {server.default_address} >> ~/.ssh/known_hosts", user="uno"
+    cmd_keyscan = " ".join(
+      [
+        "ssh-keyscan",
+        *(["-T", f"{timeout}"] if timeout > 0 else []),
+        "-p",
+        "22",
+        "-H",
+        f"{server.default_address}",
+        ">>",
+        "~/.ssh/known_hosts",
+      ]
     )
-    return host.popen(
-      "sh",
-      "-c",
-      f"ssh uno@{server.default_address} 'echo THIS_IS_A_TEST_ON $(hostname)' | grep 'THIS_IS_A_TEST_ON {server.hostname}'",
-      user="uno",
-      capture_output=True,
+    cmd_ssh_test = " ".join(
+      [
+        "ssh",
+        *(["-o", f"ConnectTimeout={timeout}"] if timeout > 0 else []),
+        f"uno@{server.default_address}",
+        "'echo THIS_IS_A_TEST_ON $(hostname)'",
+        "|",
+        "grep",
+        f"'THIS_IS_A_TEST_ON {server.hostname}'",
+      ]
     )
+
+    host.exec("sh", "-c", cmd_keyscan, user="uno")
+    return host.popen("sh", "-c", cmd_ssh_test, user="uno", capture_output=True)
 
   def _wait(host: Host, server: Host, test: subprocess.Popen, timeout: float = 60.0) -> None:
     stdout, stderr = test.communicate(timeout=experiment.config["test_timeout"])

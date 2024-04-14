@@ -1,5 +1,16 @@
 # uno
 
+- [Project Status](#project-status)
+- [Docker Images](#docker-images)
+  - [Stable Images](#stable-images)
+  - [Nightly Images](#nightly-images)
+- [Host Installation](#host-installation)
+  - [Middleware Setup](#middleware-setup)
+  - [UVN Setup](#uvn-setup)
+- [Docker Installation](#docker-installation)
+  - [Registry Setup](#registry-setup)
+  - [AGent Deployment](#agent-deployment)
+
 **uno** is a tool for linking multiple LANs into a single routing domain over the public Internet.
 
 LANs are interconnected by local agents deployed within them to act as gateways to
@@ -64,8 +75,6 @@ sudo apt install --no-install-recommends \
   lighttpd-mod-openssl \
   psmisc \
   openssl \
-  python3-dev \
-  python3-pip \
   python3-venv \
   qrencode \
   tar \
@@ -85,7 +94,7 @@ git clone --recurse-submodules https://github.com/mentalsmash/uno
 # A virtual environment installation is recommended in this case.
 python3 -m venv -m uno-venv
 . ./uno-venv/bin/activate
-pip install ./uno
+pip3 install ./uno
 ```
 
 ### Middleware Setup
@@ -359,7 +368,10 @@ or by cloning the repository and building an image locally.
      $(id -u):$(id -g)
    ```
 
-3. Deploy a cell agent package on the target host:
+### Agent Deployment
+
+Deploy a cell agent package on the target host by mounting the package onto
+a container, along with a directory where to extract it:
 
    ```sh
    mkdir -p my-uvn/cell1

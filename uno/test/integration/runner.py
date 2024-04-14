@@ -17,11 +17,13 @@
 ###############################################################################
 from pathlib import Path
 import os
+import argparse
 
 from uno.cli.cli_helpers import cli_command_main, cli_command
 from uno.test.integration import Experiment
+from uno.core.log import Logger
 
-import argparse
+log = Logger.sublogger("runner")
 
 
 def _parser(parser: argparse.ArgumentParser) -> None:
@@ -44,10 +46,13 @@ def runner_host(args: argparse.Namespace) -> None:
   # to signal that the code is running inside Docker
   assert bool(os.environ.get("UNO_TEST_RUNNER"))
   # Load test case file as a module
+  log.info("loading test case experiment: {}", args.test_case)
   test_case_filef = Path("/experiment") / args.test_case
   experiment: Experiment = Experiment.import_test_case(test_case_filef)
   # Find host for the current container
+  log.info("loading host configuration: {}", args.container_name)
   host = next(h for h in experiment.hosts if h.container_name == args.container_name)
+  host.log_configuration()
   # Perform host initialization steps
   host.init()
   # Run test-case's main()

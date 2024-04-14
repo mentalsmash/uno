@@ -50,6 +50,7 @@ concurrency:
 
 permissions:
   contents: read
+  packages: read
 
 jobs:
   config:
@@ -59,6 +60,7 @@ jobs:
       BUILD_ID: ${{ steps.config.outputs.BUILD_ID }}
       TEST_ARTIFACT: ${{ steps.config.outputs.TEST_ARTIFACT }}
       TEST_IMAGE: ${{ steps.config.outputs.TEST_IMAGE }}
+      TEST_BASE_IMAGE: ${{ steps.config.outputs.TEST_BASE_IMAGE }}
     steps:
       - name: Clone uno
         uses: actions/checkout@v4
@@ -100,6 +102,8 @@ jobs:
           middleware_id=$(echo ${{inputs.uno-middleware}} | sed -e 's/uno.middleware.//')
           test_artifact=uno-ci-${build_type}-${middleware_id}-${{ inputs.build-platform }}__${image_version}__${build_id}
           test_image=${{ github.repository }}-test-runner:latest
+          base_image_tag=$(echo "${{ inputs.base-image }}" | tr : -)
+          test_base_image=ghcr.io/mentalsmash/uno-ci-base-tester:${base_image_tag}
           (
             case "${{ inputs.build-platform }}" in
               arm64)
@@ -120,6 +124,7 @@ jobs:
             esac
             echo TEST_ARTIFACT=${test_artifact}
             echo TEST_IMAGE=${test_image}
+            echo TEST_BASE_IMAGE=${test_base_image}
             echo BUILD_ID=${build_id}
           ) >> ${GITHUB_OUTPUT}
 
@@ -133,19 +138,44 @@ jobs:
           path: src/uno
           submodules: true
 
-      - name: Clone build support files
-        uses: actions/checkout@v4
-        with:
-          repository: mentalsmash/uno-ci
-          token: ${{ secrets.UNO_CI_PAT }}
-          ref: master
-          path: src/uno-ci
-        if: inputs.uno-middleware == 'uno_middleware_connext'
+      - name: Bootstrap uno with poetry
+        run: |
+          python3 -m venv poetry-venv
+          . poetry-venv/bin/activate
+          pip3 install -U poetry
+          deactivate
+          cd src/uno
+          ${GITHUB_WORKSPACE}/poetry-venv/bin/poetry install --with=dev
+          . .venv/bin/activate
+          case '${{ inputs.uno-middleware }}' in
+            uno.middleware.native)
+              ;;
+            *)
+              pip3 install -U -e plugins/${{ inputs.uno-middleware }}
+              ;;
+          esac
+
+      - name: Validate code
+        run: |
+          . src/uno/.venv/bin/activate
+          ruff check
+
+      - name: Validate code format
+        run: |
+          . src/uno/.venv/bin/activate
+          ruff format --check
 
       - name: Set up Docker Buildx
         uses: docker/setup-buildx-action@v3
         with:
           driver-opts: network=host
+
+      - name: Log in to GitHub
+        uses: docker/login-action@v3
+        with:
+          registry: ghcr.io
+          username: ${{ github.actor }}
+          password: ${{ secrets.GITHUB_TOKEN }}
 
       - name: Build tester image
         uses: docker/build-push-action@v5
@@ -157,7 +187,7 @@ jobs:
           platforms: linux/${{ inputs.build-platform }}
           build-args: |
             TEST=y
-            BASE_IMAGE=${{ inputs.base-image }}
+            BASE_IMAGE=${{ needs.config.outputs.TEST_BASE_IMAGE }}
             UNO_MIDDLEWARE=${{ inputs.uno-middleware }}
 
       - name: Run unit tests
@@ -167,8 +197,7 @@ jobs:
           docker run --rm \
             -v $(pwd):/workspace \
             -w /workspace \
-            -v $(pwd)/src/uno-ci/resource/rti/rti_license.dat:/rti_license.dat \
-            -e LOG_LEVEL=activity \
+            -e VERBOSITY=activity \
             -e DEBUG=y \
             ${{ needs.config.outputs.TEST_IMAGE }} \
             pytest -s -v --junit-xml=test-results/uno-test-results-unit-${{ needs.config.outputs.BUILD_ID }}.xml \
@@ -182,32 +211,25 @@ jobs:
             ${{ needs.config.outputs.TEST_IMAGE }} \
             fix-root-permissions $(id -u):$(id -g) /workspace
 
-      - name: Setup integration tests
-        if: inputs.run-integration
+      - name: Set up integration tests
+        if: ${{ inputs.run-integration }}
         run: |
-          python3 -m venv venv
-          . venv/bin/activate
-          pip3 install -U pip setuptools
-          pip3 install -U -e src/uno
-          case '${{ inputs.uno-middleware }}' in
-            uno.middleware.native)
-              ;;
-            *)
-              pip3 install -U -e src/uno/plugins/${{ inputs.uno-middleware }}
-              ;;
-          esac
+          docker run --rm \
+            -v $(pwd):/workspace \
+            ${{ needs.config.outputs.TEST_IMAGE }} \
+            cp /rti_license.dat /workspace/rti_license.dat
 
       - name: Run integration tests
         if: inputs.run-integration
         run: |
           mkdir -p test-results
-          . venv/bin/activate
+          . src/uno/.venv/bin/activate
           pytest -s -v --junit-xml=test-results/uno-test-results-integration-${{ needs.config.outputs.BUILD_ID }}.xml \
             src/uno/test/integration
         env:
-          RTI_LICENSE_FILE: ${{ github.workspace }}/src/uno-ci/resource/rti/rti_license.dat
+          RTI_LICENSE_FILE: ${{ github.workspace }}/rti_license.dat
           DEBUG: y
-          LOG_LEVEL: activity
+          VERBOSITY: activity
           UNO_MIDDLEWARE: ${{ inputs.uno-middleware }}
 
       - name: Restore permissions changed by integration tests

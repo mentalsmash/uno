@@ -23,6 +23,7 @@ from functools import cached_property
 import contextlib
 from typing import Protocol
 import pytest
+import pprint
 
 from uno.core.exec import exec_command
 from uno.core.log import Logger
@@ -38,8 +39,8 @@ import uno
 _uno_dir = Path(uno.__file__).resolve().parent.parent
 
 # Make "info" the minimum default verbosity when this module is loaded
-if Logger.level >= Logger.Level.warning:
-  Logger.level = Logger.Level.info
+# if Logger.Level.warning >= Logger.level:
+#   Logger.level = Logger.Level.info
 
 
 class TestFunction(Protocol):
@@ -108,7 +109,18 @@ class Experiment:
     test_dir = os.environ.get("TEST_DIR", test_dir)
     test_dir_tmp = None
     if test_dir is not None:
-      test_dir = Path(test_dir)
+      test_dir = Path(test_dir) / name
+      Logger.warning("using external test directory: {}", test_dir)
+      # Make sure the external directory is empty
+      if test_dir.exists():
+        contents = list(test_dir.glob("*"))
+        if contents:
+          Logger.warning("wiping contents of external test directory: {}", test_dir)
+          for file in sorted(map(str, contents)):
+            Logger.warning("- {}", file)
+          exec_command(["rm", "-rf", *(["-v"] if Logger.DEBUG else []), *contents])
+      else:
+        test_dir.mkdir(parents=True)
     elif cls.InsideTestRunner:
       test_dir = cls.RunnerTestDir
     else:
@@ -134,6 +146,8 @@ class Experiment:
       rti_license=rti_license,
     )
     experiment.__test_dir_tmp = test_dir_tmp
+    if not experiment.InsideTestRunner:
+      experiment.log_configuration()
     return experiment
 
   @classmethod
@@ -189,9 +203,35 @@ class Experiment:
     self.config = config
     self.rti_license = rti_license
     self.networks: list[Network] = []
+    self.private_networks: list[Network] = []
+    self.public_networks: list[Network] = []
+    self.transit_networks: list[Network] = []
     self.hosts: list[Host] = []
     self.log = Logger.sublogger(name)
     self.define_networks_and_hosts()
+
+  def log_configuration(self) -> None:
+    self.log.info("experiment configuration: {}", pprint.pformat(self.config))
+    self.log.info(
+      "{} experiment private networks: {}",
+      len(self.private_networks),
+      pprint.pformat(self.private_networks),
+    )
+    self.log.info(
+      "{} experiment public networks: {}",
+      len(self.public_networks),
+      pprint.pformat(self.public_networks),
+    )
+    self.log.info(
+      "{} experiment transit networks: {}",
+      len(self.transit_networks),
+      pprint.pformat(self.transit_networks),
+    )
+    self.log.info("{} experiment hosts: {}", len(self.hosts), pprint.pformat(self.hosts))
+    for net in self.networks:
+      net.log_configuration()
+    for host in self.hosts:
+      host.log_configuration()
 
   def __str__(self) -> str:
     return f"Experiment({self.name})"
@@ -393,13 +433,35 @@ class Experiment:
     exec_command(["docker", "rm", "-f", *existing_containers])
 
   def define_network(
-    self, subnet: ipaddress.IPv4Network, name: str | None = None, masquerade: bool = False
+    self,
+    subnet: ipaddress.IPv4Network,
+    name: str | None = None,
+    private_lan: bool = False,
+    transit_wan: bool = False,
+    masquerade_docker: bool = False,
   ) -> "Network":
-    if name is None:
-      net_i = len(self.networks)
-      name = f"{self.name}-net{net_i}"
-    net = Network(experiment=self, name=name, subnet=subnet, masquerade=masquerade)
+    if private_lan:
+      net_set = self.private_networks
+      name_prefix = "prilan"
+    elif transit_wan:
+      net_set = self.transit_networks
+      name_prefix = "internet"
+    else:
+      net_set = self.public_networks
+      name_prefix = "publan"
+    net_i = len(net_set)
+    name = f"{name_prefix}{net_i+1}"
+    net = Network(
+      experiment=self,
+      name=name,
+      subnet=subnet,
+      i=net_i,
+      private_lan=private_lan,
+      transit_wan=transit_wan,
+      masquerade_docker=masquerade_docker,
+    )
     self.networks.append(net)
+    net_set.append(net)
     return net
 
   def start(self) -> None:

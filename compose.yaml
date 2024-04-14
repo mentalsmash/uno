@@ -8,6 +8,8 @@ services:
       dockerfile: docker/Dockerfile
       tags:
         - mentalsmash/uno:dev
+      platforms:
+      - linux/amd64
       args:
         UNO_MIDDLEWARE: uno_middleware_connext
         BASE_IMAGE: ubuntu:22.04
@@ -17,6 +19,8 @@ services:
       dockerfile: docker/Dockerfile
       tags:
         - mentalsmash/uno-test-runner:latest
+      platforms:
+      - linux/amd64
       args:
         DEV: y
         UNO_MIDDLEWARE: uno_middleware_connext
@@ -90,3 +94,26 @@ services:
       args:
         UNO_MIDDLEWARE: uno.middleware.native
         BASE_IMAGE: ubuntu:24.04
+  #############################################################################
+  # Debian package builders
+  #############################################################################
+  debian-builder:
+    build:
+      context: .
+      dockerfile: docker/debian-builder/Dockerfile
+      tags:
+        - mentalsmash/debian-builder:latest
+      platforms:
+        - linux/amd64
+      args:
+        BASE_IMAGE: ubuntu:22.04
+  debian-builder-arm64:
+    build:
+      context: .
+      dockerfile: docker/debian-builder/Dockerfile
+      tags:
+        - mentalsmash/debian-builder:latest-arm64
+      platforms:
+        - linux/arm64
+      args:
+        BASE_IMAGE: ubuntu:22.04

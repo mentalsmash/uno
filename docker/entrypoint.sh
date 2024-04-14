@@ -55,7 +55,7 @@ fix-root-permissions)
   TARGET_DIRS=$(echo ${UVN_DIR} $@ | sort | uniq)
   echo "returning root files to ${OWNER}: ${TARGET_DIRS}"
     find ${TARGET_DIRS} \( -group 0 -o -user 0 \) -exec \
-      chown -v ${OWNER} {} \;
+      chown $([ -z "${DEBUG}" ] || printf -- -v) ${OWNER} {} \;
   ;;
 # Run custom command
 *)

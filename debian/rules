@@ -1,0 +1,29 @@
+#!/usr/bin/make -f
+
+# Enable verbose output from dh
+export DH_VERBOSE = 1
+
+# Set locale to C.UTF-8 instead of default C
+LC_ALL := C.UTF-8
+export LC_ALL
+
+%:
+	dh $@
+
+override_dh_lintian:
+
+override_dh_auto_test:
+
+override_dh_auto_configure:
+
+override_dh_strip_nondeterminism:
+
+override_dh_strip:
+
+override_dh_shlibdeps:
+
+override_dh_dwz:
+
+override_dh_makeshlibs:
+
+override_dh_auto_install:

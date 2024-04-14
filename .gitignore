@@ -22,3 +22,12 @@ uno.db
 venv
 .venv
 poetry.lock
+build
+debian/.debhelper/
+debian/debhelper-build-stamp
+debian/files
+debian/uno.substvars
+debian/uno/
+debian/uno-static
+debian/uno-static.substvars
+debian-dist

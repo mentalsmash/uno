@@ -252,7 +252,7 @@ def _format_default(logger, context, lvl, fmt, *args, **kwargs):
 class UvnLogger:
   global_prefix = None
   Level = level
-  LevelEnv = os.environ.get("LOG_LEVEL")
+  LevelEnv = os.environ.get("VERBOSITY")
 
   @classmethod
   def parse_level(cls, val: _LogLevels | int | str | None) -> _LogLevels:

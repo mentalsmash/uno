@@ -15,6 +15,7 @@
 # along with this program. If not, see <https://www.gnu.org/licenses/>.
 ###############################################################################
 import ipaddress
+import pprint
 from uno.registry.package import Packager
 from uno.test.integration import Experiment
 
@@ -56,16 +57,15 @@ class BasicExperiment(Experiment):
     default_cfg.update(
       {
         "networks_count": 4,
-        "relays_count": 1,  # 1,
+        "private_networks_count": 1,
+        "relays_count": 1,
         "hosts_count": 1,
         "particles_count": 1,
-        "public_agent": True,
         "uvn_name": "test-uvn",
         "uvn_owner": "root@example.com",
         "uvn_owner_password": "abc",
-        "public_net": "internet",
         "public_net_subnet": ipaddress.ip_network("10.230.255.0/24"),
-        "registry_host": "registry.internet",
+        "registry_host": "registry.internet1",
         "registry_host_address": ipaddress.ip_address("10.230.255.254"),
         "use_cli": False,
         "uvn_users": [
@@ -90,12 +90,81 @@ class BasicExperiment(Experiment):
     return default_cfg
 
   @classmethod
+  def network_subnet(
+    cls, base_subnet: ipaddress.IPv4Network, network_id: int
+  ) -> ipaddress.IPv4Network:
+    addrp = list(map(int, str(base_subnet).split(".")))
+    return ipaddress.ip_network(f"{addrp[0]}.{addrp[1]}.{addrp[2] -1 - network_id}.{addrp[3]}/24")
+
+  @classmethod
+  def particle_vpn_enabled(cls, cell_name: str) -> bool:
+    return not cell_name.startswith("cell") or bool(int(cell_name[len("cell") :]) % 2)
+
+  @classmethod
   def default_derived_config(cls, config: dict) -> None:
-    addrp = list(map(int, str(config["public_net_subnet"].network_address).split(".")))
     config["networks"] = [
-      ipaddress.ip_network(f"{addrp[0]}.{addrp[1]}.{addrp[2] -1 - i}.{addrp[3]}/24")
+      cls.network_subnet(config["public_net_subnet"].network_address, i)
       for i in range(config["networks_count"])
     ]
+    config["private_networks"] = [
+      cls.network_subnet(config["public_net_subnet"].network_address, config["networks_count"] + i)
+      for i in range(config["private_networks_count"])
+    ]
+
+  @property
+  def uvn_spec(self) -> dict:
+    spec = {
+      "users": self.config["uvn_users"],
+      "cells": [
+        *(
+          {
+            "name": cell_name,
+            "address": f"router.publan{i+1}.internet1",
+            "allowed_lans": [str(subnet)],
+            "owner": self.config["uvn_owners"][i % len(self.config["uvn_owners"])],
+            "settings": {
+              "enable_particles_vpn": self.particle_vpn_enabled(cell_name),
+            },
+          }
+          for i, subnet in enumerate(self.config["networks"])
+          for cell_name in [f"cell{i+1}"]
+        ),
+        *(
+          {
+            "name": cell_name,
+            "address": f"relay{i+1}.internet1",
+            "owner": self.config["uvn_owners"][i % len(self.config["uvn_owners"])],
+            "settings": {
+              "enable_particles_vpn": self.particle_vpn_enabled(cell_name),
+            },
+          }
+          for i in range(self.config["relays_count"])
+          for cell_name in [f"relay{i+1}"]
+        ),
+        *(
+          {
+            "name": cell_name,
+            "allowed_lans": [str(subnet)],
+            "owner": self.config["uvn_owners"][i % len(self.config["uvn_owners"])],
+            "settings": {
+              "enable_particles_vpn": self.particle_vpn_enabled(cell_name),
+            },
+          }
+          for i, subnet in enumerate(self.config["private_networks"])
+          for cell_name in [f"private{i+1}"]
+        ),
+      ],
+      "particles": [
+        {
+          "name": f"particle{i+1}",
+          "owner": self.config["uvn_owners"][i % len(self.config["uvn_owners"])],
+        }
+        for i in range(self.config["particles_count"])
+      ],
+    }
+    self.log.info("test UVN spec:")
+    self.log.info(pprint.pformat(spec))
+    return spec
 
   def _define_uvn_cli(self) -> None:
     self.uno(
@@ -113,16 +182,31 @@ class BasicExperiment(Experiment):
       self.uno("define", "user", user["email"], "-n", user["name"], "-p", user["password"])
 
     for i, subnet in enumerate(self.config["networks"]):
+      cell_name = f"cell{i+1}"
       self.uno(
         "define",
         "cell",
-        f"cell{i+1}",
+        cell_name,
         "-N",
         str(subnet),
         "-a",
-        f"router.net{i+1}.{self.config['public_net']}",
+        f"router.publan{i+1}.internet1",
         "-o",
         self.config["uvn_owners"][i % len(self.config["uvn_owners"])],
+        *(["--disable-particles-vpn"] if self.particle_vpn_enabled(cell_name) else []),
+      )
+
+    for i, subnet in enumerate(self.config["private_networks"]):
+      cell_name = f"private{i+1}"
+      self.uno(
+        "define",
+        "cell",
+        cell_name,
+        "-N",
+        str(subnet),
+        "-o",
+        self.config["uvn_owners"][i % len(self.config["uvn_owners"])],
+        *(["--disable-particles-vpn"] if self.particle_vpn_enabled(cell_name) else []),
       )
 
     # Define some cells for "relay" agents
@@ -132,9 +216,10 @@ class BasicExperiment(Experiment):
         "cell",
         f"relay{i+1}",
         "-a",
-        f"relay{i+1}.{self.config['public_net']}",
+        f"relay{i+1}.internet1",
         "-o",
         self.config["uvn_owners"][i % len(self.config["uvn_owners"])],
+        *(["--disable-particles-vpn"] if self.particle_vpn_enabled(cell_name) else []),
       )
 
     # Define particles
@@ -156,46 +241,23 @@ class BasicExperiment(Experiment):
       owner=self.config["uvn_owner"],
       address=self.config["registry_host"] if self.config["registry_host"] else None,
       password=self.config["uvn_owner_password"],
-      uvn_spec={
-        "users": self.config["uvn_users"],
-        "cells": [
-          *(
-            {
-              "name": f"cell{i+1}",
-              "address": f"router.net{i+1}.{self.config['public_net']}",
-              "allowed_lans": [str(subnet)],
-              "owner": self.config["uvn_owners"][i % len(self.config["uvn_owners"])],
-            }
-            for i, subnet in enumerate(self.config["networks"])
-          ),
-          *(
-            {
-              "name": f"relay{i+1}",
-              "address": f"relay{i+1}.{self.config['public_net']}",
-              "owner": self.config["uvn_owners"][i % len(self.config["uvn_owners"])],
-            }
-            for i in range(self.config["relays_count"])
-          ),
-        ],
-        "particles": [
-          {
-            "name": f"particle{i+1}",
-            "owner": self.config["uvn_owners"][i % len(self.config["uvn_owners"])],
-          }
-          for i in range(self.config["particles_count"])
-        ],
-      },
+      uvn_spec=self.uvn_spec,
     )
 
   def define_networks_and_hosts(self) -> None:
     # Define N private networks + an "internet" network to connect them
     networks = []
     internet = self.define_network(
-      subnet=self.config["public_net_subnet"], name=self.config["public_net"]
+      subnet=self.config["public_net_subnet"],
+      transit_wan=True,
     )
 
     for i, subnet in enumerate(self.config["networks"]):
-      net = self.define_network(subnet=subnet, name=f"net{i+1}")
+      net = self.define_network(subnet=subnet)
+      networks.append(net)
+
+    for i, subnet in enumerate(self.config["private_networks"]):
+      net = self.define_network(subnet=subnet, private_lan=True)
       networks.append(net)
 
     for i, net in enumerate(networks):
@@ -211,14 +273,18 @@ class BasicExperiment(Experiment):
         address = net.subnet.network_address + 3 + host_i
         net.define_host(address=address)
 
-      # Define the public agent for the network if enabled
-      if self.config["public_agent"]:
-        address = net.subnet.network_address + 2
-        cell = next(c for c in self.registry.uvn.cells.values() if c.name == f"cell{i+1}")
-        cell_package = self.registry.cells_dir / Packager.cell_archive_file(cell)
-        net.define_agent(
-          address=address, public=True, uvn=self.registry.uvn, cell_package=cell_package
-        )
+      # Define the agent for the network if enabled
+      address = net.subnet.network_address + 2
+      cell_name = f"cell{net.i+1}" if not net.private_lan else f"private{net.i+1}"
+      cell = next(c for c in self.registry.uvn.cells.values() if c.name == cell_name)
+      cell_package = self.registry.cells_dir / Packager.cell_archive_file(cell)
+      net.define_agent(
+        address=address,
+        public=not net.private_lan,
+        agent_ports=None if net.private_lan else self.registry.uvn.agent_ports,
+        cell=cell,
+        cell_package=cell_package,
+      )
 
     # Define "relay" agent hosts
     for i in range(self.config["relays_count"]):
@@ -230,7 +296,7 @@ class BasicExperiment(Experiment):
         address=address,
         hostname=hostname,
         public=False,
-        uvn=self.registry.uvn,
+        cell=cell,
         cell_package=cell_package,
       )
 
@@ -241,7 +307,7 @@ class BasicExperiment(Experiment):
       particle = next(p for p in self.registry.uvn.particles.values() if p.name == hostname)
       particle_package = self.registry.particles_dir / Packager.particle_archive_file(particle)
       internet.define_particle(
-        address=address, hostname=hostname, particle_package=particle_package
+        address=address, hostname=hostname, particle=particle, particle_package=particle_package
       )
 
     # Define registry node in the internet network
