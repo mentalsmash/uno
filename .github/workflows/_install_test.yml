@@ -34,7 +34,7 @@ jobs:
               suffix=
               ;;
           esac
-          image_tag=$(echo ${{inputs.tag}}  | tr : - | tr /)
+          image_tag=$(echo ${{inputs.tag}}  | tr : - | tr / -)
           test_id=$(date +%Y%m%d-%H%M%S)${suffix}
           test_artifact=${image_tag}-install-test-${{ inputs.platform }}__${test_id}
           (
