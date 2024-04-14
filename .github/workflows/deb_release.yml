@@ -6,6 +6,8 @@ on:
   workflow_dispatch:
 
   push:
+    branches:
+      - master
     tags:
       - '*'
       - '!*/**'
@@ -15,14 +17,14 @@ concurrency:
   cancel-in-progress: true
 
 permissions:
-  contents: read
+  contents: write
   packages: read
 
 jobs:
-  build_packages:
+  build-packages:
     strategy:
       matrix:
-        builder-tag: ["ubuntu-22.04"]
+        builder-tag: ["ubuntu-22.04", "ubuntu-24.04"]
     runs-on: ubuntu-latest
     steps:
     - name: Clone uno
@@ -44,7 +46,15 @@ jobs:
           -v $(pwd)/src/uno:/uno \
           ghcr.io/mentalsmash/uno-ci-debian-builder:${{ matrix.builder-tag }} \
           /uno/scripts/debian_build.sh
-      
+
+    - name: Fix permissions
+      run: |
+        docker run --rm \
+          -v $(pwd)/src/uno:/uno \
+          ghcr.io/mentalsmash/uno-ci-debian-builder:${{ matrix.builder-tag }} \
+          chown -R $(id -u):$(id -g) /uno
+      if: always()
+
     - name: Upload uno packages
       uses: actions/upload-artifact@v4
       with:
@@ -58,7 +68,7 @@ jobs:
         path: src/uno/debian-dist/uno-static_*
 
 
-  build_packages_arm64:
+  build-packages-arm64:
     strategy:
       matrix:
         builder-tag: ["ubuntu-22.04"]
@@ -83,7 +93,15 @@ jobs:
           -v $(pwd)/src/uno:/uno \
           ghcr.io/mentalsmash/uno-ci-debian-builder:${{ matrix.builder-tag }} \
           /uno/scripts/debian_build.sh
-      
+
+    - name: Fix permissions
+      run: |
+        docker run --rm \
+          -v $(pwd)/src/uno:/uno \
+          ghcr.io/mentalsmash/uno-ci-debian-builder:${{ matrix.builder-tag }} \
+          chown -R $(id -u):$(id -g) /uno
+      if: always()
+
     - name: Upload uno packages
       uses: actions/upload-artifact@v4
       with:
@@ -95,3 +113,23 @@ jobs:
       with:
         name: uno-static-arm64
         path: src/uno/debian-dist/uno-static_*
+
+
+  publish_release:
+    needs:
+      - build-packages
+      - build-packages-arm64
+    if: github.ref_type == 'tag'
+    runs-on: ubuntu-latest
+    steps:
+    - name: Download all artifacts
+      uses: actions/download-artifact@v4
+
+    - name: Create new release
+      uses: softprops/action-gh-release@v2
+      with:
+        files: |
+          uno/*.deb
+          uno-arm64/*.deb
+          uno-static/*.deb
+          uno-static-arm64/*.deb
