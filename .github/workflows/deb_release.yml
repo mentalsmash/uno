@@ -24,7 +24,7 @@ jobs:
   build-packages:
     strategy:
       matrix:
-        builder-tag: ["ubuntu-22.04", "ubuntu-24.04"]
+        builder-tag: ["ubuntu-22.04"]
     runs-on: ubuntu-latest
     steps:
     - name: Clone uno
