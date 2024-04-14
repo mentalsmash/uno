@@ -1,2 +1,2 @@
-opt/uno
-usr/bin/uno
+build/default/uno 								opt/
+build/default/usr/bin/uno 				usr/bin/

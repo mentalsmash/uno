@@ -5,16 +5,11 @@ TARBALL := uno_$(VERSION).orig.tar.xz
   build \
   tarball \
   clean \
-	clean-debian-tmp \
-  install
+	clean-debian-tmp
 
 build: \
   build/default \
   build/static
-
-install: \
-  install-default \
-  install-static
 
 build/default: ../$(TARBALL)
 	set -ex; \
@@ -33,12 +28,6 @@ build/default: ../$(TARBALL)
 	ln -s /opt/uno/venv/bin/uno build/default/usr/bin/uno
 	mv /opt/uno build/default
 
-install-default: build/default \
-                 clean-debian-tmp
-	mkdir -p debian/tmp
-	install $</uno 					debian/tmp/opt/
-	install $</usr/bin/uno 	debian/tmp/usr/bin/
-
 build/static: ../$(TARBALL)
 	set -ex; \
 	rm -rf \
@@ -54,12 +43,6 @@ build/static: ../$(TARBALL)
 	mkdir -p build/static/usr/bin
 	ln -s /opt/uno-static/venv/bin/uno build/static/usr/bin/uno-static
 	mv /opt/uno-static build/static/
-
-install-default: build/static \
-                 clean-debian-tmp
-	mkdir -p debian/tmp
-	install $</uno-static 					debian/tmp/opt/
-	install $</usr/bin/uno-static		debian/tmp/usr/bin/
 
 clean-debian-tmp:
 	rm -rf debian/tmp
