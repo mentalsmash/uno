@@ -199,26 +199,12 @@ which can be used to spin up a development environment using [Codespaces](https:
 ### RTI Connext DDS
 
 By default, `uno` uses [RTI Connext DDS](https://www.rti.com) to implement a "synchronization databus" between
-its agents. In order to use the default middleware (`uno_middleware_connext`), a valid RTI license file must
-be provided via the `RTI_LICENSE_FILE` environment variable, or by copying into the root of a `uno` clone.
+its agents. A valid RTI license file must be provided via the `RTI_LICENSE_FILE` environment variable.
 
 [You can request a free evaluation license from RTI](https://www.rti.com/free-trial).
 
 If you don't have/don't want to get a free license from RTI, you can still use `uno` but the agent functionality
 will not be available, and the UVN will need to be reconfigured by hand.
-
-1. Once you have obtained `rti_license.dat`, copy (or symlink) it in the root of
-   the `uno/` directory, so that it will be automatically picked up by tests:
-
-   ```sh
-   ln -s /path/to/rti_license.data .
-   ```
-
-2. Install `uno_middleware_connext`:
-
-   ```sh
-   pip install -e plugins/uno_middleware_connext
-   ```
 
 ### Testing
 

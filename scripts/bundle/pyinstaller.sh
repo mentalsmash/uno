@@ -19,7 +19,7 @@ python3 -m venv ${VENV_UNO}
 pip install .
 case "${FLAVOR}" in
   default)
-    pip install ./plugins/uno_middleware_connext
+    pip install rti.connext
     ;;
   *)
     ;;
