@@ -29,6 +29,8 @@ build: ../$(TARBALL)
 	if [ -n "$(UNO_MIDDLEWARE)" ]; then \
 	  pip3 install $(UNO_DIR)/plugins/$(UNO_MIDDLEWARE); \
 	fi
+	mkdir -p debian-tmp
+	ln -s $(VENV_DIR)/bin/uno debian-tmp/usr/bin/uno
 
 clean:
 	rm -rf $(BUILD_DIR)

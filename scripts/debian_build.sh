@@ -9,7 +9,7 @@ make tarball
 
 debuild
 
-mkdir -p dist
+mkdir -p debian-dist
 
 mv -v \
  ../uno_*.deb \
