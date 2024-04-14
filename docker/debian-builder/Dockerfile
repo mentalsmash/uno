@@ -12,5 +12,6 @@ RUN set -ex; \
       devscripts \
       build-essential \
       lintian \
+      python3-dev \
       python3-venv; \
     apt-get clean
