@@ -11,7 +11,7 @@ export LC_ALL
 	dh $@
 
 override_dh_install:
-	mkdir -p debian/tmp
+	mkdir -p debian/tmp/usr/bin
 	ln -s -f /opt/uno/bin/uno debian/tmp/usr/bin/uno
 	dh_install
 
