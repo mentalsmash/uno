@@ -12,8 +12,7 @@ export LC_ALL
 
 override_dh_install:
 	mkdir -p debian/tmp
-	ln -f /opt/uno/bin/uno \
-	      debian/tmp/usr/bin/uno
+	ln -s -f /opt/uno/bin/uno debian/tmp/usr/bin/uno
 	dh_install
 
 override_dh_lintian:
