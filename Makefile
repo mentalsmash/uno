@@ -10,10 +10,10 @@ build: \
   build/default
 
 build/%: ../$(TARBALL)
-	rm -rf $@
+	rm -rf $@ build/pyinstaller-$*
 	mkdir -p $@/src
 	tar -xvaf $< -C $@/src
-	scripts/bundle/pyinstaller.sh $(@:build/%=%)
+	scripts/bundle/pyinstaller.sh $*
 
 clean:
 	rm -rf build dist
