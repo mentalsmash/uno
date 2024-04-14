@@ -26,4 +26,3 @@ override_dh_dwz:
 
 override_dh_makeshlibs:
 
-override_dh_auto_install:
