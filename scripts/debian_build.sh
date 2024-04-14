@@ -9,4 +9,12 @@ make tarball
 
 debuild
 
-mv -v ../uno_*.deb /uno/
+mkdir -p dist
+
+mv -v \
+ ../uno_*.deb \
+ ../uno_*.debian.tar.xz \
+ ../uno_*.dsc \
+ ../uno_*.changes \
+ ../uno_*.orig.tar.xz \
+ ./debian-dist/

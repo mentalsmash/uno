@@ -28,3 +28,4 @@ debian/debhelper-build-stamp
 debian/files
 debian/uno.substvars
 debian/uno/
+debian-dist
