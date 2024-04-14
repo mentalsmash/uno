@@ -23,7 +23,7 @@ build-default: ../$(TARBALL) \
 	python3 -m venv /opt/uno/venv; \
 	. /opt/uno/venv/bin/activate; \
 	pip3 install -U pip setuptools; \
-	pip3 install /opt/uno; \
+	pip3 install /opt/uno/src; \
 	pip3 install /opt/uno/src/plugins/uno_middleware_connext; \
 	mkdir -p \
 	  debian/tmp/usr/bin \
@@ -40,7 +40,7 @@ build-static: ../$(TARBALL) \
 	python3 -m venv /opt/uno-static/venv; \
 	. /opt/uno-static/venv/bin/activate; \
 	pip3 install -U pip setuptools; \
-	pip3 install /opt/uno-static; \
+	pip3 install /opt/uno-static/src; \
 	mkdir -p \
 	  debian/tmp/usr/bin \
 		debian/tmp/opt
