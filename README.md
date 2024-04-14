@@ -13,21 +13,46 @@
 
 **uno** is a tool for linking multiple LANs into a single routing domain over the public Internet.
 
-LANs are interconnected by local agents deployed within them to act as gateways to
-other LANs.
+LANs are interconnected by agent nodes deployed within them, which act as gateways
+to other LANs. The agent nodes establish redudant VPN links between them to carry out the
+[BGP protocol](https://en.wikipedia.org/wiki/Border_Gateway_Protocol) and find routes to every
+other LAN.
 
-Agents use secure VPN links to establish a routing "backbone" where they
-carry out the [BGP protocol](https://en.wikipedia.org/wiki/Border_Gateway_Protocol)
-to find routes to every other remote LAN.
+Beside implementing the routing "backbone", each agent node also exposes a VPN port to allow
+authorized mobile peers to access the unified routing domain, and route all their traffic through
+the VPN link.
 
-VPN links are provisioned using [WireGuard](https://www.wireguard.com/), while
-the [frrouting](https://frrouting.org/) suite is used to implement IP routing.
+**uno** refers to this unified routing domain as a **unified virtual network** or **UVN** for short.
+The **UVN** is composed of **cells** (a.k.a. agent nodes), **particles** (a.k.a. mobile peers), and
+at least one **user** (the **UVN**'s **owner**).
 
-The configuration of each agent is automatically generated from a global manifest,
-which defines all parameters of **uno**'s *unified virtual network* (UVN).
+The **UVN**'s configuration is defined in a centralized **registry**, which provides **cell agent packages**
+to be copied onto each agent host. The packages contain all artifacts required to deploy the
+**UVN** services on the host, and instantiate its **cell**.
 
-The following diagram shows an example of a UVN interconnecting four LANs with
-an agent in each LAN:
+The **registry** also contains a **particle package** for every **particle**, providing ready-to-use
+VPN configurations to connect as that **particle** to any one of the **cells** with an active particle
+VPN port.
+
+**uno** supports dynamic reconfiguration of the UVN, which can be updated in the registry and
+either pushed to **cells** with a publicly reachable address, or pulled by **cells** deployed
+behind a NAT (in this case the registry must be deployed behind a public address). This feature
+is optional, and **uno** can still be used to create entirely static deployments.
+
+Dynamic reconfiguration requires the deployment of an **agent** process on each **cell**.
+The **agents** will listen for connections from the **registry**, and they will also disseminate
+status information between them. Each **agent** provides a status overview through a web inteface,
+which can be accessed from anywhere within the **UVN**.
+
+All VPN links are provisioned using [WireGuard](https://www.wireguard.com/), while
+the [frrouting](https://frrouting.org/) suite is used to implement BGP routing.
+
+The agents use [RTI Connext DDS](https://www.rti.com) to communicate between them,
+and to exchange configuration updates with the registry.
+
+The following diagram shows an example of a **UVN** interconnecting four LANs with
+a **cell** in each LAN, and several **particles** connecting to them. All **cells**
+in this example are reachable through a public address.
 
 ![uvn example](docs/static/uvn.png "UVN Example")
 

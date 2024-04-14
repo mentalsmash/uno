@@ -174,7 +174,7 @@ class BasicExperiment(Experiment):
     return spec
 
   def _define_uvn_cli(self) -> None:
-    owner = next(u for u in self.config["uvn_owner"] if u["email"] == self.config["uvn_owner"])
+    owner = next(u for u in self.config["uvn_users"] if u["email"] == self.config["uvn_owner"])
     self.uno(
       "define",
       "uvn",
