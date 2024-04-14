@@ -1,7 +1,7 @@
 VERSION :=  2.3.0
 TARBALL := uno_$(VERSION).orig.tar.xz
 
-BUILD_DIR := build/uno
+BUILD_DIR := /opt/uno
 UNO_DIR := $(BUILD_DIR)/src
 VENV_DIR := $(BUILD_DIR)/venv
 
