@@ -18,7 +18,7 @@ build-default: ../$(TARBALL) \
                clean-debian-tmp
 	set -ex; \
 	rm -rf /opt/uno; \
-	mkdir -p /opt/uno; \
+	mkdir -p /opt/uno/src; \
 	tar -xvaf $< -C /opt/uno/src; \
 	python3 -m venv /opt/uno/venv; \
 	. /opt/uno/venv/bin/activate; \
@@ -35,7 +35,7 @@ build-static: ../$(TARBALL) \
                clean-debian-tmp
 	set -ex; \
 	rm -rf /opt/uno-static; \
-	mkdir -p /opt/uno-static; \
+	mkdir -p /opt/uno-static/src; \
 	tar -xvaf $< -C /opt/uno-static/src; \
 	python3 -m venv /opt/uno-static/venv; \
 	. /opt/uno-static/venv/bin/activate; \
