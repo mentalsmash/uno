@@ -37,7 +37,8 @@ All VPN links are provisioned using [WireGuard](https://www.wireguard.com/), whi
 the [frrouting](https://frrouting.org/) suite is used to implement BGP routing.
 
 The agents use [RTI Connext DDS](https://www.rti.com) to communicate between them,
-and to exchange configuration updates with the registry.
+and to exchange configuration updates with the registry. A license file is required
+to use these features, and [it can be requrested for free from RTI](https://www.rti.com/free-trial).
 
 The following diagram shows an example of a **UVN** interconnecting four LANs with
 a **cell** in each LAN, and several **particles** connecting to them. All **cells**
@@ -182,6 +183,13 @@ uno -h
 **uno** will be installed under `/opt/uno`, and it will be automatically available in the `PATH`
 via a symlink in `/usr/bin/`.
 
+Export the path to your RTI license file via `RTI_LICENSE_FILE` so that it may be picked up
+by **uno**:
+
+```sh
+export RTI_LICENSE_FILE=/path/to/rti_license.dat
+```
+
 ### Python Virtual Environment
 
 **uno** can be installed manually from this repository, using a Python Virtual Environment.
@@ -236,6 +244,13 @@ The executable `/opt/uno/venv/bin/uno` can be used directly without
 first activating the virtual environment. You can add the `/opt/uno/venv/bin/`
 directory to `PATH` for quicker access (or just link the executable to
 a directory already in your `PATH`, e.g. `/usr/local/bin`).
+
+Export the path to your RTI license file via `RTI_LICENSE_FILE` so that it may be picked up
+by **uno**:
+
+```sh
+export RTI_LICENSE_FILE=/path/to/rti_license.dat
+```
 
 ## Step-by-Step UVN Setup
 
