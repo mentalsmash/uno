@@ -1,2 +1,3 @@
-build/static/uno                opt/
-usr/bin/uno
+opt/uno-static
+usr/bin/uno-static
+

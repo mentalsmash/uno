@@ -25,6 +25,7 @@ build-default: ../$(TARBALL) \
 	pip3 install -U pip setuptools; \
 	pip3 install /opt/uno/src; \
 	pip3 install /opt/uno/src/plugins/uno_middleware_connext; \
+	pip3 uninstall pip setuptools; \
 	mkdir -p \
 	  debian/tmp/usr/bin \
 		debian/tmp/opt
@@ -41,6 +42,7 @@ build-static: ../$(TARBALL) \
 	. /opt/uno-static/venv/bin/activate; \
 	pip3 install -U pip setuptools; \
 	pip3 install /opt/uno-static/src; \
+	pip3 uninstall pip setuptools; \
 	mkdir -p \
 	  debian/tmp/usr/bin \
 		debian/tmp/opt
