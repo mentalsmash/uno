@@ -10,6 +10,7 @@ X-Python3-Version: >= 3.9
 Package: uno
 Architecture: any
 Depends:
+  python3,
   frr,
   gnupg2,
   iproute2,
