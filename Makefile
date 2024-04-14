@@ -3,21 +3,24 @@ TARBALL := uno_$(VERSION).orig.tar.xz
 
 .PHONY: \
   build \
-  build-default \
-  build-static \
   tarball \
   clean \
-	clean-debian-tmp
+	clean-debian-tmp \
+  install
 
 build: \
-  build-default \
-  build-static
+  build/default \
+  build/static
 
+install: \
+  install-default \
+  install-static
 
-build-default: ../$(TARBALL) \
-               clean-debian-tmp
+build/default: ../$(TARBALL)
 	set -ex; \
-	rm -rf /opt/uno; \
+	rm -rf \
+    build/default \
+    /opt/uno; \
 	mkdir -p /opt/uno/src; \
 	tar -xvaf $< -C /opt/uno/src; \
 	python3 -m venv /opt/uno/venv; \
@@ -26,16 +29,21 @@ build-default: ../$(TARBALL) \
 	pip3 install /opt/uno/src; \
 	pip3 install /opt/uno/src/plugins/uno_middleware_connext; \
 	pip3 uninstall --yes pip setuptools; \
-	mkdir -p \
-	  debian/tmp/usr/bin \
-		debian/tmp/opt
-	mv /opt/uno debian/tmp/opt
-	ln -s /opt/uno/venv/bin/uno debian/tmp/usr/bin/uno
+	mkdir -p build/default/usr/bin
+	ln -s /opt/uno/venv/bin/uno build/default/usr/bin/uno
+	mv /opt/uno build/default
 
-build-static: ../$(TARBALL) \
-               clean-debian-tmp
+install-default: build/default \
+                 clean-debian-tmp
+  mkdir -p debian/tmp
+	install $</uno 					debian/tmp/opt/
+	install $</usr/bin/uno 	debian/tmp/usr/bin/
+
+build/static: ../$(TARBALL)
 	set -ex; \
-	rm -rf /opt/uno-static; \
+	rm -rf \
+    build/static \
+    /opt/uno-static; \
 	mkdir -p /opt/uno-static/src; \
 	tar -xvaf $< -C /opt/uno-static/src; \
 	python3 -m venv /opt/uno-static/venv; \
@@ -43,11 +51,15 @@ build-static: ../$(TARBALL) \
 	pip3 install -U pip setuptools; \
 	pip3 install /opt/uno-static/src; \
 	pip3 uninstall --yes pip setuptools; \
-	mkdir -p \
-	  debian/tmp/usr/bin \
-		debian/tmp/opt
-	mv /opt/uno-static debian/tmp/opt
-	ln -s /opt/uno-static/venv/bin/uno debian/tmp/usr/bin/uno-static
+	mkdir -p build/static/usr/bin
+	ln -s /opt/uno-static/venv/bin/uno build/static/usr/bin/uno-static
+	mv /opt/uno-static build/static/
+
+install-default: build/static \
+                 clean-debian-tmp
+  mkdir -p debian/tmp
+	install $</uno-static 					debian/tmp/opt/
+	install $</usr/bin/uno-static		debian/tmp/usr/bin/
 
 clean-debian-tmp:
 	rm -rf debian/tmp
