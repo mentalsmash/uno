@@ -41,6 +41,7 @@ jobs:
     - name: Build packages
       run: |
         docker run --rm \
+          --pull always \
           -v $(pwd)/src/uno:/uno \
           ghcr.io/mentalsmash/uno-ci-debian-builder:${{ matrix.builder-tag }} \
           /uno/scripts/debian_build.sh
@@ -82,6 +83,7 @@ jobs:
     - name: Build packages
       run: |
         docker run --rm \
+          --pull always \
           -v $(pwd)/src/uno:/uno \
           ghcr.io/mentalsmash/uno-ci-debian-builder:${{ matrix.builder-tag }} \
           /uno/scripts/debian_build.sh
