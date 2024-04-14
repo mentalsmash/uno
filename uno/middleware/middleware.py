@@ -55,7 +55,6 @@ class Middleware:
       ImplCls = getattr(plugin_mod, "Middleware")
       if not issubclass(ImplCls, Middleware):
         raise TypeError(ImplCls, "not a middleware")
-      ImplCls.load()
     except Exception as e:
       if log.DEBUG:
         log.error("failed to load middleware plugin: {}", plugin)
