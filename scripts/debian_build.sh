@@ -12,9 +12,9 @@ debuild
 mkdir -p debian-dist
 
 mv -v \
- ../uno_*.deb \
- ../uno_*.debian.tar.xz \
- ../uno_*.dsc \
- ../uno_*.changes \
- ../uno_*.orig.tar.xz \
+ ../uno*.deb \
+ ../uno*.debian.tar.xz \
+ ../uno*.dsc \
+ ../uno*.changes \
+ ../uno*.orig.tar.xz \
  ./debian-dist/

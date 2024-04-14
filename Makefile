@@ -1,39 +1,57 @@
 VERSION :=  2.3.0
 TARBALL := uno_$(VERSION).orig.tar.xz
 
-BUILD_DIR := /opt/uno
-UNO_DIR := $(BUILD_DIR)/src
-VENV_DIR := $(BUILD_DIR)/venv
-
-ifeq ($(UNO_FLAVOR),static)
-	UNO_MIDDLEWARE :=
-else
-	UNO_MIDDLEWARE := uno_middleware_connext
-endif
-
 .PHONY: \
   build \
+  build-default \
+  build-static \
   tarball \
-  clean
+  clean \
+	clean-debian-tmp
 
-build: ../$(TARBALL)
-	rm -rf $(UNO_DIR) $(VENV_DIR)
-	mkdir -p $(UNO_DIR)
-	tar -xvaf $< -C $(UNO_DIR)
-	python3 -m venv $(VENV_DIR) \
-	&& . $(VENV_DIR)/bin/activate \
-	&& pip3 install -U pip setuptools \
-	&& pip3 install $(UNO_DIR)
-	set -e; \
-	. $(VENV_DIR)/bin/activate; \
-	if [ -n "$(UNO_MIDDLEWARE)" ]; then \
-	  pip3 install $(UNO_DIR)/plugins/$(UNO_MIDDLEWARE); \
-	fi
-	mkdir -p debian-tmp/usr/bin
-	ln -s $(VENV_DIR)/bin/uno debian-tmp/usr/bin/uno
+build: \
+  build-default \
+  build-static
+
+
+build-default: ../$(TARBALL) \
+               clean-debian-tmp
+	set -ex; \
+	rm -rf /opt/uno; \
+	mkdir -p /opt/uno; \
+	tar -xvaf $< -C /opt/uno/src; \
+	python3 -m venv /opt/uno/venv; \
+	. /opt/uno/venv/bin/activate; \
+	pip3 install -U pip setuptools; \
+	pip3 install /opt/uno; \
+	pip3 install /opt/uno/src/plugins/uno_middleware_connext; \
+	mkdir -p \
+	  debian/tmp/usr/bin \
+		debian/tmp/opt
+	mv /opt/uno debian/tmp/opt
+	ln -s /opt/uno/venv/bin/uno debian/tmp/usr/bin/uno
+
+build-static: ../$(TARBALL) \
+               clean-debian-tmp
+	set -ex; \
+	rm -rf /opt/uno-static; \
+	mkdir -p /opt/uno-static; \
+	tar -xvaf $< -C /opt/uno-static/src; \
+	python3 -m venv /opt/uno-static/venv; \
+	. /opt/uno-static/venv/bin/activate; \
+	pip3 install -U pip setuptools; \
+	pip3 install /opt/uno-static; \
+	mkdir -p \
+	  debian/tmp/usr/bin \
+		debian/tmp/opt
+	mv /opt/uno-static debian/tmp/opt
+	ln -s /opt/uno-static/venv/bin/uno debian/tmp/usr/bin/uno-static
+
+clean-debian-tmp:
+	rm -rf debian/tmp
 
 clean:
-	rm -rf $(BUILD_DIR)
+	rm -rf /opt/uno /opt/uno-static
 
 tarball: ../$(TARBALL)
 
