@@ -1,3 +1,5 @@
+VERSION :=  2.3.0
+TARBALL := uno_$(VERSION).orig.tar.xz
 
 BUILD_DIR := build/uno
 UNO_DIR := $(BUILD_DIR)/src
@@ -9,13 +11,15 @@ else
 	UNO_MIDDLEWARE := uno_middleware_connext
 endif
 
-.PHONY: build
+.PHONY: \
+  build \
+  tarball \
+  clean
 
-build:
+build: ../$(TARBALL)
 	rm -rf $(UNO_DIR) $(VENV_DIR)
 	mkdir -p $(UNO_DIR)
-	git ls-files --recurse-submodules | tar -c -T- | tar -x -C $(UNO_DIR)
-	# git archive HEAD | tar -x -C $(UNO_DIR)
+	tar -xvaf $< -C $(UNO_DIR)
 	python3 -m venv $(VENV_DIR) \
 	&& . $(VENV_DIR)/bin/activate \
 	&& pip3 install -U pip setuptools \
@@ -27,3 +31,8 @@ build:
 
 clean:
 	rm -rf $(BUILD_DIR)
+
+tarball: ../$(TARBALL)
+
+../$(TARBALL):
+	git ls-files --recurse-submodules | tar -cvaf $@ -T-
