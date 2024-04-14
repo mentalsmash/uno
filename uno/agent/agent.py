@@ -155,8 +155,6 @@ class Agent(
   REACHABLE_NETWORKS_TABLE_FILENAME = "networks.reachable"
   UNREACHABLE_NETWORKS_TABLE_FILENAME = "networks.unreachable"
 
-  DEFAULT_MIDDLEWARE = None
-
   @classmethod
   def open(cls, root: Path | None = None, **config_args) -> "Agent":
     owner_id, config_id = Registry.load_local_id(root)
@@ -188,9 +186,8 @@ class Agent(
   @classmethod
   def install_package(cls, package: Path, root: Path, exclude: list[str] | None = None) -> "Agent":
     Packager.extract_cell_agent_package(package, root, exclude=exclude)
+    Middleware.selected().configure_extracted_cell_agent_package(root)
     agent = cls._assert_agent(root)
-    if agent.registry.middleware.supports_agent():
-      agent.participant.install()
     agent._finish_import_id_db_keys()
     cls.log.warning("bootstrap completed: {}@{} [{}]", agent.owner, agent.uvn, agent.root)
     return agent
@@ -476,10 +473,7 @@ class Agent(
 
   @cached_property
   def participant(self) -> Participant:
-    if not self.registry.middleware.supports_agent():
-      # self.log.error("middleware does not support agents")
-      raise RuntimeError("middleware does not support agents")
-    return self.middleware.participant(self)
+    return Middleware.selected().participant(self)
 
   @cached_property
   def routes_monitor(self) -> RoutesMonitor | None:
@@ -734,6 +728,8 @@ class Agent(
     yield self._on_started()
 
   def spin(self, until: Callable[[], bool] | None = None, max_spin_time: int | None = None) -> None:
+    if not Middleware.selected().supports_agent(self.root):
+      raise RuntimeError("cannot start agent")
     with contextlib.ExitStack() as stack:
       for ctx_mgr in self.running_contexts:
         stack.enter_context(ctx_mgr)

@@ -21,6 +21,7 @@ from enum import Enum
 
 from ..core.exec import exec_command
 from ..registry.versioned import disabled_if, error_if
+from ..middleware import Middleware
 
 from .runnable import Runnable
 from .agent_static_service import AgentStaticService
@@ -55,7 +56,7 @@ class AgentService(Runnable):
 
   def __init__(self, **properties) -> None:
     super().__init__(**properties)
-    self.updated_condition = self.agent.middleware.condition()
+    self.updated_condition = Middleware.selected().condition()
     self.listeners: list[AgentServiceListener] = list()
 
   @property

@@ -1,0 +1,3 @@
+#!/usr/bin/env python3
+from uno.cli.uno import main
+main()

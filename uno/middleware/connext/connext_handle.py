@@ -14,8 +14,12 @@
 # You should have received a copy of the GNU Affero General Public License
 # along with this program. If not, see <https://www.gnu.org/licenses/>.
 ###############################################################################
-from uno.middleware import Participant
+
+import rti.connextdds as dds
+
+from uno.middleware import Handle
 
 
-class NativeParticipant(Participant):
-  pass
+class ConnextHandle(Handle):
+  def __init__(self, value: dds.InstanceHandle) -> None:
+    super().__init__(value)

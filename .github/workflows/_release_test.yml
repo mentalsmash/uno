@@ -40,10 +40,7 @@ jobs:
         run: |
           case "${{ inputs.flavor}}" in
             default)
-              uno_middleware=uno_middleware_connext
-              ;;
-            static)
-              uno_middleware=uno.middleware.native
+              uno_middleware=
               ;;
             *)
               echo "invalid flavor: '${{inputs.flavor}}'"
@@ -163,7 +160,8 @@ jobs:
           pip3 install -U pip setuptools
           pip3 install -U -e src/uno
           case '${{ needs.test_config.outputs.UNO_MIDDLEWARE }}' in
-            uno.middleware.native)
+            '')
+              pip3 install -U rti.connext
               ;;
             *)
               pip3 install -U -e src/uno/plugins/${{ needs.test_config.outputs.UNO_MIDDLEWARE }}

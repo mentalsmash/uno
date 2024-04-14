@@ -58,12 +58,6 @@ jobs:
       with:
         name: uno
         path: src/uno/debian-dist/uno_*
-      
-    - name: Upload uno-static packages
-      uses: actions/upload-artifact@v4
-      with:
-        name: uno-static
-        path: src/uno/debian-dist/uno-static_*
 
 
   build-packages-arm64:
@@ -105,12 +99,6 @@ jobs:
       with:
         name: uno-arm64
         path: src/uno/debian-dist/uno_*
-      
-    - name: Upload uno-static packages
-      uses: actions/upload-artifact@v4
-      with:
-        name: uno-static-arm64
-        path: src/uno/debian-dist/uno-static_*
 
 
   publish_release:
@@ -129,5 +117,3 @@ jobs:
         files: |
           uno/*.deb
           uno-arm64/*.deb
-          uno-static/*.deb
-          uno-static-arm64/*.deb

@@ -31,3 +31,5 @@ debian/uno/
 debian/uno-static
 debian/uno-static.substvars
 debian-dist
+build/
+uno.spec

@@ -22,7 +22,7 @@ env:
   BASE_TAG: ubuntu:22.04
   FLAVOR: default
   TAG_SUFFIX: ''
-  UNO_MIDDLEWARE: uno_middleware_connext
+  UNO_MIDDLEWARE: ''
 
 jobs:
   config:
@@ -77,7 +77,6 @@ jobs:
     uses: ./.github/workflows/_release_build.yml
     secrets: inherit
     with:
-      flavor: ${{ needs.config.outputs.FLAVOR }}
       uno-middleware: ${{ needs.config.outputs.UNO_MIDDLEWARE }}
       base-tag: ${{ needs.config.outputs.BASE_TAG }}
       tags-config: ${{ needs.config.outputs.DOCKER_TAGS_CONFIG }}

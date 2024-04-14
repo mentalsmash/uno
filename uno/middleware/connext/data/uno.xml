@@ -1,0 +1,328 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<dds xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance" xsi:noNamespaceSchemaLocation="http://community.rti.com/schema/6.0.1/rti_dds_profiles.xsd" version="6.0.1">
+    <types>
+      <module name="uno">
+        <struct name="IpAddress" nested="true">
+          <member name="value" type="byte" arrayDimensions="4"/>
+        </struct>
+        <typedef name="NetworkMask" type="uint8"/>
+        <struct name="IpNetworkInfo" nested="true">
+          <member name="address" type="nonBasic" nonBasicTypeName="uno::IpAddress"/>
+          <member name="mask" type="nonBasic" nonBasicTypeName="uno::NetworkMask"/>
+        </struct>
+        <struct name="CellId" nested="true">
+          <member name="uvn" type="string" stringMaxLength="-1"/>
+          <member name="n" type="uint32"/>
+        </struct>
+        <struct name="NetworkInfo" nested="true">
+          <member name="nic" type="string" stringMaxLength="-1"/>
+          <member name="subnet" type="nonBasic" nonBasicTypeName="uno::IpNetworkInfo"/>
+          <member name="endpoint" type="nonBasic" nonBasicTypeName="uno::IpAddress"/>
+          <member name="gw" type="nonBasic" nonBasicTypeName="uno::IpAddress"/>
+        </struct>
+        <struct name="UvnInfo">
+          <member name="name" type="string" stringMaxLength="-1" key="true"/>
+          <member name="registry_id" type="string" stringMaxLength="-1"/>
+        </struct>
+        <struct name="CellInfo">
+          <member name="id" type="nonBasic" nonBasicTypeName="uno::CellId" key="true"/>
+          <member name="registry_id" type="string" stringMaxLength="-1"/>
+          <member name="routed_networks" type="nonBasic" nonBasicTypeName="uno::NetworkInfo" sequenceMaxLength="-1"/>
+          <member name="reachable_networks" type="nonBasic" nonBasicTypeName="uno::NetworkInfo" sequenceMaxLength="-1"/>
+          <member name="unreachable_networks" type="nonBasic" nonBasicTypeName="uno::NetworkInfo" sequenceMaxLength="-1"/>
+          <member name="local_routes" type="string" stringMaxLength="-1" sequenceMaxLength="-1"/>
+          <member name="ts_start" type="uint64"/>
+        </struct>
+        <struct name="AgentConfig">
+          <member name="cell" type="nonBasic" nonBasicTypeName="uno::CellId" key="true"/>
+          <member name="registry_id" type="string" stringMaxLength="-1"/>
+          <member name="package" type="byte" sequenceMaxLength="-1"/>
+          <member name="config" type="string" stringMaxLength="-1"/>
+        </struct>
+      </module>
+    </types>
+
+    <qos_library name="UnoQosProfiles">
+      <qos_profile name="BaseParticipant">
+        <?rti-qos_snippet?>
+        <participant_qos>
+          <property>
+            <value>
+              <element>
+                <name>dds.license.license_string</name>
+                <value>{{rti_license}}</value>
+              </element>
+              {% if enable_dds_security %}
+              <element>
+                <name>com.rti.serv.load_plugin</name>
+                <value>com.rti.serv.secure</value>
+              </element>
+              <element>
+                <name>com.rti.serv.secure.library</name>
+                <value>nddssecurity</value>
+              </element>
+              <element>
+                <name>com.rti.serv.secure.create_function</name>
+                <value>RTI_Security_PluginSuite_create</value>
+              </element>
+              {% endif %}
+              <element>
+                <name>dds.sec.auth.identity_ca</name>
+                <value>{{ca_cert}}</value>
+              </element>
+              <element>
+                <name>dds.sec.access.permissions_ca</name>
+                <value>{{perm_ca_cert}}</value>
+              </element>
+              <element>
+                <name>dds.sec.auth.identity_certificate</name>
+                <value>{{cert}}</value>
+              </element>
+              <element>
+                <name>dds.sec.auth.private_key</name>
+                <value>{{key}}</value>
+              </element>
+              <element>
+                <name>dds.sec.access.governance</name>
+                <value>{{governance}}</value>
+              </element>
+              <element>
+                <name>dds.sec.access.permissions</name>
+                <value>{{permissions}}</value>
+              </element>
+              {% if domain_tag %}
+              <element>
+                <name>dds.domain_participant.domain_tag</name>
+                <value>{{domain_tag}}</value>
+              </element>
+              {% endif %}
+            </value>
+          </property>
+          <database>
+            <shutdown_cleanup_period>
+              <sec>0</sec>
+              <nanosec>10000000</nanosec>
+            </shutdown_cleanup_period>
+          </database>
+          <transport_builtin>
+            <mask>UDPv4</mask>
+          </transport_builtin>
+          <discovery>
+            <initial_peers>
+              {%- for peer in initial_peers %}
+              <element>{{peer}}</element>
+              {%- endfor %}
+            </initial_peers>
+            <accept_unknown_peers>false</accept_unknown_peers>
+          </discovery>
+          <resource_limits>
+            <contentfilter_property_max_length>1024</contentfilter_property_max_length>
+          </resource_limits>
+          <discovery_config>
+            <participant_liveliness_lease_duration>
+              <sec>{{timing.participant_liveliness_lease_duration}}</sec>
+              <nanosec>0</nanosec>
+            </participant_liveliness_lease_duration>
+            <participant_liveliness_assert_period>
+              <sec>{{timing.participant_liveliness_assert_period}}</sec>
+              <nanosec>0</nanosec>
+            </participant_liveliness_assert_period>
+            <max_liveliness_loss_detection_period>
+              <sec>{{timing.participant_liveliness_detection_period}}</sec>
+              <nanosec>0</nanosec>
+            </max_liveliness_loss_detection_period>
+            <initial_participant_announcements>{{timing.initial_participant_announcements}}</initial_participant_announcements>
+            <min_initial_participant_announcement_period>
+              <sec>{{timing.initial_participant_announcement_period[0]}}</sec>
+              <nanosec>0</nanosec>
+            </min_initial_participant_announcement_period>
+            <max_initial_participant_announcement_period>
+              <sec>{{timing.initial_participant_announcement_period[1]}}</sec>
+              <nanosec>0</nanosec>
+            </max_initial_participant_announcement_period>
+          </discovery_config>
+        </participant_qos>
+      </qos_profile>
+      <qos_profile name="BaseDataReader">
+        <?rti-qos_snippet?>
+        <datareader_qos>
+          <property>
+            <value>
+              <element>
+                <name>dds.data_reader.history.memory_manager.fast_pool.pool_buffer_max_size</name>
+                <value>4096</value>
+                <propagate>false</propagate>
+              </element>
+            </value>
+          </property>
+        </datareader_qos>
+      </qos_profile>
+      <qos_profile name="BaseDataWriter">
+        <?rti-qos_snippet?>
+        <datawriter_qos>
+          <protocol>
+            <rtps_reliable_writer>
+              <heartbeat_period>
+                <sec>0</sec>
+                <nanosec>200000000</nanosec><!--200ms-->
+              </heartbeat_period>
+              <fast_heartbeat_period>
+                <sec>0</sec>
+                <nanosec>200000000</nanosec><!--200ms-->
+              </fast_heartbeat_period>
+              <late_joiner_heartbeat_period>
+                <sec>0</sec>
+                <nanosec>200000000</nanosec><!--200ms-->
+              </late_joiner_heartbeat_period>
+              <max_heartbeat_retries>1000000</max_heartbeat_retries>
+            </rtps_reliable_writer>
+          </protocol>
+          <property>
+            <value>
+              <element>
+                <name>dds.data_writer.history.memory_manager.fast_pool.pool_buffer_max_size</name>
+                <value>4096</value>
+              </element>
+            </value>
+          </property>
+        </datawriter_qos>
+      </qos_profile>
+      <qos_profile name="UvnAgent" base_name="BuiltinQosLib::Baseline.6.0.0">
+        <base_name>
+          <element>UnoQosProfiles::BaseParticipant</element>
+          <element>UnoQosProfiles::BaseDataReader</element>
+          <element>UnoQosProfiles::BaseDataWriter</element>
+        </base_name>
+      </qos_profile>
+      <qos_profile name="BaseTopic">
+        <base_name>
+          <element>BuiltinQosSnippetLib::QosPolicy.History.KeepLast_1</element>
+          <element>BuiltinQosSnippetLib::QosPolicy.Durability.TransientLocal</element>
+          <element>BuiltinQosSnippetLib::QosPolicy.Reliability.Reliable</element>
+          <element>UnoQosProfiles::BaseDataReader</element>
+          <element>UnoQosProfiles::BaseDataWriter</element>
+        </base_name>
+        <datareader_qos>
+          <resource_limits>
+              <max_samples>1</max_samples>
+              <max_instances>1</max_instances>
+              <initial_samples>1</initial_samples>
+              <max_samples_per_instance>1</max_samples_per_instance>
+              <initial_instances>1</initial_instances>
+          </resource_limits>
+        </datareader_qos>
+        <datawriter_qos>
+          <resource_limits>
+              <max_samples>1</max_samples>
+              <max_instances>1</max_instances>
+              <initial_samples>1</initial_samples>
+              <max_samples_per_instance>1</max_samples_per_instance>
+              <initial_instances>1</initial_instances>
+          </resource_limits>
+          <protocol>
+            <rtps_reliable_writer>
+              <heartbeats_per_max_samples>1</heartbeats_per_max_samples>
+            </rtps_reliable_writer>
+          </protocol>
+        </datawriter_qos>
+      </qos_profile>
+      <qos_profile name="PeerStatusTopic" base_name="UnoQosProfiles::BaseTopic">
+        <datareader_qos>
+          <resource_limits>
+              <max_samples>{{((uvn.cells|length) + 1) * 2}}</max_samples>
+              <max_instances>{{(uvn.cells|length) + 1}}</max_instances>
+              <initial_samples>1</initial_samples>
+              <max_samples_per_instance>1</max_samples_per_instance>
+              <initial_instances>{{uvn.cells|length}}</initial_instances>
+          </resource_limits>
+        </datareader_qos>
+      </qos_profile>
+      <qos_profile name="AgentConfig" base_name="UnoQosProfiles::BaseTopic">
+        <datawriter_qos>
+          <!-- adjust resource limits to account for multiple peers -->
+          <resource_limits>
+              <max_samples>{{(uvn.cells|length) * 2}}</max_samples>
+              <max_instances>{{uvn.cells|length}}</max_instances>
+              <initial_samples>{{uvn.cells|length}}</initial_samples>
+              <max_samples_per_instance>1</max_samples_per_instance>
+              <initial_instances>{{uvn.cells|length}}</initial_instances>
+          </resource_limits>
+          <protocol>
+            <rtps_reliable_writer>
+              <heartbeats_per_max_samples>{{(uvn.cells|length) * 2}}</heartbeats_per_max_samples>
+            </rtps_reliable_writer>
+          </protocol>
+        </datawriter_qos>
+      </qos_profile>
+    </qos_library>
+
+    <domain_library name="UnoDomains">
+      <domain name="UVN" domain_id="{{domain}}">
+        <register_type name="UvnInfo" type_ref="uno::UvnInfo"/>
+        <register_type name="CellInfo" type_ref="uno::CellInfo"/>
+        <register_type name="AgentConfig" type_ref="uno::AgentConfig"/>
+        <topic name="uno/uvn" register_type_ref="UvnInfo"/>
+        <topic name="uno/config" register_type_ref="AgentConfig"/>
+        <topic name="uno/cell" register_type_ref="CellInfo"/>
+      </domain>
+    </domain_library>
+
+    <domain_participant_library name="UnoParticipants">
+      <domain_participant name="UvnAgent" domain_ref="UnoDomains::UVN">
+      {% if cell %}
+        <subscriber name="Subscriber">
+          <data_reader name="CellInfoReader" topic_ref="uno/cell">
+            <content_filter name="CellInfoFilter" kind="builtin.sql">
+              <expression>id.uvn MATCH &apos;{{uvn.name}}&apos; AND NOT id.n = {{cell.id}}</expression>
+            </content_filter>
+            <datareader_qos base_name="UnoQosProfiles::PeerStatusTopic">
+            </datareader_qos>
+          </data_reader>
+          <data_reader name="UvnInfoReader" topic_ref="uno/uvn">
+            <content_filter name="UvnInfoFilter" kind="builtin.sql">
+              <expression>name MATCH &apos;{{uvn.name}}&apos;</expression>
+            </content_filter>
+            <datareader_qos base_name="UnoQosProfiles::BaseTopic">
+            </datareader_qos>
+          </data_reader>
+          <data_reader name="AgentConfigReader" topic_ref="uno/config">
+            <content_filter name="AgentConfigFilter" kind="builtin.sql">
+              <expression>cell.uvn MATCH &apos;{{uvn.name}}&apos; AND cell.n = {{cell.id}}</expression>
+            </content_filter>
+            <datareader_qos base_name="UnoQosProfiles::AgentConfig">
+            </datareader_qos>
+          </data_reader>
+        </subscriber>
+        <publisher name="Publisher">
+          <data_writer name="CellInfoWriter" topic_ref="uno/cell">
+            <datawriter_qos base_name="UnoQosProfiles::BaseTopic">
+            </datawriter_qos>
+          </data_writer>
+        </publisher>
+      {% else %}{# if cell #}
+        <subscriber name="Subscriber">
+          <data_reader name="CellInfoReader" topic_ref="uno/cell">
+            <content_filter name="RootCellInfoFilter" kind="builtin.sql">
+              <expression>id.uvn MATCH &apos;{{uvn.name}}&apos;</expression>
+            </content_filter>
+            <datareader_qos base_name="UnoQosProfiles::PeerStatusTopic">
+            </datareader_qos>
+          </data_reader>
+        </subscriber>
+        <publisher name="Publisher">
+          <data_writer name="UvnInfoWriter" topic_ref="uno/uvn">
+            <datawriter_qos base_name="UnoQosProfiles::BaseTopic">
+            </datawriter_qos>
+          </data_writer>
+          <data_writer name="AgentConfigWriter" topic_ref="uno/config">
+            <datawriter_qos base_name="UnoQosProfiles::AgentConfig">
+            </datawriter_qos>
+          </data_writer>
+        </publisher>
+      {% endif %}{# if cell #}
+        <participant_qos base_name="UnoQosProfiles::UvnAgent">
+        </participant_qos>
+      </domain_participant>
+    </domain_participant_library>
+
+</dds>

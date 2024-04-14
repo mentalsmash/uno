@@ -19,12 +19,12 @@ from pathlib import Path
 import pytest
 import subprocess
 
-from uno.test.integration import Host, Experiment, agent_test
+from uno.test.integration import Host, Experiment
 from uno.test.integration.experiments.basic import BasicExperiment
 
 
 def load_experiment() -> Experiment:
-  return BasicExperiment.define(Path(__file__))
+  return BasicExperiment.define(Path(__file__), requires_agents=True)
 
 
 @pytest.fixture
@@ -32,8 +32,9 @@ def experiment_loader() -> Callable[[], None]:
   return load_experiment
 
 
-@agent_test
 def test_sync(experiment: Experiment, the_registry: Host, the_agents: dict[Host, subprocess.Popen]):
+  if experiment is None:
+    pytest.skip()
   the_registry.uno("sync", "--max-wait-time", "90")
   for agent in the_agents.keys():
     assert agent.cell_fully_routed

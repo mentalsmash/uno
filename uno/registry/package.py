@@ -12,6 +12,7 @@ from .cell import Cell
 from .uvn import Uvn
 from .particle import Particle
 from .versioned import Versioned
+from ..middleware import Middleware
 
 if TYPE_CHECKING:
   from .registry import Registry
@@ -71,7 +72,7 @@ class Packager(Versioned):
     try:
       if format == "tar":
         exec_command(
-          ["tar", "cJf", archive, *(f.relative_to(base_dir) for f in files)], cwd=base_dir
+          ["tar", "cvJf", archive, *(f.relative_to(base_dir) for f in files)], cwd=base_dir
         )
       elif format == "zip":
         archive_dir = archive.with_suffix("")
@@ -121,15 +122,10 @@ class Packager(Versioned):
     )
     package_files.append(id_file)
 
-    # Create a participant from the registry to
-    # read additional bundled files
-    participant = registry.middleware.participant(registry=registry, owner=cell)
-    for src in participant.cell_agent_package_files:
-      dst = src.relative_to(participant.root)
-      tgt = tmp_dir / dst
-      tgt.parent.mkdir(exist_ok=True, parents=True)
-      exec_command(["cp", "-v", src, tgt])
-      package_files.append(tgt)
+    # Let middleware attach some files
+    package_files.extend(
+      Middleware.selected().install_cell_agent_package_files(registry.root, tmp_dir)
+    )
 
     # Generate agent's database in the temporary directory
     db = registry.generate_cell_database(cell, root=tmp_dir)
@@ -166,7 +162,7 @@ class Packager(Versioned):
         "install_base": install_base,
         "venv": install_base + "/venv",
         "agent_root": install_base + "/" + cell.name,
-        "middleware_install": registry.middleware.install_instructions,
+        "middleware_install": Middleware.selected().install_instructions(),
         # Cache some frequently used variables for easier reference
         "allowed_lans": list(cell.allowed_lans),
         "address": cell.address,

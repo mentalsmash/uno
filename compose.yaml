@@ -11,7 +11,6 @@ services:
       platforms:
       - linux/amd64
       args:
-        UNO_MIDDLEWARE: uno_middleware_connext
         BASE_IMAGE: ubuntu:22.04
   test-runner:
     build:
@@ -23,7 +22,6 @@ services:
       - linux/amd64
       args:
         DEV: y
-        UNO_MIDDLEWARE: uno_middleware_connext
         BASE_IMAGE: ubuntu:22.04
   uno-arm64:
     build:
@@ -34,7 +32,6 @@ services:
       platforms:
         - linux/arm64
       args:
-        UNO_MIDDLEWARE: uno_middleware_connext
         BASE_IMAGE: ubuntu:22.04
   test-runner-arm64:
     build:
@@ -46,7 +43,6 @@ services:
         - linux/arm64
       args:
         DEV: y
-        UNO_MIDDLEWARE: uno_middleware_connext
         BASE_IMAGE: ubuntu:22.04
   #############################################################################
   # uno (default) edge images
@@ -58,41 +54,6 @@ services:
       tags:
         - mentalsmash/uno:dev
       args:
-        UNO_MIDDLEWARE: uno_middleware_connext
-        BASE_IMAGE: ubuntu:24.04
-  #############################################################################
-  # uno (static) images
-  #############################################################################
-  uno-static:
-    build:
-      context: .
-      dockerfile: docker/Dockerfile
-      tags:
-        - mentalsmash/uno:dev-static
-      args:
-        UNO_MIDDLEWARE: uno.middleware.connext
-        BASE_IMAGE: ubuntu:22.04
-  test-runner-static:
-    build:
-      context: .
-      dockerfile: docker/Dockerfile
-      tags:
-        - mentalsmash/uno-test-runner:latest
-      args:
-        DEV: y
-        UNO_MIDDLEWARE: uno.middleware.native
-        BASE_IMAGE: ubuntu:22.04
-  #############################################################################
-  # uno (static) edge images
-  #############################################################################
-  uno-static-edge:
-    build:
-      context: .
-      dockerfile: docker/Dockerfile
-      tags:
-        - mentalsmash/uno:dev
-      args:
-        UNO_MIDDLEWARE: uno.middleware.native
         BASE_IMAGE: ubuntu:24.04
   #############################################################################
   # Debian package builders

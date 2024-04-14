@@ -1,13 +1,12 @@
 name: CI
 run-name: |
-  CI test (${{inputs.uno-middleware}}, ${{inputs.base-image}}, ${{inputs.build-platform}}) ${{inputs.run-unit && '[U]' || ''}}${{inputs.run-unit && '[I]' || ''}}[${{github.ref_name}}${{github.ref_type == 'branch' && '@' || ''}}${{github.ref_type == 'branch' && github.sha || ''}}]
+  CI test (${{inputs.uno-middleware||'default'}}, ${{inputs.base-image}}, ${{inputs.build-platform}}) ${{inputs.run-unit && '[U]' || ''}}${{inputs.run-unit && '[I]' || ''}}[${{github.ref_name}}${{github.ref_type == 'branch' && '@' || ''}}${{github.ref_type == 'branch' && github.sha || ''}}]
 
 on:
   workflow_call:
     inputs:
       uno-middleware:
         type: string
-        required: true
       base-image:
         type: string
         required: true
@@ -20,13 +19,15 @@ on:
       run-integration:
         type: boolean
         default: true
+      test-without-license:
+        type: boolean
+        default: false
 
   workflow_dispatch:
     inputs:
       uno-middleware:
         description: "uno middleware plugin"
         type: string
-        required: true
       base-image:
         description: "base OS image"
         type: string
@@ -43,9 +44,13 @@ on:
         description: "run integration tests"
         type: boolean
         default: true
+      test-without-license:
+        description: "test also without an RTI license"
+        type: boolean
+        default: true
 
 concurrency:
-  group: ci-build-${{ github.ref }}-${{ inputs.uno-middleware }}-${{ inputs.build-platform }}-${{ inputs.base-image }}
+  group: ci-build-${{ github.ref }}-${{ inputs.uno-middleware || 'default' }}-${{ inputs.build-platform }}-${{ inputs.base-image }}
   cancel-in-progress: true
 
 permissions:
@@ -71,14 +76,6 @@ jobs:
       - name: Generate build and test configuration
         id: config
         run: |
-          case "${{ inputs.uno-middleware }}" in
-            uno.middleware.native)
-              middleware_type=static
-              ;;
-            *)
-              middleware_type=default
-              ;;
-          esac
           case "${{github.ref_type}}" in
             tag)
               image_version=${{github.ref_name}}
@@ -100,7 +97,7 @@ jobs:
           image_version="$(echo ${image_version} | tr / -)"
           build_id=$(date +%Y%m%d-%H%M%S)
           middleware_id=$(echo ${{inputs.uno-middleware}} | sed -e 's/uno.middleware.//')
-          test_artifact=uno-ci-${build_type}-${middleware_id}-${{ inputs.build-platform }}__${image_version}__${build_id}
+          test_artifact=uno-ci-${build_type}-${middleware_id:-default}-${{ inputs.build-platform }}__${image_version}__${build_id}
           test_image=${{ github.repository }}-test-runner:latest
           base_image_tag=$(echo "${{ inputs.base-image }}" | tr : -)
           test_base_image=ghcr.io/mentalsmash/uno-ci-base-tester:${base_image_tag}
@@ -108,7 +105,7 @@ jobs:
             case "${{ inputs.build-platform }}" in
               arm64)
                 case "${{inputs.uno-middleware}}" in
-                  *connext*)
+                  '')
                     # Force full test suite to run on "beefier" rpi5 nodes
                     printf -- "RUNNER='%s'\n" '["self-hosted", "linux", "arm64", "rpi5"]'
                     ;;
@@ -148,7 +145,8 @@ jobs:
           ${GITHUB_WORKSPACE}/poetry-venv/bin/poetry install --with=dev
           . .venv/bin/activate
           case '${{ inputs.uno-middleware }}' in
-            uno.middleware.native)
+            '')
+              pip3 install -U rti.connext
               ;;
             *)
               pip3 install -U -e plugins/${{ inputs.uno-middleware }}
@@ -199,9 +197,23 @@ jobs:
             -w /workspace \
             -e VERBOSITY=activity \
             -e DEBUG=y \
+            -e EXPECT_MIDDLEWARE=${{ inputs.uno-middleware || 'uno.middleware.connext' }} \
             ${{ needs.config.outputs.TEST_IMAGE }} \
             pytest -s -v --junit-xml=test-results/uno-test-results-unit-${{ needs.config.outputs.BUILD_ID }}.xml \
               src/uno/test/unit
+
+      - name: Run unit tests (without license)
+        if: inputs.run-unit && inputs.test-without-license
+        run: |
+          mkdir -p test-results
+          docker run --rm \
+            -v $(pwd):/workspace \
+            -w /workspace \
+            -e VERBOSITY=activity \
+            -e DEBUG=y \
+            -e EXPECT_MIDDLEWARE= \
+            ${{ needs.config.outputs.TEST_IMAGE }} \
+            sh -c "rm /rti_license.dat && unset RTI_LICENSE_FILE && pytest -s -v --junit-xml=test-results/uno-test-results-unit-${{ needs.config.outputs.BUILD_ID }}.xml src/uno/test/unit"
 
       - name: Restore permissions changed by unit tests
         if: ${{ inputs.run-unit && always() }}
@@ -227,10 +239,32 @@ jobs:
           pytest -s -v --junit-xml=test-results/uno-test-results-integration-${{ needs.config.outputs.BUILD_ID }}.xml \
             src/uno/test/integration
         env:
-          RTI_LICENSE_FILE: ${{ github.workspace }}/rti_license.dat
           DEBUG: y
           VERBOSITY: activity
           UNO_MIDDLEWARE: ${{ inputs.uno-middleware }}
+          EXPECT_MIDDLEWARE: ${{ inputs.uno-middleware || 'uno.middleware.connext' }}
+      
+      - name: Restore permissions changed by integration tests
+        if: ${{ inputs.run-integration && always() }}
+        run: |
+          docker run --rm \
+            -v $(pwd):/workspace \
+            ${{ needs.config.outputs.TEST_IMAGE }} \
+            fix-root-permissions $(id -u):$(id -g) /workspace
+      
+      - name: Run integration tests (without license)
+        if: inputs.run-integration && inputs.test-without-license
+        run: |
+          rm rti_license.dat
+          mkdir -p test-results
+          . src/uno/.venv/bin/activate
+          pytest -s -v --junit-xml=test-results/uno-test-results-integration-${{ needs.config.outputs.BUILD_ID }}.xml \
+            src/uno/test/integration
+        env:
+          DEBUG: y
+          VERBOSITY: activity
+          UNO_MIDDLEWARE: ${{ inputs.uno-middleware }}
+          EXPECT_MIDDLEWARE: ${{ inputs.uno-middleware || '' }}
 
       - name: Restore permissions changed by integration tests
         if: ${{ inputs.run-integration && always() }}

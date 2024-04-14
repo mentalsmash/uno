@@ -1,7 +1,7 @@
 [tool.poetry]
 name = "uno"
 version = "2.3.0"
-description = "Dynamic site-to-site VPNs"
+description = "Dynamic site-to-site VPNs with WireGuard, frrouting, and RTI Connext DDS"
 authors = ["Andrea Sorbini <as@mentalsmash.org>"]
 readme = "README.md"
 license = "AGPL-3.0-or-later"
@@ -31,6 +31,12 @@ networkx = "^3.2.1"
 sdnotify = "^0.3.2"
 tabulate = "^0.9.0"
 termcolor = "^2.4.0"
+
+[tool.poetry.group.connext]
+optional = true
+
+[tool.poetry.group.connext.dependencies]
+"rti.connext" = "^7.1.0"
 
 [tool.poetry.group.docs]
 optional = true

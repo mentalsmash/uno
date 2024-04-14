@@ -117,7 +117,8 @@ OutputProcessor = Callable[[str], str]
 class _Templates:
   def __init__(self):
     self._env = jinja2.Environment(
-      loader=jinja2.PackageLoader("uno", package_path="templates"),
+      # loader=jinja2.PackageLoader("uno", package_path="templates"),
+      loader=jinja2.FileSystemLoader(Path(__file__).parent.parent / "templates"),
       autoescape=jinja2.select_autoescape(["html", "xml"]),
       extensions=["jinja2.ext.i18n"],
     )

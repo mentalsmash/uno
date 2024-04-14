@@ -19,12 +19,12 @@ from pathlib import Path
 import pytest
 import subprocess
 
-from uno.test.integration import Host, Experiment, agent_test
+from uno.test.integration import Host, Experiment
 from uno.test.integration.experiments.basic import BasicExperiment
 
 
 def load_experiment() -> Experiment:
-  return BasicExperiment.define(Path(__file__))
+  return BasicExperiment.define(Path(__file__), requires_agents=True)
 
 
 @pytest.fixture
@@ -32,12 +32,13 @@ def experiment_loader() -> Callable[[], None]:
   return load_experiment
 
 
-@agent_test
 def test_httpd(
   experiment: Experiment,
   the_hosts: list[Host],
   the_fully_routed_agents: dict[Host, subprocess.Popen],
 ):
+  if experiment is None:
+    pytest.skip()
   agents = list(the_fully_routed_agents)
   # Try to connect to the httpd server of the agents
   experiment.log.activity(

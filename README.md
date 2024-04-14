@@ -31,28 +31,12 @@ an agent in each LAN:
 
 ![uvn example](docs/static/uvn.png "UVN Example")
 
-## Project Status
-
-| Flavor | Build Status | Middleware |
-|--------|--------|------------|
-| default | [![nightly](https://github.com/mentalsmash/uno/actions/workflows/release_default.yml/badge.svg?branch=master)](https://github.com/mentalsmash/uno/actions/workflows/release_default.yml?query=branch%3Amaster) | [`uno_middleware_connext`](https://github.com/mentalsmash/uno-middleware-connext) |
-| static |  [![nightly](https://github.com/mentalsmash/uno/actions/workflows/release_static.yml/badge.svg?branch=master)](https://github.com/mentalsmash/uno/actions/workflows/release_static.yml?query=branch%3Amaster) | [`uno.middleware.native`](uno/middleware/native/) |
-
 ## Docker Images
 
-### Stable Images
-
-| Flavor | Tag | Version | Base OS |
-|--------|-----|---------|------------|
-| default | [`mentalsmash/uno:latest`](https://hub.docker.com/r/mentalsmash/uno/tags?page=&page_size=&ordering=&name=latest) |![latest default image version](https://img.shields.io/endpoint?url=https://gist.githubusercontent.com/asorbini/29b57b0427def87cc3ef4ab81c956c29/raw/uno-badge-image-default-version-latest.json)|![latest default image base image](https://img.shields.io/endpoint?url=https://gist.githubusercontent.com/asorbini/2d53344e1ccfae961665e08432f18113/raw/uno-badge-image-default-base-latest.json)|
-| static | [`mentalsmash/uno:latest-static`](https://hub.docker.com/r/mentalsmash/uno/tags?page=&page_size=&ordering=&name=latest) |![latest static image version](https://img.shields.io/endpoint?url=https://gist.githubusercontent.com/asorbini/d73e338805c7d2c348a2d7149a66f66c/raw/uno-badge-image-static-version-latest-static.json)|![latest static image base image](https://img.shields.io/endpoint?url=https://gist.githubusercontent.com/asorbini/373e55438055b1222c9937797c949f9b/raw/uno-badge-image-static-base-latest-static.json)|
-
-### Nightly Images
-
-| Flavor | Tag | Version | Base OS |
-|--------|-----|---------|------------|
-| default | [`mentalsmash/uno:nightly`](https://hub.docker.com/r/mentalsmash/uno/tags?page=&page_size=&ordering=&name=nightly) |![latest default image version](https://img.shields.io/endpoint?url=https://gist.githubusercontent.com/asorbini/e7aab205f782cc0c6f394a2fece90509/raw/uno-badge-image-default-version-nightly.json)|![latest default image base image](https://img.shields.io/endpoint?url=https://gist.githubusercontent.com/asorbini/8f31c46dcfd0543b42f356e5b1c6c2c8/raw/uno-badge-image-default-base-nightly.json)|
-| static | [`mentalsmash/uno:nightly-static`](https://hub.docker.com/r/mentalsmash/uno/tags?page=&page_size=&ordering=&name=nightly) |![latest static image version](https://img.shields.io/endpoint?url=https://gist.githubusercontent.com/asorbini/b310f08c34f051846877aeb59b0be311/raw/uno-badge-image-static-version-nightly-static.json)|![latest static image base image](https://img.shields.io/endpoint?url=https://gist.githubusercontent.com/asorbini/b0e38a84eb8679d5212e162fbb616773/raw/uno-badge-image-static-base-nightly-static.json)|
+| Tag | Version | Base OS |
+|-----|---------|------------|
+| [`mentalsmash/uno:latest`](https://hub.docker.com/r/mentalsmash/uno/tags?page=&page_size=&ordering=&name=latest) |![latest default image version](https://img.shields.io/endpoint?url=https://gist.githubusercontent.com/asorbini/29b57b0427def87cc3ef4ab81c956c29/raw/uno-badge-image-default-version-latest.json)|![latest default image base image](https://img.shields.io/endpoint?url=https://gist.githubusercontent.com/asorbini/2d53344e1ccfae961665e08432f18113/raw/uno-badge-image-default-base-latest.json)|
+| [`mentalsmash/uno:nightly`](https://hub.docker.com/r/mentalsmash/uno/tags?page=&page_size=&ordering=&name=nightly) |![latest default image version](https://img.shields.io/endpoint?url=https://gist.githubusercontent.com/asorbini/e7aab205f782cc0c6f394a2fece90509/raw/uno-badge-image-default-version-nightly.json)|![latest default image base image](https://img.shields.io/endpoint?url=https://gist.githubusercontent.com/asorbini/8f31c46dcfd0543b42f356e5b1c6c2c8/raw/uno-badge-image-default-base-nightly.json)|
 
 ## Host Installation
 
@@ -89,30 +73,14 @@ this git repository and [one of the available middlewares](#middleware-setup):
 ```sh
 git clone --recurse-submodules https://github.com/mentalsmash/uno
 
-# Alternatively, you can install uno as a regular user if you plan
-# on using the host only to manage the UVN's registry,
-# A virtual environment installation is recommended in this case.
 python3 -m venv -m uno-venv
+
 . ./uno-venv/bin/activate
+
+pip3 install rti.connext
+
 pip3 install ./uno
 ```
-
-### Middleware Setup
-
-`uno` supports different "middleware backends" to implement communication between agents.
-
-Select and install one of the available plugins:
-
-- "native" middleware: this middleware is included with `uno`, and it does not support deployment of agents.
-
-- [uno-middleware-connext](https://github.com/mentalsmash/uno-middleware-connext): implementation based on [RTI Connext DDS](https://www.rti.com/products/connext-dds-professional).
-
-  ```sh
-  git clone https://github.com/mentalsmash/uno-middleware-connext
-
-  . ./uno-venv/bin/activate
-  pip install ./uno-middleware-connext
-  ```
 
 ### UVN Setup
 
@@ -134,7 +102,6 @@ Select and install one of the available plugins:
    cd my-uvn
 
    # Create the uvn and the root user
-   UNO_MIDDLEWARE=uno_middleware_connext \
    RTI_LICENSE_FILE=/path/to/rti_license.dat \
      uno define uvn my-uvn \
        -o "John Doe <john@example.com>" \

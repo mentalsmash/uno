@@ -19,12 +19,12 @@ from pathlib import Path
 import pytest
 import subprocess
 
-from uno.test.integration import Host, Experiment, agent_test
+from uno.test.integration import Host, Experiment
 from uno.test.integration.experiments.basic import BasicExperiment
 
 
 def load_experiment() -> Experiment:
-  return BasicExperiment.define(Path(__file__))
+  return BasicExperiment.define(Path(__file__), requires_agents=True)
 
 
 @pytest.fixture
@@ -32,12 +32,13 @@ def experiment_loader() -> Callable[[], None]:
   return load_experiment
 
 
-@agent_test
 def test_redeploy_default(
   experiment: Experiment, the_registry: Host, the_agents: dict[Host, subprocess.Popen]
 ):
   """Generate, and push a new deployment, using the default deployment strategy.
   Verify that the UVN regain consistency afterwards."""
+  if experiment is None:
+    pytest.skip()
   the_registry.uno("redeploy")
   the_registry.uno("service", "down")
   the_registry.uno("sync", "--max-wait-time", "300")

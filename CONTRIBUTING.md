@@ -40,15 +40,12 @@ The release process consists of the following steps:
 
 - Update the "release badges" published in the README.
 
-The `<tag>` used by the generated image depends on the type of release, and the
-"flavor" of `uno` being released:
+The `<tag>` used by the generated image depends on the type of release:
 
-| Event | Release Type | Flavor | Image Tag |
-|-------|--------------|--------|-----------|
-| push tag without a `/` in the name | stable | default | `latest` |
-| push tag without a `/` in the name | stable | static  | `latest-static` |
-| push commit to `master` | nightly | default | `nightly` |
-| push commit to `master` | nightly | static  | `nightly-static` |
+| Event | Release Type | Image Tag |
+|-------|--------------|-----------|
+| push tag without a `/` in the name | stable | `latest` |
+| push commit to `master` | nightly | `nightly` |
 
 ### Pull Request Process
 
@@ -69,21 +66,19 @@ If a pull request is opened as draft, the build will be triggered once the PR is
 
 The "full" validation will be triggered every time the PR transitions into "accepted" state.
 
-Each validation workflow will target one or more `[flavor, platform]` combinations, and
-for each configuration it will:
+Each validation workflow will target one or more platforms, and for each configuration it will:
 
-- Build a test Docker image for the selected platform. The image
-  will use the middleware associated with the selected "flavor".
+- Build a test Docker image for the selected platform.
 
 - Run `uno`'s full test suite.
 
 The difference between the two validation workflows lies only in the number of "flavors" and
 platforms that they test:
 
-| Build Type | (default, amd64) | (default, arm64) | (static, amd64) | (static, arm64) |
-|------------|------------------|------------------|-----------------|-----------------|
-| basic      |:white_check_mark:|:x:|:x:|:x:|
-| full       |:x:|:white_check_mark:|:white_check_mark:|:white_check_mark:|
+| Build Type | amd64 | arm64 |
+|------------|-------|-------|
+| basic      |:white_check_mark:|:x:|
+| full       |:x:|:white_check_mark:|
 
 ### Coding Style
 
@@ -209,9 +204,8 @@ be provided via the `RTI_LICENSE_FILE` environment variable, or by copying into 
 
 [You can request a free evaluation license from RTI](https://www.rti.com/free-trial).
 
-If you don't have/don't want to get a free license from RTI, you can still use `uno` with the alternative,
-"static" middleware (`uno.middleware.native`). No agent functionality will be available, and the UVN will
-need to be reconfigured by hand.
+If you don't have/don't want to get a free license from RTI, you can still use `uno` but the agent functionality
+will not be available, and the UVN will need to be reconfigured by hand.
 
 1. Once you have obtained `rti_license.dat`, copy (or symlink) it in the root of
    the `uno/` directory, so that it will be automatically picked up by tests:

@@ -63,16 +63,17 @@ jobs:
     if: ${{ needs.check-review-status.outputs.BASIC }}
     strategy:
       matrix:
-        include:
-          - build-platform: amd64
-            base-image: ubuntu:22.04
-            uno-middleware: uno_middleware_connext
+        build-platform: [amd64]
+        base-image: ["ubuntu:22.04"]
+        uno-middleware: ['']
+        test-without-license: [false]
     uses: ./.github/workflows/ci.yml
     secrets: inherit
     with:
       build-platform: ${{matrix.build-platform}}
       base-image: ${{matrix.base-image}}
       uno-middleware: ${{matrix.uno-middleware}}
+      test-without-license: ${{matrix.test-without-license}}
 
   full-validation:
     needs: check-review-status
@@ -81,14 +82,17 @@ jobs:
       matrix:
         build-platform: [amd64, arm64]
         base-image: ["ubuntu:22.04"]
-        uno-middleware: [uno_middleware_connext, uno.middleware.native]
+        uno-middleware: ['']
+        test-without-license: [false, true]
         exclude:
           - build-platform: amd64
-            base-image: ubuntu:22.04
-            uno-middleware: uno_middleware_connext
+            base-image: "ubuntu:22.04"
+            uno-middleware: ''
+            test-without-license: false
     uses: ./.github/workflows/ci.yml
     secrets: inherit
     with:
       build-platform: ${{matrix.build-platform}}
       base-image: ${{matrix.base-image}}
       uno-middleware: ${{matrix.uno-middleware}}
+      test-without-license: ${{matrix.test-without-license}}

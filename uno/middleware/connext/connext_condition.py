@@ -14,16 +14,19 @@
 # You should have received a copy of the GNU Affero General Public License
 # along with this program. If not, see <https://www.gnu.org/licenses/>.
 ###############################################################################
-from uno.middleware import Middleware
+import rti.connextdds as dds
 
-from .native_condition import NativeCondition
-from .native_participant import NativeParticipant
+from uno.middleware import Condition
 
 
-class NativeMiddleware(Middleware):
-  CONDITION = NativeCondition
-  PARTICIPANT = NativeParticipant
+class ConnextCondition(Condition):
+  def __init__(self, condition: dds.Condition | None = None) -> None:
+    self._condition = condition or dds.GuardCondition()
 
-  @classmethod
-  def supports_agent(cls) -> bool:
-    return False
+  @property
+  def trigger_value(self) -> bool:
+    return self._condition.trigger_value
+
+  @trigger_value.setter
+  def trigger_value(self, val: bool) -> None:
+    self._condition.trigger_value = val

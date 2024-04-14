@@ -106,7 +106,7 @@ def cli_command_main(
   define_parser(parser)
   args = parser.parse_args()
 
-  cmd = args.cmd
+  cmd = getattr(args, "cmd", None)
   if cmd is None:
     raise RuntimeError("no command specified")
 

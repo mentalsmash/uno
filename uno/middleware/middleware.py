@@ -14,9 +14,8 @@
 # You should have received a copy of the GNU Affero General Public License
 # along with this program. If not, see <https://www.gnu.org/licenses/>.
 ###############################################################################
-from typing import TYPE_CHECKING
-from types import ModuleType
 import os
+from typing import TYPE_CHECKING
 from pathlib import Path
 import importlib
 
@@ -33,67 +32,79 @@ if TYPE_CHECKING:
   from ..registry.registry import Registry
   from ..agent.agent import Agent
 
+_Instance = None
+
 
 class Middleware:
-  EnvVar = "UNO_MIDDLEWARE"
-  Default = ["uno_middleware_connext", "uno.middleware.native"]
-
   CONDITION: type[Condition] = None
   PARTICIPANT: type[Participant] = None
 
-  def __init__(self, plugin: str, module: ModuleType):
-    self.plugin = plugin
-    self.module = module
+  def __init_subclass__(cls) -> None:
+    assert cls.PARTICIPANT is None or issubclass(
+      cls.PARTICIPANT, Participant
+    ), f"invalid class definition: PARTICIPANT must be a subclass of {Participant.__qualname__}"
+    assert cls.CONDITION is None or issubclass(
+      cls.CONDITION, Condition
+    ), f"invalid class definition: CONDITION must be a subclass of {Condition.__qualname__}"
 
   @classmethod
-  def load_module(cls) -> tuple[str, ModuleType]:
-    def _load_module(plugin: str) -> ModuleType | None:
-      try:
-        log.debug("loading middleware: {}", plugin)
-        plugin_mod = importlib.import_module(plugin)
-        ImplCls = getattr(plugin_mod, "Middleware")
-        assert issubclass(ImplCls, cls)
-        log.activity("loaded middleware: {} ({})", plugin, Path(plugin_mod.__file__))
-        return plugin_mod
-      except Exception as e:
-        log.error("failed to load middleware {}: {}", plugin, e)
-        log.exception(e)
-        return None
-
-    plugin = os.environ.get(cls.EnvVar)
-    if plugin:
-      plugin_mod = _load_module(plugin)
-      if plugin_mod is None:
-        raise RuntimeError(f"invalid middleware selected via {cls.EnvVar}", plugin)
-      return (plugin, plugin_mod)
-    else:
-      for plugin in cls.Default:
-        plugin_mod = _load_module(plugin)
-        if plugin_mod is not None:
-          return (plugin, plugin_mod)
-      raise RuntimeError("no middleware available")
-
-  @classmethod
-  def load(cls) -> "Middleware":
-    plugin, plugin_mod = cls.load_module()
+  def load_plugin(cls, plugin: str) -> type["Middleware"]:
+    log.activity("loading middleware plugin: {}", plugin)
+    plugin_mod = importlib.import_module(plugin)
     ImplCls = getattr(plugin_mod, "Middleware")
-    return ImplCls(plugin=plugin, module=plugin_mod)
+    if not issubclass(ImplCls, Middleware):
+      raise TypeError(ImplCls, "not a middleware")
+    ImplCls.load()
+    log.activity("loaded middleware plugin: {}", plugin.__class__)
+    return ImplCls
 
-  @property
-  def install_instructions(self) -> str | None:
+  @classmethod
+  def selected(cls) -> type["Middleware"]:
+    global _Instance
+    if _Instance is None:
+
+      def load():
+        plugin = os.environ.get("UNO_MIDDLEWARE")
+        if plugin:
+          middleware = cls.load_plugin(plugin)
+          middleware.plugin = plugin
+        else:
+          try:
+            middleware = cls.load_plugin("uno.middleware.connext")
+            middleware.plugin = "uno.middleware.connext"
+          except Exception:
+            middleware = Middleware
+            middleware.plugin = None
+        return middleware
+
+      _Instance = load()
+    return _Instance
+
+  @classmethod
+  def install_instructions(cls) -> str | None:
     return None
 
   @classmethod
-  def supports_agent(cls) -> bool:
-    return True
+  def supports_agent(cls, root: Path) -> bool:
+    return cls.CONDITION is not None and cls.PARTICIPANT is not None
 
+  @classmethod
+  def install_cell_agent_package_files(cls, registry_root: Path, package_dir: Path) -> list[Path]:
+    return []
+
+  @classmethod
+  def configure_extracted_cell_agent_package(cls, extracted_package: Path) -> None:
+    pass
+
+  @classmethod
   def condition(self) -> Condition:
     return self.CONDITION()
 
+  @classmethod
   def participant(
-    self,
+    cls,
     agent: "Agent|None" = None,
     registry: "Registry|None" = None,
     owner: "Uvn|Cell|None" = None,
   ) -> Participant:
-    return self.PARTICIPANT(agent=agent, registry=registry, owner=owner)
+    return cls.PARTICIPANT(agent=agent, registry=registry, owner=owner)

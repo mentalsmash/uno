@@ -86,8 +86,8 @@ ENV LANG en_US.UTF-8
 ###############################################################################
 # Install uno and other Python packages
 ###############################################################################
-# Middleware plugin for the image
-ARG UNO_MIDDLEWARE=uno_middleware_connext
+# Custom middleware plugin for the image
+ARG UNO_MIDDLEWARE=
 
 ENV UVN_DIR "/uvn"
 ENV UNO_DIR "/uno"
@@ -122,8 +122,9 @@ RUN set -xe; \
       ${UNO_DIR}; \
     # Install uno middleware
     case "${UNO_MIDDLEWARE}" in \
-      # "native" middleware is already included in uno
-      uno.middleware.native) \
+      # default middleware requires Connext
+      '') \
+        pip3 install -U rti.connext; \
         ;; \
       *) \
         # Other middleware plugins must be installed

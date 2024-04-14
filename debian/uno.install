@@ -1,2 +1,4 @@
-build/default/uno 								opt/
-build/default/usr/bin/uno 				usr/bin/
+build/default/src                       opt/uno/
+build/default/uno/dist/uno/_internal    opt/uno/bin/
+build/default/uno/dist/uno/uno          opt/uno/bin/
+usr/bin/uno

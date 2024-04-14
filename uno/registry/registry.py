@@ -221,10 +221,6 @@ class Registry(Versioned):
       owner = self.db.load_object_id(owner_id, cursor=cursor)
     return (owner, config_id)
 
-  @cached_property
-  def middleware(self) -> Middleware:
-    return Middleware.load()
-
   @property
   def root(self) -> Path:
     return self.db.root
@@ -792,11 +788,13 @@ class Registry(Versioned):
       self.log.info("unchanged")
       return False
 
+    Middleware.selected().configure_extracted_cell_agent_package(self.root)
+
     if self.cells_dir.is_dir():
       exec_command(["rm", "-rfv", self.cells_dir])
     for cell in self.uvn.cells.values():
       Packager.generate_cell_agent_package(self, cell, self.cells_dir)
-      Packager.generate_cell_agent_install_guide(self, cell, self.cells_dir)
+      # Packager.generate_cell_agent_install_guide(self, cell, self.cells_dir)
 
     if self.particles_dir.is_dir():
       exec_command(["rm", "-rfv", self.particles_dir])
@@ -995,16 +993,16 @@ class Registry(Versioned):
         for cell in self.uvn.cells.values()
         for cell_archive in [Packager.cell_archive_file(cell)]
       ),
-      # cell install guides
-      *(
-        CloudStorageFile(
-          type=CloudStorageFileType.CELL_GUIDE,
-          name=cell_guide,
-          local_path=self.cells_dir / cell_guide,
-        )
-        for cell in self.uvn.cells.values()
-        for cell_guide in [f"{Packager.cell_archive_file(cell, basename=True)}.html"]
-      ),
+      # # cell install guides
+      # *(
+      #   CloudStorageFile(
+      #     type=CloudStorageFileType.CELL_GUIDE,
+      #     name=cell_guide,
+      #     local_path=self.cells_dir / cell_guide,
+      #   )
+      #   for cell in self.uvn.cells.values()
+      #   for cell_guide in [f"{Packager.cell_archive_file(cell, basename=True)}.html"]
+      # ),
       # particle archives
       *(
         CloudStorageFile(

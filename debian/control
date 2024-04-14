@@ -10,7 +10,6 @@ X-Python3-Version: >= 3.9
 Package: uno
 Architecture: any
 Depends:
-  python3,
   frr,
   gnupg2,
   iproute2,
@@ -36,34 +35,3 @@ Description: dynamic site-to-site vpns
  VPN links are provisioned using WireGuard, while the frrouting suite is used to implement IP
  routing.
 
-
-Package: uno-static
-Architecture: any
-Depends:
-  python3,
-  frr,
-  gnupg2,
-  iproute2,
-  iptables,
-  iputils-ping,
-  lighttpd,
-  lighttpd-mod-openssl,
-  psmisc,
-  openssl,
-  qrencode,
-  tar,
-  xz-utils,
-  wireguard,
-  wireguard-tools
-Description: dynamic site-to-site vpns (static)
- uno is a tool for linking multiple LANs into a single routing domain over the public Internet.
- .
- LANs are interconnected by local agents deployed within them to act as gateways to other LANs.
- .
- Agents use secure VPN links to establish a routing "backbone" where they carry out the BGP
- protocol to find routes to every other remote LAN.
- .
- VPN links are provisioned using WireGuard, while the frrouting suite is used to implement IP
- routing.
- .
- WARNING: Agents cannot be deployed with this version of uno, it can only create static deployments.

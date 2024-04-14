@@ -1,6 +1,6 @@
 name: Install Test Image
 run-name: |
-  install test (${{inputs.flavor}}) - ${{inputs.tag}} on ${{inputs.platform}} [${{github.ref_type == 'branch' && 'nightly' || 'stable'}}, ${{github.ref_name}}]
+  install test (${{inputs.install-rti-license && 'default' || 'static'}}) - ${{inputs.tag}} on ${{inputs.platform}} [${{github.ref_type == 'branch' && 'nightly' || 'stable'}}, ${{github.ref_name}}]
 
 on:
   workflow_call:
@@ -11,9 +11,9 @@ on:
       platform:
         type: string
         required: true
-      flavor:
-        type: string
-        required: true
+      install-rti-license:
+        type: boolean
+        default: true
 
 jobs:
   test-config:
@@ -36,8 +36,8 @@ jobs:
           (
             case "${{ inputs.platform }}" in
               arm64)
-                case "${{inputs.flavor}}" in
-                  default)
+                case "${{inputs.install-rti-license}}" in
+                  true)
                     # Force full test suite to run on "beefier" rpi5 nodes
                     printf -- "RUNNER='%s'\n" '["self-hosted", "linux", "arm64", "rpi5"]'
                     ;;
@@ -82,7 +82,7 @@ jobs:
           . venv/bin/activate
           pip3 install pytest
 
-          RTI_LICENSE_FILE=src/uno-ci/resource/rti/rti_license.dat \
+          RTI_LICENSE_FILE=$( [ "${{inputs.install-rti-license}}" != true ] || echo src/uno-ci/resource/rti/rti_license.dat) \
           UNO_IMAGE=${{inputs.tag}} \
           PLATFORM=${{inputs.platform}} \
           FORCE_PULL=yes \

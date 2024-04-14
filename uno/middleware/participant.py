@@ -14,7 +14,7 @@
 # You should have received a copy of the GNU Affero General Public License
 # along with this program. If not, see <https://www.gnu.org/licenses/>.
 ###############################################################################
-from typing import TYPE_CHECKING, Generator
+from typing import TYPE_CHECKING
 from pathlib import Path
 import ipaddress
 
@@ -141,8 +141,3 @@ class Participant:
 
   def install(self) -> None:
     pass
-
-  @property
-  def cell_agent_package_files(self) -> Generator[Path, None, None]:
-    for f in []:
-      yield f

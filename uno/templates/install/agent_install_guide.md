@@ -169,10 +169,6 @@ Perform these steps to configure network `{{allowed_lans[0]}}`, and allow cell `
     python3 -m venv {{venv}}
     . {{venv}}/bin/activate
     pip install git+{{uno_repo_url}}@{{uno_version}}
-    {%- if middleware_install %}
-
-    {{middleware_install | indent(4)}}
-    {%- endif %}
 
     # (optional) Add venv/bin/ directory to root's PATH.
     printf -- "export PATH={{venv}}/bin:${PATH}\n" > /etc/profile.d/uno-venv.sh

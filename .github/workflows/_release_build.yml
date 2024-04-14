@@ -1,16 +1,12 @@
 name: Release Step (Build Image)
 run-name: |
-  release (${{inputs.flavor}}) - build image with ${{inputs.uno-middleware}} on ${{inputs.base-tag}} [${{github.ref_type == 'branch' && 'nightly' || 'stable'}}, ${{github.ref_name}}]
+  release - build ${{ inputs.uno-middleware || 'default' }} image on ${{inputs.base-tag}} [${{github.ref_type == 'branch' && 'nightly' || 'stable'}}, ${{github.ref_name}}]
 
 on:
   workflow_call:
     inputs:
-      flavor:
-        type: string
-        required: true
       uno-middleware:
         type: string
-        required: true
       base-tag:
         type: string
         required: true
@@ -22,7 +18,7 @@ on:
         required: true
 
 concurrency:
-  group: release-build-${{github.ref}}-${{inputs.flavor}}
+  group: release-build-${{github.ref}}-${{inputs.uno-middleware || 'default'}}
   cancel-in-progress: false
 
 jobs:

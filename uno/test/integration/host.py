@@ -355,13 +355,24 @@ class Host:
         ),
         *(["-v", f"{self.cell_package}:/package.uvn-agent"] if self.role == HostRole.CELL else []),
         *(
+          ["-v", f"{self.experiment.rti_license}:/rti_license.dat"]
+          if self.experiment.rti_license
+          else []
+        ),
+        *(
           [
             "-v",
             f"{self.experiment.UnoDir}:{self.experiment.RunnerUnoDir}",
-            "-e",
-            f"UNO_MIDDLEWARE={self.experiment.registry.middleware.plugin}",
           ]
           if self.experiment.Dev
+          else []
+        ),
+        *(
+          [
+            "-e",
+            f"UNO_MIDDLEWARE={self.experiment.UnoMiddlewareEnv}",
+          ]
+          if self.experiment.UnoMiddlewareEnv
           else []
         ),
         *(["-e", f"VERBOSITY={self.log.LevelEnv}"] if self.log.LevelEnv else []),

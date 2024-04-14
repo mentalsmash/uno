@@ -22,7 +22,6 @@ import os
 from functools import cached_property
 import contextlib
 from typing import Protocol
-import pytest
 import pprint
 
 from uno.core.exec import exec_command
@@ -57,23 +56,13 @@ class ExperimentLoader(Protocol):
   def __call__(self, **experiment_args) -> "Experiment": ...
 
 
-def agent_test(wrapped: TestFunction) -> TestFunction:
-  return pytest.mark.skipif(not Experiment.SupportsAgent, reason="agent support required")(wrapped)
-
-
-# Load the selected uno middleware plugin
-_UnoMiddleware, _UnoMiddlewareModule = Middleware.load_module()
-
-
 class Experiment:
   Dev = bool(os.environ.get("DEV", False))
   InsideTestRunner = bool(os.environ.get("UNO_TEST_RUNNER", False))
   BuiltImages = set()
   UnoDir = _uno_dir
-  DefaultLicense = UnoDir / "rti_license.dat"
   # Load the selected uno middleware plugin
-  UnoMiddleware = _UnoMiddleware
-  SupportsAgent = _UnoMiddlewareModule.Middleware.supports_agent()
+  UnoMiddlewareEnv = os.environ.get("UNO_MIDDLEWARE")
   RunnerTestDir = Path("/experiment-tmp")
   RunnerRoot = Path("/experiment")
   RunnerRegistryRoot = Path("/uvn")
@@ -84,8 +73,11 @@ class Experiment:
     cls, loader: ExperimentLoader, **experiment_args
   ) -> Generator["Experiment", None, None]:
     e = loader(**experiment_args)
-    with e.begin():
-      yield e
+    if not e:
+      yield None
+    else:
+      with e.begin():
+        yield e
 
   @classmethod
   def define(
@@ -95,6 +87,7 @@ class Experiment:
     root: Path | None = None,
     config: dict | None = None,
     test_dir: Path | None = None,
+    requires_agents: bool = False,
   ) -> "Experiment | None":
     # Make sure the test case file is an absolute path
     test_case = test_case.resolve()
@@ -126,24 +119,28 @@ class Experiment:
     else:
       test_dir_tmp = tempfile.TemporaryDirectory()
       test_dir = Path(test_dir_tmp.name)
-    # Check if an RTI license was passed through the environment
-    rti_license = os.environ.get("RTI_LICENSE_FILE")
-    if rti_license:
-      rti_license = Path(rti_license).resolve()
-    # Automatically set RTI_LICENSE_FILE if there is an rti_license.dat
-    # in the root of the uno diir
-    elif cls.DefaultLicense.exists():
-      os.environ["RTI_LICENSE_FILE"] = str(cls.DefaultLicense)
-      rti_license = cls.DefaultLicense
-    else:
-      rti_license = None
+    # Check that we have the expected middleware
+    expected_plugin = os.environ.get("EXPECTED_MIDDLEWARE")
+    if expected_plugin is not None:
+      if (
+        not expected_plugin and Middleware.selected().plugin
+      ) or expected_plugin != Middleware.selected().plugin:
+        raise RuntimeError(
+          f"unexpected middleware plugin: found={Middleware.selected().plugin}, expected={expected_plugin}"
+        )
+    if not Middleware.selected().supports_agent(test_dir) and requires_agents:
+      Logger.warning(
+        "test case disabled because middleware {} doesn't support agents: {}",
+        Middleware.selected().__qualname__,
+        name,
+      )
+      return
     experiment = cls(
       test_case=test_case,
       name=name,
       root=root,
       config=config,
       test_dir=test_dir,
-      rti_license=rti_license,
     )
     experiment.__test_dir_tmp = test_dir_tmp
     if not experiment.InsideTestRunner:
@@ -194,14 +191,12 @@ class Experiment:
     root: Path,
     config: dict,
     test_dir: Path,
-    rti_license: Path | None = None,
   ) -> None:
     self.test_case = test_case
     self.name = name
     self.root = root
     self.test_dir = test_dir
     self.config = config
-    self.rti_license = rti_license
     self.networks: list[Network] = []
     self.private_networks: list[Network] = []
     self.public_networks: list[Network] = []
@@ -343,6 +338,24 @@ class Experiment:
       ]
     )
 
+  @property
+  def rti_license(self) -> Path | None:
+    for license in [
+      os.environ.get("RTI_LICENSE_FILE"),
+      self.root / "rti_license.dat",
+      self.test_dir / "rti_license.dat",
+      Path.cwd() / "rti_license.dat",
+    ]:
+      if not license:
+        continue
+      elif not isinstance(license, Path):
+        license = Path(license)
+      if license.exists():
+        license = license.resolve()
+        self.log.debug("found RTI license: {}", license)
+        return license
+    return None
+
   def uno(self, *args, **exec_args):
     verbose_flag = Logger.verbose_flag
     try:
@@ -363,22 +376,36 @@ class Experiment:
             [
               "-v",
               f"{self.UnoDir}:{self.RunnerUnoDir}",
-              "-e",
-              f"UNO_MIDDLEWARE={self.UnoMiddleware}",
             ]
             if self.Dev
             else []
           ),
           *(
             [
+              "-e",
+              f"UNO_MIDDLEWARE={self.UnoMiddlewareEnv}",
+            ]
+            if self.UnoMiddlewareEnv
+            else []
+          ),
+          *(
+            [
+              "-e",
+              f"DEBUG={self.log.DEBUG}",
+            ]
+            if self.log.DEBUG
+            else []
+          ),
+          *(
+            [
               "-v",
               f"{self.rti_license}:/rti_license.dat",
-              "-e",
-              "RTI_LICENSE_FILE=/rti_license.dat",
             ]
             if self.rti_license
             else []
           ),
+          "-e",
+          f"VERBOSITY={self.log.level.name}",
           self.config["image"],
           "uno",
           *args,

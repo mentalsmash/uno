@@ -29,6 +29,8 @@ def experiment(experiment_loader: Callable[[], None]) -> Generator[Experiment, N
 
 @pytest.fixture
 def the_hosts(experiment: Experiment) -> list[Host]:
+  if experiment is None:
+    return []
   return sorted(
     (h for h in experiment.hosts if h.role == HostRole.HOST), key=lambda h: h.container_name
   )
@@ -36,6 +38,8 @@ def the_hosts(experiment: Experiment) -> list[Host]:
 
 @pytest.fixture
 def the_routers(experiment: Experiment) -> list[Host]:
+  if experiment is None:
+    return []
   return sorted(
     (h for h in experiment.hosts if h.role == HostRole.ROUTER), key=lambda h: h.container_name
   )
@@ -43,6 +47,8 @@ def the_routers(experiment: Experiment) -> list[Host]:
 
 @pytest.fixture
 def the_cells(experiment: Experiment) -> list[Host]:
+  if experiment is None:
+    return []
   return sorted(
     (h for h in experiment.hosts if h.role == HostRole.CELL), key=lambda h: h.container_name
   )
@@ -50,11 +56,15 @@ def the_cells(experiment: Experiment) -> list[Host]:
 
 @pytest.fixture
 def the_registry(experiment: Experiment) -> list[Host]:
+  if experiment is None:
+    return []
   return next(h for h in experiment.hosts if h.role == HostRole.REGISTRY)
 
 
 @pytest.fixture
 def the_particles(experiment: Experiment) -> list[Host]:
+  if experiment is None:
+    return []
   return sorted(
     (h for h in experiment.hosts if h.role == HostRole.PARTICLE), key=lambda h: h.container_name
   )
@@ -64,7 +74,14 @@ def the_particles(experiment: Experiment) -> list[Host]:
 def the_fully_routed_cell_networks(
   experiment: Experiment, the_cells: list[Host]
 ) -> Generator[set[Network], None, None]:
+  if experiment is None:
+    yield set()
+    return
+
   def _check_all_ready() -> bool:
+    if experiment is None:
+      return
+
     for cell in the_cells:
       if not cell.local_router_ready:
         return False
@@ -86,6 +103,10 @@ def the_fully_routed_cell_networks(
 
 @pytest.fixture
 def the_agents(experiment: Experiment) -> Generator[dict[Host, subprocess.Popen], None, None]:
+  if experiment is None:
+    yield {}
+    return
+
   import contextlib
 
   with contextlib.ExitStack() as stack:
@@ -102,6 +123,10 @@ def the_agents(experiment: Experiment) -> Generator[dict[Host, subprocess.Popen]
 def the_fully_routed_agents(
   experiment: Experiment, the_agents: dict[Host, subprocess.Popen]
 ) -> Generator[dict[Host, subprocess.Popen], None, None]:
+  if experiment is None:
+    yield {}
+    return
+
   def _check_all_consistent() -> bool:
     for agent in the_agents:
       if not agent.cell_fully_routed:
