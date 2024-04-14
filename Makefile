@@ -35,7 +35,7 @@ build/default: ../$(TARBALL)
 
 install-default: build/default \
                  clean-debian-tmp
-  mkdir -p debian/tmp
+	mkdir -p debian/tmp
 	install $</uno 					debian/tmp/opt/
 	install $</usr/bin/uno 	debian/tmp/usr/bin/
 
@@ -57,7 +57,7 @@ build/static: ../$(TARBALL)
 
 install-default: build/static \
                  clean-debian-tmp
-  mkdir -p debian/tmp
+	mkdir -p debian/tmp
 	install $</uno-static 					debian/tmp/opt/
 	install $</usr/bin/uno-static		debian/tmp/usr/bin/
 
