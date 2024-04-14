@@ -33,3 +33,5 @@ debian/uno-static.substvars
 debian-dist
 build/
 uno.spec
+debian/uno.debhelper.log
+

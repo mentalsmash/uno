@@ -34,4 +34,5 @@ pyinstaller \
   --clean \
   --distpath ${DIST_DIR} \
   -p ${VENV_UNO}/lib/*/site-packages/ \
+  --add-data "uno.data;uno.templates" \
   ./scripts/bundle/uno
