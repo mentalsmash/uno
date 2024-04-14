@@ -83,7 +83,8 @@ jobs:
           annotations: ${{ steps.meta-github.outputs.annotations }}
           push: true
           context: src/uno
-          platforms: linux/amd64,linux/arm64
+          # platforms: linux/amd64,linux/arm64
+          platforms: linux/amd64
           build-args: |
             BASE_IMAGE=${{ inputs.base-tag }}
             UNO_MIDDLEWARE=${{ inputs.uno-middleware }}

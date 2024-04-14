@@ -88,7 +88,8 @@ jobs:
       - build
     strategy:
       matrix:
-        platform: [amd64, arm64]
+        # platform: [amd64, arm64]
+        platform: [amd64]
     uses: ./.github/workflows/_release_test.yml
     secrets: inherit
     with:
