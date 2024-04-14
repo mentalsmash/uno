@@ -25,8 +25,9 @@ build: ../$(TARBALL)
 	&& pip3 install -U pip setuptools \
 	&& pip3 install $(UNO_DIR)
 	set -e; \
+	. $(VENV_DIR)/bin/activate; \
 	if [ -n "$(UNO_MIDDLEWARE)" ]; then \
-		pip3 install $(UNO_DIR)/plugins/$(UNO_MIDDLEWARE); \
+	  pip3 install $(UNO_DIR)/plugins/$(UNO_MIDDLEWARE); \
 	fi
 
 clean:
