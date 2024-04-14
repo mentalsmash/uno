@@ -45,13 +45,13 @@ class ConnextMiddleware(Middleware):
     if not rti_license.exists():
       cls.install_rti_license(extracted_package, optional=True)
     if not rti_license.exists():
-      log.warning("no RTI license files, agents might will not be available unless one is provided")
+      log.debug("no RTI license files, agents will not be available unless one is provided")
 
   @classmethod
   def supports_agent(cls, root: Path) -> bool:
     rti_license = cls.locate_rti_license([root])
     if not rti_license or not rti_license.exists():
-      log.warning("an RTI license is required to run agents, but none was found")
+      log.debug("an RTI license is required to run agents, but none was found")
       return False
     return True
 

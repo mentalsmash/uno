@@ -622,18 +622,6 @@ class Versioned(DatabaseObject):
   def json_load(cls, val: str) -> object:
     return json.loads(val)
 
-  @classmethod
-  def yaml_load_inline(cls, val: str | Path) -> dict:
-    # Try to interpret the string as a Path
-    yml_val = val
-    args_file = Path(val)
-    if args_file.is_file():
-      yml_val = args_file.read_text()
-    # Interpret the string as inline YAML
-    if not isinstance(yml_val, str):
-      raise ValueError("failed to load yaml", val)
-    return cls.yaml_load(yml_val)
-
   def __str__(self) -> str:
     return self._str_repr
 
@@ -899,7 +887,7 @@ class Versioned(DatabaseObject):
         parent = getattr(val, "parent", None)
         if parent == self:
           if save:
-            self.db.save(val, cursor=cursor)
+            self.db.save(val, cursor=cursor, delete_if_validation_fails=True)
           return properties
         else:
           properties = val.serialize()

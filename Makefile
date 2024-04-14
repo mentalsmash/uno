@@ -1,4 +1,4 @@
-VERSION :=  2.3.0
+VERSION :=  0.9.0
 TARBALL := uno_$(VERSION).orig.tar.xz
 
 .PHONY: \

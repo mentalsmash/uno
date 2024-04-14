@@ -402,7 +402,9 @@ class UvnLogger:
 
   def exception(self, e):
     self.error(
-      "[exception] {}", e, exc_info=sys.exc_info() if self.level >= self.Level.info else None
+      "[exception] {}",
+      e,
+      exc_info=sys.exc_info(),  # if self.level >= self.Level.info else None
     )
 
   def command(self, cmd_args, rc, stdout=None, stderr=None, display=False):

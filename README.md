@@ -278,19 +278,17 @@ or by cloning the repository and building an image locally.
 
 ### Registry Setup
 
-<!-- 1. Create a directory to store your UVN's registry, e.g.:
-
-   ```sh
-   mkdir -p my-uvn
-   chmod 700 my-uvn
-   ``` -->
-
-1. Create `uvn.yaml` inside the UVN directory. `uno` will read this YAML file to your UVN's `cells`, `particles`, and `users` (beyond for the UVN's administrator).
+1. Create `uvn.yaml` inside the UVN directory. `uno` will read the UVN configuration from this YAML file:.
 
    For example:
 
    ```yaml
+   address: registry.my-uvn.example.com
+   owner: john@example.com
    users:
+     - email: john@example.com
+       name: John Doe
+       password: johnspassword
      - email: jane@example.com
        name: Jane Doe
        password: janespassword
@@ -321,16 +319,11 @@ or by cloning the repository and building an image locally.
     -v $(pwd)/my-uvn:/uvn \
     -v $(pwd)/rti_license.dat:/rti_license.dat \
     mentalsmash/uno:latest \
-    uno define uvn my-uvn \
-      --address registry.my-uvn.example.com \
-      --owner "John Doe <john@example.com>" \
-      --password johnspassword \
-      --spec /uvn.yaml
+    uno define uvn my-uvn --spec /uvn.yaml
 
-   # if your're not running as root, make sure
-   # the directory has the proper permissions
+   # make sure the directory has the proper permissions
    docker run --rm \
-     -v $(pwd)/uvn:/uvn \
+     -v $(pwd)/my-uvn:/uvn \
      fix-root-permissions \
      $(id -u):$(id -g)
    ```

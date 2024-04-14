@@ -63,12 +63,16 @@ class BasicExperiment(Experiment):
         "particles_count": 1,
         "uvn_name": "test-uvn",
         "uvn_owner": "root@example.com",
-        "uvn_owner_password": "abc",
         "public_net_subnet": ipaddress.ip_network("10.230.255.0/24"),
         "registry_host": "registry.internet1",
         "registry_host_address": ipaddress.ip_address("10.230.255.254"),
         "use_cli": False,
         "uvn_users": [
+          {
+            "name": "Root",
+            "email": "root@example.com",
+            "password": "rootspassword",
+          },
           {
             "name": "John Doe",
             "email": "john@example.com",
@@ -80,7 +84,7 @@ class BasicExperiment(Experiment):
             "password": "janespassword",
           },
         ],
-        "uvn_owners": {
+        "cell_owners": {
           0: "root@example.com",
           1: "jane@example.com",
           2: "john@example.com",
@@ -114,6 +118,9 @@ class BasicExperiment(Experiment):
   @property
   def uvn_spec(self) -> dict:
     spec = {
+      "name": self.config["uvn_name"],
+      "owner": self.config["uvn_owner"],
+      "address": self.config["registry_host"],
       "users": self.config["uvn_users"],
       "cells": [
         *(
@@ -121,7 +128,7 @@ class BasicExperiment(Experiment):
             "name": cell_name,
             "address": f"router.publan{i+1}.internet1",
             "allowed_lans": [str(subnet)],
-            "owner": self.config["uvn_owners"][i % len(self.config["uvn_owners"])],
+            "owner": self.config["cell_owners"][i % len(self.config["cell_owners"])],
             "settings": {
               "enable_particles_vpn": self.particle_vpn_enabled(cell_name),
             },
@@ -133,7 +140,7 @@ class BasicExperiment(Experiment):
           {
             "name": cell_name,
             "address": f"relay{i+1}.internet1",
-            "owner": self.config["uvn_owners"][i % len(self.config["uvn_owners"])],
+            "owner": self.config["cell_owners"][i % len(self.config["cell_owners"])],
             "settings": {
               "enable_particles_vpn": self.particle_vpn_enabled(cell_name),
             },
@@ -145,7 +152,7 @@ class BasicExperiment(Experiment):
           {
             "name": cell_name,
             "allowed_lans": [str(subnet)],
-            "owner": self.config["uvn_owners"][i % len(self.config["uvn_owners"])],
+            "owner": self.config["cell_owners"][i % len(self.config["cell_owners"])],
             "settings": {
               "enable_particles_vpn": self.particle_vpn_enabled(cell_name),
             },
@@ -157,7 +164,7 @@ class BasicExperiment(Experiment):
       "particles": [
         {
           "name": f"particle{i+1}",
-          "owner": self.config["uvn_owners"][i % len(self.config["uvn_owners"])],
+          "owner": self.config["cell_owners"][i % len(self.config["cell_owners"])],
         }
         for i in range(self.config["particles_count"])
       ],
@@ -167,18 +174,21 @@ class BasicExperiment(Experiment):
     return spec
 
   def _define_uvn_cli(self) -> None:
+    owner = next(u for u in self.config["uvn_owner"] if u["email"] == self.config["uvn_owner"])
     self.uno(
       "define",
       "uvn",
       self.config["uvn_name"],
       *(["-a", self.config["registry_host"]] if self.config["registry_host"] else []),
       "-o",
-      self.config["uvn_owner"],
+      f"{owner['name']} <{owner['email']}>",
       "-p",
-      self.config["uvn_owner_password"],
+      owner["password"],
     )
 
     for user in self.config["uvn_users"]:
+      if user["email"] == owner["email"]:
+        continue
       self.uno("define", "user", user["email"], "-n", user["name"], "-p", user["password"])
 
     for i, subnet in enumerate(self.config["networks"]):
@@ -192,7 +202,7 @@ class BasicExperiment(Experiment):
         "-a",
         f"router.publan{i+1}.internet1",
         "-o",
-        self.config["uvn_owners"][i % len(self.config["uvn_owners"])],
+        self.config["cell_owners"][i % len(self.config["cell_owners"])],
         *(["--disable-particles-vpn"] if self.particle_vpn_enabled(cell_name) else []),
       )
 
@@ -205,7 +215,7 @@ class BasicExperiment(Experiment):
         "-N",
         str(subnet),
         "-o",
-        self.config["uvn_owners"][i % len(self.config["uvn_owners"])],
+        self.config["cell_owners"][i % len(self.config["cell_owners"])],
         *(["--disable-particles-vpn"] if self.particle_vpn_enabled(cell_name) else []),
       )
 
@@ -218,7 +228,7 @@ class BasicExperiment(Experiment):
         "-a",
         f"relay{i+1}.internet1",
         "-o",
-        self.config["uvn_owners"][i % len(self.config["uvn_owners"])],
+        self.config["cell_owners"][i % len(self.config["cell_owners"])],
         *(["--disable-particles-vpn"] if self.particle_vpn_enabled(cell_name) else []),
       )
 
@@ -229,20 +239,14 @@ class BasicExperiment(Experiment):
         "particle",
         f"particle{i+1}",
         "-o",
-        self.config["uvn_owners"][i % len(self.config["uvn_owners"])],
+        self.config["cell_owners"][i % len(self.config["cell_owners"])],
       )
 
   def define_uvn(self) -> None:
     if self.config["use_cli"]:
       return self._define_uvn_cli()
 
-    return self.define_uvn_from_config(
-      name=self.config["uvn_name"],
-      owner=self.config["uvn_owner"],
-      address=self.config["registry_host"] if self.config["registry_host"] else None,
-      password=self.config["uvn_owner_password"],
-      uvn_spec=self.uvn_spec,
-    )
+    return self.define_uvn_from_config(self.config["uvn_name"], self.uvn_spec)
 
   def define_networks_and_hosts(self) -> None:
     # Define N private networks + an "internet" network to connect them

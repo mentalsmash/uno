@@ -1,4 +1,9 @@
+owner: root@example.com
+address: registry.my-uvn.example.com
 users:
+  - email: root@example.com
+    name: Root
+    password: rootspassword
   - email: john@example.com
     name: John Doe
     password: johnspassword

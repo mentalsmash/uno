@@ -1,6 +1,6 @@
 [tool.poetry]
 name = "uno"
-version = "2.3.0"
+version = "0.9.0"
 description = "Dynamic site-to-site VPNs with WireGuard, frrouting, and RTI Connext DDS"
 authors = ["Andrea Sorbini <as@mentalsmash.org>"]
 readme = "README.md"

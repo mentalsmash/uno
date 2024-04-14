@@ -153,7 +153,7 @@ jobs:
             -e VERBOSITY=activity \
             -e DEBUG=y \
             ${{ needs.test_config.outputs.TEST_IMAGE }} \
-            pytest -s -v --junit-xml=test-results/uno-test-results-unit-${{ needs.test_config.outputs.TEST_ID }}.xml \
+            pytest -s -v --junit-xml=test-results/uno-test-results-unit-${{ needs.test_config.outputs.TEST_ID }}-static.xml \
               src/uno/test/unit
 
       - name: Restore permissions changed by unit tests
@@ -195,7 +195,7 @@ jobs:
         run: |
           . venv/bin/activate
           rm -v rti_license.dat
-          pytest -s -v --junit-xml=test-results/uno-test-results-integration-${{ needs.test_config.outputs.TEST_ID }}.xml \
+          pytest -s -v --junit-xml=test-results/uno-test-results-integration-${{ needs.test_config.outputs.TEST_ID }}-static.xml \
             src/uno/test/integration
         env:
           DEBUG: y

@@ -21,6 +21,7 @@ from pathlib import Path
 from uno.registry.timing_profile import TimingProfile
 from uno.registry.deployment_strategy import DeploymentStrategyKind
 from uno.registry.cloud import CloudProvider
+from uno.core.data import yaml_load_inline
 
 from ..cli_helpers import cli_command_group, cli_command
 from .cmd_registry import (
@@ -75,12 +76,11 @@ def _parser_args_config(parser: argparse._SubParsersAction):
   )
 
 
-def _parser_args_registry(parser: argparse._SubParsersAction, owner_id_required: bool = False):
+def _parser_args_registry(parser: argparse._SubParsersAction):
   parser.add_argument(
     "-o",
     "--owner",
     metavar="OWNER",
-    required=owner_id_required,
     help="'NAME <EMAIL>', or just 'EMAIL', of the UVN's administrator.",
   )
 
@@ -327,7 +327,7 @@ def _config_cloud_provider(args: argparse.Namespace) -> dict | None:
   cloud_provider_args = getattr(args, "cloud_provider_args", None)
   result = {
     "class": getattr(args, "cloud_provider", None),
-    "args": _yaml_load_inline(cloud_provider_args) if cloud_provider_args else None,
+    "args": yaml_load_inline(cloud_provider_args) if cloud_provider_args else None,
   }
   if _empty_config(result):
     return None
@@ -349,7 +349,7 @@ def _config_notify(args: argparse.Namespace) -> dict | None:
 def _config_args_registry(args: argparse.Namespace) -> dict | None:
   uvn_spec = getattr(args, "spec", None)
   if uvn_spec:
-    uvn_spec = _yaml_load_inline(uvn_spec)
+    uvn_spec = yaml_load_inline(uvn_spec)
   result = {
     "cloud_provider": _config_cloud_provider(args),
     "uvn": {
@@ -426,23 +426,30 @@ def _config_args_user(args: argparse.Namespace) -> dict | None:
     return result
 
 
-def _yaml_load_inline(val: str | Path) -> dict:
-  import yaml
+def apply_defaults(values: dict, defaults: dict) -> dict:
+  import copy
 
-  # Try to interpret the string as a Path
-  yml_val = val
-  args_file = Path(val)
-  if args_file.is_file():
-    yml_val = args_file.read_text()
-  # Interpret the string as inline YAML
-  if not isinstance(yml_val, str):
-    raise ValueError("failed to load yaml", val)
-  return yaml.safe_load(yml_val)
+  def _apply_recur(current_values: dict, current_defaults: dict, parent_key: list[str]):
+    result = copy.deepcopy(current_values)
+    for k, def_v in current_defaults.items():
+      current_key = [*parent_key, k]
+      if k not in current_values:
+        v = def_v
+      else:
+        v = current_values[k]
+        if isinstance(v, dict):
+          if not isinstance(def_v, dict):
+            raise ValueError("expected a dictionary", ".".join(current_key))
+          v = _apply_recur(v, current_key)
+      result[k] = v
+    return result
+
+  return _apply_recur(values, defaults, [])
 
 
 def _config_cloud_storage(args: argparse.Namespace) -> dict | None:
   storage_args = getattr(args, "cloud_storage_args", None)
-  result = _yaml_load_inline(storage_args) if storage_args else {}
+  result = yaml_load_inline(storage_args) if storage_args else {}
   if _empty_config(result):
     return None
   else:
@@ -473,7 +480,7 @@ def uno_parser(parser: argparse.ArgumentParser):
     "The value must be an inline JSON/YAML dictionary or the path of a file containing one.",
   )
 
-  _parser_args_registry(cmd_define_uvn, owner_id_required=True)
+  _parser_args_registry(cmd_define_uvn)
   _parser_args_deployment(cmd_define_uvn)
   _parser_args_print(cmd_define_uvn)
 

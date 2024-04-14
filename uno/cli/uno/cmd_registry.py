@@ -172,7 +172,7 @@ def registry_define_uvn(args: argparse.Namespace) -> None:
     owner=args.owner,
     password=args.password,
     root=args.root,
-    registry_config=args.config_registry(args),
+    registry_config=registry_config,
     uvn_spec=uvn_spec,
   )
 

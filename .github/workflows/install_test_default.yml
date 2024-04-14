@@ -64,22 +64,24 @@ jobs:
     strategy:
       matrix:
         platform: [amd64, arm64]
+        install-rti-license: [true, false]
     uses: ./.github/workflows/_install_test.yml
     secrets: inherit
     with:
       tag: ${{github.repository}}:${{ needs.check-trigger.outputs.IMAGE_TAG }}
       platform: ${{matrix.platform}}
-      flavor: default
+      install-rti-license: ${{matrix.install-rti-license}}
 
   test-user:
     if: github.event_name == 'workflow_dispatch'
     strategy:
       matrix:
         platform: ${{ fromJson(inputs.platforms) }}
+        install-rti-license: [true, false]
     uses: ./.github/workflows/_install_test.yml
     secrets: inherit
     with:
       tag: ${{ inputs.tag }}
       platform: ${{matrix.platform}}
-      flavor: default
+      install-rti-license: ${{matrix.install-rti-license}}
 

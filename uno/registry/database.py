@@ -20,6 +20,7 @@ import sqlite3
 import json
 from importlib.resources import files, as_file
 import tempfile
+import contextlib
 
 from collections import namedtuple
 
@@ -150,6 +151,7 @@ class Database:
     import_record: bool = False,
     dirty: bool = True,
     force_insert: bool = False,
+    delete_if_validation_fails: bool = False,
     cursor: "Database.Cursor | None" = None,
     do_in_transaction: TransactionHandler | None = None,
   ) -> list[DatabaseObject]:
@@ -160,6 +162,7 @@ class Database:
       import_record=import_record,
       dirty=dirty,
       force_insert=force_insert,
+      delete_if_validation_fails=delete_if_validation_fails,
       cursor=cursor,
       do_in_transaction=do_in_transaction,
     )
@@ -173,6 +176,7 @@ class Database:
     import_record: bool = False,
     dirty: bool = True,
     force_insert: bool = False,
+    delete_if_validation_fails: bool = False,
     cursor: "Database.Cursor | None" = None,
     do_in_transaction: TransactionHandler | None = None,
   ) -> list[DatabaseObject]:
@@ -183,6 +187,7 @@ class Database:
       import_record=import_record,
       dirty=dirty,
       force_insert=force_insert,
+      delete_if_validation_fails=delete_if_validation_fails,
       cursor=cursor,
       do_in_transaction=do_in_transaction,
     )
@@ -195,6 +200,7 @@ class Database:
     import_record: bool = False,
     dirty: bool = True,
     force_insert: bool = False,
+    delete_if_validation_fails: bool = False,
     cursor: "Database.Cursor | None" = None,
     do_in_transaction: TransactionHandler | None = None,
   ) -> list[DatabaseObject]:
@@ -208,13 +214,38 @@ class Database:
         changed = [t for t, _ in tgt.collect_changes()]
         nested = list(tgt.collect_nested())
         collected = changed if (dirty and not import_record) else nested
+        validation_failed = None
         for tgt in collected:
-          tgt.validate()
+          if validation_failed:
+            self.log.error(
+              "removing record because of failed validation from {}: {}", validation_failed, tgt
+            )
+            self.delete(tgt, cursor=cursor)
+            continue
+          try:
+            tgt.validate()
+          except Exception as e:
+            if delete_if_validation_fails or not tgt.loaded:
+              self.log.error("removing record on failed validation: {}", tgt)
+              self.log.exception(e)
+              self.delete(tgt, cursor=cursor)
+              validation_failed = tgt
+              continue
+            else:
+              self.log.error(
+                "tgt: {}, delete_if_validation_fails: {}, loaded: {}",
+                tgt,
+                delete_if_validation_fails,
+                tgt.loaded,
+              )
+              raise
           if isinstance(tgt, OwnableDatabaseObject) and tgt.id:
             owner = self.owner(tgt, cursor=cursor)
           else:
             owner = None
           yield tgt, owner
+        if validation_failed:
+          raise RuntimeError("validation failed", validation_failed)
 
     def do_save():
       saved = []
@@ -403,7 +434,7 @@ class Database:
       if save and owner is not None and isinstance(created, OwnableDatabaseObject):
         chown = {owner: [created]}
       if save:
-        self.save(created, chown=chown, cursor=cursor)
+        self.save(created, chown=chown, delete_if_validation_fails=True, cursor=cursor)
       return created
 
     return do_in_transaction(_new)
@@ -885,6 +916,13 @@ class Database:
         self.log.error("failed to restore database backup: {}", db_file_bkp)
       self.log.warning("database returned to previous state on error: {}", e)
       raise
+
+  @contextlib.contextmanager
+  def transaction(self) -> Generator["Database.Cursor", None, None]:
+    if self._cursor is None:
+      self._cursor = self._db.cursor()
+    with self._db:
+      yield self._cursor
 
   # def import_object(self, obj: DatabaseObject) -> None:
   #   self.log.activity("importing {}: {}", obj.__class__.__qualname__, obj)

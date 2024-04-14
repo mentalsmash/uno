@@ -213,7 +213,7 @@ jobs:
             -e DEBUG=y \
             -e EXPECT_MIDDLEWARE= \
             ${{ needs.config.outputs.TEST_IMAGE }} \
-            sh -c "rm /rti_license.dat && unset RTI_LICENSE_FILE && pytest -s -v --junit-xml=test-results/uno-test-results-unit-${{ needs.config.outputs.BUILD_ID }}.xml src/uno/test/unit"
+            sh -c "rm /rti_license.dat && unset RTI_LICENSE_FILE && pytest -s -v --junit-xml=test-results/uno-test-results-unit-${{ needs.config.outputs.BUILD_ID }}-static.xml src/uno/test/unit"
 
       - name: Restore permissions changed by unit tests
         if: ${{ inputs.run-unit && always() }}
@@ -258,7 +258,7 @@ jobs:
           rm rti_license.dat
           mkdir -p test-results
           . src/uno/.venv/bin/activate
-          pytest -s -v --junit-xml=test-results/uno-test-results-integration-${{ needs.config.outputs.BUILD_ID }}.xml \
+          pytest -s -v --junit-xml=test-results/uno-test-results-integration-${{ needs.config.outputs.BUILD_ID }}-static.xml \
             src/uno/test/integration
         env:
           DEBUG: y

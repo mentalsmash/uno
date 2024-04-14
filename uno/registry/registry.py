@@ -23,6 +23,7 @@ import pprint
 from ..core.ask import ask_yes_no
 from ..core.time import Timestamp
 from ..core.render import Templates
+from ..core.data import apply_defaults
 
 from .uvn import Uvn
 from .cell import Cell
@@ -104,7 +105,6 @@ class Registry(Versioned):
     "backbone_vpn_keymat",
     "particles_vpn_keymats",
     "agent_configs",
-    # "strategy",
   ]
 
   def INITIAL_RTI_LICENSE(self) -> Path:
@@ -133,50 +133,106 @@ class Registry(Versioned):
   def create(
     cls,
     name: str,
-    owner: str,
-    password: str,
+    owner: str | None = None,
+    password: str | None = None,
     root: Path | None = None,
     registry_config: dict | None = None,
     uvn_spec: dict | None = None,
   ):
+    if not name:
+      raise ValueError("a name is required")
+
+    uvn_spec = uvn_spec or {}
+    # Parse and validate arguments
+    owner_spec_id = uvn_spec.get("owner")
+    if owner:
+      owner_name, owner_email = User.parse_user_id(owner)
+    else:
+      owner_name = None
+      if owner_spec_id:
+        owner_email = owner_spec_id
+      else:
+        owner_email = None
+    if not owner_email:
+      raise ValueError("no UVN owner specified")
+
+    owner_spec = next((u for u in uvn_spec.get("users", []) if u["email"] == owner_email), None)
+    if not owner_name and owner_spec:
+      owner_name = owner_spec.get("name")
+    if password:
+      owner_password = password
+    elif owner_spec:
+      owner_password = owner_spec.get("password")
+    else:
+      raise ValueError("no password for UVN owner")
+
+    user_registry_config = registry_config or {}
+
+    uvn_config = {}
+    for k in ["address", "settings"]:
+      if k in uvn_spec:
+        uvn_config[k] = uvn_spec[k]
+    uvn_config = apply_defaults(uvn_config, user_registry_config.get("uvn", {}))
+
+    registry_config = apply_defaults(
+      {
+        "uvn": uvn_config,
+      },
+      uvn_spec.get("registry", {}),
+    )
+
+    registry_config = apply_defaults(registry_config, user_registry_config)
+
     root = root or Path.cwd() / name
     cls.log.activity("initializing UVN {} in {}", name, root)
     root_empty = next(root.glob("*"), None) is None
     if root.is_dir() and not root_empty:
-      raise RuntimeError("target directory not empty", root)
+      ask_yes_no(
+        f"{'='*80}"
+        "\n"
+        f"WARNING: target directory is not empty: {root}."
+        "\n"
+        "Existing files may be deleted/overwritten without notice.\n"
+        f"{'='*80}"
+        "\n"
+        "Continue with UVN creation anyway?"
+      )
+      # Delete database file if it exists
+      db_file = root / Database.DB_NAME
+      if db_file.exists():
+        cls.log.warning("deleting existing uno database: {}", db_file)
+        db_file.unlink()
 
     db = Database(root, create=True)
 
-    owner_email, owner_name = User.parse_user_id(owner)
     owner = db.new(
       User,
       {
         "email": owner_email,
         "name": owner_name,
         "realm": name,
-        "password": password,
+        "password": owner_password,
       },
     )
-    uvn = db.new(Uvn, {"name": name}, owner=owner)
-    # db.save_all([owner, uvn], chown={owner: [uvn]})
-    registry = db.new(
-      Registry,
-      {
-        "uvn_id": uvn.id,
-        # **registry_config,
-      },
-      save=False,
-    )
-    if registry_config:
-      registry.configure(**registry_config)
-    registry.generate_artifacts()
-    registry.log.info("initialized UVN {}: {}", registry.uvn.name, registry.root)
-    if uvn_spec is not None:
-      registry.define_uvn(uvn_spec)
-      if registry.dirty:
-        registry.generate_artifacts()
 
-    return registry
+    with db.transaction() as cursor:
+      uvn = db.new(Uvn, {"name": name}, owner=owner, cursor=cursor)
+      registry = db.new(
+        Registry,
+        {
+          "uvn_id": uvn.id,
+          # **registry_config,
+        },
+        save=False,
+      )
+      registry.configure(**registry_config)
+      registry.generate_artifacts(cursor=cursor)
+      registry.log.info("initialized UVN {}: {}", registry.uvn.name, registry.root)
+      if uvn_spec is not None:
+        registry.define_uvn(uvn_spec, cursor=cursor)
+        if registry.dirty:
+          registry.generate_artifacts(cursor=cursor)
+      return registry
 
   @classmethod
   def open(
@@ -416,46 +472,81 @@ class Registry(Versioned):
     return next(self.db.load(Cell, where="name = ?", params=(name,), cursor=cursor))
 
   @disabled_if("readonly", error=True)
-  def define_uvn(self, uvn_spec: dict) -> None:
-    uvn_config = uvn_spec.get("config")
-    if uvn_config:
-      self.uvn.configure(**uvn_config)
-    for cfg in uvn_spec.get("users", []):
-      _ = self.add_user(email=cfg["email"], password=cfg["password"], **cfg.get("config", {}))
-    # Save changes at this point so we can look up users from the database
-    self.db.save(self)
-    for cfg in uvn_spec.get("cells", []):
-      owner = cfg.get("owner")
-      if owner:
-        owner = self.load_user(owner)
-      _ = self.add_cell(
-        name=cfg["name"],
-        owner=owner,
-        address=cfg.get("address"),
-        allowed_lans=cfg.get("allowed_lans"),
-        settings=cfg.get("settings"),
-      )
-    for cfg in uvn_spec.get("particles", []):
-      owner = cfg.get("owner")
-      if owner:
-        owner = self.load_user(owner)
-      _ = self.add_particle(name=cfg["name"], owner=owner, **cfg.get("config", {}))
+  @inject_db_transaction
+  def define_uvn(
+    self,
+    uvn_spec: dict,
+    cursor: "Database.Cursor | None" = None,
+    do_in_transaction: TransactionHandler | None = None,
+  ) -> None:
+    def _define_uvn():
+      uvn_config = uvn_spec.get("config")
+      if uvn_config:
+        self.uvn.configure(**uvn_config)
+      users = {
+        self.uvn.owner.email: self.uvn.owner,
+      }
+      for cfg in uvn_spec.get("users", []):
+        if cfg["email"] == self.uvn.owner.email:
+          continue
+        user = self.add_user(
+          email=cfg["email"], password=cfg["password"], **cfg.get("config", {}), cursor=cursor
+        )
+        users[user.email] = user
+      # Save changes at this point so we can look up users from the database
+      self.db.save(self, cursor=cursor)
+      for cfg in uvn_spec.get("cells", []):
+        owner = cfg.get("owner")
+        if owner:
+          owner = users[owner]
+        _ = self.add_cell(
+          name=cfg["name"],
+          owner=owner,
+          address=cfg.get("address"),
+          allowed_lans=cfg.get("allowed_lans"),
+          settings=cfg.get("settings"),
+          cursor=cursor,
+        )
+      for cfg in uvn_spec.get("particles", []):
+        owner = cfg.get("owner")
+        if owner:
+          owner = users[owner]
+        _ = self.add_particle(name=cfg["name"], owner=owner, **cfg.get("config", {}), cursor=cursor)
+
+    return do_in_transaction(_define_uvn)
 
   @disabled_if("readonly", error=True)
-  def add_cell(self, name: str, owner: User | None = None, **cell_config) -> Cell:
+  @inject_db_transaction
+  def add_cell(
+    self,
+    name: str,
+    owner: User | None = None,
+    cursor: "Database.Cursor | None" = None,
+    do_in_transaction: TransactionHandler | None = None,
+    **cell_config,
+  ) -> Cell:
     if owner is None:
       owner = self.uvn.owner
 
-    cell = self.uvn.new_child(
-      Cell,
-      {
-        "uvn_id": self.uvn.id,
-        "name": name,
-        **cell_config,
-      },
-      owner=owner,
-    )
+    def _add_cell():
+      cell = self.uvn.new_child(
+        Cell,
+        {
+          "uvn_id": self.uvn.id,
+          "name": name,
+          **cell_config,
+        },
+        owner=owner,
+        cursor=cursor,
+      )
+      try:
+        self.uvn.validate_cell(cell)
+      except Exception:
+        self.db.delete(cell, cursor=cursor)
+        raise
+      return cell
 
+    cell = do_in_transaction(_add_cell)
     self.uvn.updated_property("cell_properties")
     self.updated_property("cells")
     self.log.info("new cell added to {}: {}", self.uvn, cell)
@@ -494,18 +585,37 @@ class Registry(Versioned):
     return next(self.db.load(Particle, where="name = ?", params=(name,), cursor=cursor))
 
   @error_if("readonly")
-  def add_particle(self, name: str, owner: User | None = None, **particle_config) -> Particle:
+  @inject_db_transaction
+  def add_particle(
+    self,
+    name: str,
+    owner: User | None = None,
+    cursor: "Database.Cursor | None" = None,
+    do_in_transaction: TransactionHandler | None = None,
+    **particle_config,
+  ) -> Particle:
     if owner is None:
       owner = self.uvn.owner
-    particle = self.uvn.new_child(
-      Particle,
-      {
-        "uvn_id": self.uvn.id,
-        "name": name,
-        **particle_config,
-      },
-      owner=owner,
-    )
+
+    def _add_particle():
+      particle = self.uvn.new_child(
+        Particle,
+        {
+          "uvn_id": self.uvn.id,
+          "name": name,
+          **particle_config,
+        },
+        owner=owner,
+        cursor=cursor,
+      )
+      try:
+        self.uvn.validate_particle(particle)
+      except Exception:
+        self.db.delete(particle, cursor=cursor)
+        raise
+      return particle
+
+    particle = do_in_transaction(_add_particle)
     self.uvn.updated_property("particle_properties")
     self.updated_property("particles")
     self.log.info("new particle added to {}: {}", self.uvn, particle)
@@ -727,12 +837,20 @@ class Registry(Versioned):
     self.updated_property("config_id")
 
   @disabled_if("readonly")
-  def purge_keys(self) -> None:
-    self.root_vpn_keymat.purge_gone_peers(list(self.uvn.all_cells), delete=True)
+  @inject_db_transaction
+  def purge_keys(
+    self,
+    cursor: "Database.Cursor | None" = None,
+    do_in_transaction: TransactionHandler | None = None,
+  ) -> None:
+    def _purge_keys():
+      self.root_vpn_keymat.purge_gone_peers(list(self.uvn.all_cells), delete=True, cursor=cursor)
 
-    for cell in self.uvn.all_cells.values():
-      keymat = self.particles_vpn_keymats[cell.id]
-      keymat.purge_gone_peers(list(self.uvn.all_particles), delete=True)
+      for cell in self.uvn.all_cells.values():
+        keymat = self.particles_vpn_keymats[cell.id]
+        keymat.purge_gone_peers(list(self.uvn.all_particles), delete=True, cursor=cursor)
+
+    return do_in_transaction(_purge_keys)
 
   @disabled_if("readonly")
   def assert_keys(self) -> None:
@@ -740,7 +858,13 @@ class Registry(Versioned):
     self.id_db.assert_keys()
 
   @disabled_if("readonly")
-  def generate_artifacts(self, force: bool = False) -> bool:
+  @inject_db_transaction
+  def generate_artifacts(
+    self,
+    force: bool = False,
+    cursor: "Database.Cursor | None" = None,
+    do_in_transaction: TransactionHandler | None = None,
+  ) -> bool:
     def _print_changes(cur: Versioned, changed_elements_vals: dict, depth: int = 0) -> None:
       indent = "  " * depth
       if len(changed_elements_vals) > 0:
@@ -768,41 +892,44 @@ class Registry(Versioned):
       changed_elements_vals = dict(self.collect_changes())
       _print_changes(self, changed_elements_vals)
       self.config_id = self.generate_config_id()
-      self.db.save(self, dirty=not force)
+      self.db.save(self, dirty=not force, cursor=cursor)
       return len(changed_elements_vals)
 
-    # Purge all keys that belong to deleted owners
-    self.purge_keys()
-    # Regenerate deployment configuration if needed
-    if self.needs_redeployment:
-      self.redeploy()
-      self.backbone_vpn_keymat.drop_keys(delete=True)
-    changed_elements = _save()
+    def _generate_artifacts():
+      # Purge all keys that belong to deleted owners
+      self.purge_keys(cursor=cursor)
+      # Regenerate deployment configuration if needed
+      if self.needs_redeployment:
+        self.redeploy()
+        self.backbone_vpn_keymat.drop_keys(delete=True, cursor=cursor)
+      changed_elements = _save()
 
-    # Generate all missing keys
-    self.assert_keys()
-    changed_elements += _save()
+      # Generate all missing keys
+      self.assert_keys()
+      changed_elements += _save()
 
-    changed = changed_elements > 0
-    if not changed and not force:
-      self.log.info("unchanged")
-      return False
+      changed = changed_elements > 0
+      if not changed and not force:
+        self.log.info("unchanged")
+        return False
 
-    Middleware.selected().configure_extracted_cell_agent_package(self.root)
+      Middleware.selected().configure_extracted_cell_agent_package(self.root)
 
-    if self.cells_dir.is_dir():
-      exec_command(["rm", "-rfv", self.cells_dir])
-    for cell in self.uvn.cells.values():
-      Packager.generate_cell_agent_package(self, cell, self.cells_dir)
-      # Packager.generate_cell_agent_install_guide(self, cell, self.cells_dir)
+      if self.cells_dir.is_dir():
+        exec_command(["rm", "-rfv", self.cells_dir])
+      for cell in self.uvn.cells.values():
+        Packager.generate_cell_agent_package(self, cell, self.cells_dir)
+        # Packager.generate_cell_agent_install_guide(self, cell, self.cells_dir)
 
-    if self.particles_dir.is_dir():
-      exec_command(["rm", "-rfv", self.particles_dir])
-    for particle in self.uvn.particles.values():
-      Packager.generate_particle_package(self, particle, self.particles_dir)
+      if self.particles_dir.is_dir():
+        exec_command(["rm", "-rfv", self.particles_dir])
+      for particle in self.uvn.particles.values():
+        Packager.generate_particle_package(self, particle, self.particles_dir)
 
-    self.log.info("updated")
-    return True
+      self.log.info("updated")
+      return True
+
+    return do_in_transaction(_generate_artifacts)
 
   @cached_property
   def rekeyed_cells(self) -> set[Cell]:

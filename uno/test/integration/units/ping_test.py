@@ -25,10 +25,6 @@ def ping_test(
   ping_config: Iterable[tuple[Host, Host, ipaddress.IPv4Address]],
   batch_size: int | None = None,
 ):
-  # import time
-  # print("*** sleeping ***")
-  # time.sleep(3600)
-
   ping_count = 3
   ping_max_wait = 10
   if batch_size is None:
@@ -47,7 +43,6 @@ def ping_test(
       _wait_batch(batch)
       batch = []
     experiment.log.activity("PING START {} → {}@{}", host, other_host, address)
-    print("PING START {} → {}@{}".format(host, other_host, address))
     test = host.popen("ping", "-c", f"{ping_count}", str(address))
     batch.append((host, other_host, address, test))
   if batch:

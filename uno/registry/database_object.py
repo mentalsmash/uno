@@ -377,8 +377,8 @@ class DatabaseObject:
   def validate(self) -> None:
     try:
       self._validate()
-    except Exception:
-      raise ValidationError(self)
+    except Exception as e:
+      raise ValidationError(self, e)
 
   def _validate(self) -> None:
     pass

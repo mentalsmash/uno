@@ -19,20 +19,24 @@ jobs:
   test-config:
     runs-on: ubuntu-latest
     outputs:
-      BUILD_TYPE: ${{ steps.config.outputs.BUILD_TYPE }}
       RUNNER: ${{ steps.config.outputs.RUNNER }}
+      TEST_ARTIFACT: ${{ steps.config.outputs.TEST_ARTIFACT }}
+      TEST_ID: ${{ steps.config.outputs.TEST_ID }}
     steps:
       - name: "Generate test config"
         id: config
         run: |
-          case "${{github.ref_type}}" in
-            tag)
-              build_type=stable
+          case "${{inputs.install-rti-license}}" in
+            false)
+              suffix=-static
               ;;
-            branch)
-              build_type=nightly
+            *)
+              suffix=
               ;;
           esac
+          image_tag=$(echo ${{inputs.tag}}  | tr : - | tr /)
+          test_id=$(date +%Y%m%d-%H%M%S)${suffix}
+          test_artifact=${image_tag}-install-test-${{ inputs.platform }}__${test_id}
           (
             case "${{ inputs.platform }}" in
               arm64)
@@ -51,7 +55,8 @@ jobs:
                 printf -- "RUNNER='%s'\n" '"ubuntu-latest"'
                 ;;
             esac
-            echo BUILD_TYPE=${build_type}
+            echo TEST_ARTIFACT=${test_artifact}
+            echo TEST_ID=${test_id}
           ) >> ${GITHUB_OUTPUT}
 
   test-spec-docker:
@@ -76,16 +81,45 @@ jobs:
         uses: docker/setup-qemu-action@v3
         if: inputs.platform != 'amd64'
 
-      - name: "Create a UVN from spec using docker"
+      - name: "Set up test environment"
         run: |
           python3 -m venv venv
           . venv/bin/activate
           pip3 install pytest
 
-          RTI_LICENSE_FILE=$( [ "${{inputs.install-rti-license}}" != true ] || echo src/uno-ci/resource/rti/rti_license.dat) \
+      - name: "Run install tests"
+        if: inputs.install-rti-license
+        run: |
+          . venv/bin/activate
+          RTI_LICENSE_FILE=src/uno-ci/resource/rti/rti_license.dat \
           UNO_IMAGE=${{inputs.tag}} \
           PLATFORM=${{inputs.platform}} \
           FORCE_PULL=yes \
-          pytest -s -v src/uno/test/install/test_install_docker.py
+          pytest -s -v --junit-xml=test-results/uno-test-results-install-${{ needs.test-config.outputs.TEST_ID }}.xml \
+            src/uno/test/install
+    
+      - name: "Run install tests (without a license)"
+        if: ${{ !inputs.install-rti-license }}
+        run: |
+          . venv/bin/activate
+          RTI_LICENSE_FILE= \
+          UNO_IMAGE=${{inputs.tag}} \
+          PLATFORM=${{inputs.platform}} \
+          FORCE_PULL=yes \
+          pytest -s -v --junit-xml=test-results/uno-test-results-install-${{ needs.test-config.outputs.TEST_ID }}.xml \
+            src/uno/test/install
 
+      - name: Restore permissions changed by tests
+        if: ${{ always() }}
+        run: |
+          docker run --rm \
+            -v $(pwd):/workspace \
+            ${{inputs.tag}} \
+            fix-root-permissions $(id -u):$(id -g) /workspace
 
+      - name: Upload test results
+        uses: actions/upload-artifact@v4
+        if: ${{ always() }}
+        with:
+          name: ${{ needs.test-config.outputs.TEST_ARTIFACT }}
+          path: test-results/*

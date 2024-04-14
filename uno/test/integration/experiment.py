@@ -23,6 +23,7 @@ from functools import cached_property
 import contextlib
 from typing import Protocol
 import pprint
+import yaml
 
 from uno.core.exec import exec_command
 from uno.core.log import Logger
@@ -268,22 +269,13 @@ class Experiment:
   def define_uvn(self) -> None:
     pass
 
-  def define_uvn_from_config(
-    self, name: str, owner: str, password: str, uvn_spec: dict, address: str | None = None
-  ) -> None:
-    import yaml
-
+  def define_uvn_from_config(self, name: str, uvn_spec: dict) -> None:
     uvn_spec_f = self.test_dir / "uvn_spec.yaml"
     uvn_spec_f.write_text(yaml.safe_dump(uvn_spec))
     self.uno(
       "define",
       "uvn",
       name,
-      *(["-a", address] if address else []),
-      "-o",
-      owner,
-      "-p",
-      password,
       "-s",
       self.RunnerTestDir / uvn_spec_f.relative_to(self.test_dir),
     )
