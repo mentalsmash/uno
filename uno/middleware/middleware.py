@@ -50,11 +50,17 @@ class Middleware:
   @classmethod
   def load_plugin(cls, plugin: str) -> type["Middleware"]:
     log.activity("loading middleware plugin: {}", plugin)
-    plugin_mod = importlib.import_module(plugin)
-    ImplCls = getattr(plugin_mod, "Middleware")
-    if not issubclass(ImplCls, Middleware):
-      raise TypeError(ImplCls, "not a middleware")
-    ImplCls.load()
+    try:
+      plugin_mod = importlib.import_module(plugin)
+      ImplCls = getattr(plugin_mod, "Middleware")
+      if not issubclass(ImplCls, Middleware):
+        raise TypeError(ImplCls, "not a middleware")
+      ImplCls.load()
+    except Exception as e:
+      if log.DEBUG:
+        log.error("failed to load middleware plugin: {}", plugin)
+        log.exception(e)
+      raise
     log.activity("loaded middleware plugin: {}", plugin.__class__)
     return ImplCls
 

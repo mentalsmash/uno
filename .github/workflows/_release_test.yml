@@ -144,6 +144,17 @@ jobs:
             ${{ needs.test_config.outputs.TEST_IMAGE }} \
             pytest -s -v --junit-xml=test-results/uno-test-results-unit-${{ needs.test_config.outputs.TEST_ID }}.xml \
               src/uno/test/unit
+      
+      - name: Run unit tests (without a license)
+        run: |
+          docker run --rm \
+            -v $(pwd):/workspace \
+            -w /workspace \
+            -e VERBOSITY=activity \
+            -e DEBUG=y \
+            ${{ needs.test_config.outputs.TEST_IMAGE }} \
+            pytest -s -v --junit-xml=test-results/uno-test-results-unit-${{ needs.test_config.outputs.TEST_ID }}.xml \
+              src/uno/test/unit
 
       - name: Restore permissions changed by unit tests
         if: ${{ always() }}
@@ -169,13 +180,24 @@ jobs:
           esac
 
       - name: Run integration tests
-        id: integration-tests
         run: |
           . venv/bin/activate
           pytest -s -v --junit-xml=test-results/uno-test-results-integration-${{ needs.test_config.outputs.TEST_ID }}.xml \
             src/uno/test/integration
         env:
           RTI_LICENSE_FILE: ${{ github.workspace }}/rti_license.dat
+          DEBUG: y
+          VERBOSITY: activity
+          UNO_MIDDLEWARE: ${{ needs.test_config.outputs.UNO_MIDDLEWARE }}
+      
+
+      - name: Run integration tests (without a license)
+        run: |
+          . venv/bin/activate
+          rm -v rti_license.dat
+          pytest -s -v --junit-xml=test-results/uno-test-results-integration-${{ needs.test_config.outputs.TEST_ID }}.xml \
+            src/uno/test/integration
+        env:
           DEBUG: y
           VERBOSITY: activity
           UNO_MIDDLEWARE: ${{ needs.test_config.outputs.UNO_MIDDLEWARE }}
