@@ -42,7 +42,7 @@ jobs:
       run: |
         docker run --rm \
           -v $(pwd)/src/uno:/uno \
-          mentalsmash/debian-builder:${{ matrix.builder-tag }} \
+          ghcr.io/mentalsmash/uno-ci-debian-builder:${{ matrix.builder-tag }} \
           /uno/scripts/debian_build.sh
       
     - name: Upload uno packages
@@ -81,7 +81,7 @@ jobs:
       run: |
         docker run --rm \
           -v $(pwd)/src/uno:/uno \
-          mentalsmash/debian-builder:${{ matrix.builder-tag }} \
+          ghcr.io/mentalsmash/uno-ci-debian-builder:${{ matrix.builder-tag }} \
           /uno/scripts/debian_build.sh
       
     - name: Upload uno packages
