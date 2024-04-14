@@ -22,3 +22,4 @@ uno.db
 venv
 .venv
 poetry.lock
+build

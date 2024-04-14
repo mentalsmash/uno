@@ -1,0 +1,36 @@
+Source: uno
+Maintainer: mentalsmash.org <contact@mentalsmash.org>
+Section: python
+Priority: optional
+Build-Depends: debhelper (>=11~), python3-all, python3-venv, build-essential
+Standards-Version: 4.5.0
+Homepage: https://github.com/mentalsmash/uno
+X-Python3-Version: >= 3.9
+
+Package: uno
+Architecture: any
+Depends:
+  frr,
+  gnupg2,
+  iproute2,
+  iptables,
+  iputils-ping,
+  lighttpd,
+  lighttpd-mod-openssl,
+  psmisc,
+  openssl,
+  qrencode,
+  tar,
+  xz-utils,
+  wireguard,
+  wireguard-tools
+Description: dynamic site-to-site vpns
+ uno is a tool for linking multiple LANs into a single routing domain over the public Internet.
+ .
+ LANs are interconnected by local agents deployed within them to act as gateways to other LANs.
+ .
+ Agents use secure VPN links to establish a routing "backbone" where they carry out the BGP
+ protocol to find routes to every other remote LAN.
+ .
+ VPN links are provisioned using WireGuard, while the frrouting suite is used to implement IP
+ routing.
