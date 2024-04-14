@@ -25,7 +25,7 @@ def ssh_client_test(
   experiment: Experiment,
   test_config: Iterable[tuple[Host, Host]],
   batch_size: int | None = None,
-  timeout: int = 15,
+  timeout: int = 10,
 ):
   def _start(host: Host, server: Host) -> subprocess.Popen:
     # Connect via SSH and run a "dummy" test (e.g. verify that the hostname is what we expect)
@@ -34,7 +34,7 @@ def ssh_client_test(
     cmd_keyscan = " ".join(
       [
         "ssh-keyscan",
-        # *(["-T", f"{timeout}"] if timeout > 0 else []),
+        *(["-T", f"{timeout}"] if timeout > 0 else []),
         "-p",
         "22",
         "-H",

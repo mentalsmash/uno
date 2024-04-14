@@ -45,8 +45,6 @@ RUN set -xe; \
       lighttpd-mod-openssl \
       psmisc \
       openssl \
-      python3-dev \
-      python3-pip \
       python3-venv \
       qrencode \
       tar \

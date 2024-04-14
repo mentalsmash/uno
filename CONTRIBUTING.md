@@ -309,7 +309,6 @@ WARNING: in order to use these commands, you might have to enable QEMU emulation
 
 ```sh
 docker run --privileged --rm tonistiigi/binfmt --install all
-docker run --privileged --rm tonistiigi/binfmt --install arm64,riscv64,arm
 ```
 
 If you enounter any emulation problems while using this image (e.g. QEMU segfaults), you can

@@ -75,8 +75,6 @@ sudo apt install --no-install-recommends \
   lighttpd-mod-openssl \
   psmisc \
   openssl \
-  python3-dev \
-  python3-pip \
   python3-venv \
   qrencode \
   tar \
@@ -96,7 +94,7 @@ git clone --recurse-submodules https://github.com/mentalsmash/uno
 # A virtual environment installation is recommended in this case.
 python3 -m venv -m uno-venv
 . ./uno-venv/bin/activate
-pip install ./uno
+pip3 install ./uno
 ```
 
 ### Middleware Setup
