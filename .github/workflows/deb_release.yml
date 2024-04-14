@@ -6,8 +6,6 @@ on:
   workflow_dispatch:
 
   push:
-    branches:
-      - master
     tags:
       - '*'
       - '!*/**'
@@ -119,6 +117,7 @@ jobs:
     needs:
       - build-packages
       - build-packages-arm64
+    if: github.ref_type == 'tag'
     runs-on: ubuntu-latest
     steps:
     - name: Download all artifacts
