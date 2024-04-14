@@ -1,4 +1,4 @@
 build/default/src                           opt/uno/
-build/pytinstaller-default/uno/_internal    opt/uno/bin/
-build/pytinstaller-default/uno/uno          opt/uno/bin/
+build/pyinstaller-default/uno/_internal     opt/uno/bin/
+build/pyinstaller-default/uno/uno           opt/uno/bin/
 usr/bin/uno
