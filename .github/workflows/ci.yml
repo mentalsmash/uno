@@ -199,8 +199,8 @@ jobs:
           docker run --rm \
             -v $(pwd):/workspace \
             -w /workspace \
-            -e VERBOSITY=${{ env.VERBOSITY }} \
-            -e DEBUG=${{ env.DEBUG }} \
+            -e VERBOSITY=${{ runner.debug && 'debug' || '' }} \
+            -e DEBUG=${{ runner.debug }} \
             -e EXPECT_MIDDLEWARE=${{ inputs.uno-middleware || 'uno.middleware.connext' }} \
             ${{ needs.config.outputs.TEST_IMAGE }} \
             pytest -s -v --junit-xml=test-results/uno-test-results-unit-${{ needs.config.outputs.BUILD_ID }}.xml \
@@ -213,8 +213,8 @@ jobs:
           docker run --rm \
             -v $(pwd):/workspace \
             -w /workspace \
-            -e VERBOSITY=${{ env.VERBOSITY }} \
-            -e DEBUG=${{ env.DEBUG }} \
+            -e VERBOSITY=${{ runner.debug && 'debug' || '' }} \
+            -e DEBUG=${{ runner.debug }} \
             -e EXPECT_MIDDLEWARE= \
             ${{ needs.config.outputs.TEST_IMAGE }} \
             sh -c "rm /rti_license.dat && unset RTI_LICENSE_FILE && pytest -s -v --junit-xml=test-results/uno-test-results-unit-${{ needs.config.outputs.BUILD_ID }}-static.xml src/uno/test/unit"
@@ -236,7 +236,7 @@ jobs:
             cp /rti_license.dat /workspace/rti_license.dat
 
       - name: Run integration tests
-        if: inputs.run-integration
+        if: inputs.run-integration && !inputs.test-without-license
         run: |
           mkdir -p test-results
           . src/uno/.venv/bin/activate
@@ -245,6 +245,8 @@ jobs:
         env:
           UNO_MIDDLEWARE: ${{ inputs.uno-middleware }}
           EXPECT_MIDDLEWARE: ${{ inputs.uno-middleware || 'uno.middleware.connext' }}
+          DEBUG: ${{ runner.debug }}
+          VERBOSITY: ${{ runner.debug && 'debug' || '' }}
       
       - name: Restore permissions changed by integration tests
         if: ${{ inputs.run-integration && always() }}
@@ -265,6 +267,8 @@ jobs:
         env:
           UNO_MIDDLEWARE: ${{ inputs.uno-middleware }}
           EXPECT_MIDDLEWARE: ${{ inputs.uno-middleware || '' }}
+          DEBUG: ${{ runner.debug }}
+          VERBOSITY: ${{ runner.debug && 'debug' || '' }}
 
       - name: Restore permissions changed by integration tests
         if: ${{ inputs.run-integration && always() }}

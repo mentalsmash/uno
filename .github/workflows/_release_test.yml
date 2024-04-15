@@ -19,10 +19,6 @@ concurrency:
   group: release-test-image-${{ github.ref }}-${{ inputs.tag}}-${{ inputs.platform }}
   cancel-in-progress: true
 
-env:
-  DEBUG: ''
-  VERBOSITY: ''
-
 jobs:
   test_config:
     runs-on: ubuntu-latest
@@ -143,8 +139,8 @@ jobs:
             -v $(pwd):/workspace \
             -w /workspace \
             -e RTI_LICENSE_FILE=/workspace/rti_license.dat \
-            -e VERBOSITY=${{ env.VERBOSITY }} \
-            -e DEBUG=${{ env.DEBUG }} \
+            -e VERBOSITY=${{ runner.debug && 'debug' || '' }} \
+            -e DEBUG=${{ runner.DEBUG }} \
             ${{ needs.test_config.outputs.TEST_IMAGE }} \
             pytest -s -v --junit-xml=test-results/uno-test-results-unit-${{ needs.test_config.outputs.TEST_ID }}.xml \
               src/uno/test/unit
@@ -154,8 +150,8 @@ jobs:
           docker run --rm \
             -v $(pwd):/workspace \
             -w /workspace \
-            -e VERBOSITY=${{ env.VERBOSITY }} \
-            -e DEBUG=${{ env.DEBUG }} \
+            -e VERBOSITY=${{ runner.debug && 'debug' || '' }} \
+            -e DEBUG=${{ runner.debug }} \
             ${{ needs.test_config.outputs.TEST_IMAGE }} \
             pytest -s -v --junit-xml=test-results/uno-test-results-unit-${{ needs.test_config.outputs.TEST_ID }}-static.xml \
               src/uno/test/unit
@@ -191,6 +187,8 @@ jobs:
         env:
           RTI_LICENSE_FILE: ${{ github.workspace }}/rti_license.dat
           UNO_MIDDLEWARE: ${{ needs.test_config.outputs.UNO_MIDDLEWARE }}
+          DEBUG: ${{ runner.debug }}
+          VERBOSITY: ${{ runner.debug && 'debug' || '' }}
       
 
       - name: Run integration tests (without a license)
@@ -201,6 +199,8 @@ jobs:
             src/uno/test/integration
         env:
           UNO_MIDDLEWARE: ${{ needs.test_config.outputs.UNO_MIDDLEWARE }}
+          DEBUG: ${{ runner.debug }}
+          VERBOSITY: ${{ runner.debug && 'debug' || '' }}
 
       - name: Restore permissions changed by integration tests
         if: ${{ always() }}
