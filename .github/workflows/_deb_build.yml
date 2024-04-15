@@ -31,8 +31,8 @@ permissions:
   packages: read
 
 env:
-  DEBUG: ''
-  VERBOSITY: ''
+  DEBUG: y
+  VERBOSITY: debug
 
 jobs:
   config:
