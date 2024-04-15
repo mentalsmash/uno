@@ -10,6 +10,11 @@
 
 # First version
 
+# (asorbini) Modified to take an optional filter argument to run in noninteractive mode
+
+REPO="${1}"
+FILTER="${2}"
+
 set -o errexit
 set -o pipefail
 
@@ -45,14 +50,14 @@ selectruns() {
 
   gh api --paginate "/repos/$repo/actions/runs" \
     | jq -r -f <(jqscript) \
-    | fzf --multi
+    | fzf --multi $([ -z "${FILTER}" ] || printf -- "--filter '%s'" "${FILTER}")
 
 }
 
 deleterun() {
 
   local run id result
-  run=$1
+  run=${REPO}
   id="$(cut -f 3 <<< "$run")"
   gh api -X DELETE "/repos/$repo/actions/runs/$id"
   [[ $? = 0 ]] && result="OK!" || result="BAD"

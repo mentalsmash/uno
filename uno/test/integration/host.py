@@ -412,7 +412,7 @@ class Host:
       import sys
 
       print("{} {} [host logs] {}".format("=" * 20, self.container_name, "=" * 20), file=sys.stderr)
-      exec_command(["docker", "logs", self.container_name], output_file=sys.stderr)
+      exec_command(["docker", "logs", self.container_name], debug=True)
       print(
         "{} //{} [host logs] {}".format("=" * 19, self.container_name, "=" * 19), file=sys.stderr
       )
