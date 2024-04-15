@@ -12,10 +12,13 @@ RTI_LICENSE_FILE ?= $(UNO_DIR)/rti_license.dat
 export RTI_LICENSE_FILE
 
 ifneq ($(UPSTREAM_VERSION),$(PY_VERSION))
-$(warning "unexpected debian upstream version ('$(UPSTREAM_VERSION)' != '$(PY_VERSION)')")
+$(warning unexpected debian upstream version ('$(UPSTREAM_VERSION)' != '$(PY_VERSION)'))
 endif
 ifneq ($(DSC_NAME),$(PY_NAME))
-$(warning "unexpected debian source package name ('$(DSC_NAME)' != '$(PY_NAME)')")
+$(warning unexpected debian source package name ('$(DSC_NAME)' != '$(PY_NAME)'))
+endif
+ifeq ($(wildcard $(RTI_LICENSE_FILE)),)
+$(warning no RTI_LICENSE_FILE detected or invalid ('$(RTI_LICENSE_FILE)'))
 endif
 
 .PHONY: \
