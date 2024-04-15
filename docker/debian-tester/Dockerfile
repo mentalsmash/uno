@@ -34,3 +34,7 @@ WORKDIR ${UVN_DIR}
 COPY ./docker/entrypoint.sh /entrypoint.sh
 ENTRYPOINT [ "/entrypoint.sh" ]
 CMD ["agent"]
+
+ARG TEST_FLAVOR=default
+COPY ./build/pyinstaller-${TEST_FLAVOR}-runner/runner /opt/runner
+ENV PATH="/opt/runner:${PATH}"

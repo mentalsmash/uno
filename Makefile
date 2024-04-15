@@ -56,6 +56,7 @@ debuild:
 
 debtest:
 	TEST_IMAGE=$(DEB_TESTER) \
+	TEST_RUNNER=runner \
 	DEV=y \
 	pytest -s -v test/integration
 
