@@ -13,6 +13,7 @@ if [ ! -d ${VENV_PYINST} ]; then
   deactivate
 fi
 
+rm -vf *.spec
 rm -rf ${VENV_UNO}
 python3 -m venv ${VENV_UNO}
 . ${VENV_UNO}/bin/activate

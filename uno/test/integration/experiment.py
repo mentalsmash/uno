@@ -61,6 +61,7 @@ class Experiment:
   Dev = bool(os.environ.get("DEV", False))
   InsideTestRunner = bool(os.environ.get("UNO_TEST_RUNNER", False))
   TestImage = os.environ.get("TEST_IMAGE", "mentalsmash/uno-test-runner:latest")
+  RunnerScript = os.environ.get("TEST_RUNNER", "/uno/uno/test/integration/runner.py")
   BuiltImages = set()
   UnoDir = _uno_dir
   # Load the selected uno middleware plugin

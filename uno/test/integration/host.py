@@ -378,7 +378,7 @@ class Host:
         *(["-e", f"VERBOSITY={self.log.LevelEnv}"] if self.log.LevelEnv else []),
         *(["-e", "DEBUG=y"] if self.log.DEBUG else []),
         self.image,
-        "/uno/uno/test/integration/runner.py",
+        self.experiment.RunnerScript,
         "host",
         self.experiment.test_case.name,
         self.container_name,
