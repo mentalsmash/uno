@@ -330,7 +330,7 @@ class Experiment:
       ]
     )
 
-  @property
+  @cached_property
   def rti_license(self) -> Path | None:
     for license in [
       os.environ.get("RTI_LICENSE_FILE"),
@@ -346,6 +346,7 @@ class Experiment:
         license = license.resolve()
         self.log.debug("found RTI license: {}", license)
         return license
+    self.log.warning("no RTI license file found")
     return None
 
   def uno(self, *args, **exec_args):

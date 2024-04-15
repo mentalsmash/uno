@@ -7,6 +7,9 @@ PY_NAME := $(shell grep '^name =' pyproject.toml | cut -d= -f2- | tr -d \" | cut
 DEB_BUILDER ?= mentalsmash/debian-builder:latest
 DEB_TESTER ?= mentalsmash/debian-tester:latest
 UNO_DIR ?= $(shell pwd)
+RTI_LICENSE_FILE ?= $(UNO_DIR)/rti_license.dat
+
+export RTI_LICENSE_FILE
 
 ifneq ($(UPSTREAM_VERSION),$(PY_VERSION))
 $(warning "unexpected debian upstream version ('$(UPSTREAM_VERSION)' != '$(PY_VERSION)')")
@@ -58,7 +61,7 @@ debtest:
 	TEST_IMAGE=$(DEB_TESTER) \
 	TEST_RUNNER=runner \
 	DEV=y \
-	pytest -s -v test/integration
+	pytest -s -v test/integration $(TEST_ARGS)
 
 test: test-unit test-integration ;
 
@@ -66,4 +69,6 @@ test-unit:
 	pytest -s -v test/unit
 
 test-integration:
-	pytest -s -v test/integration
+	DEV=y \
+	pytest -s -v test/integration $(TEST_ARGS)
+

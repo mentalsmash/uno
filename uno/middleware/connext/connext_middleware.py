@@ -50,7 +50,7 @@ class ConnextMiddleware(Middleware):
   def supports_agent(cls, root: Path) -> bool:
     rti_license = cls.locate_rti_license([root])
     if not rti_license or not rti_license.exists():
-      log.debug("an RTI license is required to run agents, but none was found")
+      log.warning("an RTI license is required to run agents, but none was found")
       return False
     return True
 
@@ -77,6 +77,7 @@ class ConnextMiddleware(Middleware):
 
     # Check if there is already a license in the specified directory
     rti_license_env = os.getenv("RTI_LICENSE_FILE")
+    log.activity("RTI_LICENSE_FILE := {}", rti_license_env)
     if rti_license_env:
       rti_license = Path(rti_license_env)
       if rti_license.exists():

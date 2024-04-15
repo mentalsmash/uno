@@ -59,7 +59,7 @@ class Middleware:
         log.error("failed to load middleware plugin: {}", plugin)
         log.exception(e)
       raise
-    log.activity("loaded middleware plugin: {}", plugin.__class__)
+    log.activity("loaded middleware plugin: {}", plugin)
     return ImplCls
 
   @classmethod
