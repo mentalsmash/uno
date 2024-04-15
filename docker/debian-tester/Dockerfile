@@ -65,4 +65,5 @@ CMD ["agent"]
 
 ARG TEST_FLAVOR=default
 COPY ./build/pyinstaller-${TEST_FLAVOR}-runner/runner /opt/runner
+RUN chmod +x /opt/runner/runner
 ENV PATH="/opt/runner:${PATH}"
