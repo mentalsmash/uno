@@ -4,10 +4,10 @@ version = "0.9.0"
 description = "Dynamic site-to-site VPNs with WireGuard, frrouting, and RTI Connext DDS"
 authors = ["Andrea Sorbini <as@mentalsmash.org>"]
 readme = "README.md"
-license = "AGPL-3.0-or-later"
+license = "Apache-2.0"
 classifiers = [
     "Programming Language :: Python :: 3",
-    "License :: OSI Approved :: GNU Affero General Public License v3 or later (AGPLv3+)",
+    "License :: OSI Approved :: Apache Software License",
     "Operating System :: POSIX :: Linux"
 ]
 packages = [

@@ -3,7 +3,7 @@ ARG BASE_IMAGE="ubuntu:22.04"
 FROM ${BASE_IMAGE}
 
 LABEL org.opencontainers.image.source=https://github.com/mentalsmash/uno
-LABEL org.opencontainers.image.licenses=AGPL-3.0
+LABEL org.opencontainers.image.licenses=Apache-2.0
 LABEL org.opencontainers.image.vendor=mentalsmash.org
 
 # Name of non-root user created for testing
