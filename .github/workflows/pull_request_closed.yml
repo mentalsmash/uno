@@ -1,0 +1,37 @@
+name: Pull Request (Closed)
+run-name: |
+  PR #${{github.event.pull_request.number}} [closed, ${{github.event.pull_request.merged && 'merged' || 'rejected' }}] ${{github.event.pull_request.title}}
+
+on:
+  pull_request:
+    types:
+      - closed
+
+concurrency:
+  group: pr-closed-${{ github.ref }}
+  cancel-in-progress: false
+
+permissions:
+  actions: write
+  packages: read
+
+jobs:
+  cleanup_jobs:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Clone uno
+        uses: actions/checkout@v4
+        with:
+          path: src/uno
+          submodules: true
+      
+      - name: "Clean up workflow runs"
+        run: |
+          scripts/cleanup_closed_pull_request.sh \
+            ${{ github.repository }} \
+            ${{ github.event.pull_request.number }} \
+            ${{ github.event.pull_request.merged }}
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          ADMIN_IMAGE: ghcr.io/mentalsmash/uno-ci-admin:latest
+

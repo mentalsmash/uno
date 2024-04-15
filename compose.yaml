@@ -101,3 +101,4 @@ services:
         - linux/arm64
       args:
         BASE_IMAGE: ubuntu:22.04
+
