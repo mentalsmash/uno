@@ -421,8 +421,7 @@ class Host:
     self.log.debug("generated host logs: {}", output_file)
 
   def stop(self) -> subprocess.Popen:
-    if self.log.DEBUG:
-      self.print_logs()
+    self.print_logs()
     self.log.debug("stopping container")
     return subprocess.Popen(
       [
