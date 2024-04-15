@@ -406,19 +406,31 @@ class Host:
       self.log.activity("started")
     return result
 
-  def print_logs(self, output_file: Path | None = None) -> None:
+  def print_logs(self) -> None:
     self.log.debug("generating host logs... (DEBUG={})", self.log.DEBUG)
     if self.log.DEBUG:
       import sys
 
-      print("{} {} [host logs] {}".format("=" * 20, self.container_name, "=" * 20), file=sys.stderr)
-      exec_command(["docker", "logs", self.container_name], debug=True)
-      print(
-        "{} //{} [host logs] {}".format("=" * 19, self.container_name, "=" * 19), file=sys.stderr
-      )
-    if output_file is None:
+      def _print(name, out):
+        print(
+          "{} {} [host logs - {}] {}".format("=" * 20, self.container_name, name, "=" * 20),
+          file=sys.stderr,
+        )
+        if out:
+          print(out.decode(), file=sys.stderr)
+        else:
+          print("<none>", file=sys.stderr)
+        print(
+          "{} //{} [host logs - {}] {}".format("=" * 19, self.container_name, name, "=" * 19),
+          file=sys.stderr,
+        )
+
+      result = exec_command(["docker", "logs", self.container_name], capture_output=True)
+      _print("stdout", result.stdout)
+      _print("stderr", result.stderr)
+    if self.experiment.ExternalTestDir:
       output_file = self.test_dir / "container.log"
-    exec_command(["docker", "logs", self.container_name], output_file=output_file)
+      exec_command(["docker", "logs", self.container_name], output_file=output_file)
     self.log.debug("generated host logs: {}", output_file)
 
   def stop(self) -> subprocess.Popen:

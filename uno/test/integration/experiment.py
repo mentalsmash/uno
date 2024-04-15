@@ -61,6 +61,7 @@ class Experiment:
   InsideTestRunner = bool(os.environ.get("UNO_TEST_RUNNER", False))
   TestImage = os.environ.get("TEST_IMAGE", "mentalsmash/uno-test-runner:latest")
   RunnerScript = os.environ.get("TEST_RUNNER", "/uno/uno/test/integration/runner.py")
+  ExternalTestDir = os.environ.get("TEST_DIR")
   BuiltImages = set()
   UnoDir = _uno_dir
   # Load the selected uno middleware plugin
@@ -101,7 +102,7 @@ class Experiment:
     config = cls.load_config(config)
     # Check if the user specified a non-temporary test directory
     # Otherwise the experiment will allocate a temporary directory
-    test_dir = os.environ.get("TEST_DIR", test_dir)
+    test_dir = cls.ExternalTestDir or test_dir
     test_dir_tmp = None
     if test_dir is not None:
       test_dir = Path(test_dir) / name
