@@ -78,3 +78,26 @@ services:
         - linux/arm64
       args:
         BASE_IMAGE: ubuntu:22.04
+  #############################################################################
+  # Debian package testers
+  #############################################################################
+  debian-tester:
+    build:
+      context: .
+      dockerfile: docker/debian-tester/Dockerfile
+      tags:
+        - mentalsmash/debian-tester:latest
+      platforms:
+        - linux/amd64
+      args:
+        BASE_IMAGE: ubuntu:22.04
+  debian-tester-arm64:
+    build:
+      context: .
+      dockerfile: docker/debian-tester/Dockerfile
+      tags:
+        - mentalsmash/debian-tester:latest-arm64
+      platforms:
+        - linux/arm64
+      args:
+        BASE_IMAGE: ubuntu:22.04

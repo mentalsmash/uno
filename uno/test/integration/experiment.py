@@ -60,6 +60,7 @@ class ExperimentLoader(Protocol):
 class Experiment:
   Dev = bool(os.environ.get("DEV", False))
   InsideTestRunner = bool(os.environ.get("UNO_TEST_RUNNER", False))
+  TestImage = os.environ.get("TEST_IMAGE", "mentalsmash/uno-test-runner:latest")
   BuiltImages = set()
   UnoDir = _uno_dir
   # Load the selected uno middleware plugin
@@ -174,7 +175,6 @@ class Experiment:
   def default_config(cls) -> dict:
     return {
       "interactive": False,
-      "image": "mentalsmash/uno-test-runner:latest",
       "uvn_fully_routed_timeout": 60,
       "container_start_timeout": 60,
       "container_stop_timeout": 60,
@@ -323,7 +323,7 @@ class Experiment:
         "run",
         "--rm",
         *(tkn for hvol, vol in dirs.items() for tkn in ("-v", f"{hvol}:{vol}")),
-        self.config["image"],
+        self.TestImage,
         "fix-root-permissions",
         f"{os.getuid()}:{os.getgid()}",
         *dirs.values(),
@@ -398,7 +398,7 @@ class Experiment:
           ),
           "-e",
           f"VERBOSITY={self.log.level.name}",
-          self.config["image"],
+          self.TestImage,
           "uno",
           *args,
           *([verbose_flag] if verbose_flag else []),

@@ -94,7 +94,7 @@ class Host:
     assert self.role != HostRole.PARTICLE or (
       self.particle_package is not None and self.particle is not None
     )
-    self.image = image or self.experiment.config["image"]
+    self.image = image or self.experiment.TestImage
     self.port_forward = dict(port_forward or {})
     self.log = Logger.sublogger(self.container_name)
 

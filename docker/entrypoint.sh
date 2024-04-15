@@ -2,10 +2,6 @@
 set -e
 # Load Python virtual environment
 . ${UNO_VENV}/bin/activate
-# Automatically detect RTI_LICENSE_FILE if not already set
-if [ -z "${RTI_LICENSE_FILE}" -a -f /rti_license.dat ]; then
-  export RTI_LICENSE_FILE=/rti_license.dat
-fi
 # Allow users (a.k.a. tests) to inject environment variables
 if [ -n "${INIT_ENV}" ]; then
   . ${INIT_ENV}

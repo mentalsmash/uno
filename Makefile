@@ -5,6 +5,7 @@ UPSTREAM_TARBALL := $(DSC_NAME)_$(UPSTREAM_VERSION).orig.tar.xz
 PY_VERSION := $(shell grep __version__ uno/__init__.py | cut -d= -f2- | tr -d \" | cut '-d ' -f2-)
 PY_NAME := $(shell grep '^name =' pyproject.toml | cut -d= -f2- | tr -d \" | cut '-d ' -f2-)
 DEB_BUILDER ?= mentalsmash/debian-builder:latest
+DEB_TESTER ?= mentalsmash/debian-tester:latest
 
 ifneq ($(UPSTREAM_VERSION),$(PY_VERSION))
 $(warning "unexpected debian upstream version ('$(UPSTREAM_VERSION)' != '$(PY_VERSION)')")
@@ -18,10 +19,15 @@ endif
   tarball \
   clean \
   debuild \
-  changelog
+  changelog \
+	debtest \
+	debtest-unit \
+	debtest-integration \
+	test \
+	test-unit \
+	test-integration
 
-build: \
-  build/default
+build: build/default ;
 
 build/%: ../$(UPSTREAM_TARBALL)
 	rm -rf $@ build/pyinstaller-$*
@@ -37,14 +43,34 @@ tarball: ../$(UPSTREAM_TARBALL)
 ../$(UPSTREAM_TARBALL):
 	git ls-files --recurse-submodules | tar -cvaf $@ -T-
 
+changelog:
+	docker run --rm -ti \
+		-v $(pwd)/:/uno \
+		$(DEB_BUILDER)  \
+		/uno/scripts/bundle/update_changelog.sh
+
 debuild:
 	docker run --rm -ti \
 		-v $(pwd)/:/uno \
 		$(DEB_BUILDER)  \
 		/uno/scripts/debian_build.sh
 
-changelog:
+debtest: debtest-unit debtest-integration ;
+
+debtest-unit:
 	docker run --rm -ti \
 		-v $(pwd)/:/uno \
-		$(DEB_BUILDER)  \
-		/uno/scripts/bundle/update_changelog.sh
+		$(DEB_TESTER)  \
+		pytest -s -v test/unit
+
+debtest-integration:
+	TEST_IMAGE=$(DEB_TESTER) \
+	pytest -s -v test/integration
+
+test: test-unit test-integration ;
+
+test-unit:
+	pytest -s -v test/unit
+
+test-integration:
+	pytest -s -v test/integration

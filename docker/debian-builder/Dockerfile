@@ -1,4 +1,4 @@
-ARG BASE_IMAGE
+ARG BASE_IMAGE=ubuntu:22.04
 FROM ${BASE_IMAGE}
 
 RUN set -ex; \

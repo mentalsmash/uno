@@ -162,6 +162,9 @@ RUN set -xe; \
 # Set default work directory
 WORKDIR /uvn
 
+# Hard-code RTI license file
+ENV RTI_LICENSE_FILE "/rti_license.dat"
+
 # Add venv/bin to PATH so we don't have to activate it
 ENV PATH "${UNO_VENV}/bin:${PATH}"
 
