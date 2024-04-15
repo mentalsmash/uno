@@ -77,20 +77,6 @@ jobs:
     needs: config
     runs-on: ${{ fromJson(needs.config.outputs.RUNNER) }}
     steps:
-    - name: Clone uno
-      uses: actions/checkout@v4
-      with:
-        path: src/uno
-        submodules: true
-
-    - name: Clone support files
-      uses: actions/checkout@v4
-      with:
-        repository: mentalsmash/uno-ci
-        token: ${{ secrets.UNO_CI_PAT }}
-        ref: master
-        path: src/uno-ci
-
     - name: Log in to GitHub
       uses: docker/login-action@v3
       with:
@@ -110,7 +96,12 @@ jobs:
       with:
         name: uno-${{inputs.platform}}-${{needs.config.outputs.BUILDER_TAG}}
         path: src/uno/debian-dist/*
-      if: always()
+
+    - name: Upload test runner
+      uses: actions/upload-artifact@v4
+      with:
+        name: uno-runner-${{inputs.platform}}-${{needs.config.outputs.BUILDER_TAG}}
+        path: src/uno/build/pyinstaller-default-runner/runner
 
     - name: Fix permissions
       run: |
@@ -119,6 +110,41 @@ jobs:
           ghcr.io/mentalsmash/uno-ci-debian-builder:${{ needs.config.outputs.BUILDER_TAG }} \
           chown -R $(id -u):$(id -g) /uno
       if: always()
+
+  test-packages:
+    needs:
+      - config
+      - build-packages
+    runs-on: ${{ fromJson(needs.config.outputs.RUNNER) }}
+    steps:
+    - name: Clone uno
+      uses: actions/checkout@v4
+      with:
+        path: src/uno
+        submodules: true
+
+    - name: Clone support files
+      uses: actions/checkout@v4
+      with:
+        repository: mentalsmash/uno-ci
+        token: ${{ secrets.UNO_CI_PAT }}
+        ref: master
+        path: src/uno-ci
+
+    - name: Download artifacts
+      uses: actions/download-artifact@v4
+      with:
+        pattern: uno*-${{inputs.platform}}-${{needs.config.outputs.BUILDER_TAG}}
+
+    - name: Move artifacts in place
+      run: |
+        mkdir -p src/uno/build/pyinstaller-default-runner/runner
+        mv -v uno-runner-${{inputs.platform}}-${{needs.config.outputs.BUILDER_TAG}}/* \
+          src/uno/build/pyinstaller-default-runner/runner/
+
+        mkdir -p src/uno/debian-dist
+        mv -v uno-${{inputs.platform}}-${{needs.config.outputs.BUILDER_TAG}}/* \
+          src/uno/debian-dist/
 
     - name: Build tester image
       uses: docker/build-push-action@v5

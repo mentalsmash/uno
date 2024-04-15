@@ -96,3 +96,16 @@ jobs:
       base-image: ${{matrix.base-image}}
       uno-middleware: ${{matrix.uno-middleware}}
       test-without-license: ${{matrix.test-without-license}}
+
+  deb-validation:
+    needs: check-review-status
+    if: ${{ needs.check-review-status.outputs.FULL }}
+    strategy:
+      matrix:
+        base-tag: ["ubuntu:22.04"]
+        platform: [amd64]
+    uses: ./.github/workflows/_deb_build.yml
+    secrets: inherit
+    with:
+      base-tag: ${{ matrix.base-tag }}
+      platform: ${{ matrix.platform }}
