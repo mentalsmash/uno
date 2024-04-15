@@ -407,12 +407,12 @@ class Host:
     return result
 
   def print_logs(self, output_file: Path | None = None) -> None:
-    self.log.debug("generating host logs (DEBUG={})", self.log.DEBUG)
+    self.log.debug("generating host logs... (DEBUG={})", self.log.DEBUG)
     if self.log.DEBUG:
       import sys
 
       print("{} {} [host logs] {}".format("=" * 20, self.container_name, "=" * 20), file=sys.stderr)
-      exec_command(["docker", "logs", self.container_name])
+      exec_command(["docker", "logs", self.container_name], output_file=sys.stderr)
       print(
         "{} //{} [host logs] {}".format("=" * 19, self.container_name, "=" * 19), file=sys.stderr
       )

@@ -168,6 +168,7 @@ jobs:
         . venv/bin/activate
         pip3 install -U pip setuptools
         pip3 install -U -e src/uno
+        pip3 install -U -e rti.connext
         cp src/uno-ci/resource/rti/rti_license.dat rti_license.dat
 
     - name: Run integration tests
