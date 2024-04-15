@@ -35,7 +35,7 @@ pyinstaller \
   --clean \
   --distpath ${DIST_DIR} \
   -p ${VENV_UNO}/lib/*/site-packages/ \
-  --collect-submodules rti \
+  --collect-all rti.connextdds \
   --add-data "uno:uno" \
   ./scripts/bundle/uno
 
@@ -45,6 +45,6 @@ pyinstaller \
   --clean \
   --distpath ${DIST_DIR}-runner \
   -p ${VENV_UNO}/lib/*/site-packages/ \
-  --collect-submodules rti \
+  --collect-all rti.connextdds \
   --add-data "uno:uno" \
   ./uno/test/integration/runner.py
