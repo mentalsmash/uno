@@ -35,7 +35,7 @@ pyinstaller \
   --distpath ${DIST_DIR} \
   --specpath build/ \
   --add-data "../uno:uno" \
-  --hidden-import rti \
+  --hidden-import rti.connext \
   -p ${VENV_UNO}/lib/*/site-packages/ \
   ./scripts/bundle/uno
 
@@ -46,6 +46,6 @@ pyinstaller \
   --distpath ${DIST_DIR}-runner \
   --specpath build/ \
   --add-data "../uno:uno" \
-  --hidden-import rti \
+  --hidden-import rti.connext \
   -p ${VENV_UNO}/lib/*/site-packages/ \
   ./uno/test/integration/runner.py
