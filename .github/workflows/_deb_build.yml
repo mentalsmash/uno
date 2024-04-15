@@ -141,11 +141,13 @@ jobs:
     - name: Run integration tests
       run: |
         . venv/bin/activate
-        DEV=y \
         pytest -s -v --junit-xml=test-results/uno-test-results-integration-${{ needs.config.outputs.REF_TAG }}.xml \
           src/uno/test/integration
       env:
+        DEV: y
         RTI_LICENSE_FILE: ${{ github.workspace }}/rti_license.dat
+        TEST_IMAGE: ${{ needs.config.outputs.TEST_IMAGE }}
+        TEST_RUNNER: runner
 
     - name: Restore permissions changed by integration tests
       if: always()
