@@ -1,5 +1,5 @@
 #!/bin/sh
-set -e
+set -ex
 
 git config --global --add safe.directory /uno
 

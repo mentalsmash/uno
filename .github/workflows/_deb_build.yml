@@ -1,0 +1,185 @@
+name: Deb Release (Build & Test)
+run-name: |
+  deb release (build & test) [${{github.ref_name}}]
+
+on:
+  workflow_dispatch:
+    inputs:
+      base-tag:
+        description: Base distribution image
+        type: string
+        required: true
+      platform:
+        description: Build platform
+        type: string
+        required: true
+  
+  workflow_call:
+    inputs:
+      base-tag:
+        type: string
+        required: true
+      platform:
+        type: string
+        required: true
+
+concurrency:
+  group: deb-release-${{ github.ref }}-${{inputs.platform}}-${{inputs.base-tag}}
+  cancel-in-progress: true
+
+permissions:
+  packages: read
+
+jobs:
+  config:
+    runs-on: ubuntu-latest
+    outputs:
+      BUILDER_TAG: ${{ steps.config.outputs.BUILDER_TAG }}
+      REF_TAG: ${{ steps.config.outputs.REF_TAG }}
+      RUNNER: ${{ steps.config.outputs.RUNNER }}
+      TEST_IMAGE: ${{ steps.config.outputs.TEST_IMAGE }}
+      TEST_ARTIFACT: ${{ steps.config.outputs.TEST_ARTIFACT }}
+    steps:
+      - name: Clone uno
+        uses: actions/checkout@v4
+        with:
+          path: src/uno
+          submodules: true
+      
+      - name: Generate build configuration
+        id: config
+        run: |
+          case "${{ inputs.platform }}" in
+            amd64)
+              runner='"ubuntu-latest"'
+              ;;
+            arm64)
+              runner='["self-hosted", "linux", "arm64", "rpi5"]'
+              ;;
+          esac
+          builder_tag=$(echo ${{inputs.base-tag}} | tr : - | tr / -)
+          ref_tag=$(echo ${{ github.ref_name }} | tr / -)
+          test_id=$(date +%Y%m%d-%H%M%S)
+          test_artifact=uno-test-deb-${builder_tag}-${ref_tag}__${test_id}
+          (
+            echo RUNNER=${runner}
+            echo BUILDER_TAG=${builder_tag}
+            echo REF_TAG=${ref_tag}
+            echo TEST_IMAGE=mentalsmash/uno-test-runner:latest
+            echo TEST_ARTIFACT=${test_artifact}
+          ) >> ${GITHUB_OUTPUT}
+
+  build-packages:
+    needs: config
+    runs-on: ${{ fromJson(needs.config.outputs.RUNNER) }}
+    steps:
+    - name: Clone uno
+      uses: actions/checkout@v4
+      with:
+        path: src/uno
+        submodules: true
+
+    - name: Clone support files
+      uses: actions/checkout@v4
+      with:
+        repository: mentalsmash/uno-ci
+        token: ${{ secrets.UNO_CI_PAT }}
+        ref: master
+        path: src/uno-ci
+
+    - name: Log in to GitHub
+      uses: docker/login-action@v3
+      with:
+        registry: ghcr.io
+        username: ${{ github.actor }}
+        password: ${{ secrets.GITHUB_TOKEN }}
+
+    - name: Build debian packages
+      run: |
+        make -C src/uno changelog
+        make -C src/uno debuild
+      env:
+        DEB_BUILDER: ghcr.io/mentalsmash/uno-ci-debian-builder:${{ needs.config.outputs.BUILDER_TAG }}
+  
+    - name: Upload debian packages
+      uses: actions/upload-artifact@v4
+      with:
+        name: uno
+        path: src/uno/debian-dist/*
+      if: always()
+
+    - name: Fix permissions
+      run: |
+        docker run --rm \
+          -v $(pwd)/src/uno:/uno \
+          ghcr.io/mentalsmash/uno-ci-debian-builder:${{ needs.config.outputs.BUILDER_TAG }} \
+          chown -R $(id -u):$(id -g) /uno
+      if: always()
+    
+    - name: Configure test environment
+      run: |
+        cp src/uno-ci/resource/rti/rti_license.dat rti_license.dat
+
+    - name: Build tester image
+      uses: docker/build-push-action@v5
+      with:
+        file: src/uno/docker/debian-tester/Dockerfile
+        tags: ${{ needs.config.outputs.TEST_IMAGE }}
+        load: true
+        context: src/uno
+        build-args: |
+          BASE_IMAGE=${{ inputs.base-tag }}
+
+    - name: Run unit tests
+      run: |
+        docker run --rm \
+          -v $(pwd):/workspace \
+          -w /workspace \
+          -e RTI_LICENSE_FILE=/workspace/rti_license.dat \
+          -e VERBOSITY=activity \
+          -e DEBUG=y \
+          ${{ needs.config.outputs.TEST_IMAGE }} \
+          pytest -s -v --junit-xml=test-results/uno-test-results-unit-${{ needs.config.outputs.REF_TAG }}.xml \
+            src/uno/test/unit
+
+    - name: Restore permissions changed by unit tests
+      if: always()
+      run: |
+        docker run --rm \
+          -v $(pwd):/workspace \
+          ${{ needs.config.outputs.TEST_IMAGE }} \
+          fix-root-permissions $(id -u):$(id -g) /workspace
+
+    - name: Setup integration tests
+      run: |
+        python3 -m venv venv
+        . venv/bin/activate
+        pip3 install -U pip setuptools
+        pip3 install -U -e src/uno
+
+    - name: Run integration tests
+      run: |
+        . venv/bin/activate
+        pytest -s -v --junit-xml=test-results/uno-test-results-integration-${{ needs.config.outputs.REF_TAG }}.xml \
+          src/uno/test/integration
+      env:
+        RTI_LICENSE_FILE: ${{ github.workspace }}/rti_license.dat
+        DEBUG: y
+        VERBOSITY: activity
+
+    - name: Restore permissions changed by integration tests
+      if: always()
+      run: |
+        docker run --rm \
+          -v $(pwd):/workspace \
+          ${{ needs.config.outputs.TEST_IMAGE }} \
+          fix-root-permissions $(id -u):$(id -g) /workspace
+
+    # Always collect and upload available test results
+    - name: Upload test results
+      uses: actions/upload-artifact@v4
+      with:
+        name: ${{ needs.config.outputs.TEST_ARTIFACT }}
+        path: test-results/*
+      if: always()
+
