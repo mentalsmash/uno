@@ -30,6 +30,10 @@ concurrency:
 permissions:
   packages: read
 
+env:
+  DEBUG: ''
+  VERBOSITY: ''
+
 jobs:
   config:
     runs-on: ubuntu-latest
@@ -144,8 +148,6 @@ jobs:
           src/uno/test/integration
       env:
         RTI_LICENSE_FILE: ${{ github.workspace }}/rti_license.dat
-        DEBUG: y
-        VERBOSITY: activity
 
     - name: Restore permissions changed by integration tests
       if: always()
