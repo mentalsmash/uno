@@ -119,10 +119,6 @@ jobs:
           ghcr.io/mentalsmash/uno-ci-debian-builder:${{ needs.config.outputs.BUILDER_TAG }} \
           chown -R $(id -u):$(id -g) /uno
       if: always()
-    
-    - name: Configure test environment
-      run: |
-        cp src/uno-ci/resource/rti/rti_license.dat rti_license.dat
 
     - name: Build tester image
       uses: docker/build-push-action@v5
@@ -140,10 +136,12 @@ jobs:
         . venv/bin/activate
         pip3 install -U pip setuptools
         pip3 install -U -e src/uno
+        cp src/uno-ci/resource/rti/rti_license.dat rti_license.dat
 
     - name: Run integration tests
       run: |
         . venv/bin/activate
+        DEV=y \
         pytest -s -v --junit-xml=test-results/uno-test-results-integration-${{ needs.config.outputs.REF_TAG }}.xml \
           src/uno/test/integration
       env:
