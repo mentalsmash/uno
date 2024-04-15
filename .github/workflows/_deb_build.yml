@@ -77,6 +77,12 @@ jobs:
     needs: config
     runs-on: ${{ fromJson(needs.config.outputs.RUNNER) }}
     steps:
+    - name: Clone uno
+      uses: actions/checkout@v4
+      with:
+        path: src/uno
+        submodules: true
+
     - name: Log in to GitHub
       uses: docker/login-action@v3
       with:
