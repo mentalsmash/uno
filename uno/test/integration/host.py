@@ -407,6 +407,7 @@ class Host:
     return result
 
   def print_logs(self, output_file: Path | None = None) -> None:
+    self.log.debug("generating host logs (DEBUG={})", self.log.DEBUG)
     if self.log.DEBUG:
       import sys
 
