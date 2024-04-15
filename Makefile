@@ -51,12 +51,14 @@ tarball: ../$(UPSTREAM_TARBALL) ;
 changelog:
 	docker run --rm \
 		-v $(UNO_DIR)/:/uno \
+		-w /uno \
 		$(DEB_BUILDER)  \
 		/uno/scripts/bundle/update_changelog.sh
 
 debuild:
 	docker run --rm \
 		-v $(UNO_DIR)/:/uno \
+		-w /uno \
 		$(DEB_BUILDER)  \
 		/uno/scripts/debian_build.sh
 
