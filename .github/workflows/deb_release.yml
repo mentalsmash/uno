@@ -7,7 +7,8 @@ on:
 
   push:
     tags:
-      - 'debian/*'
+      - '*'
+      - '!*/**'
 
   workflow_run:
     workflows: ["Release (default)"]
