@@ -49,13 +49,13 @@ tarball: ../$(UPSTREAM_TARBALL) ;
 	git ls-files --recurse-submodules | tar -cvaf $@ -T-
 
 changelog:
-	docker run --rm -ti \
+	docker run --rm \
 		-v $(UNO_DIR)/:/uno \
 		$(DEB_BUILDER)  \
 		/uno/scripts/bundle/update_changelog.sh
 
 debuild:
-	docker run --rm -ti \
+	docker run --rm \
 		-v $(UNO_DIR)/:/uno \
 		$(DEB_BUILDER)  \
 		/uno/scripts/debian_build.sh
