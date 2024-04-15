@@ -64,7 +64,7 @@ jobs:
           builder_tag=$(echo ${{inputs.base-tag}} | tr : - | tr / -)
           ref_tag=$(echo ${{ github.ref_name }} | tr / -)
           test_id=$(date +%Y%m%d-%H%M%S)
-          test_artifact=uno-test-deb-${builder_tag}-${ref_tag}__${test_id}
+          test_artifact=uno-test-deb-${builder_tag}-${ref_tag}-${{inputs.platform}}__${test_id}
           (
             echo RUNNER=${runner}
             echo BUILDER_TAG=${builder_tag}
