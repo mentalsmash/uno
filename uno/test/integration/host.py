@@ -431,7 +431,7 @@ class Host:
     if self.experiment.ExternalTestDir:
       output_file = self.test_dir / "container.log"
       exec_command(["docker", "logs", self.container_name], output_file=output_file)
-    self.log.debug("generated host logs: {}", output_file)
+      self.log.debug("generated host logs: {}", output_file)
 
   def stop(self) -> subprocess.Popen:
     self.print_logs()

@@ -108,12 +108,12 @@ jobs:
           (
             case "${{ inputs.build-platform }}" in
               arm64)
-                case "${{inputs.uno-middleware}}" in
-                  '')
+                case "${{inputs.test-without-license}}" in
+                  false)
                     # Force full test suite to run on "beefier" rpi5 nodes
                     printf -- "RUNNER='%s'\n" '["self-hosted", "linux", "arm64", "rpi5"]'
                     ;;
-                  *)
+                  true)
                     # Other test suites can run on any arm64 node
                     printf -- "RUNNER='%s'\n" '["self-hosted", "linux", "arm64"]'
                     ;;
