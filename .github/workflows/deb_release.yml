@@ -52,6 +52,7 @@ jobs:
         base-tag: ["ubuntu:22.04"]
         platform: [amd64, arm64]
     uses: ./.github/workflows/_deb_build.yml
+    secrets: inherit
     with:
       base-tag: ${{ matrix.base-tag }}
       platform: ${{ matrix.platform }}
