@@ -13,7 +13,7 @@ if [ ! -d ${VENV_PYINST} ]; then
   deactivate
 fi
 
-rm -vf *.spec
+rm -vf build/*.spec
 rm -rf ${VENV_UNO}
 python3 -m venv ${VENV_UNO}
 . ${VENV_UNO}/bin/activate
@@ -36,8 +36,8 @@ pyinstaller \
   --distpath ${DIST_DIR} \
   --specpath build/ \
   -p ${VENV_UNO}/lib/*/site-packages/ \
-  --hidden-import rti.connextdds \
   --add-data "uno:uno" \
+  --hidden-import rti.connextdds \
   ./scripts/bundle/uno
 
 pyinstaller \
@@ -47,6 +47,6 @@ pyinstaller \
   --distpath ${DIST_DIR}-runner \
   --specpath build/ \
   -p ${VENV_UNO}/lib/*/site-packages/ \
-  --hidden-import rti.connextdds \
   --add-data "uno:uno" \
+  --hidden-import rti.connextdds \
   ./uno/test/integration/runner.py
