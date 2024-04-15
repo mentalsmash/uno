@@ -108,7 +108,7 @@ jobs:
     - name: Upload debian packages
       uses: actions/upload-artifact@v4
       with:
-        name: uno
+        name: uno-${{inputs.platform}}-${{needs.config.outputs.BUILDER_TAG}}
         path: src/uno/debian-dist/*
       if: always()
 
