@@ -35,4 +35,5 @@ pyinstaller \
   --distpath ${DIST_DIR} \
   -p ${VENV_UNO}/lib/*/site-packages/ \
   --add-data "uno:uno" \
-  ./scripts/bundle/uno
+  ./scripts/bundle/uno \
+  ./uno/test/integration/runner.py

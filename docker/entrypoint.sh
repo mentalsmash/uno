@@ -1,7 +1,9 @@
 #!/bin/sh
 set -e
 # Load Python virtual environment
-. ${UNO_VENV}/bin/activate
+if [ -f "${UNO_VENV}/bin/activate" ]; then
+  . ${UNO_VENV}/bin/activate
+fi
 # Allow users (a.k.a. tests) to inject environment variables
 if [ -n "${INIT_ENV}" ]; then
   . ${INIT_ENV}

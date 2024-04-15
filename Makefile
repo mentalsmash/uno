@@ -1,11 +1,12 @@
-DSC_NAME := $(shell head -1 debian/changelog | awk '{print $1;}')
-DEB_VERSION := $(shell head -1 debian/changelog | awk '{print $2;}' | tr -d '(' | tr -d ')')
+DSC_NAME := $(shell dpkg-parsechangelog -S Source)
+DEB_VERSION := $(shell dpkg-parsechangelog -S Version)
 UPSTREAM_VERSION := $(shell echo $(DEB_VERSION) | rev | cut -d- -f2- | rev)
 UPSTREAM_TARBALL := $(DSC_NAME)_$(UPSTREAM_VERSION).orig.tar.xz
 PY_VERSION := $(shell grep __version__ uno/__init__.py | cut -d= -f2- | tr -d \" | cut '-d ' -f2-)
 PY_NAME := $(shell grep '^name =' pyproject.toml | cut -d= -f2- | tr -d \" | cut '-d ' -f2-)
 DEB_BUILDER ?= mentalsmash/debian-builder:latest
 DEB_TESTER ?= mentalsmash/debian-tester:latest
+UNO_DIR ?= $(shell pwd)
 
 ifneq ($(UPSTREAM_VERSION),$(PY_VERSION))
 $(warning "unexpected debian upstream version ('$(UPSTREAM_VERSION)' != '$(PY_VERSION)')")
@@ -21,8 +22,6 @@ endif
   debuild \
   changelog \
 	debtest \
-	debtest-unit \
-	debtest-integration \
 	test \
 	test-unit \
 	test-integration
@@ -38,33 +37,26 @@ build/%: ../$(UPSTREAM_TARBALL)
 clean:
 	rm -rf build dist
 
-tarball: ../$(UPSTREAM_TARBALL)
+tarball: ../$(UPSTREAM_TARBALL) ;
 
 ../$(UPSTREAM_TARBALL):
 	git ls-files --recurse-submodules | tar -cvaf $@ -T-
 
 changelog:
 	docker run --rm -ti \
-		-v $(pwd)/:/uno \
+		-v $(UNO_DIR)/:/uno \
 		$(DEB_BUILDER)  \
 		/uno/scripts/bundle/update_changelog.sh
 
 debuild:
 	docker run --rm -ti \
-		-v $(pwd)/:/uno \
+		-v $(UNO_DIR)/:/uno \
 		$(DEB_BUILDER)  \
 		/uno/scripts/debian_build.sh
 
-debtest: debtest-unit debtest-integration ;
-
-debtest-unit:
-	docker run --rm -ti \
-		-v $(pwd)/:/uno \
-		$(DEB_TESTER)  \
-		pytest -s -v test/unit
-
-debtest-integration:
+debtest:
 	TEST_IMAGE=$(DEB_TESTER) \
+	DEV=y \
 	pytest -s -v test/integration
 
 test: test-unit test-integration ;

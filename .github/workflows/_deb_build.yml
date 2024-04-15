@@ -130,26 +130,6 @@ jobs:
         build-args: |
           BASE_IMAGE=${{ inputs.base-tag }}
 
-    - name: Run unit tests
-      run: |
-        docker run --rm \
-          -v $(pwd):/workspace \
-          -w /workspace \
-          -e RTI_LICENSE_FILE=/workspace/rti_license.dat \
-          -e VERBOSITY=activity \
-          -e DEBUG=y \
-          ${{ needs.config.outputs.TEST_IMAGE }} \
-          pytest -s -v --junit-xml=test-results/uno-test-results-unit-${{ needs.config.outputs.REF_TAG }}.xml \
-            src/uno/test/unit
-
-    - name: Restore permissions changed by unit tests
-      if: always()
-      run: |
-        docker run --rm \
-          -v $(pwd):/workspace \
-          ${{ needs.config.outputs.TEST_IMAGE }} \
-          fix-root-permissions $(id -u):$(id -g) /workspace
-
     - name: Setup integration tests
       run: |
         python3 -m venv venv
