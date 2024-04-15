@@ -24,7 +24,6 @@ permissions:
 
 jobs:
   check-trigger:
-    if: github.event_name == 'workflow_run'
     runs-on: ubuntu-latest
     outputs:
       DO_BUILD: ${{steps.config.outputs.DO_BUILD}}
@@ -32,20 +31,10 @@ jobs:
       - name: "Generate test configuration"
         id: config
         run: |
-          do_build=y
-          case "${{github.ref_type}}" in
-            tag)
-              ;;
-            branch)
-              case "${{github.ref_name}}" in
-                master)
-                  ;;
-                *)
-                do_build=
-                  ;;
-              esac
-              ;;
-          esac
+          if [ \( "${{github.event_name}}" = workflow_run -a "${{github.ref_name}}" = master \) \
+                -o "${{github.ref_type}}" = tag ]; then
+            do_build=y
+          fi
           (
             echo DO_BUILD=${do_build}
           ) >> ${GITHUB_OUTPUT}
@@ -53,7 +42,7 @@ jobs:
         run: |
           echo "upstream job for ${{github.ref_type}} ${{github.ref_name}} failed with conclusion '${{github.event.workflow_run.conclusion}}'"
           exit 1
-        if: steps.config.outputs.DO_BUILD && github.event.workflow_run.conclusion != 'success'
+        if: github.event_name == 'workflow_run' && steps.config.outputs.DO_BUILD && github.event.workflow_run.conclusion != 'success'
 
   build-packages:
     needs: check-trigger
