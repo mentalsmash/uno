@@ -12,9 +12,8 @@ on:
       - 'docs/**/*'
     types:
       - opened
-      - ready_for_review
       - synchronize
-      - reopened
+      - ready_for_review
       - converted_to_draft
 
   pull_request_review:
@@ -26,42 +25,71 @@ concurrency:
 
 jobs:
   check-review-status:
-    # Skip the whole workflow if the PR is still in draft
-    if: ${{ !github.event.pull_request.draft }}
     runs-on: ubuntu-latest
     outputs:
-      BASIC: ${{ steps.config.outputs.BASIC }}
-      FULL: ${{ steps.config.outputs.FULL }}
+      VALIDATE_BASIC: ${{ steps.config.outputs.VALIDATE_BASIC }}
+      VALIDATE_FULL: ${{ steps.config.outputs.VALIDATE_FULL }}
+      VALIDATE_DEB: ${{ steps.config.outputs.VALIDATE_DEB }}
     steps:
       - name: "Generate job configuration from PR status"
         id: config
         run: |
-          echo "Generating test configuration for pull-request ${{github.ref_name}} on event: ${{github.event_name}}..."
-          case ${{github.event_name}} in
+          echo "Generating test configuration for PR #${{ github.event.pull_request.number }} [trigger-event=${{ github.event_name }}, pr-state=${{ github.event.pull_request.state }}, review-state=${{ github.event.review.state }}]"
+
+          case ${{ github.event_name }} in
             pull_request_review)
-              case "${{github.event.review.state}}" in
+              case "${{ github.event.review.state }}" in
                 approved)
-                  echo "Pull request ${{github.ref_name}} has been approved. Performing full test."
+                  # A new review was submitted, and the review state is "approved":
+                  # perform a full validation (ci build on more platforms + deb validation)
                   full=y
+                  # If the PR is still in draft: perform also a basic validation
+                  if [ "${{ github.event.pull_request.draft }}" = true ]; then
+                    basic=y
+                  fi
                   ;;
                 *)
-                  echo "Pull request ${{github.ref_name}} NOT APPROVED yet (${{github.event.review.state}}). Skipping tests while waiting for approval."
+                  # A new review was submitted, but the state is not "approved": nothing to do yet
                   ;;
               esac
               ;;
             pull_request)
-              echo "Pull request ${{github.ref_name}} NOT APPROVED (${{github.event.review.state}}) but updated. Performing basic test."
-              basic=y
+              case "${{ github.event.pull_request.draft }}" in
+                true)
+                  # The PR was updated but it is still in draft: nothing to do
+                  ;;
+                false)
+                  # The PR was updated, and it is not a draft: perform a basic validation if:
+                  # - PR.state == 'opened':
+                  #   -> PR opened as non-draft, perform an initial check
+                  # - PR.state == 'synchronized':
+                  #   -> PR updated by new commits.
+                  #      TODO(asorbini) assert(${{ github.event.review.state }} != 'approved')
+                  #      (assumption is that any commit will invalidate a previous 'approved')
+                  # - PR.state == 'ready_for_review':
+                  #   -> PR moved out of draft, run basic validation only if not already 'approved'.
+                  #      (assumption: a basic validation was already performed on the `pull_request_review`
+                  #       event for the approval.)
+                  case "${{ github.event.pull_request.state }}" in
+                    opened|synchronized|ready_for_review)
+                      basic=y
+                      ;;
+                    *)
+                      ;;
+                  esac
+                  ;;
+              esac
               ;;
           esac
           (
-            echo BASIC=${basic}
-            echo FULL=${full}
+            echo VALIDATE_BASIC=${basic}
+            echo VALIDATE_FULL=${full}
+            echo VALIDATE_DEB=${full}
           )  >> ${GITHUB_OUTPUT}
 
   basic-validation:
     needs: check-review-status
-    if: ${{ needs.check-review-status.outputs.BASIC }}
+    if: ${{ needs.check-review-status.outputs.VALIDATE_BASIC }}
     strategy:
       matrix:
         build-platform: [amd64]
@@ -78,7 +106,7 @@ jobs:
 
   full-validation:
     needs: check-review-status
-    if: ${{ needs.check-review-status.outputs.FULL }}
+    if: ${{ needs.check-review-status.outputs.VALIDATE_FULL }}
     strategy:
       matrix:
         build-platform: [amd64, arm64]
@@ -104,7 +132,7 @@ jobs:
 
   deb-validation:
     needs: check-review-status
-    if: ${{ needs.check-review-status.outputs.FULL }}
+    if: ${{ needs.check-review-status.outputs.VALIDATE_DEB }}
     strategy:
       matrix:
         base-tag: ["ubuntu:22.04"]
