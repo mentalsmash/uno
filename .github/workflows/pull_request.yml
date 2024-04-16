@@ -28,8 +28,8 @@ jobs:
     runs-on: ubuntu-latest
     outputs:
       VALIDATE_BASIC: ${{ steps.config.outputs.VALIDATE_BASIC }}
-      VALIDATE_FULL: ${{ steps.config.outputs.VALIDATE_FULL }}
       VALIDATE_DEB: ${{ steps.config.outputs.VALIDATE_DEB }}
+      VALIDATE_FULL: ${{ steps.config.outputs.VALIDATE_FULL }}
     steps:
       - name: "Generate job configuration"
         id: config
@@ -168,3 +168,14 @@ jobs:
       base-tag: ${{ matrix.base-tag }}
       platform: ${{ matrix.platform }}
       pull-request: true
+
+  full-validation-required:
+    needs:
+      - check-trigger
+      - basic-validation
+    if: ${{ needs.check-trigger.outputs.VALIDATE_FULL_REQUIRED }}
+    runs-on: ubuntu-latest
+    steps:
+      - name: "The PR passed basic validation but still needs full validation."
+        run: |
+          exit 1

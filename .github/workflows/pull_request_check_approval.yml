@@ -1,0 +1,77 @@
+name: Pull Request (Check Approval)
+run-name: |
+  PR #${{ github.event.pull_request.number }} [check approval on ${{ github.event_name == 'pull_request' && 'update' || 'review' }}, ${{ github.event.action }}${{ github.event.pull_request.draft && ', draft' || '' }}] ${{github.event.pull_request.title}}
+
+on:
+  pull_request:
+    branches:
+      - master
+    paths-ignore:
+      # No sense in doing these tests for these file
+      - 'README.md'
+      - 'docs/**/*'
+    types:
+      - opened
+      - synchronize
+      - ready_for_review
+
+  pull_request_review:
+    types: [submitted]
+
+concurrency:
+  group: pr-test-automerge-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  check-trigger:
+    runs-on: ubuntu-latest
+    steps:
+      - name: "Check if PR is ready for merging"
+        id: config
+        run: |
+          case "${{ github.event_name }}" in
+            pull_request)
+              if [ "${{ github.event.pull_request.draft }}" = true ]; then
+                # Draft PRs can't ever be merged
+                check_failed=y
+              else
+                case "${{ github.event.action }}" in
+                  opened)
+                    # just opened PR can't have possibly been reviewed already, don't merge
+                    check_failed=y
+                    ;;
+                  synchronize)
+                    # A commit was pushed to the PR, the PR can't be approved yet
+                    check_failed=y
+                    ;;
+                  ready_for_review)
+                    # PR taken out of draft, fail only if not "approved".
+                    # Ideally: we would just query the review state, but that doesn't seem to
+                    # be available on the pull_request object, see:
+                    # https://docs.github.com/en/webhooks/webhook-events-and-payloads#pull_request)
+                    if [ "${{ github.event.pull_request.mergeable }}" != true ]; then
+                      check_failed=y
+                    fi
+                    ;;
+                esac
+              fi
+              ;;
+            pull_request_review)
+              case "${{ github.event.review.state }}" in
+                approved)
+                  ;;
+                *)
+                  check_failed=y
+                  ;;
+              esac
+              ;;
+          esac
+          (
+            echo CHECK_FAILED=${check_failed}
+          ) >> "${GITHUB_OUTPUT}"
+
+
+      - name: "Fail if PR is not ready yet"
+        run: |
+          exit 1
+        if: steps.config.outputs.CHECK_FAILED
