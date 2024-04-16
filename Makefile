@@ -185,9 +185,13 @@ deb:
 # Run both unit and integration tests
 test: test-unit test-integration ;
 
+
+# Call pytest directly from venv, since it's mounted on containers too
+PYTEST ?= .venv/bin/pytest
+
 # Run unit tests
 BASE_UNIT_TEST_COMMAND := \
-  pytest -s -v \
+  $(PYTEST) -s -v \
     --junit-xml=$(TEST_RESULTS_DIR)/$(TEST_JUNIT_REPORT)__unit.xml \
     test/unit
 # When run by a CI test, the test image is expected to contain an
@@ -209,22 +213,20 @@ endif # ifeq ($(UNIT_TEST_COMMAND),)
 test-unit: .venv
 	@$(CHECK_RTI_LICENSE_FILE)
 	mkdir -p $(TEST_RESULTS_DIR)
-	[ -n "$(IN_DOCKER)" ] || . $</bin/activate; \
-	  $(IN_DOCKER_PREFIX) $(UNIT_TEST_COMMAND)
+	$(IN_DOCKER_PREFIX) $(UNIT_TEST_COMMAND)
 
 # Run integration tests
 test-integration: .venv
 	@$(CHECK_RTI_LICENSE_FILE)
 	mkdir -p $(TEST_RESULTS_DIR)
 	set -ex; \
-	. $</bin/activate; \
-		# For releases, we shouldn't mount the local module, but rather
-		# test the one included in the docker image
-	  [ -z "${TEST_RELEASE}" ] || export DEV=y; \
-	  pytest -s -v \
-	    --junit-xml=$(TEST_RESULTS_DIR)/$(TEST_JUNIT_REPORT)__integration.xml \
-	    test/integration \
-	    $(INTEGRATION_TEST_ARGS)
+	# For releases, we shouldn't mount the local module, but rather
+	# test the one included in the docker image
+	[ -z "${TEST_RELEASE}" ] || export DEV=y; \
+	$(PYTEST) -s -v \
+		--junit-xml=$(TEST_RESULTS_DIR)/$(TEST_JUNIT_REPORT)__integration.xml \
+		test/integration \
+		$(INTEGRATION_TEST_ARGS)
 
 # Change file ownership back to the current user
 fix-file-ownership:
@@ -285,15 +287,10 @@ else # ifneq ($(USE_POETRY),)
        $(wildcard plugins/*/pyproject.toml)
 	rm -rf $@
 	python3 -m venv $@
-	$@/bin/pip install -U pip setuptools
+	$@/bin/pip install -U pip setuptools ruff pre-commit pytest
 	$@/bin/pip install -e .
-	set -ex; \
-	  if [ -n "$(UNO_MIDDLEWARE)" ]; then \
-	    $@/bin/pip install -e plugins/$(UNO_MIDDLEWARE); \
-	  else \
-	    $@/bin/pip install rti.connext; \
-	  fi
-	$@/bin/pip install -U ruff pre-commit pytest
+	[ -z "$(UNO_MIDDLEWARE)" ] || $@/bin/pip install -e plugins/$(UNO_MIDDLEWARE)
+	[ -n "$(UNO_MIDDLEWARE)" ] || $@/bin/pip install rti.connext
 endif # ifneq ($(USE_POETRY),)
 
 # Build images required for development
@@ -310,10 +307,7 @@ dockerimage-%:
 code: code-check code-format ;
 
 code-check: .venv
-	. $</bin/activate; \
-	  ruff check
+	$</bin/ruff check
 
 code-format: .venv
-	. $</bin/activate; \
-	  ruff format --check
-
+	$</bin/ruff format --check
