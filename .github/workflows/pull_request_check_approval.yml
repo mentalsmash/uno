@@ -1,6 +1,6 @@
 name: Pull Request (Check Approval)
 run-name: |
-  PR #${{ github.event.pull_request.number }} [check approval on ${{ github.event_name == 'pull_request' && 'update' || 'review' }}, ${{ github.event.action }}${{ github.event.pull_request.draft && ', draft' || '' }}] ${{github.event.pull_request.title}}
+  PR #${{ github.event.pull_request.number }} [${{ github.event_name == 'pull_request' && 'check approval on PR update' || 'fully validated' }}]
 
 on:
   pull_request:
@@ -15,8 +15,8 @@ on:
       - synchronize
       - ready_for_review
 
-  pull_request_review:
-    types: [submitted]
+  workflow_call:
+
 
 concurrency:
   group: pr-test-automerge-${{ github.ref }}
@@ -80,6 +80,9 @@ jobs:
                   check_failed=y
                   ;;
               esac
+              ;;
+            workflow_call)
+              # When call by another workflow assume it means the PR is approved
               ;;
           esac
           (

@@ -169,13 +169,10 @@ jobs:
       platform: ${{ matrix.platform }}
       pull-request: true
 
-  full-validation-required:
+  enable-merge:
     needs:
       - check-trigger
-      - basic-validation
-    if: ${{ needs.check-trigger.outputs.VALIDATE_FULL_REQUIRED }}
-    runs-on: ubuntu-latest
-    steps:
-      - name: "The PR passed basic validation but still needs full validation."
-        run: |
-          exit 1
+      - full-validation
+    if: ${{ needs.check-trigger.outputs.VALIDATE_FULL }}
+    uses: ./.github/workflows/pull_request_check_approval.yml
+
