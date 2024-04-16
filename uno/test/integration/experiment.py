@@ -268,7 +268,7 @@ class Experiment:
       self.log.info("initializing UVN")
       self.define_uvn()
       self.log.info("initialized UVN")
-    self.log.activity("opening UVN registry from {}", self.registry_root)
+    self.log.info("opening UVN registry from {}", self.registry_root)
     registry = Registry.open(self.registry_root, readonly=True)
     self.log.info("opened UVN registry {}: {}", registry.root, registry)
     return registry
@@ -321,13 +321,13 @@ class Experiment:
     # (otherwise we will fail to recreate networks)
     self.wipe_containers()
     for net in self.networks:
-      self.log.debug("creating network: {}", net)
+      self.log.info("creating network: {}", net)
       net.create()
-      self.log.activity("network created: {}", net)
+      self.log.info("network created: {}", net)
     for host in self.hosts:
-      self.log.debug("creating host: {}", host)
+      self.log.info("creating host: {}", host)
       host.create()
-      self.log.activity("host created: {}", host)
+      self.log.info("host created: {}", host)
     self.log.info("created {} networks and {} containers", len(self.networks), len(self.hosts))
 
   def fix_root_permissions(self) -> None:
@@ -409,14 +409,14 @@ class Experiment:
   def tear_down(self, assert_stopped: bool = False) -> None:
     self.log.info("tearing down {} networks and {} containers", len(self.networks), len(self.hosts))
     for host in self.hosts:
-      self.log.debug("tearing down host: {}", host)
+      self.log.info("tearing down host: {}", host)
       host.delete(ignore_errors=assert_stopped)
-      self.log.activity("host deleted: {}", host)
+      self.log.info("host deleted: {}", host)
     self.hosts.clear()
     for net in self.networks:
-      self.log.debug("tearing down net: {}", net)
+      self.log.info("tearing down net: {}", net)
       net.delete(ignore_errors=assert_stopped)
-      self.log.activity("network deleted: {}", net)
+      self.log.info("network deleted: {}", net)
     self.networks.clear()
     self.fix_root_permissions()
     self.log.info("removed all networks and containers", len(self.networks), len(self.hosts))
