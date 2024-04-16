@@ -126,7 +126,7 @@ jobs:
     env:
       IN_DOCKER: y
       FIX_DIR: ${{ github.workspace }}
-      RTI_LICENSE_FILE: ${{ github.workspace }}/rti_license.dat
+      RTI_LICENSE_FILE: ${{ github.workspace }}/src/uno/rti_license.dat
       TEST_DATE: ${{ needs.config.outputs.TEST_DATE }}
       TEST_ID: ${{ needs.config.outputs.TEST_ID }}
       TEST_IMAGE: ${{ needs.config.outputs.TEST_IMAGE }}
