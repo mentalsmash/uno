@@ -175,7 +175,7 @@ jobs:
           src/uno/dist/bundle/runner/
 
         mkdir -p src/uno/debian-dist
-        mv -v uno-${{inputs.platform}}-${{needs.config.outputs.DEB_BUILDER_TAG}}/* \
+        mv -v ${{ needs.config.outputs.DEB_ARTIFACT }}/* \
           src/uno/debian-dist/
 
     - name: Build tester image
