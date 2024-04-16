@@ -190,10 +190,10 @@ BASE_UNIT_TEST_COMMAND := \
   pytest -s -v \
     --junit-xml=$(TEST_RESULTS_DIR)/$(TEST_JUNIT_REPORT)__unit.xml \
     test/unit
-ifneq ($(CI),)
 # When run by a CI test, the test image is expected to contain an
 # embedded RTI license at /rti_license.dat. To test without it, we
-# must change the test command to 
+# must change the test command to delete the license
+ifneq ($(TEST_RELEASE),)
 ifneq ($(NO_LICENSE),)
 UNIT_TEST_COMMAND := \
 	sh -exc '\
@@ -201,9 +201,10 @@ UNIT_TEST_COMMAND := \
 	unset RTI_LICENSE_FILE; \
 	$(BASE_UNIT_TEST_COMMAND) $(UNIT_TEST_ARGS)'
 endif # ifneq ($(NO_LICENSE),)
-else
+endif # ifneq ($(TEST_RELEASE),)
+ifeq ($(UNIT_TEST_COMMAND),)
 UNIT_TEST_COMMAND := $(BASE_UNIT_TEST_COMMAND) $(UNIT_TEST_ARGS)
-endif # ifneq ($(CI),)
+endif # ifeq ($(UNIT_TEST_COMMAND),)
 
 test-unit: .venv
 	@$(CHECK_RTI_LICENSE_FILE)
@@ -217,6 +218,8 @@ test-integration: .venv
 	mkdir -p $(TEST_RESULTS_DIR)
 	set -ex; \
 	. $</bin/activate; \
+		# For releases, we shouldn't mount the local module, but rather
+		# test the one included in the docker image
 	  [ -z "${TEST_RELEASE}" ] || export DEV=y; \
 	  pytest -s -v \
 	    --junit-xml=$(TEST_RESULTS_DIR)/$(TEST_JUNIT_REPORT)__integration.xml \
