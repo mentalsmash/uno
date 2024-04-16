@@ -1,6 +1,6 @@
 name: Pull Request
 run-name: |
-  PR #${{github.event.pull_request.number}} [${{github.event_name == 'pull_request' && 'changed' || 'reviewed, ' }}${{github.event_name == 'pull_request' && '' || github.event.review.state }}] ${{github.event.pull_request.title}}
+  PR #${{ github.event.pull_request.number }} [trigger=${{ github.event_name == 'pull_request' && 'update' || 'review' }}, pr-state=${{ github.event.pull_request.state }}, is-draft=${{ github.event.pull_request.draft }}, review-state=${{ github.event_name == 'pull_request_review' && github.event.review.state || 'N/A' }}] ${{github.event.pull_request.title}}
 
 on:
   pull_request:
@@ -24,18 +24,16 @@ concurrency:
   cancel-in-progress: true
 
 jobs:
-  check-review-status:
+  check-trigger:
     runs-on: ubuntu-latest
     outputs:
       VALIDATE_BASIC: ${{ steps.config.outputs.VALIDATE_BASIC }}
       VALIDATE_FULL: ${{ steps.config.outputs.VALIDATE_FULL }}
       VALIDATE_DEB: ${{ steps.config.outputs.VALIDATE_DEB }}
     steps:
-      - name: "Generate job configuration from PR status"
+      - name: "Generate job configuration"
         id: config
         run: |
-          echo "Generating test configuration for PR #${{ github.event.pull_request.number }} [trigger-event=${{ github.event_name }}, pr-state=${{ github.event.pull_request.state }}, review-state=${{ github.event.review.state }}]"
-
           case ${{ github.event_name }} in
             pull_request_review)
               case "${{ github.event.review.state }}" in
@@ -71,8 +69,13 @@ jobs:
                   #      (assumption: a basic validation was already performed on the `pull_request_review`
                   #       event for the approval.)
                   case "${{ github.event.pull_request.state }}" in
-                    opened|synchronized|ready_for_review)
+                    opened|synchronized)
                       basic=y
+                      ;;
+                    ready_for_review)
+                      if [ "${{ github.event.review.state }}" != approved ]; then
+                        basic=y
+                      fi
                       ;;
                     *)
                       ;;
@@ -88,8 +91,8 @@ jobs:
           )  >> ${GITHUB_OUTPUT}
 
   basic-validation:
-    needs: check-review-status
-    if: ${{ needs.check-review-status.outputs.VALIDATE_BASIC }}
+    needs: check-trigger
+    if: ${{ needs.check-trigger.outputs.VALIDATE_BASIC }}
     strategy:
       matrix:
         build-platform: [amd64]
@@ -105,8 +108,8 @@ jobs:
       test-without-license: ${{matrix.test-without-license}}
 
   full-validation:
-    needs: check-review-status
-    if: ${{ needs.check-review-status.outputs.VALIDATE_FULL }}
+    needs: check-trigger
+    if: ${{ needs.check-trigger.outputs.VALIDATE_FULL }}
     strategy:
       matrix:
         build-platform: [amd64, arm64]
@@ -131,8 +134,8 @@ jobs:
       test-without-license: ${{matrix.test-without-license}}
 
   deb-validation:
-    needs: check-review-status
-    if: ${{ needs.check-review-status.outputs.VALIDATE_DEB }}
+    needs: check-trigger
+    if: ${{ needs.check-trigger.outputs.VALIDATE_DEB }}
     strategy:
       matrix:
         base-tag: ["ubuntu:22.04"]
