@@ -84,6 +84,14 @@ jobs:
               esac
               ;;
           esac
+
+          # Fail if not test is enabled to report a failed check and block the PR from automerging
+          # It is ok to generate failed run, since they will be cleaned up once the PR is closed.
+          if [ -z "${basic}${full}" ]; then
+            printf -- "ERROR: PR #${{ github.event.pull_request.number }} is not ready for testing yet\n"
+            exit 1
+          fi
+
           (
             echo VALIDATE_BASIC=${basic}
             echo VALIDATE_FULL=${full}
