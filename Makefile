@@ -210,7 +210,7 @@ test-unit: .venv
 	@$(CHECK_RTI_LICENSE_FILE)
 	mkdir -p $(TEST_RESULTS_DIR)
 	[ -n "$(IN_DOCKER)" ] || . $</bin/activate; \
-	  $(IN_DOCKER_PREFIX) $(UNIT_TEST_COMMAND) $(UNIT_TEST_ARGS)
+	  $(IN_DOCKER_PREFIX) $(UNIT_TEST_COMMAND)
 
 # Run integration tests
 test-integration: .venv
