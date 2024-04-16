@@ -240,15 +240,36 @@ extract-license:
 # Install uno and its dependencies in a virtual environment.
 venv-install: .venv ;
 
+# It would be nice to use poetry but there doesn't seem to be
+# an easy and consistent way to install a working version in a
+# virtual environment. Specifically, it seems to be a problem with
+# calling poetry from the Makefile: the installed version will
+# likely work from a normal shell, but when called from the makefile
+# it starts behaving "weirdly", specifically, it seems like it
+# starts looking for/trying to install packages in system directories,
+# and then it either runs into version parsing error (because ubuntu
+# published python packages with a version number incompatible with
+# PEP440), or into a permission error (because it tries to write a
+# system directory).
+# For this reason, we are currently falling back to using a "plain"
+# venv + pip to support automation, until a solution is found to
+# make poetry work from the makefile.
+# Developers can still use poetry, because, as mentrioned before,
+# calling `poetry install` from a shell does seem to work. So, to
+# bootstrap a local dev environments, the following should work:
+#
+#  make poetry
+#
+#  .venv-poetry/bin/poetry install --with=dev --with=connext
+#
+poetry: .venv-poetry ;
 .venv-poetry:
 	# curl -sSL https://install.python-poetry.org | POETRY_HOME=$$(pwd)/$@  python3 -
 	python3 -m venv $@
 	$@/bin/pip install -U pip setuptools virtualenv
 	$@/bin/pip install poetry
 
-poetry-%:
-	scripts/poetry $*
-
+ifneq ($(USE_POETRY),)
 .venv: .venv-poetry \
        pyproject.toml \
        $(wildcard plugins/*/pyproject.toml)
@@ -256,6 +277,21 @@ poetry-%:
 	$</bin/poetry install --with=dev \
 	  $$([ -n "$(UNO_MIDDLEWARE)" ] || printf -- --with=connext)
 	$@/bin/pip install -e plugins/$(UNO_MIDDLEWARE)
+else # ifneq ($(USE_POETRY),)
+.venv: pyproject.toml \
+       $(wildcard plugins/*/pyproject.toml)
+	rm -rf $@
+	python3 -m venv $@
+	$@/bin/pip install -U pip setuptools
+	$@/bin/pip install -e .
+	set -ex; \
+	  if [ -n "$(UNO_MIDDLEWARE)" ]; then \
+	    $@/bin/pip install -e plugins/$(UNO_MIDDLEWARE); \
+	  else \
+	    $@/bin/pip install rti.connext; \
+	  fi
+	$@/bin/pip install -U ruff pre-commit
+endif # ifneq ($(USE_POETRY),)
 
 # Build images required for development
 dockerimages: \
