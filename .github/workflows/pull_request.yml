@@ -73,8 +73,14 @@ jobs:
                       basic=y
                       ;;
                     ready_for_review)
-                      if [ "${{ github.event.review.state }}" != approved ]; then
+                      # (assumption: if the PR is not "mergeable" it must have not been approved.
+                      # Ideally: we would just query the review state, but that doesn't seem to
+                      # be available on the pull_request object, see:
+                      # https://docs.github.com/en/webhooks/webhook-events-and-payloads#pull_request)
+                      if [ "${{ github.event.pull_request.mergeable }}" != true ]; then
                         basic=y
+                      else
+                        test_not_needed=y
                       fi
                       ;;
                     *)
@@ -87,16 +93,24 @@ jobs:
 
           # Fail if not test is enabled to report a failed check and block the PR from automerging
           # It is ok to generate failed run, since they will be cleaned up once the PR is closed.
-          if [ -z "${basic}${full}" ]; then
-            printf -- "ERROR: PR #${{ github.event.pull_request.number }} is not ready for testing yet\n"
-            exit 1
+          if [ -z "${basic}${full}${test_not_needed}" ]; then
+            printf -- "ERROR: PR #${{ github.event.pull_request.number }} is not ready for testing yet.\n" >&2
+            check_failed=y
+          elif [ -n "${test_not_needed}" ]; then
+            printf -- "PR #${{ github.event.pull_request.number }} doesn't need further testing.\n" >&2
           fi
 
           (
             echo VALIDATE_BASIC=${basic}
             echo VALIDATE_FULL=${full}
             echo VALIDATE_DEB=${full}
+            echo CHECK_FAILED=${check_failed}
           )  >> ${GITHUB_OUTPUT}
+
+      - name: "Fail job if check failed"
+        run: |
+          exit 1
+        if: steps.config.outputs.CHECK_FAILED
 
   basic-validation:
     needs: check-trigger
