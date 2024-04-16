@@ -69,7 +69,7 @@ jobs:
                   #      (assumption: a basic validation was already performed on the `pull_request_review`
                   #       event for the approval.)
                   case "${{ github.event.action }}" in
-                    opened|synchronized)
+                    opened|synchronize)
                       basic=y
                       ;;
                     ready_for_review)
