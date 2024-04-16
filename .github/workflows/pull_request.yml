@@ -89,6 +89,10 @@ jobs:
             base-image: "ubuntu:22.04"
             uno-middleware: ''
             test-without-license: false
+          - build-platform: arm64
+            base-image: "ubuntu:22.04"
+            uno-middleware: ''
+            test-without-license: true
     uses: ./.github/workflows/ci.yml
     secrets: inherit
     with:

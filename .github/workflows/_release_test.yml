@@ -98,7 +98,6 @@ jobs:
       FIX_DIR: ${{ github.workspace }}
       RTI_LICENSE_FILE: ${{ github.workspace }}/src/uno-ci/resource/rti/rti_license.dat
       TEST_DATE: ${{ needs.config.outputs.TEST_DATE }}
-      TEST_ID: ${{ needs.config.outputs.TEST_ID }}
       TEST_IMAGE: ${{ needs.config.outputs.TEST_IMAGE }}
       TEST_RELEASE: y
       UNO_MIDDLEWARE: ${{ needs.config.outputs.UNO_MIDDLEWARE }}
@@ -143,6 +142,7 @@ jobs:
           make -C src/uno test-unit
         env:
           DEBUG: ${{ runner.debug }}
+          TEST_ID: ${{ needs.config.outputs.TEST_ID }}
           
 
       - name: Run unit tests (without a license)
@@ -151,12 +151,14 @@ jobs:
         env:
           DEBUG: ${{ runner.debug }}
           NO_LICENSE: y
+          TEST_ID: ${{ needs.config.outputs.TEST_ID }}__static
 
       - name: Run integration tests
         run: |
           make -C src/uno test-integration
         env:
           DEBUG: ${{ runner.debug }}
+          TEST_ID: ${{ needs.config.outputs.TEST_ID }}
 
       - name: Run integration tests (without a license)
         run: |
@@ -164,6 +166,7 @@ jobs:
         env:
           DEBUG: ${{ runner.debug }}
           NO_LICENSE: y
+          TEST_ID: ${{ needs.config.outputs.TEST_ID }}__static
 
       - name: Restore permissions changed by tests
         if: always()

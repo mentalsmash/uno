@@ -89,10 +89,11 @@ jobs:
           image_version="$(echo ${image_version} | tr / -)"
           middleware_id=$(echo ${{inputs.uno-middleware}} | sed -e 's/uno.middleware.//')
           base_image_tag=$(echo "${{ inputs.base-image }}" | tr : -)
+          license_tag=$([ "${{ inputs.test-without-license }}" = false ] || printf -- __static)
           test_base_image=ghcr.io/mentalsmash/uno-ci-base-tester:${base_image_tag}
           test_image=${{ github.repository }}-test-runner:latest
           test_date=$(date +%Y%m%d-%H%M%S)
-          test_id=ci-${middleware_id:-default}-${{ inputs.build-platform }}__${image_version}
+          test_id=ci-${middleware_id:-default}-${{ inputs.build-platform }}__${image_version}${license_tag}
           test_artifact=uno-test-${test_id}__${test_date}
           (
             case "${{ inputs.build-platform }}" in
