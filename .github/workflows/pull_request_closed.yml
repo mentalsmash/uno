@@ -1,6 +1,6 @@
 name: Pull Request (Closed)
 run-name: |
-  PR #${{github.event_name == 'pull_request' && github.event.pull_request.number || inputs.pr-number}} [closed, ${{github.event_name == 'pull_request' && (github.event.pull_request.merged && 'merged' || 'rejected') || inputs.pr-merged }}] ${{github.event_name == 'pull_request' && github.event.pull_request.title || ''}}
+  PR #${{github.event_name == 'pull_request' && github.event.pull_request.number || inputs.pr-number}} [closed, ${{ ((github.event_name == 'pull_request' && github.event.pull_request.merged) || inputs.pr-merged) && 'merged' || 'rejected' }}${{ github.event_name != 'pull_request' && ', manual trigger' || '' }}] ${{github.event_name == 'pull_request' && github.event.pull_request.title || ''}}
 
 on:
   pull_request:
