@@ -176,9 +176,7 @@ debtest: .venv
 
 # Build the uno debian pacakge locally
 deb:
-	$(MAKE) -C $(UNO_DIR) changelog
 	$(MAKE) -C $(UNO_DIR) debuild
-	git checkout debian/changelog
 	$(MAKE) -C $(UNO_DIR) dockerimage-debian-tester
 	$(MAKE) -C $(UNO_DIR) debtest
 
