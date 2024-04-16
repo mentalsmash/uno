@@ -140,7 +140,7 @@ jobs:
 
       - name: Validate code
         run: |
-          make -C src/uno code
+          make -C src/uno code-check
 
       - name: Set up Docker Buildx
         uses: docker/setup-buildx-action@v3

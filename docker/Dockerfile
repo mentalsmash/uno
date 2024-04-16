@@ -101,34 +101,35 @@ COPY . ${UNO_DIR}
 RUN set -xe; \
     # Delete .git directory
     rm -rf ${UNO_DIR}/.git; \
-    # Generate new virtual environment
+    # Generate new virtual environment and
+    # install all Python packages inside it
     python3 -m venv ${UNO_VENV}; \
-    # Install all Python packages in the virtual environment
-    . ${UNO_VENV}/bin/activate; \
     # Make sure pip and setuptools are up to date
-    pip3 install -U pip setuptools; \
+    ${UNO_VENV}/bin/pip3 install -U pip setuptools; \
     # Check if the user passed a Connext wheel in the root of the context.
     # Try to install them iteratively (in sorted order), stop as soon as
     # one installs cleanly.
     for rti_whl in $(find ${UNO_DIR} -mindepth 1 -maxdepth 1 -name "rti.connext*$(uname -m).whl" | sort); do \
-      if pip3 install -U ${rti_whl}; then \
+      if ${UNO_VENV}/bin/pip3 install -U ${rti_whl}; then \
         break; \
       fi; \
     done; \
     rm -f ${UNO_DIR}/*.whl; \
     # reinstall uno and the middleware in "editable" mode
     # so that they may be overwritten from the host (for development)
-    pip3 install -U $([ -z "${DEV}" ] || printf -- -e ) \
+    ${UNO_VENV}/bin/pip3 install -U \
+      $([ -z "${DEV}" ] || printf -- -e ) \
       ${UNO_DIR}; \
     # Install uno middleware
     case "${UNO_MIDDLEWARE}" in \
       # default middleware requires Connext
       '') \
-        pip3 install -U rti.connext; \
+        ${UNO_VENV}/bin/pip3 install -U rti.connext; \
         ;; \
       *) \
         # Other middleware plugins must be installed
-        pip3 install -U $([ -z "${DEV}" ] || printf -- -e ) \
+        ${UNO_VENV}/bin/pip3 install -U \
+          $([ -z "${DEV}" ] || printf -- -e ) \
           ${UNO_PLUGINS_DIR}/${UNO_MIDDLEWARE}; \
         ;; \
     esac; \

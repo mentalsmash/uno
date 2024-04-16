@@ -112,6 +112,12 @@ export INTEGRATION_TEST_ARGS
   build \
   changelog \
   clean \
+	code \
+	code-check \
+	code-format \
+	code-format-check \
+	code-style \
+	code-style-check \
 	deb \
 	debtest \
   debuild \
@@ -183,17 +189,9 @@ deb:
 # Run both unit and integration tests
 test: test-unit test-integration ;
 
-
-# Call pytest directly from venv on host, but unqualified in container
-ifneq ($(IN_DOCKER),)
-PYTEST_UNIT ?= .venv/bin/pytest
-else # ifneq ($(IN_DOCKER),)
-PYTEST_UNIT ?= pytest
-endif # ifneq ($(IN_DOCKER),)
-
 # Run unit tests
 BASE_UNIT_TEST_COMMAND := \
-  $(PYTEST_UNIT) -s -v \
+  pytest -s -v \
     --junit-xml=$(TEST_RESULTS_DIR)/$(TEST_JUNIT_REPORT)__unit.xml \
     test/unit
 # When run by a CI test, the test image is expected to contain an
@@ -301,11 +299,25 @@ dockerimage-%:
 	docker compose build $*
 
 
-# Run code validation
-code: code-check code-format ;
+# Code validation targets
+code: \
+  code-style \
+  code-format ;
 
-code-check: .venv
-	$</bin/ruff check
+code-check: \
+  code-precommit ;
 
 code-format: .venv
+	$</bin/ruff format
+
+code-format-check: .venv
 	$</bin/ruff format --check
+
+code-style: .venv
+	$</bin/ruff check --fix
+
+code-style-check: .venv
+	$</bin/ruff check
+
+code-precommit: .venv
+	$</bin/pre-commit run --all

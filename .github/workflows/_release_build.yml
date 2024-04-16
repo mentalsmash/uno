@@ -33,7 +33,7 @@ jobs:
 
       - name: Validate code
         run: |
-          make -C src/uno code
+          make -C src/uno code-check
 
       - name: Set up QEMU
         uses: docker/setup-qemu-action@v3
