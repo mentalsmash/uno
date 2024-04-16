@@ -117,18 +117,18 @@ RUN set -xe; \
     rm -f ${UNO_DIR}/*.whl; \
     # reinstall uno and the middleware in "editable" mode
     # so that they may be overwritten from the host (for development)
-    ${UNO_VENV}/bin/pip3 install -U \
+    ${UNO_VENV}/bin/pip3 install \
       $([ -z "${DEV}" ] || printf -- -e ) \
       ${UNO_DIR}; \
     # Install uno middleware
     case "${UNO_MIDDLEWARE}" in \
       # default middleware requires Connext
       '') \
-        ${UNO_VENV}/bin/pip3 install -U rti.connext; \
+        (. ${UNO_VENV}/bin/activate && pip3 install rti.connext); \
         ;; \
       *) \
         # Other middleware plugins must be installed
-        ${UNO_VENV}/bin/pip3 install -U \
+        ${UNO_VENV}/bin/pip3 install \
           $([ -z "${DEV}" ] || printf -- -e ) \
           ${UNO_PLUGINS_DIR}/${UNO_MIDDLEWARE}; \
         ;; \

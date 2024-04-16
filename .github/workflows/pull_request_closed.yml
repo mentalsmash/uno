@@ -36,6 +36,13 @@ jobs:
           path: src/uno
           submodules: true
       
+      - name: Log in to GitHub
+        uses: docker/login-action@v3
+        with:
+          registry: ghcr.io
+          username: ${{ github.actor }}
+          password: ${{ secrets.GITHUB_TOKEN }}
+
       - name: "Clean up workflow runs"
         run: |
           src/uno/scripts/cleanup_closed_pull_request.sh \
