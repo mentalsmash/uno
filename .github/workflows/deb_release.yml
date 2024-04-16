@@ -69,5 +69,5 @@ jobs:
       uses: softprops/action-gh-release@v2
       with:
         files: |
-          uno/*.deb
-          uno-arm64/*.deb
+          uno-deb-*-amd64__*/*.deb
+          uno-deb-*-arm64__*/*.deb
