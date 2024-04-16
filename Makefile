@@ -92,8 +92,9 @@ endif
 ifneq ($(IN_DOCKER),)
 IN_DOCKER_PREFIX := \
   docker run --rm \
-    $$([ -n "$(TEST_RELEASE)" ] || printf -- '-v $(UNO_DIR):$(UNO_DIR)') \
-    $$([ -n "$(NO_LICENSE)" ]   || printf -- '-v $(RTI_LICENSE_FILE):/rti_license.dat') \
+		-v $(UNO_DIR):$(UNO_DIR) \
+		$$([ -n "$(TEST_RELEASE)" -o -n "$(NO_LICENSE)" ] || \
+		  printf -- '-v $(RTI_LICENSE_FILE):/rti_license.dat') \
     -w $(UNO_DIR) \
     -e VERBOSITY=$(VERBOSITY) \
     -e DEBUG=$(DEBUG) \

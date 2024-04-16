@@ -19,7 +19,7 @@ on:
 
 
 concurrency:
-  group: pr-closed-${{ github.ref }}
+  group: pr-closed-${{ github.event_name == 'pull_request' && github.event.pull_request.number || inputs.pr-number }}
   cancel-in-progress: false
 
 permissions:
