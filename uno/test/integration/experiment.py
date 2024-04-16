@@ -35,7 +35,7 @@ from .host_role import HostRole
 
 import uno
 
-_uno_dir = Path(uno.__file__).resolve().parent.parent
+_UnoDir = Path(uno.__file__).resolve().parent.parent
 
 # Make "info" the minimum default verbosity when this module is loaded
 # if Logger.Level.warning >= Logger.level:
@@ -56,14 +56,26 @@ class ExperimentLoader(Protocol):
   def __call__(self, **experiment_args) -> "Experiment": ...
 
 
+_RtiLicenseFile = os.environ.get("RTI_LICENSE_FILE")
+if _RtiLicenseFile:
+  _RtiLicenseFile = Path(_RtiLicenseFile).resolve()
+
+_ExternalTestDir = os.environ.get("TEST_DIR")
+if _ExternalTestDir:
+  _ExternalTestDir = Path(_ExternalTestDir).resolve()
+
+_RunnerScript = Path(os.environ.get("TEST_RUNNER", "/uno/uno/test/integration/runner.py")).resolve()
+
+
 class Experiment:
   Dev = bool(os.environ.get("DEV", False))
   InsideTestRunner = bool(os.environ.get("UNO_TEST_RUNNER", False))
   TestImage = os.environ.get("TEST_IMAGE", "mentalsmash/uno-test-runner:latest")
-  RunnerScript = os.environ.get("TEST_RUNNER", "/uno/uno/test/integration/runner.py")
-  ExternalTestDir = os.environ.get("TEST_DIR")
+  RunnerScript = _RunnerScript
+  ExternalTestDir = _ExternalTestDir
+  RtiLicenseFile = _RtiLicenseFile
   BuiltImages = set()
-  UnoDir = _uno_dir
+  UnoDir = _UnoDir
   # Load the selected uno middleware plugin
   UnoMiddlewareEnv = os.environ.get("UNO_MIDDLEWARE")
   RunnerTestDir = Path("/experiment-tmp")
@@ -331,25 +343,6 @@ class Experiment:
       ]
     )
 
-  @cached_property
-  def rti_license(self) -> Path | None:
-    for license in [
-      os.environ.get("RTI_LICENSE_FILE"),
-      self.root / "rti_license.dat",
-      self.test_dir / "rti_license.dat",
-      Path.cwd() / "rti_license.dat",
-    ]:
-      if not license:
-        continue
-      elif not isinstance(license, Path):
-        license = Path(license)
-      if license.exists():
-        license = license.resolve()
-        self.log.debug("found RTI license: {}", license)
-        return license
-    self.log.warning("no RTI license file found")
-    return None
-
   def uno(self, *args, **exec_args):
     verbose_flag = Logger.verbose_flag
     try:
@@ -393,10 +386,10 @@ class Experiment:
           *(
             [
               "-v",
-              f"{self.rti_license}:/rti_license.dat",
+              f"{self.RtiLicenseFile}:/rti_license.dat",
             ]
-            if self.rti_license
-            else []
+            if self.RtiLicenseFile
+            else ["-e", "RTI_LICENSE_FILE="]
           ),
           "-e",
           f"VERBOSITY={self.log.level.name}",

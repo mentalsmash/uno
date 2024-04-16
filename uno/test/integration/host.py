@@ -354,9 +354,9 @@ class Host:
         ),
         *(["-v", f"{self.cell_package}:/package.uvn-agent"] if self.role == HostRole.CELL else []),
         *(
-          ["-v", f"{self.experiment.rti_license}:/rti_license.dat"]
-          if self.experiment.rti_license
-          else []
+          ["-v", f"{self.experiment.RtiLicenseFile}:/rti_license.dat"]
+          if self.experiment.RtiLicenseFile
+          else ["-e", "RTI_LICENSE_FILE="]
         ),
         *(
           [

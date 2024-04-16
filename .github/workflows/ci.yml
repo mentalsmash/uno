@@ -57,19 +57,16 @@ permissions:
   contents: read
   packages: read
 
-env:
-  DEBUG: ''
-  VERBOSITY: ''
-
 jobs:
   config:
     runs-on: ubuntu-latest
     outputs:
       RUNNER: ${{ fromJson(steps.config.outputs.RUNNER) }}
-      BUILD_ID: ${{ steps.config.outputs.BUILD_ID }}
       TEST_ARTIFACT: ${{ steps.config.outputs.TEST_ARTIFACT }}
       TEST_IMAGE: ${{ steps.config.outputs.TEST_IMAGE }}
       TEST_BASE_IMAGE: ${{ steps.config.outputs.TEST_BASE_IMAGE }}
+      TEST_DATE: ${{ steps.config.outputs.TEST_DATE }}
+      TEST_ID: ${{ steps.config.outputs.TEST_ID }}
     steps:
       - name: Clone uno
         uses: actions/checkout@v4
@@ -83,28 +80,20 @@ jobs:
           case "${{github.ref_type}}" in
             tag)
               image_version=${{github.ref_name}}
-              build_type=release
               ;;
             *)
               sha_short=$(cd src/uno && git rev-parse --short HEAD)
               image_version=${{github.ref_name}}@${sha_short}
-              case "${{github.ref_name}}" in
-                master)
-                  build_type=nightly
-                  ;;
-                *)
-                  build_type=test
-                  ;;
-              esac
               ;;
           esac
           image_version="$(echo ${image_version} | tr / -)"
-          build_id=$(date +%Y%m%d-%H%M%S)
           middleware_id=$(echo ${{inputs.uno-middleware}} | sed -e 's/uno.middleware.//')
-          test_artifact=uno-ci-${build_type}-${middleware_id:-default}-${{ inputs.build-platform }}__${image_version}__${build_id}
-          test_image=${{ github.repository }}-test-runner:latest
           base_image_tag=$(echo "${{ inputs.base-image }}" | tr : -)
           test_base_image=ghcr.io/mentalsmash/uno-ci-base-tester:${base_image_tag}
+          test_image=${{ github.repository }}-test-runner:latest
+          test_date=$(date +%Y%m%d-%H%M%S)
+          test_id=ci-${middleware_id:-default}-${{ inputs.build-platform }}__${image_version}
+          test_artifact=uno-test-${test_id}__${test_date}
           (
             case "${{ inputs.build-platform }}" in
               arm64)
@@ -123,10 +112,12 @@ jobs:
                 printf -- "RUNNER='%s'\n" '"ubuntu-latest"'
                 ;;
             esac
-            echo TEST_ARTIFACT=${test_artifact}
             echo TEST_IMAGE=${test_image}
+            echo TEST_ARTIFACT=${test_artifact}
+            echo TEST_ID=${test_id}
+            echo TEST_DATE=${test_date}
             echo TEST_BASE_IMAGE=${test_base_image}
-            echo BUILD_ID=${build_id}
+            echo REG_TAG=${ref_tag}
           ) >> ${GITHUB_OUTPUT}
 
   build-n-test:
@@ -138,24 +129,6 @@ jobs:
         with:
           path: src/uno
           submodules: true
-
-      - name: Bootstrap uno with poetry
-        run: |
-          python3 -m venv poetry-venv
-          . poetry-venv/bin/activate
-          pip3 install -U poetry
-          deactivate
-          cd src/uno
-          ${GITHUB_WORKSPACE}/poetry-venv/bin/poetry install --with=dev
-          . .venv/bin/activate
-          case '${{ inputs.uno-middleware }}' in
-            '')
-              pip3 install -U rti.connext
-              ;;
-            *)
-              pip3 install -U -e plugins/${{ inputs.uno-middleware }}
-              ;;
-          esac
 
       - name: Validate code
         run: |
@@ -192,41 +165,6 @@ jobs:
             BASE_IMAGE=${{ needs.config.outputs.TEST_BASE_IMAGE }}
             UNO_MIDDLEWARE=${{ inputs.uno-middleware }}
 
-      - name: Run unit tests
-        if: inputs.run-unit
-        run: |
-          mkdir -p test-results
-          docker run --rm \
-            -v $(pwd):/workspace \
-            -w /workspace \
-            -e VERBOSITY=${{ runner.debug && 'debug' || '' }} \
-            -e DEBUG=${{ runner.debug }} \
-            -e EXPECT_MIDDLEWARE=${{ inputs.uno-middleware || 'uno.middleware.connext' }} \
-            ${{ needs.config.outputs.TEST_IMAGE }} \
-            pytest -s -v --junit-xml=test-results/uno-test-results-unit-${{ needs.config.outputs.BUILD_ID }}.xml \
-              src/uno/test/unit
-
-      - name: Run unit tests (without license)
-        if: inputs.run-unit && inputs.test-without-license
-        run: |
-          mkdir -p test-results
-          docker run --rm \
-            -v $(pwd):/workspace \
-            -w /workspace \
-            -e VERBOSITY=${{ runner.debug && 'debug' || '' }} \
-            -e DEBUG=${{ runner.debug }} \
-            -e EXPECT_MIDDLEWARE= \
-            ${{ needs.config.outputs.TEST_IMAGE }} \
-            sh -c "rm /rti_license.dat && unset RTI_LICENSE_FILE && pytest -s -v --junit-xml=test-results/uno-test-results-unit-${{ needs.config.outputs.BUILD_ID }}-static.xml src/uno/test/unit"
-
-      - name: Restore permissions changed by unit tests
-        if: ${{ inputs.run-unit && always() }}
-        run: |
-          docker run --rm \
-            -v $(pwd):/workspace \
-            ${{ needs.config.outputs.TEST_IMAGE }} \
-            fix-root-permissions $(id -u):$(id -g) /workspace
-
       - name: Set up integration tests
         if: ${{ inputs.run-integration }}
         run: |
@@ -235,53 +173,74 @@ jobs:
             ${{ needs.config.outputs.TEST_IMAGE }} \
             cp /rti_license.dat /workspace/rti_license.dat
 
+      - name: Run unit tests
+        if: inputs.run-unit
+        run: |
+          make -C src/uno test-unit
+        env:
+          DEBUG: ${{ runner.debug }}
+          IN_DOCKER: y
+          RTI_LICENSE_FILE: ${{ github.workspace }}/rti_license.dat
+          TEST_DATE: ${{ needs.config.outputs.TEST_DATE }}
+          TEST_ID: ${{ needs.config.outputs.TEST_ID }}
+          TEST_IMAGE: ${{ needs.config.outputs.TEST_IMAGE }}
+          VERBOSITY: ${{ runner.debug && 'debug' || '' }}
+          UNO_MIDDLEWARE: ${{ inputs.uno-middleware }}
+
+      - name: Run unit tests (without license)
+        if: inputs.run-unit && inputs.test-without-license
+        run: |
+          make -C src/uno test-unit
+        env:
+          DEBUG: ${{ runner.debug }}
+          IN_DOCKER: y
+          NO_LICENSE: y
+          TEST_DATE: ${{ needs.config.outputs.TEST_DATE }}
+          TEST_ID: ${{ needs.config.outputs.TEST_ID }}
+          TEST_IMAGE: ${{ needs.config.outputs.TEST_IMAGE }}
+          VERBOSITY: ${{ runner.debug && 'debug' || '' }}
+          UNO_MIDDLEWARE: ${{ inputs.uno-middleware }}
+
       - name: Run integration tests
         if: inputs.run-integration && !inputs.test-without-license
         run: |
-          mkdir -p test-results
-          . src/uno/.venv/bin/activate
-          pytest -s -v --junit-xml=test-results/uno-test-results-integration-${{ needs.config.outputs.BUILD_ID }}.xml \
-            src/uno/test/integration
+          make -C src/uno test-integration
         env:
-          UNO_MIDDLEWARE: ${{ inputs.uno-middleware }}
-          EXPECT_MIDDLEWARE: ${{ inputs.uno-middleware || 'uno.middleware.connext' }}
           DEBUG: ${{ runner.debug }}
+          IN_DOCKER: y
+          RTI_LICENSE_FILE: ${{ github.workspace }}/rti_license.dat
+          TEST_DATE: ${{ needs.config.outputs.TEST_DATE }}
+          TEST_ID: ${{ needs.config.outputs.TEST_ID }}
+          TEST_IMAGE: ${{ needs.config.outputs.TEST_IMAGE }}
           VERBOSITY: ${{ runner.debug && 'debug' || '' }}
-      
-      - name: Restore permissions changed by integration tests
-        if: ${{ inputs.run-integration && always() }}
-        run: |
-          docker run --rm \
-            -v $(pwd):/workspace \
-            ${{ needs.config.outputs.TEST_IMAGE }} \
-            fix-root-permissions $(id -u):$(id -g) /workspace
+          UNO_MIDDLEWARE: ${{ inputs.uno-middleware }}
       
       - name: Run integration tests (without license)
         if: inputs.run-integration && inputs.test-without-license
         run: |
-          rm rti_license.dat
-          mkdir -p test-results
-          . src/uno/.venv/bin/activate
-          pytest -s -v --junit-xml=test-results/uno-test-results-integration-${{ needs.config.outputs.BUILD_ID }}-static.xml \
-            src/uno/test/integration
+          make -C src/uno test-integration
         env:
-          UNO_MIDDLEWARE: ${{ inputs.uno-middleware }}
-          EXPECT_MIDDLEWARE: ${{ inputs.uno-middleware || '' }}
           DEBUG: ${{ runner.debug }}
+          IN_DOCKER: y
+          NO_LICENSE: y
+          TEST_DATE: ${{ needs.config.outputs.TEST_DATE }}
+          TEST_ID: ${{ needs.config.outputs.TEST_ID }}
+          TEST_IMAGE: ${{ needs.config.outputs.TEST_IMAGE }}
           VERBOSITY: ${{ runner.debug && 'debug' || '' }}
+          UNO_MIDDLEWARE: ${{ inputs.uno-middleware }}
 
       - name: Restore permissions changed by integration tests
-        if: ${{ inputs.run-integration && always() }}
+        if: always()
         run: |
-          docker run --rm \
-            -v $(pwd):/workspace \
-            ${{ needs.config.outputs.TEST_IMAGE }} \
-            fix-root-permissions $(id -u):$(id -g) /workspace
+          make -C src/uno fix-root-permissions
+        env:
+          FIX_DIR: ${{ github.workspace }}
+          TEST_IMAGE: ${{ needs.config.outputs.TEST_IMAGE }}
 
       - name: Upload test results
         uses: actions/upload-artifact@v4
+        if: always()
         with:
           name: ${{ needs.config.outputs.TEST_ARTIFACT }}
-          path: test-results/*
-        if: ${{ always() }}
+          path: src/uno/test-results/*
 

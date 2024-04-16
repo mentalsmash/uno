@@ -20,10 +20,11 @@ concurrency:
   cancel-in-progress: true
 
 jobs:
-  test_config:
+  config:
     runs-on: ubuntu-latest
     outputs:
       TEST_ARTIFACT: ${{ steps.config.outputs.TEST_ARTIFACT }}
+      TEST_DATE: ${{ steps.config.outputs.TEST_DATE }}
       TEST_ID: ${{ steps.config.outputs.TEST_ID }}
       TEST_IMAGE: ${{ steps.config.outputs.TEST_IMAGE }}
       RUNNER: ${{ fromJson(steps.config.outputs.RUNNER) }}
@@ -58,8 +59,10 @@ jobs:
               build_version=${{github.ref_name}}
               ;;
           esac
-          test_id=$(date +%Y%m%d-%H%M%S)
-          test_artifact=uno-test-${{inputs.flavor}}-${{ inputs.platform }}-${build_label}__${build_version}__${test_id}
+          
+          test_date=$(date +%Y%m%d-%H%M%S)
+          test_id=release-${{inputs.flavor}}-${{inputs.platform}}-${build_label}__${build_version}
+          test_artifact=uno-test-${test_id}__${test_id}
           test_image=${{ github.repository }}-test-runner:latest
           (
             case "${{ inputs.platform }}" in
@@ -82,13 +85,14 @@ jobs:
             echo TEST_IMAGE=${test_image}
             echo TEST_ARTIFACT=${test_artifact}
             echo TEST_ID=${test_id}
+            echo TEST_DATE=${test_date}
             echo UNO_MIDDLEWARE=${uno_middleware}
           ) >> ${GITHUB_OUTPUT}
 
 
   test:
-    needs: test_config
-    runs-on: ${{ fromJson(needs.test_config.outputs.RUNNER) }}
+    needs: config
+    runs-on: ${{ fromJson(needs.config.outputs.RUNNER) }}
     steps:
       - name: Clone uno
         uses: actions/checkout@v4
@@ -104,14 +108,6 @@ jobs:
           ref: master
           path: src/uno-ci
 
-      - name: Configure tester
-        id: config
-        run: |
-          cp src/uno-ci/resource/rti/rti_license.dat rti_license.dat
-          
-          # Create test results directory
-          mkdir -p test-results
-
       - name: Set up Docker Buildx
         uses: docker/setup-buildx-action@v3
 
@@ -126,7 +122,7 @@ jobs:
         uses: docker/build-push-action@v5
         with:
           file: src/uno/docker/test/Dockerfile
-          tags: ${{ needs.test_config.outputs.TEST_IMAGE }}
+          tags: ${{ needs.config.outputs.TEST_IMAGE }}
           load: true
           context: src/uno
           platforms: ${{ inputs.platform }}
@@ -135,85 +131,66 @@ jobs:
     
       - name: Run unit tests
         run: |
-          docker run --rm \
-            -v $(pwd):/workspace \
-            -w /workspace \
-            -e RTI_LICENSE_FILE=/workspace/rti_license.dat \
-            -e VERBOSITY=${{ runner.debug && 'debug' || '' }} \
-            -e DEBUG=${{ runner.DEBUG }} \
-            ${{ needs.test_config.outputs.TEST_IMAGE }} \
-            pytest -s -v --junit-xml=test-results/uno-test-results-unit-${{ needs.test_config.outputs.TEST_ID }}.xml \
-              src/uno/test/unit
-      
+          make -C src/uno test-unit
+        env:
+          DEBUG: ${{ runner.debug }}
+          IN_DOCKER: y
+          RTI_LICENSE_FILE: ${{ github.workspace }}/src/uno-ci/resource/rti/rti_license.dat
+          TEST_DATE: ${{ needs.config.outputs.TEST_DATE }}
+          TEST_ID: ${{ needs.config.outputs.TEST_ID }}
+          TEST_IMAGE: ${{ needs.config.outputs.TEST_IMAGE }}
+          VERBOSITY: ${{ runner.debug && 'debug' || '' }}
+          UNO_MIDDLEWARE: ${{ needs.config.outputs.UNO_MIDDLEWARE }}
+
       - name: Run unit tests (without a license)
         run: |
-          docker run --rm \
-            -v $(pwd):/workspace \
-            -w /workspace \
-            -e VERBOSITY=${{ runner.debug && 'debug' || '' }} \
-            -e DEBUG=${{ runner.debug }} \
-            ${{ needs.test_config.outputs.TEST_IMAGE }} \
-            pytest -s -v --junit-xml=test-results/uno-test-results-unit-${{ needs.test_config.outputs.TEST_ID }}-static.xml \
-              src/uno/test/unit
-
-      - name: Restore permissions changed by unit tests
-        if: ${{ always() }}
-        run: |
-          docker run --rm \
-            -v $(pwd):/workspace \
-            ${{ needs.test_config.outputs.TEST_IMAGE }} \
-            fix-root-permissions $(id -u):$(id -g) /workspace
-
-      - name: Setup integration tests
-        run: |
-          python3 -m venv venv
-          . venv/bin/activate
-          pip3 install -U pip setuptools
-          pip3 install -U -e src/uno
-          case '${{ needs.test_config.outputs.UNO_MIDDLEWARE }}' in
-            '')
-              pip3 install -U rti.connext
-              ;;
-            *)
-              pip3 install -U -e src/uno/plugins/${{ needs.test_config.outputs.UNO_MIDDLEWARE }}
-              ;;
-          esac
+          make -C src/uno test-unit
+        env:
+          DEBUG: ${{ runner.debug }}
+          IN_DOCKER: y
+          NO_LICENSE: y
+          TEST_DATE: ${{ needs.config.outputs.TEST_DATE }}
+          TEST_ID: ${{ needs.config.outputs.TEST_ID }}
+          TEST_IMAGE: ${{ needs.config.outputs.TEST_IMAGE }}
+          VERBOSITY: ${{ runner.debug && 'debug' || '' }}
+          UNO_MIDDLEWARE: ${{ needs.config.outputs.UNO_MIDDLEWARE }}
 
       - name: Run integration tests
         run: |
-          . venv/bin/activate
-          pytest -s -v --junit-xml=test-results/uno-test-results-integration-${{ needs.test_config.outputs.TEST_ID }}.xml \
-            src/uno/test/integration
+          make -C src/uno test-integration
         env:
-          RTI_LICENSE_FILE: ${{ github.workspace }}/rti_license.dat
-          UNO_MIDDLEWARE: ${{ needs.test_config.outputs.UNO_MIDDLEWARE }}
           DEBUG: ${{ runner.debug }}
+          RTI_LICENSE_FILE: ${{ github.workspace }}/rti_license.dat
+          TEST_DATE: ${{ needs.config.outputs.TEST_DATE }}
+          TEST_ID: ${{ needs.config.outputs.TEST_ID }}
+          TEST_IMAGE: ${{ needs.config.outputs.TEST_IMAGE }}
           VERBOSITY: ${{ runner.debug && 'debug' || '' }}
-      
+          UNO_MIDDLEWARE: ${{ needs.config.outputs.UNO_MIDDLEWARE }}
 
       - name: Run integration tests (without a license)
         run: |
-          . venv/bin/activate
-          rm -v rti_license.dat
-          pytest -s -v --junit-xml=test-results/uno-test-results-integration-${{ needs.test_config.outputs.TEST_ID }}-static.xml \
-            src/uno/test/integration
+          make -C src/uno test-integration
         env:
-          UNO_MIDDLEWARE: ${{ needs.test_config.outputs.UNO_MIDDLEWARE }}
           DEBUG: ${{ runner.debug }}
+          NO_LICENSE: y
+          TEST_DATE: ${{ needs.config.outputs.TEST_DATE }}
+          TEST_ID: ${{ needs.config.outputs.TEST_ID }}
+          TEST_IMAGE: ${{ needs.config.outputs.TEST_IMAGE }}
           VERBOSITY: ${{ runner.debug && 'debug' || '' }}
+          UNO_MIDDLEWARE: ${{ needs.config.outputs.UNO_MIDDLEWARE }}
 
-      - name: Restore permissions changed by integration tests
-        if: ${{ always() }}
+      - name: Restore permissions changed by tests
+        if: always()
         run: |
-          docker run --rm \
-            -v $(pwd):/workspace \
-            ${{ needs.test_config.outputs.TEST_IMAGE }} \
-            fix-root-permissions $(id -u):$(id -g) /workspace
+          make -C src/uno fix-root-permissions
+        env:
+          FIX_DIR: ${{ github.workspace }}
+          TEST_IMAGE: ${{ needs.config.outputs.TEST_IMAGE }}
 
       # Always collect and upload available test results
       - name: Upload test results
         uses: actions/upload-artifact@v4
         with:
-          name: ${{ needs.test_config.outputs.TEST_ARTIFACT }}
-          path: test-results/*
-        if: ${{ always() }}
+          name: ${{ needs.config.outputs.TEST_ARTIFACT }}
+          path: src/uno/test-results/*
+        if: always()
