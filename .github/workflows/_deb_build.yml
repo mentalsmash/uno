@@ -13,7 +13,11 @@ on:
         description: Build platform
         type: string
         required: true
-  
+      pull-request:
+        description: Treat ref as a pull request
+        type: boolean
+        default: false
+
   workflow_call:
     inputs:
       base-tag:
@@ -22,20 +26,22 @@ on:
       platform:
         type: string
         required: true
+      pull-request:
+        type: boolean
+        default: false
 
 concurrency:
   group: deb-release-${{ github.ref }}-${{inputs.platform}}-${{inputs.base-tag}}
   cancel-in-progress: true
 
-permissions:
-  packages: read
-
 jobs:
   config:
     runs-on: ubuntu-latest
     outputs:
+      BASE_IMAGE: ${{ steps.config.outputs.BASE_IMAGE }}
       DEB_ARTIFACT: ${{ steps.config.outputs.DEB_ARTIFACT }}
       DEB_BUILDER_TAG: ${{ steps.config.outputs.DEB_BUILDER_TAG }}
+      RTI_LICENSE_FILE: ${{ steps.config.outputs.RTI_LICENSE_FILE }}
       RUNNER: ${{ steps.config.outputs.RUNNER }}
       TEST_ARTIFACT: ${{ steps.config.outputs.TEST_ARTIFACT }}
       TEST_DATE: ${{ steps.config.outputs.TEST_DATE }}
@@ -69,8 +75,18 @@ jobs:
               image_version=${{github.ref_name}}@${sha_short}
               ;;
           esac
-          image_version="$(echo ${image_version} | tr / -)"
           deb_builder_tag=$(echo ${{inputs.base-tag}} | tr : - | tr / -)
+          case "${{ inputs.pull-request }}" in
+            true)
+              rti_license_file=${{ github.workspace }}/src/uno/rti_license.dat
+              base_image=ghcr.io/mentalsmash/uno-ci-base-tester:${deb_builder_tag}
+              ;;
+            false)
+              rti_license_file=${{ github.workspace }}/src/uno-ci/resource/rti/rti_license.dat
+              base_image=${{ inputs.base-tag }}
+              ;;
+          esac
+          image_version="$(echo ${image_version} | tr / -)"
           test_date=$(date +%Y%m%d-%H%M%S)
           test_id=deb-${deb_builder_tag}-${{ inputs.platform }}__${image_version}
           test_artifact=uno-test-${test_id}__${test_date}
@@ -78,6 +94,7 @@ jobs:
           deb_artifact=uno-deb-${deb_builder_tag}-${{ inputs.platform }}__${image_version}__${test_date}
           (
             echo RUNNER=${runner}
+            echo BASE_IMAGE=${base_image}
             echo DEB_BUILDER_TAG=${deb_builder_tag}
             echo DEB_ARTIFACT=${deb_artifact}
             echo TEST_ARTIFACT=${test_artifact}
@@ -85,6 +102,7 @@ jobs:
             echo TEST_ID=${test_id}
             echo TEST_IMAGE=mentalsmash/uno-test-runner:latest
             echo TEST_RUNNER_ARTIFACT=${test_runner_artifact}
+            echo RTI_LICENSE_FILE=${rti_license_file}
           ) >> ${GITHUB_OUTPUT}
 
   build-packages:
@@ -139,7 +157,7 @@ jobs:
     env:
       DEB_TESTER: ${{ needs.config.outputs.TEST_IMAGE }}
       FIX_DIR: ${{ github.workspace }}
-      RTI_LICENSE_FILE: ${{ github.workspace }}/src/uno-ci/resource/rti/rti_license.dat
+      RTI_LICENSE_FILE: ${{ needs.config.outputs.RTI_LICENSE_FILE }}
       TEST_DATE: ${{ needs.config.outputs.TEST_DATE }}
       TEST_ID: ${{ needs.config.outputs.TEST_ID }}
       TEST_IMAGE: ${{ needs.config.outputs.TEST_IMAGE }}
@@ -152,6 +170,7 @@ jobs:
 
     - name: Clone support files
       uses: actions/checkout@v4
+      if: ${{ !inputs.pull-request }}
       with:
         repository: mentalsmash/uno-ci
         token: ${{ secrets.UNO_CI_PAT }}
@@ -186,7 +205,12 @@ jobs:
         load: true
         context: src/uno
         build-args: |
-          BASE_IMAGE=${{ inputs.base-tag }}
+          BASE_IMAGE=${{ needs.config.outputs.BASE_IMAGE }}
+
+    - name: Set up integration tests
+      if: ${{ inputs.pull-request }}
+      run: |
+        make -C src/uno extract-license
 
     - name: Run integration tests
       run: |

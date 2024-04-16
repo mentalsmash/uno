@@ -145,3 +145,4 @@ jobs:
     with:
       base-tag: ${{ matrix.base-tag }}
       platform: ${{ matrix.platform }}
+      pull-request: true

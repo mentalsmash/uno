@@ -11,7 +11,7 @@ on:
       - '!*/**'
 
   workflow_run:
-    workflows: ["Release (default)"]
+    workflows: ["Release"]
     types: [completed]
 
 concurrency:
