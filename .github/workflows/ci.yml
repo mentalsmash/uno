@@ -171,10 +171,6 @@ jobs:
         if: ${{ inputs.run-integration }}
         run: |
           make -C src/uno extract-license
-          docker run --rm \
-            -v $(pwd):/workspace \
-            ${{ needs.config.outputs.TEST_IMAGE }} \
-            cp /rti_license.dat /workspace/rti_license.dat
 
       - name: Run unit tests
         if: inputs.run-unit

@@ -66,7 +66,7 @@ deleterun() {
   run="${1}"
   id="$(cut -f 3 <<< "$run")"
   if [ -z "${NOOP}" ]; then
-    gh api -X DELETE "/repos/$repo/actions/runs/$id"
+    gh api -X DELETE "/repos/${REPO}/actions/runs/$id"
     [[ $? = 0 ]] && result="OK!" || result="BAD"
     printf "%s\t%s\n" "$result" "$run"
   else

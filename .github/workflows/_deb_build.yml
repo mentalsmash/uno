@@ -72,9 +72,9 @@ jobs:
           image_version="$(echo ${image_version} | tr / -)"
           deb_builder_tag=$(echo ${{inputs.base-tag}} | tr : - | tr / -)
           test_date=$(date +%Y%m%d-%H%M%S)
-          test_id=deb-${builder_tag}-${{ inputs.platform }}__${image_version}
+          test_id=deb-${deb_builder_tag}-${{ inputs.platform }}__${image_version}
           test_artifact=uno-test-${test_id}__${test_date}
-          test_runner_artifact=uno-runner-${builder_tag}-${{ inputs.platform }}__${image_version}__${test_date}
+          test_runner_artifact=uno-runner-${deb_builder_tag}-${{ inputs.platform }}__${image_version}__${test_date}
           deb_artifact=uno-deb-${builder_tag}-${{ inputs.platform }}__${image_version}__${test_date}
           (
             echo RUNNER=${runner}
@@ -121,7 +121,7 @@ jobs:
       uses: actions/upload-artifact@v4
       with:
         name: ${{ needs.config.outputs.TEST_RUNNER_ARTIFACT }}
-        path: src/uno/dist/bundle/runner
+        path: src/uno/dist/bundle/default/runner
 
     - name: Fix permissions
       run: |

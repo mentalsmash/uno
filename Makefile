@@ -184,12 +184,16 @@ deb:
 test: test-unit test-integration ;
 
 
-# Call pytest directly from venv, since it's mounted on containers too
-PYTEST ?= .venv/bin/pytest
+# Call pytest directly from venv on host, but unqualified in container
+ifneq ($(IN_DOCKER),)
+PYTEST_UNIT ?= .venv/bin/pytest
+else # ifneq ($(IN_DOCKER),)
+PYTEST_UNIT ?= pytest
+endif # ifneq ($(IN_DOCKER),)
 
 # Run unit tests
 BASE_UNIT_TEST_COMMAND := \
-  $(PYTEST) -s -v \
+  $(PYTEST_UNIT) -s -v \
     --junit-xml=$(TEST_RESULTS_DIR)/$(TEST_JUNIT_REPORT)__unit.xml \
     test/unit
 # When run by a CI test, the test image is expected to contain an
@@ -217,11 +221,7 @@ test-unit: .venv
 test-integration: .venv
 	@$(CHECK_RTI_LICENSE_FILE)
 	mkdir -p $(TEST_RESULTS_DIR)
-	set -ex; \
-	# For releases, we shouldn't mount the local module, but rather
-	# test the one included in the docker image
-	[ -z "${TEST_RELEASE}" ] || export DEV=y; \
-	$(PYTEST) -s -v \
+	$</bin/pytest -s -v \
 		--junit-xml=$(TEST_RESULTS_DIR)/$(TEST_JUNIT_REPORT)__integration.xml \
 		test/integration \
 		$(INTEGRATION_TEST_ARGS)
@@ -285,7 +285,7 @@ else # ifneq ($(USE_POETRY),)
        $(wildcard plugins/*/pyproject.toml)
 	rm -rf $@
 	python3 -m venv $@
-	$@/bin/pip install -U pip setuptools ruff pre-commit pytest
+	$@/bin/pip install -U pip setuptools ruff pre-commit
 	$@/bin/pip install -e .
 	[ -z "$(UNO_MIDDLEWARE)" ] || $@/bin/pip install -e plugins/$(UNO_MIDDLEWARE)
 	[ -n "$(UNO_MIDDLEWARE)" ] || $@/bin/pip install rti.connext
