@@ -19,8 +19,7 @@ uvn.networks
 uno.db
 .pytest_cache
 .ruff_cache
-venv
-.venv
+*venv*
 poetry.lock
 build
 debian/.debhelper/
@@ -34,4 +33,4 @@ debian-dist
 build/
 *.spec
 debian/uno.debhelper.log
-
+test-results

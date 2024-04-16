@@ -136,6 +136,13 @@ jobs:
       - config
       - build-packages
     runs-on: ${{ fromJson(needs.config.outputs.RUNNER) }}
+    env:
+      DEB_TESTER: ${{ needs.config.outputs.TEST_IMAGE }}
+      FIX_DIR: ${{ github.workspace }}
+      RTI_LICENSE_FILE: ${{ github.workspace }}/src/uno-ci/resource/rti/rti_license.dat
+      TEST_DATE: ${{ needs.config.outputs.TEST_DATE }}
+      TEST_ID: ${{ needs.config.outputs.TEST_ID }}
+      TEST_IMAGE: ${{ needs.config.outputs.TEST_IMAGE }}
     steps:
     - name: Clone uno
       uses: actions/checkout@v4
@@ -185,21 +192,12 @@ jobs:
       run: |
         make -C src/uno debtest
       env:
-        DEV: y
-        RTI_LICENSE_FILE: ${{ github.workspace }}/src/uno-ci/resource/rti/rti_license.dat
-        TEST_DATE: ${{ needs.config.outputs.TEST_DATE }}
-        TEST_ID: ${{ needs.config.outputs.TEST_ID }}
-        DEB_TESTER: ${{ needs.config.outputs.TEST_IMAGE }}
         DEBUG: ${{ runner.debug }}
-        VERBOSITY: ${{ runner.debug && 'debug' || '' }}
 
     - name: Restore permissions changed by integration tests
       if: always()
       run: |
-          make -C src/uno fix-root-permissions
-      env:
-        FIX_DIR: ${{ github.workspace }}
-        TEST_IMAGE: ${{ needs.config.outputs.TEST_IMAGE }}
+          make -C src/uno fix-file-ownership
 
     # Always collect and upload available test results
     - name: Upload test results

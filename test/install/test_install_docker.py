@@ -65,7 +65,7 @@ def test_install_docker():
         f"{test_dir.parent.parent}:/uno",
         f"--platform=linux/{platform}",
         uno_image,
-        "fix-root-permissions",
+        "fix-file-ownership",
         f"{os.getuid()}:{os.getgid()}",
         "/uno",
       ],

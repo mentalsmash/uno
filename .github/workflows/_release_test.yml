@@ -93,6 +93,15 @@ jobs:
   test:
     needs: config
     runs-on: ${{ fromJson(needs.config.outputs.RUNNER) }}
+    env:
+      IN_DOCKER: y
+      FIX_DIR: ${{ github.workspace }}
+      RTI_LICENSE_FILE: ${{ github.workspace }}/src/uno-ci/resource/rti/rti_license.dat
+      TEST_DATE: ${{ needs.config.outputs.TEST_DATE }}
+      TEST_ID: ${{ needs.config.outputs.TEST_ID }}
+      TEST_IMAGE: ${{ needs.config.outputs.TEST_IMAGE }}
+      TEST_RELEASE: y
+      UNO_MIDDLEWARE: ${{ needs.config.outputs.UNO_MIDDLEWARE }}
     steps:
       - name: Clone uno
         uses: actions/checkout@v4
@@ -134,38 +143,20 @@ jobs:
           make -C src/uno test-unit
         env:
           DEBUG: ${{ runner.debug }}
-          IN_DOCKER: y
-          RTI_LICENSE_FILE: ${{ github.workspace }}/src/uno-ci/resource/rti/rti_license.dat
-          TEST_DATE: ${{ needs.config.outputs.TEST_DATE }}
-          TEST_ID: ${{ needs.config.outputs.TEST_ID }}
-          TEST_IMAGE: ${{ needs.config.outputs.TEST_IMAGE }}
-          VERBOSITY: ${{ runner.debug && 'debug' || '' }}
-          UNO_MIDDLEWARE: ${{ needs.config.outputs.UNO_MIDDLEWARE }}
+          
 
       - name: Run unit tests (without a license)
         run: |
           make -C src/uno test-unit
         env:
           DEBUG: ${{ runner.debug }}
-          IN_DOCKER: y
           NO_LICENSE: y
-          TEST_DATE: ${{ needs.config.outputs.TEST_DATE }}
-          TEST_ID: ${{ needs.config.outputs.TEST_ID }}
-          TEST_IMAGE: ${{ needs.config.outputs.TEST_IMAGE }}
-          VERBOSITY: ${{ runner.debug && 'debug' || '' }}
-          UNO_MIDDLEWARE: ${{ needs.config.outputs.UNO_MIDDLEWARE }}
 
       - name: Run integration tests
         run: |
           make -C src/uno test-integration
         env:
           DEBUG: ${{ runner.debug }}
-          RTI_LICENSE_FILE: ${{ github.workspace }}/rti_license.dat
-          TEST_DATE: ${{ needs.config.outputs.TEST_DATE }}
-          TEST_ID: ${{ needs.config.outputs.TEST_ID }}
-          TEST_IMAGE: ${{ needs.config.outputs.TEST_IMAGE }}
-          VERBOSITY: ${{ runner.debug && 'debug' || '' }}
-          UNO_MIDDLEWARE: ${{ needs.config.outputs.UNO_MIDDLEWARE }}
 
       - name: Run integration tests (without a license)
         run: |
@@ -173,19 +164,11 @@ jobs:
         env:
           DEBUG: ${{ runner.debug }}
           NO_LICENSE: y
-          TEST_DATE: ${{ needs.config.outputs.TEST_DATE }}
-          TEST_ID: ${{ needs.config.outputs.TEST_ID }}
-          TEST_IMAGE: ${{ needs.config.outputs.TEST_IMAGE }}
-          VERBOSITY: ${{ runner.debug && 'debug' || '' }}
-          UNO_MIDDLEWARE: ${{ needs.config.outputs.UNO_MIDDLEWARE }}
 
       - name: Restore permissions changed by tests
         if: always()
         run: |
-          make -C src/uno fix-root-permissions
-        env:
-          FIX_DIR: ${{ github.workspace }}
-          TEST_IMAGE: ${{ needs.config.outputs.TEST_IMAGE }}
+          make -C src/uno fix-file-ownership
 
       # Always collect and upload available test results
       - name: Upload test results

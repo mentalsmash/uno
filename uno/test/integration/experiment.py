@@ -337,7 +337,7 @@ class Experiment:
         "--rm",
         *(tkn for hvol, vol in dirs.items() for tkn in ("-v", f"{hvol}:{vol}")),
         self.TestImage,
-        "fix-root-permissions",
+        "fix-file-ownership",
         f"{os.getuid()}:{os.getgid()}",
         *dirs.values(),
       ]

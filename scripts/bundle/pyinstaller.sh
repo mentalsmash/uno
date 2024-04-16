@@ -12,6 +12,11 @@ FLAVOR=${1:-default}
 : "${BUILD_DIR:=$(pwd)/build/pyinstaller}"
 [ -n "${BUILD_DIR}" ]
 
+(
+  set -x
+  rm -rf ${BUILD_DIR}
+)
+
 : "${SCRIPTS:=\
   ./scripts/bundle/uno
   ./uno/test/integration/runner.py}"
@@ -27,42 +32,46 @@ if [ ! -d "${VENV_PYINST}" ]; then
   (
     set -x
     python3 -m venv ${VENV_PYINST}
+    set +x
     . ${VENV_PYINST}/bin/activate
+    set -x
     pip install pyinstaller
+    set +x
     deactivate
   )
 fi
 
-if [ "${CLEAN}" = yes -o ! -d "${VENV_UNO}" ]
+if [ "${CLEAN}" = yes -o ! -d "${VENV_UNO}" ]; then
   (
     set -x
     rm -rf ${VENV_UNO}
     python3 -m venv ${VENV_UNO}
+    set +x
     . ${VENV_UNO}/bin/activate
+    set -x
     pip install .
     [ "${FLAVOR}" != default ] || pip install rti.connext
     pip uninstall --yes pip setuptools
+    set +x
     deactivate
   )
-endif
+fi
 
 VENV_LIB=$(find ${VENV_UNO}/lib/*/ -mindepth 1 -maxdepth 1 -name site-packages | head -1)
 [ -n "${VENV_LIB}" ]
 
-RTI_DIST_INFO=$(find ${VENV_LIB} -name "rti.connext-*.dist-info" -mindepth 1 -maxdepth 1 | head -1)
+RTI_DIST_INFO=$(find ${VENV_LIB} -mindepth 1 -maxdepth 1 -name "rti.connext-*.dist-info" | head -1)
 [ -n "${RTI_DIST_INFO}" ]
 
 (
-  set -x
-  rm -rf $(BUILD_DIR)
-
   . ${VENV_PYINST}/bin/activate
+  set -x
   for script in ${SCRIPTS}; do
     pyinstaller \
       --noconfirm \
       --onedir \
       --clean \
-      --workpath $(BUILD_DIR) \
+      --workpath ${BUILD_DIR} \
       --distpath ${DIST_DIR} \
       --specpath build/ \
       --add-data $(pwd)/uno:uno \

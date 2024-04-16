@@ -115,7 +115,7 @@ jobs:
           docker run --rm \
             -v $(pwd):/workspace \
             ${{inputs.tag}} \
-            fix-root-permissions $(id -u):$(id -g) /workspace
+            fix-file-ownership $(id -u):$(id -g) /workspace
 
       - name: Upload test results
         uses: actions/upload-artifact@v4

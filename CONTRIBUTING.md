@@ -104,46 +104,6 @@ ruff format
 
 ### Environment Setup
 
-#### pipx + poetry
-
-1. Install `pipx`:
-
-   ```sh
-   sudo apt-get install -y pipx
-   ```
-
-2. Install `poetry`:
-
-   ```sh
-   pipx install poetry
-   ```
-
-3. Clone `uno`'s repository:
-
-   ```sh
-   git clone --recurse-submodules https://github.com/mentalsmash/uno
-   ```
-
-4. Create a virtual environment with all dependencies:
-
-   ```sh
-   cd uno
-
-   poetry install --with=dev
-   ```
-
-5. Enable the virtual environment:
-
-   ```sh
-   . .venv/bin/activate
-   ```
-
-6. Install `git` commit hooks:
-
-   ```sh
-   pre-commit install
-   ```
-
 #### venv + pip
 
 1. Install the `venv` module:

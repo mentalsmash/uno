@@ -35,8 +35,17 @@ TEST_JUNIT_REPORT ?= $(PY_NAME)-test-$(TEST_ID)__$(TEST_DATE)
 TEST_IMAGE ?= mentalsmash/uno-test-runner:latest
 # Global flag telling the makefile to perform actions (e.g. run unit test) in a container.
 IN_DOCKER ?=
-# Directory targeted by the fix-root-permissions target
+# Directory targeted by the fix-file-ownership target
 FIX_DIR ?= $(UNO_DIR)
+# Directory where to generate file
+OUT_DIR ?= $(UNO_DIR)
+
+# Set default verbosity from DEBUG flag
+ifneq ($(DEBUG),)
+VERBOSITY ?= debug
+endif
+export VERBOSITY
+export DEBUG
 
 ifneq ($(UPSTREAM_VERSION),$(PY_VERSION))
 $(warning unexpected debian upstream version ('$(UPSTREAM_VERSION)' != '$(PY_VERSION)'))
@@ -44,59 +53,79 @@ endif
 ifneq ($(DSC_NAME),$(PY_NAME))
 $(warning unexpected debian source package name ('$(DSC_NAME)' != '$(PY_NAME)'))
 endif
-ifeq ($(wildcard $(RTI_LICENSE_FILE)),)
-$(warning no RTI_LICENSE_FILE detected or invalid ('$(RTI_LICENSE_FILE)'))
-endif
+
+INVALID_RTI_LICENSE_FILE := \
+  printf -- "ERROR: no RTI_LICENSE_FILE when testing without NO_LICENSE\n" >&2 \
+    && exit 1
 
 ifneq ($(NO_LICENSE),)
 ifneq ($(RTI_LICENSE_FILE),)
 $(warning suppressing RTI_LICENSE_FILE := $(RTI_LICENSE_FILE))
 endif
-RTI_LICENSE_FILE :=
+override undefine RTI_LICENSE_FILE
 else # ifneq ($(NO_LICENSE),)
 ifeq ($(RTI_LICENSE_FILE),)
 $(warning no RTI_LICENSE_FILE specified)
+CHECK_RTI_LICENSE_FILE = $(INVALID_RTI_LICENSE_FILE)
+else
+ifeq ($(wildcard $(RTI_LICENSE_FILE)),)
+$(warning invalid RTI_LICENSE_FILE ('$(RTI_LICENSE_FILE)'))
+CHECK_RTI_LICENSE_FILE = $(INVALID_RTI_LICENSE_FILE)
 endif
-RTI_LICENSE_FILE := $(realpath $(RTI_LICENSE_FILE))
+endif
 endif # ifneq ($(NO_LICENSE),)
+ifeq ($(CHECK_RTI_LICENSE_FILE),)
+CHECK_RTI_LICENSE_FILE := true
+endif # ifeq ($(CHECK_RTI_LICENSE_FILE),)
 # Export to make sure it's available to subprocesses
+ifneq ($(RTI_LICENSE_FILE),)
+override RTI_LICENSE_FILE := $(realpath $(RTI_LICENSE_FILE))
+endif
 export RTI_LICENSE_FILE
-
-ifneq ($(NO_LICENSE),)
-IN_DOCKER_PREFIX := \
-  docker run --rm \
-    -v $(UNO_DIR):$(UNO_DIR) \
-    $$([ -z "$(NO_LICENSE)" ] || printf -- '-v $(RTI_LICENSE_FILE):/rti_license.dat') \
-    -w $(UNO_DIR) \
-    -e VERBOSITY=$(VERBOSITY) \
-    -e DEBUG=$(DEBUG) \
-    -e EXPECT_MIDDLEWARE=$(EXPECT_MIDDLEWARE) \
-    $(TEST_IMAGE)
-
-EXPECT_MIDDLEWARE :=
-else # ifneq ($(NO_LICENSE),)
-IN_DOCKER_PREFIX :=
 
 ifeq ($(UNO_MIDDLEWARE),)
 EXPECT_MIDDLEWARE := uno.middleware.connext
 else
 EXPECT_MIDDLEWARE := $(UNO_MIDDLEWARE)
 endif
-endif # ifneq ($(NO_LICENSE),)
 
+ifneq ($(IN_DOCKER),)
+IN_DOCKER_PREFIX := \
+  docker run --rm \
+    $$([ -n "$(TEST_RELEASE)" ] || printf -- '-v $(UNO_DIR):$(UNO_DIR)') \
+    $$([ -n "$(NO_LICENSE)" ]   || printf -- '-v $(RTI_LICENSE_FILE):/rti_license.dat') \
+    -w $(UNO_DIR) \
+    -e VERBOSITY=$(VERBOSITY) \
+    -e DEBUG=$(DEBUG) \
+    -e EXPECT_MIDDLEWARE=$(EXPECT_MIDDLEWARE) \
+    $(TEST_IMAGE)
+override undefine EXPECT_MIDDLEWARE
+else # ifneq ($(IN_DOCKER),)
+IN_DOCKER_PREFIX :=
+endif # ifneq ($(IN_DOCKER),)
 export EXPECT_MIDDLEWARE
 
+# export INTEGRATION_TEST_ARGS in case it's needed by a recursive call
+export INTEGRATION_TEST_ARGS
 
 .PHONY: \
   build \
-  tarball \
-  clean \
-  debuild \
   changelog \
+  clean \
+	deb \
 	debtest \
+  debuild \
+	dockerimages \
+	extract-license \
+	fix-file-permissions \
+  tarball \
 	test \
+	test-integration \
 	test-unit \
-	test-integration
+	venv-install \
+	code \
+	code-check \
+	code-format
 
 # Perform all build tasks
 build: build/default ;
@@ -104,7 +133,7 @@ build: build/default ;
 # Build uno into a static binary using pyinstaller.sh
 build/%: ../$(UPSTREAM_TARBALL)
 	rm -rf $@ dist/bundle/$*
-	mkdir -p distsrc
+	mkdir -p dist/src
 	tar -xvaf $< -C dist/src
 	scripts/bundle/pyinstaller.sh $*
 
@@ -121,6 +150,8 @@ tarball: ../$(UPSTREAM_TARBALL) ;
 # Update changelog entry and append build codename to version
 # Requires the Debian Builder image.
 changelog:
+	# Try to make sure changelog is at a clean version
+	git checkout debian/changelog || true
 	docker run --rm \
 		-v $(UNO_DIR)/:/uno \
 		-w /uno \
@@ -139,22 +170,17 @@ debuild:
 # Run integration tests using the debian package.
 # Requires the Debian Tester image
 debtest: .venv
-	. .venv/bin/activate; \
+	$(MAKE) -C $(UNO_DIR) test-integration \
 	  TEST_IMAGE=$(DEB_TESTER) \
-	  TEST_RUNNER=runner \
-	  DEV=y \
-	  pytest -s -v \
-		  --junit-xml=$(TEST_RESULTS_DIR)/$(TEST_JUNIT_REPORT)__unit.xml \
-		  test/integration $(INTEGRATION_TEST_ARGS)
+	  TEST_RUNNER=runner
 
-# Convenience target to:
-# - build debian packages
-# - build debian tester image
-# - run integration tests
-debvalidate:
-	$(MAKE) debuild
-	$(MAKE) dockerimage-debian-tester
-	$(MAKE) debtest
+# Build the uno debian pacakge locally
+deb:
+	$(MAKE) -C $(UNO_DIR) changelog
+	$(MAKE) -C $(UNO_DIR) debuild
+	git checkout debian/changelog
+	$(MAKE) -C $(UNO_DIR) dockerimage-debian-tester
+	$(MAKE) -C $(UNO_DIR) debtest
 
 # Run both unit and integration tests
 test: test-unit test-integration ;
@@ -180,51 +206,75 @@ UNIT_TEST_COMMAND := $(BASE_UNIT_TEST_COMMAND) $(UNIT_TEST_ARGS)
 endif # ifneq ($(CI),)
 
 test-unit: .venv
+	@$(CHECK_RTI_LICENSE_FILE)
 	mkdir -p $(TEST_RESULTS_DIR)
-	[ -z "$(IN_DOCKER)" ] || . .venv/bin/activate; \
+	[ -n "$(IN_DOCKER)" ] || . $</bin/activate; \
 	  $(IN_DOCKER_PREFIX) $(UNIT_TEST_COMMAND) $(UNIT_TEST_ARGS)
 
 # Run integration tests
 test-integration: .venv
+	@$(CHECK_RTI_LICENSE_FILE)
 	mkdir -p $(TEST_RESULTS_DIR)
-	. .venv/bin/activate; \
-	  DEV=y \
+	set -ex; \
+	. $</bin/activate; \
+	  [ -z "${TEST_RELEASE}" ] || export DEV=y; \
 	  pytest -s -v \
 	    --junit-xml=$(TEST_RESULTS_DIR)/$(TEST_JUNIT_REPORT)__integration.xml \
 	    test/integration \
 	    $(INTEGRATION_TEST_ARGS)
 
-fix-root-permissions:
+# Change file ownership back to the current user
+fix-file-ownership:
 	docker run --rm \
 	  -v $(FIX_DIR):/workspace \
 	  $(TEST_IMAGE) \
-	  fix-root-permissions $$(id -u):$$(id -g) /workspace
+	  fix-file-ownership $$(id -u):$$(id -g) /workspace
+
+# Extract the license from a docker image to OUT_DIR
+extract-license:
+	docker run --rm \
+	  -v $(OUT_DIR):/workspace \
+	  $(TEST_IMAGE) \
+	  cp /rti_license.dat /workspace/rti_license.dat
 
 # Install uno and its dependencies in a virtual environment.
-# Dynamically provision poetry in a separate, temporary, virtual environment
-# which is deleted upon a successfull run.
 venv-install: .venv ;
 
-.venv:
-	set -e; \
-	  rm -rf .venv-poetry; \
-	  python3 -m venv .venv-poetry; \
-	  . .venv-poetry/bin/activate; \
-	  pip3 install -U poetry; \
-	  deactivate; \
-	  .venv-poetry/bin/poetry install --with=dev $$(\
-		  [ -n "$(UNO_MIDDLEWARE)" ] || printf -- --with=connext \
-	  ); \
-	  rm -rf .venv-poetry; \
-	  if [ -n "$(UNO_MIDDLEWARE)" ]; then \
-		  . .venv/bin/activate; \
-		  pip3 install -U -e plugins/$(UNO_MIDDLEWARE); \
-			deactivate; \
-	  fi; \
+.venv-poetry:
+	# curl -sSL https://install.python-poetry.org | POETRY_HOME=$$(pwd)/$@  python3 -
+	python3 -m venv $@
+	$@/bin/pip install -U pip setuptools virtualenv
+	$@/bin/pip install poetry
 
+poetry-%:
+	scripts/poetry $*
+
+.venv: .venv-poetry \
+       pyproject.toml \
+       $(wildcard plugins/*/pyproject.toml)
+	rm -rf $@ poetry.lock
+	$</bin/poetry install --with=dev \
+	  $$([ -n "$(UNO_MIDDLEWARE)" ] || printf -- --with=connext)
+	$@/bin/pip install -e plugins/$(UNO_MIDDLEWARE)
+
+# Build images required for development
+dockerimages: \
+  dockerimage-test-runner \
+  dockerimage-debian-builder ;
 
 # Convenience target to build an image with `docker compose build`
 dockerimage-%:
 	docker compose build $*
 
+
+# Run code validation
+code: code-check code-format ;
+
+code-check: .venv
+	. $</bin/activate; \
+	  ruff check
+
+code-format: .venv
+	. $</bin/activate; \
+	  ruff format --check
 
