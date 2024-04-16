@@ -64,7 +64,9 @@ _ExternalTestDir = os.environ.get("TEST_DIR")
 if _ExternalTestDir:
   _ExternalTestDir = Path(_ExternalTestDir).resolve()
 
-_RunnerScript = Path(os.environ.get("TEST_RUNNER", "/uno/uno/test/integration/runner.py")).resolve()
+# Don't resolve this path, because it might be "runner",
+# passed by the Makefile
+_RunnerScript = Path(os.environ.get("TEST_RUNNER", "/uno/uno/test/integration/runner.py"))
 
 
 class Experiment:
