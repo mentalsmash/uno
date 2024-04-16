@@ -110,16 +110,16 @@ jobs:
             src/uno/test/install
 
       - name: Restore permissions changed by tests
-        if: ${{ always() }}
+        if: always()
         run: |
           docker run --rm \
             -v $(pwd):/workspace \
             ${{inputs.tag}} \
-            fix-root-permissions $(id -u):$(id -g) /workspace
+            fix-file-ownership $(id -u):$(id -g) /workspace
 
       - name: Upload test results
         uses: actions/upload-artifact@v4
-        if: ${{ always() }}
+        if: always()
         with:
           name: ${{ needs.test-config.outputs.TEST_ARTIFACT }}
           path: test-results/*

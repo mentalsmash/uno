@@ -37,7 +37,7 @@ class Network:
     i: int,
     private_lan: bool = False,
     transit_wan: bool = False,
-    masquerade_docker: bool = False,
+    masquerade_docker: bool = True,
   ) -> None:
     self.experiment = experiment
     self.name = name

@@ -86,14 +86,14 @@ class ConnextMiddleware(Middleware):
       else:
         log.warning("invalid RTI_LICENSE_FILE := {}", rti_license_env)
 
-    default_path = [Path.cwd()]
-    connext_home_env = os.getenv("CONNEXTDDS_DIR", os.getenv("NDDSHOME"))
-    if connext_home_env:
-      default_path.add(connext_home_env)
-    for root in default_path:
-      rti_license = _search_dir(root)
-      if rti_license:
-        return rti_license
+    # default_path = [Path.cwd()]
+    # connext_home_env = os.getenv("CONNEXTDDS_DIR", os.getenv("NDDSHOME"))
+    # if connext_home_env:
+    #   default_path.add(connext_home_env)
+    # for root in default_path:
+    #   rti_license = _search_dir(root)
+    #   if rti_license:
+    #     return rti_license
 
     return None
 

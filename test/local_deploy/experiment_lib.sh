@@ -59,7 +59,7 @@ docker_network()
           net_gw="${3}" \
           net_masquerade="${4}"
     
-    [ -n "${net_masquerade}" ] || net_masquerade=false
+    [ -n "${net_masquerade}" ] || net_masquerade=true
 
     log_debug " deleting docker network: ${net_name}"
     (
@@ -106,7 +106,7 @@ docker_network_w_bridge()
             --gateway=${bridge_gw} \
             --ip-range=${net_client_range} \
             --subnet=${net_subnet} \
-            -o com.docker.network.bridge.enable_ip_masquerade=false \
+            -o com.docker.network.bridge.enable_ip_masquerade=true \
             -o com.docker.network.bridge.name=${bridge_name} \
             ${net_name} \
             >> ${EXPERIMENT_LOG} 2>&1

@@ -51,7 +51,7 @@ sync)
   exec uno sync -r ${UVN_DIR} $@
   ;;
 # Validate arguments and skip to bottom for chown
-fix-root-permissions)
+fix-file-ownership)
   shift
   OWNER=$1
   shift

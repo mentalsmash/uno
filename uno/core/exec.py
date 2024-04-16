@@ -78,7 +78,7 @@ def exec_command(
         stdout = subprocess.PIPE
         stderr = subprocess.PIPE
       elif debug:
-        stdout = sys.stdout
+        stdout = sys.stderr
         stderr = sys.stderr
       else:
         stdout = subprocess.DEVNULL

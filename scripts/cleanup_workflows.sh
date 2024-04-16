@@ -10,10 +10,14 @@
 
 # First version
 
+# (asorbini) Modified to take an optional filter argument to run in noninteractive mode
+
+declare REPO=${1:?No owner/repo specified}
+FILTER="${2}"
+
 set -o errexit
 set -o pipefail
 
-declare repo=${1:?No owner/repo specified}
 
 jqscript() {
 
@@ -42,22 +46,32 @@ EOF
 }
 
 selectruns() {
-
-  gh api --paginate "/repos/$repo/actions/runs" \
-    | jq -r -f <(jqscript) \
-    | fzf --multi
-
+  if [ -n "${RAW}" ]; then
+    # expect entries to be piped via stdin
+    cat -
+  else
+    gh api --paginate "/repos/${REPO}/actions/runs" |
+      jq -r -f <(jqscript) |
+      if [ -z "${FILTER}" ]; then
+        fzf --multi
+      else
+        fzf --multi --filter "${FILTER}"
+      fi
+  fi
 }
 
 deleterun() {
 
   local run id result
-  run=$1
+  run="${1}"
   id="$(cut -f 3 <<< "$run")"
-  gh api -X DELETE "/repos/$repo/actions/runs/$id"
-  [[ $? = 0 ]] && result="OK!" || result="BAD"
-  printf "%s\t%s\n" "$result" "$run"
-
+  if [ -z "${NOOP}" ]; then
+    gh api -X DELETE "/repos/${REPO}/actions/runs/$id"
+    [[ $? = 0 ]] && result="OK!" || result="BAD"
+    printf "%s\t%s\n" "$result" "$run"
+  else
+    printf -- '%s\n' "${run}"
+  fi
 }
 
 deleteruns() {

@@ -30,19 +30,18 @@ concurrency:
 permissions:
   packages: read
 
-env:
-  DEBUG: y
-  VERBOSITY: debug
-
 jobs:
   config:
     runs-on: ubuntu-latest
     outputs:
-      BUILDER_TAG: ${{ steps.config.outputs.BUILDER_TAG }}
-      REF_TAG: ${{ steps.config.outputs.REF_TAG }}
+      DEB_ARTIFACT: ${{ steps.config.outputs.DEB_ARTIFACT }}
+      DEB_BUILDER_TAG: ${{ steps.config.outputs.DEB_BUILDER_TAG }}
       RUNNER: ${{ steps.config.outputs.RUNNER }}
-      TEST_IMAGE: ${{ steps.config.outputs.TEST_IMAGE }}
       TEST_ARTIFACT: ${{ steps.config.outputs.TEST_ARTIFACT }}
+      TEST_DATE: ${{ steps.config.outputs.TEST_DATE }}
+      TEST_ID: ${{ steps.config.outputs.TEST_ID }}
+      TEST_IMAGE: ${{ steps.config.outputs.TEST_IMAGE }}
+      TEST_RUNNER_ARTIFACT: ${{ steps.config.outputs.TEST_RUNNER_ARTIFACT }}
     steps:
       - name: Clone uno
         uses: actions/checkout@v4
@@ -61,21 +60,89 @@ jobs:
               runner='["self-hosted", "linux", "arm64", "rpi5"]'
               ;;
           esac
-          builder_tag=$(echo ${{inputs.base-tag}} | tr : - | tr / -)
-          ref_tag=$(echo ${{ github.ref_name }} | tr / -)
-          test_id=$(date +%Y%m%d-%H%M%S)
-          test_artifact=uno-test-deb-${builder_tag}-${ref_tag}-${{inputs.platform}}__${test_id}
+          case "${{github.ref_type}}" in
+            tag)
+              image_version=${{github.ref_name}}
+              ;;
+            *)
+              sha_short=$(cd src/uno && git rev-parse --short HEAD)
+              image_version=${{github.ref_name}}@${sha_short}
+              ;;
+          esac
+          image_version="$(echo ${image_version} | tr / -)"
+          deb_builder_tag=$(echo ${{inputs.base-tag}} | tr : - | tr / -)
+          test_date=$(date +%Y%m%d-%H%M%S)
+          test_id=deb-${deb_builder_tag}-${{ inputs.platform }}__${image_version}
+          test_artifact=uno-test-${test_id}__${test_date}
+          test_runner_artifact=uno-runner-${deb_builder_tag}-${{ inputs.platform }}__${image_version}__${test_date}
+          deb_artifact=uno-deb-${deb_builder_tag}-${{ inputs.platform }}__${image_version}__${test_date}
           (
             echo RUNNER=${runner}
-            echo BUILDER_TAG=${builder_tag}
-            echo REF_TAG=${ref_tag}
-            echo TEST_IMAGE=mentalsmash/uno-test-runner:latest
+            echo DEB_BUILDER_TAG=${deb_builder_tag}
+            echo DEB_ARTIFACT=${deb_artifact}
             echo TEST_ARTIFACT=${test_artifact}
+            echo TEST_DATE=${test_date}
+            echo TEST_ID=${test_id}
+            echo TEST_IMAGE=mentalsmash/uno-test-runner:latest
+            echo TEST_RUNNER_ARTIFACT=${test_runner_artifact}
           ) >> ${GITHUB_OUTPUT}
 
   build-packages:
     needs: config
     runs-on: ${{ fromJson(needs.config.outputs.RUNNER) }}
+    steps:
+    - name: Clone uno
+      uses: actions/checkout@v4
+      with:
+        path: src/uno
+        submodules: true
+
+    - name: Log in to GitHub
+      uses: docker/login-action@v3
+      with:
+        registry: ghcr.io
+        username: ${{ github.actor }}
+        password: ${{ secrets.GITHUB_TOKEN }}
+
+    - name: Build debian packages
+      run: |
+        make -C src/uno changelog
+        make -C src/uno debuild
+      env:
+        DEB_BUILDER: ghcr.io/mentalsmash/uno-ci-debian-builder:${{ needs.config.outputs.DEB_BUILDER_TAG }}
+  
+    - name: Upload debian packages
+      uses: actions/upload-artifact@v4
+      with:
+        name: ${{ needs.config.outputs.DEB_ARTIFACT }}
+        path: src/uno/debian-dist/*
+
+    - name: Upload test runner
+      uses: actions/upload-artifact@v4
+      with:
+        name: ${{ needs.config.outputs.TEST_RUNNER_ARTIFACT }}
+        path: src/uno/dist/bundle/default/runner
+
+    - name: Fix permissions
+      run: |
+        docker run --rm \
+          -v $(pwd)/src/uno:/uno \
+          ghcr.io/mentalsmash/uno-ci-debian-builder:${{ needs.config.outputs.DEB_BUILDER_TAG }} \
+          chown -R $(id -u):$(id -g) /uno
+      if: always()
+
+  test-packages:
+    needs:
+      - config
+      - build-packages
+    runs-on: ${{ fromJson(needs.config.outputs.RUNNER) }}
+    env:
+      DEB_TESTER: ${{ needs.config.outputs.TEST_IMAGE }}
+      FIX_DIR: ${{ github.workspace }}
+      RTI_LICENSE_FILE: ${{ github.workspace }}/src/uno-ci/resource/rti/rti_license.dat
+      TEST_DATE: ${{ needs.config.outputs.TEST_DATE }}
+      TEST_ID: ${{ needs.config.outputs.TEST_ID }}
+      TEST_IMAGE: ${{ needs.config.outputs.TEST_IMAGE }}
     steps:
     - name: Clone uno
       uses: actions/checkout@v4
@@ -91,34 +158,25 @@ jobs:
         ref: master
         path: src/uno-ci
 
-    - name: Log in to GitHub
-      uses: docker/login-action@v3
+    - name: Download runner artifact
+      uses: actions/download-artifact@v4
       with:
-        registry: ghcr.io
-        username: ${{ github.actor }}
-        password: ${{ secrets.GITHUB_TOKEN }}
+        pattern: ${{ needs.config.outputs.TEST_RUNNER_ARTIFACT }}
 
-    - name: Build debian packages
-      run: |
-        make -C src/uno changelog
-        make -C src/uno debuild
-      env:
-        DEB_BUILDER: ghcr.io/mentalsmash/uno-ci-debian-builder:${{ needs.config.outputs.BUILDER_TAG }}
-  
-    - name: Upload debian packages
-      uses: actions/upload-artifact@v4
+    - name: Download debian packages artifact
+      uses: actions/download-artifact@v4
       with:
-        name: uno-${{inputs.platform}}-${{needs.config.outputs.BUILDER_TAG}}
-        path: src/uno/debian-dist/*
-      if: always()
+        pattern: ${{ needs.config.outputs.DEB_ARTIFACT }}
 
-    - name: Fix permissions
+    - name: Move artifacts in place
       run: |
-        docker run --rm \
-          -v $(pwd)/src/uno:/uno \
-          ghcr.io/mentalsmash/uno-ci-debian-builder:${{ needs.config.outputs.BUILDER_TAG }} \
-          chown -R $(id -u):$(id -g) /uno
-      if: always()
+        mkdir -p src/uno/dist/bundle/default/runner
+        mv -v ${{ needs.config.outputs.TEST_RUNNER_ARTIFACT }}/* \
+          src/uno/dist/bundle/default/runner/
+
+        mkdir -p src/uno/debian-dist
+        mv -v ${{ needs.config.outputs.DEB_ARTIFACT }}/* \
+          src/uno/debian-dist/
 
     - name: Build tester image
       uses: docker/build-push-action@v5
@@ -130,38 +188,22 @@ jobs:
         build-args: |
           BASE_IMAGE=${{ inputs.base-tag }}
 
-    - name: Setup integration tests
-      run: |
-        python3 -m venv venv
-        . venv/bin/activate
-        pip3 install -U pip setuptools
-        pip3 install -U -e src/uno
-        cp src/uno-ci/resource/rti/rti_license.dat rti_license.dat
-
     - name: Run integration tests
       run: |
-        . venv/bin/activate
-        pytest -s -v --junit-xml=test-results/uno-test-results-integration-${{ needs.config.outputs.REF_TAG }}.xml \
-          src/uno/test/integration
+        make -C src/uno debtest
       env:
-        DEV: y
-        RTI_LICENSE_FILE: ${{ github.workspace }}/rti_license.dat
-        TEST_IMAGE: ${{ needs.config.outputs.TEST_IMAGE }}
-        TEST_RUNNER: runner
+        DEBUG: ${{ runner.debug }}
 
     - name: Restore permissions changed by integration tests
       if: always()
       run: |
-        docker run --rm \
-          -v $(pwd):/workspace \
-          ${{ needs.config.outputs.TEST_IMAGE }} \
-          fix-root-permissions $(id -u):$(id -g) /workspace
+          make -C src/uno fix-file-ownership
 
     # Always collect and upload available test results
     - name: Upload test results
       uses: actions/upload-artifact@v4
       with:
         name: ${{ needs.config.outputs.TEST_ARTIFACT }}
-        path: test-results/*
+        path: src/uno/test-results/*
       if: always()
 

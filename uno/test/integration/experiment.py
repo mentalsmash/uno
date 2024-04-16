@@ -35,7 +35,7 @@ from .host_role import HostRole
 
 import uno
 
-_uno_dir = Path(uno.__file__).resolve().parent.parent
+_UnoDir = Path(uno.__file__).resolve().parent.parent
 
 # Make "info" the minimum default verbosity when this module is loaded
 # if Logger.Level.warning >= Logger.level:
@@ -56,13 +56,28 @@ class ExperimentLoader(Protocol):
   def __call__(self, **experiment_args) -> "Experiment": ...
 
 
+_RtiLicenseFile = os.environ.get("RTI_LICENSE_FILE")
+if _RtiLicenseFile:
+  _RtiLicenseFile = Path(_RtiLicenseFile).resolve()
+
+_ExternalTestDir = os.environ.get("TEST_DIR")
+if _ExternalTestDir:
+  _ExternalTestDir = Path(_ExternalTestDir).resolve()
+
+# Don't resolve this path, because it might be "runner",
+# passed by the Makefile
+_RunnerScript = Path(os.environ.get("TEST_RUNNER", "/uno/uno/test/integration/runner.py"))
+
+
 class Experiment:
   Dev = bool(os.environ.get("DEV", False))
   InsideTestRunner = bool(os.environ.get("UNO_TEST_RUNNER", False))
   TestImage = os.environ.get("TEST_IMAGE", "mentalsmash/uno-test-runner:latest")
-  RunnerScript = os.environ.get("TEST_RUNNER", "/uno/uno/test/integration/runner.py")
+  RunnerScript = _RunnerScript
+  ExternalTestDir = _ExternalTestDir
+  RtiLicenseFile = _RtiLicenseFile
   BuiltImages = set()
-  UnoDir = _uno_dir
+  UnoDir = _UnoDir
   # Load the selected uno middleware plugin
   UnoMiddlewareEnv = os.environ.get("UNO_MIDDLEWARE")
   RunnerTestDir = Path("/experiment-tmp")
@@ -101,7 +116,7 @@ class Experiment:
     config = cls.load_config(config)
     # Check if the user specified a non-temporary test directory
     # Otherwise the experiment will allocate a temporary directory
-    test_dir = os.environ.get("TEST_DIR", test_dir)
+    test_dir = cls.ExternalTestDir or test_dir
     test_dir_tmp = None
     if test_dir is not None:
       test_dir = Path(test_dir) / name
@@ -253,7 +268,7 @@ class Experiment:
       self.log.info("initializing UVN")
       self.define_uvn()
       self.log.info("initialized UVN")
-    self.log.activity("opening UVN registry from {}", self.registry_root)
+    self.log.info("opening UVN registry from {}", self.registry_root)
     registry = Registry.open(self.registry_root, readonly=True)
     self.log.info("opened UVN registry {}: {}", registry.root, registry)
     return registry
@@ -306,13 +321,13 @@ class Experiment:
     # (otherwise we will fail to recreate networks)
     self.wipe_containers()
     for net in self.networks:
-      self.log.debug("creating network: {}", net)
+      self.log.info("creating network: {}", net)
       net.create()
-      self.log.activity("network created: {}", net)
+      self.log.info("network created: {}", net)
     for host in self.hosts:
-      self.log.debug("creating host: {}", host)
+      self.log.info("creating host: {}", host)
       host.create()
-      self.log.activity("host created: {}", host)
+      self.log.info("host created: {}", host)
     self.log.info("created {} networks and {} containers", len(self.networks), len(self.hosts))
 
   def fix_root_permissions(self) -> None:
@@ -324,30 +339,11 @@ class Experiment:
         "--rm",
         *(tkn for hvol, vol in dirs.items() for tkn in ("-v", f"{hvol}:{vol}")),
         self.TestImage,
-        "fix-root-permissions",
+        "fix-file-ownership",
         f"{os.getuid()}:{os.getgid()}",
         *dirs.values(),
       ]
     )
-
-  @cached_property
-  def rti_license(self) -> Path | None:
-    for license in [
-      os.environ.get("RTI_LICENSE_FILE"),
-      self.root / "rti_license.dat",
-      self.test_dir / "rti_license.dat",
-      Path.cwd() / "rti_license.dat",
-    ]:
-      if not license:
-        continue
-      elif not isinstance(license, Path):
-        license = Path(license)
-      if license.exists():
-        license = license.resolve()
-        self.log.debug("found RTI license: {}", license)
-        return license
-    self.log.warning("no RTI license file found")
-    return None
 
   def uno(self, *args, **exec_args):
     verbose_flag = Logger.verbose_flag
@@ -392,10 +388,10 @@ class Experiment:
           *(
             [
               "-v",
-              f"{self.rti_license}:/rti_license.dat",
+              f"{self.RtiLicenseFile}:/rti_license.dat",
             ]
-            if self.rti_license
-            else []
+            if self.RtiLicenseFile
+            else ["-e", "RTI_LICENSE_FILE="]
           ),
           "-e",
           f"VERBOSITY={self.log.level.name}",
@@ -413,14 +409,14 @@ class Experiment:
   def tear_down(self, assert_stopped: bool = False) -> None:
     self.log.info("tearing down {} networks and {} containers", len(self.networks), len(self.hosts))
     for host in self.hosts:
-      self.log.debug("tearing down host: {}", host)
+      self.log.info("tearing down host: {}", host)
       host.delete(ignore_errors=assert_stopped)
-      self.log.activity("host deleted: {}", host)
+      self.log.info("host deleted: {}", host)
     self.hosts.clear()
     for net in self.networks:
-      self.log.debug("tearing down net: {}", net)
+      self.log.info("tearing down net: {}", net)
       net.delete(ignore_errors=assert_stopped)
-      self.log.activity("network deleted: {}", net)
+      self.log.info("network deleted: {}", net)
     self.networks.clear()
     self.fix_root_permissions()
     self.log.info("removed all networks and containers", len(self.networks), len(self.hosts))
