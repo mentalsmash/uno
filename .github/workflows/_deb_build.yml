@@ -75,7 +75,7 @@ jobs:
           test_id=deb-${deb_builder_tag}-${{ inputs.platform }}__${image_version}
           test_artifact=uno-test-${test_id}__${test_date}
           test_runner_artifact=uno-runner-${deb_builder_tag}-${{ inputs.platform }}__${image_version}__${test_date}
-          deb_artifact=uno-deb-${builder_tag}-${{ inputs.platform }}__${image_version}__${test_date}
+          deb_artifact=uno-deb-${deb_builder_tag}-${{ inputs.platform }}__${image_version}__${test_date}
           (
             echo RUNNER=${runner}
             echo DEB_BUILDER_TAG=${deb_builder_tag}
@@ -170,9 +170,9 @@ jobs:
 
     - name: Move artifacts in place
       run: |
-        mkdir -p src/uno/dist/bundle/runner
+        mkdir -p src/uno/dist/bundle/default/runner
         mv -v ${{ needs.config.outputs.TEST_RUNNER_ARTIFACT }}/* \
-          src/uno/dist/bundle/runner/
+          src/uno/dist/bundle/default/runner/
 
         mkdir -p src/uno/debian-dist
         mv -v ${{ needs.config.outputs.DEB_ARTIFACT }}/* \
