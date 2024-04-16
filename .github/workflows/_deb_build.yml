@@ -74,7 +74,7 @@ jobs:
           test_date=$(date +%Y%m%d-%H%M%S)
           test_id=deb-${builder_tag}-${{ inputs.platform }}__${image_version}
           test_artifact=uno-test-${test_id}__${test_date}
-          runner_artifact=uno-runner-${builder_tag}-${{ inputs.platform }}__${image_version}__${test_date}
+          test_runner_artifact=uno-runner-${builder_tag}-${{ inputs.platform }}__${image_version}__${test_date}
           deb_artifact=uno-deb-${builder_tag}-${{ inputs.platform }}__${image_version}__${test_date}
           (
             echo RUNNER=${runner}

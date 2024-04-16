@@ -293,7 +293,7 @@ else # ifneq ($(USE_POETRY),)
 	  else \
 	    $@/bin/pip install rti.connext; \
 	  fi
-	$@/bin/pip install -U ruff pre-commit
+	$@/bin/pip install -U ruff pre-commit pytest
 endif # ifneq ($(USE_POETRY),)
 
 # Build images required for development
