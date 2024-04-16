@@ -27,7 +27,7 @@ jobs:
       
       - name: "Clean up workflow runs"
         run: |
-          scripts/cleanup_closed_pull_request.sh \
+          src/uno/scripts/cleanup_closed_pull_request.sh \
             ${{ github.repository }} \
             ${{ github.event.pull_request.number }} \
             ${{ github.event.pull_request.merged }}
