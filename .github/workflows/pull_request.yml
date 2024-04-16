@@ -1,6 +1,6 @@
 name: Pull Request
 run-name: |
-  PR #${{ github.event.pull_request.number }} [${{ github.event_name == 'pull_request' && 'updated' || 'reviewed (' }}${{ github.event_name == 'pull_request_review' && github.event.review.state || '' }}${{ github.event_name == 'pull_request_review' && ')' || '' }}, ${{ github.event.pull_request.state }}${{ github.event.pull_request.draft && ' (draft)' || '' }}] ${{github.event.pull_request.title}}
+  PR #${{ github.event.pull_request.number }} [${{ github.event_name == 'pull_request' && 'updated' || 'reviewed' }}, ${{ github.event.action }}${{ github.event.pull_request.draft && ', draft' || '' }}] ${{github.event.pull_request.title}}
 
 on:
   pull_request:
@@ -62,13 +62,13 @@ jobs:
                   #   -> PR opened as non-draft, perform an initial check
                   # - PR.state == 'synchronized':
                   #   -> PR updated by new commits.
-                  #      TODO(asorbini) assert(${{ github.event.review.state }} != 'approved')
+                  #      TODO(asorbini) assert(${{ github.event.action }} != 'approved')
                   #      (assumption is that any commit will invalidate a previous 'approved')
                   # - PR.state == 'ready_for_review':
                   #   -> PR moved out of draft, run basic validation only if not already 'approved'.
                   #      (assumption: a basic validation was already performed on the `pull_request_review`
                   #       event for the approval.)
-                  case "${{ github.event.pull_request.state }}" in
+                  case "${{ github.event.action }}" in
                     opened|synchronized)
                       basic=y
                       ;;
@@ -91,7 +91,7 @@ jobs:
               ;;
           esac
 
-          # Fail if not test is enabled to report a failed check and block the PR from automerging
+          # Fail if no test is enabled, to report a failed check and block the PR from automerging.
           # It is ok to generate failed run, since they will be cleaned up once the PR is closed.
           if [ -z "${basic}${full}${test_not_needed}" ]; then
             printf -- "ERROR: PR #${{ github.event.pull_request.number }} is not ready for testing yet.\n" >&2
