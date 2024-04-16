@@ -28,6 +28,8 @@ jobs:
     steps:
       - name: "Check if PR is ready for merging"
         id: config
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
         run: |
           case "${{ github.event_name }}" in
             pull_request)
@@ -47,11 +49,19 @@ jobs:
                   ready_for_review)
                     # PR taken out of draft, fail only if not "approved".
                     # Ideally: we would just query the review state, but that doesn't seem to
-                    # be available on the pull_request object, see:
-                    # https://docs.github.com/en/webhooks/webhook-events-and-payloads#pull_request)
-                    if [ "${{ github.event.pull_request.mergeable }}" != true ]; then
-                      check_failed=y
-                    fi
+                    # be available on the pull_request object,
+                    # see: https://docs.github.com/en/webhooks/webhook-events-and-payloads#pull_request)
+                    # So we use the GitHub API to query the state,
+                    # see: https://stackoverflow.com/a/77647838
+                    gh repo set-default ${{ github.repository }}
+                    review_state=$(gh pr view 11 --json reviewDecision --jq '.reviewDecision')
+                    case "${review_state}" in
+                      APPROVED)
+                        ;;
+                      *)
+                        check_failed=y
+                        ;;
+                    esac
                     ;;
                 esac
               fi
