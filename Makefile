@@ -195,18 +195,19 @@ BASE_UNIT_TEST_COMMAND := \
   pytest -s -v \
     --junit-xml=$(TEST_RESULTS_DIR)/$(TEST_JUNIT_REPORT)__unit.xml \
     test/unit
-# When run by a CI test, the test image is expected to contain an
-# embedded RTI license at /rti_license.dat. To test without it, we
-# must change the test command to delete the license
-ifneq ($(TEST_RELEASE),)
+# When run by a (non-release) CI test, the test image is expected 
+# to contain an embedded RTI license at /rti_license.dat.
+# To test without it, we must change the test command to delete
+# the license.
+ifeq ($(TEST_RELEASE),)
 ifneq ($(NO_LICENSE),)
 UNIT_TEST_COMMAND := \
 	sh -exc '\
-	rm /rti_license.dat; \
+	rm -f /rti_license.dat; \
 	unset RTI_LICENSE_FILE; \
 	$(BASE_UNIT_TEST_COMMAND) $(UNIT_TEST_ARGS)'
 endif # ifneq ($(NO_LICENSE),)
-endif # ifneq ($(TEST_RELEASE),)
+endif # ifeq ($(TEST_RELEASE),)
 ifeq ($(UNIT_TEST_COMMAND),)
 UNIT_TEST_COMMAND := $(BASE_UNIT_TEST_COMMAND) $(UNIT_TEST_ARGS)
 endif # ifeq ($(UNIT_TEST_COMMAND),)
