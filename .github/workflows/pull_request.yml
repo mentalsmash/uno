@@ -30,6 +30,8 @@ jobs:
       VALIDATE_BASIC: ${{ steps.config.outputs.VALIDATE_BASIC }}
       VALIDATE_DEB: ${{ steps.config.outputs.VALIDATE_DEB }}
       VALIDATE_FULL: ${{ steps.config.outputs.VALIDATE_FULL }}
+    env:
+      GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
     steps:
       - name: "Generate job configuration"
         id: config
