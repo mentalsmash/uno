@@ -1,6 +1,6 @@
 name: Install Test
 run-name: |
-  install test [${{github.ref_type == 'branch' && 'nightly' || 'stable'}}, ${{github.ref_name}}${{github.ref_type == 'branch' && '@' || ''}}${{github.ref_type == 'branch' && github.sha || ''}}]
+  install test ${{ inputs.tag }} with ${{github.ref_type}} ${{github.ref_name}}${{github.ref_type == 'branch' && '@' || ''}}${{github.ref_type == 'branch' && github.sha || ''}}]
 
 on:
   workflow_dispatch:
@@ -12,7 +12,7 @@ on:
       tag:
         description: Image tag to test
         type: string
-        default: mentalsmash/uno:latest
+        default: mentalsmash/uno:nightly
 
 concurrency:
   group: install-test-default-${{ github.ref }}

@@ -1,6 +1,6 @@
 name: Pull Request
 run-name: |
-  PR #${{github.event.pull_request.number}} [${{github.event_name == 'pull_request' && 'changed' || 'reviewed, ' }}${{github.event_name == 'pull_request' && '' || github.event.review.state }}] ${{github.event.pull_request.title}}
+  PR #${{ github.event.pull_request.number }} [${{ github.event_name == 'pull_request' && 'updated' || 'reviewed' }}, ${{ github.event.action }}${{ github.event.pull_request.draft && ', draft' || '' }}] ${{github.event.pull_request.title}}
 
 on:
   pull_request:
@@ -12,9 +12,9 @@ on:
       - 'docs/**/*'
     types:
       - opened
-      - ready_for_review
       - synchronize
-      - reopened
+      - ready_for_review
+      - converted_to_draft
 
   pull_request_review:
     types: [submitted]
@@ -23,44 +23,117 @@ concurrency:
   group: pr-test-${{ github.ref }}-${{github.event_name}}
   cancel-in-progress: true
 
+permissions:
+  packages: read
+  contents: read
+
 jobs:
-  check-review-status:
-    # Skip the whole workflow if the PR is still in draft
-    if: ${{ !github.event.pull_request.draft }}
+  check-trigger:
     runs-on: ubuntu-latest
     outputs:
-      BASIC: ${{ steps.config.outputs.BASIC }}
-      FULL: ${{ steps.config.outputs.FULL }}
+      VALIDATE_BASIC: ${{ steps.config.outputs.VALIDATE_BASIC }}
+      VALIDATE_DEB: ${{ steps.config.outputs.VALIDATE_DEB }}
+      VALIDATE_FULL: ${{ steps.config.outputs.VALIDATE_FULL }}
+    env:
+      GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
     steps:
-      - name: "Generate job configuration from PR status"
+      - name: Clone uno
+        uses: actions/checkout@v4
+        with:
+          path: src/uno
+          submodules: true
+
+      - name: "Generate job configuration"
         id: config
         run: |
-          echo "Generating test configuration for pull-request ${{github.ref_name}} on event: ${{github.event_name}}..."
-          case ${{github.event_name}} in
+          case ${{ github.event_name }} in
             pull_request_review)
-              case "${{github.event.review.state}}" in
+              case "${{ github.event.review.state }}" in
                 approved)
-                  echo "Pull request ${{github.ref_name}} has been approved. Performing full test."
+                  # A new review was submitted, and the review state is "approved":
+                  # perform a full validation (ci build on more platforms + deb validation)
                   full=y
+                  # If the PR is still in draft: perform also a basic validation
+                  if [ "${{ github.event.pull_request.draft }}" = true ]; then
+                    basic=y
+                  fi
                   ;;
                 *)
-                  echo "Pull request ${{github.ref_name}} NOT APPROVED yet (${{github.event.review.state}}). Skipping tests while waiting for approval."
+                  # A new review was submitted, but the state is not "approved": nothing to do yet
                   ;;
               esac
               ;;
             pull_request)
-              echo "Pull request ${{github.ref_name}} NOT APPROVED (${{github.event.review.state}}) but updated. Performing basic test."
-              basic=y
+              case "${{ github.event.pull_request.draft }}" in
+                true)
+                  # The PR was updated but it is still in draft: nothing to do
+                  ;;
+                false)
+                  # The PR was updated, and it is not a draft: perform a basic validation if:
+                  # - PR.state == 'opened':
+                  #   -> PR opened as non-draft, perform an initial check
+                  # - PR.state == 'synchronized':
+                  #   -> PR updated by new commits.
+                  #      TODO(asorbini) assert(${{ github.event.action }} != 'approved')
+                  #      (assumption is that any commit will invalidate a previous 'approved')
+                  # - PR.state == 'ready_for_review':
+                  #   -> PR moved out of draft, run basic validation only if not already 'approved'.
+                  #      (assumption: a basic validation was already performed on the `pull_request_review`
+                  #       event for the approval.)
+                  case "${{ github.event.action }}" in
+                    opened|synchronize)
+                      basic=y
+                      ;;
+                    ready_for_review)
+                      # (assumption: if the PR is not "mergeable" it must have not been approved.
+                      # Ideally: we would just query the review state, but that doesn't seem to
+                      # be available on the pull_request object, see:
+                      # https://docs.github.com/en/webhooks/webhook-events-and-payloads#pull_request)
+                      # So we use the GitHub API to query the state,
+                      # see: https://stackoverflow.com/a/77647838
+                      (cd src/uno; gh repo set-default ${{ github.repository }})
+                      review_state=$(cd src/uno; gh pr view 11 --json reviewDecision --jq '.reviewDecision')
+                      case "${review_state}" in
+                        APPROVED)
+                          test_not_needed=y
+                          ;;
+                        *)
+                          basic=y
+                          ;;
+                      esac
+                      ;;
+                    *)
+                      ;;
+                  esac
+                  ;;
+              esac
               ;;
           esac
+
+          # Fail if no test is enabled, to report a failed check and block the PR from automerging.
+          # It is ok to generate failed run, since they will be cleaned up once the PR is closed.
+          if [ -z "${basic}${full}${test_not_needed}" ]; then
+            printf -- "ERROR: PR #${{ github.event.pull_request.number }} is not ready for testing yet.\n" >&2
+            check_failed=y
+          elif [ -n "${test_not_needed}" ]; then
+            printf -- "PR #${{ github.event.pull_request.number }} doesn't need further testing.\n" >&2
+          fi
+
           (
-            echo BASIC=${basic}
-            echo FULL=${full}
+            echo CHECK_FAILED=${check_failed}
+            echo VALIDATE_BASIC=${basic}
+            echo VALIDATE_FULL=${full}
+            echo VALIDATE_DEB=${full}
           )  >> ${GITHUB_OUTPUT}
 
+      - name: "Fail job if check failed"
+        run: |
+          exit 1
+        if: steps.config.outputs.CHECK_FAILED
+
   basic-validation:
-    needs: check-review-status
-    if: ${{ needs.check-review-status.outputs.BASIC }}
+    needs: check-trigger
+    if: ${{ needs.check-trigger.outputs.VALIDATE_BASIC }}
     strategy:
       matrix:
         build-platform: [amd64]
@@ -76,8 +149,8 @@ jobs:
       test-without-license: ${{matrix.test-without-license}}
 
   full-validation:
-    needs: check-review-status
-    if: ${{ needs.check-review-status.outputs.FULL }}
+    needs: check-trigger
+    if: ${{ needs.check-trigger.outputs.VALIDATE_FULL }}
     strategy:
       matrix:
         build-platform: [amd64, arm64]
@@ -102,8 +175,8 @@ jobs:
       test-without-license: ${{matrix.test-without-license}}
 
   deb-validation:
-    needs: check-review-status
-    if: ${{ needs.check-review-status.outputs.FULL }}
+    needs: check-trigger
+    if: ${{ needs.check-trigger.outputs.VALIDATE_DEB }}
     strategy:
       matrix:
         base-tag: ["ubuntu:22.04"]
@@ -113,3 +186,22 @@ jobs:
     with:
       base-tag: ${{ matrix.base-tag }}
       platform: ${{ matrix.platform }}
+      pull-request: true
+
+  enable-merge:
+    needs:
+      - check-trigger
+      - full-validation
+      - deb-validation
+    uses: ./.github/workflows/pull_request_check_approval.yml
+    if: ${{ needs.check-trigger.outputs.VALIDATE_FULL && !needs.check-trigger.outputs.VALIDATE_BASIC }}
+
+  enable-merge-at-once:
+    needs:
+      - check-trigger
+      - full-validation
+      - deb-validation
+      - basic-validation
+    uses: ./.github/workflows/pull_request_check_approval.yml
+    if: ${{ needs.check-trigger.outputs.VALIDATE_FULL && needs.check-trigger.outputs.VALIDATE_BASIC }}
+
