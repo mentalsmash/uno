@@ -59,7 +59,12 @@ jobs:
                     # see: https://docs.github.com/en/webhooks/webhook-events-and-payloads#pull_request)
                     # So we use the GitHub API to query the state,
                     # see: https://stackoverflow.com/a/77647838
-                    (cd src/uno; gh repo set-default ${{ github.repository }})
+                    (
+                      mkdir -p src/uno;
+                      cd src/uno;
+                      git init src/uno
+                      gh repo set-default ${{ github.repository }}
+                    )
                     review_state=$(cd src/uno; gh pr view 11 --json reviewDecision --jq '.reviewDecision')
                     case "${review_state}" in
                       APPROVED)
