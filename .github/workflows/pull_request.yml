@@ -31,7 +31,6 @@ jobs:
   check-trigger:
     runs-on: ubuntu-latest
     outputs:
-      MERGE_CONDITIONS: ${{ steps.config.outputs.MERGE_CONDITIONS }}
       VALIDATE_BASIC: ${{ steps.config.outputs.VALIDATE_BASIC }}
       VALIDATE_DEB: ${{ steps.config.outputs.VALIDATE_DEB }}
       VALIDATE_FULL: ${{ steps.config.outputs.VALIDATE_FULL }}
@@ -120,15 +119,8 @@ jobs:
             printf -- "PR #${{ github.event.pull_request.number }} doesn't need further testing.\n" >&2
           fi
 
-          if [ -n "${basic}" -a -n "${full}" ]; then
-            merge_conditions='["check-trigger", "deb-validation", "full-validation", "basic-validation"]'
-          else
-            merge_conditions='["check-trigger", "deb-validation", "full-validation"]'
-          fi
-
           (
             echo CHECK_FAILED=${check_failed}
-            echo MERGE_CONDITIONS=${merge_conditions}
             echo VALIDATE_BASIC=${basic}
             echo VALIDATE_FULL=${full}
             echo VALIDATE_DEB=${full}
