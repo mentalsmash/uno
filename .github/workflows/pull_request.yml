@@ -33,6 +33,12 @@ jobs:
     env:
       GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
     steps:
+      - name: Clone uno
+        uses: actions/checkout@v4
+        with:
+          path: src/uno
+          submodules: true
+
       - name: "Generate job configuration"
         id: config
         run: |
@@ -81,12 +87,7 @@ jobs:
                       # https://docs.github.com/en/webhooks/webhook-events-and-payloads#pull_request)
                       # So we use the GitHub API to query the state,
                       # see: https://stackoverflow.com/a/77647838
-                      (
-                        mkdir -p src/uno;
-                        cd src/uno;
-                        git init src/uno
-                        gh repo set-default ${{ github.repository }}
-                      )
+                      (cd src/uno; gh repo set-default ${{ github.repository }})
                       review_state=$(cd src/uno; gh pr view 11 --json reviewDecision --jq '.reviewDecision')
                       case "${review_state}" in
                         APPROVED)
