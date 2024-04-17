@@ -197,7 +197,19 @@ jobs:
       pull-request: true
 
   enable-merge:
-    needs: ${{ fromJson(needs.check-trigger.outputs.MERGE_CONDITIONS)}}
-    if: ${{ needs.check-trigger.outputs.VALIDATE_FULL }}
+    needs:
+      - check-trigger
+      - full-validation
+      - deb-validation
     uses: ./.github/workflows/pull_request_check_approval.yml
+    if: ${{ needs.check-trigger.outputs.VALIDATE_FULL && !needs.check-trigger.outputs.VALIDATE_BASIC }}
+
+  enable-merge-at-once:
+    needs:
+      - check-trigger
+      - full-validation
+      - deb-validation
+      - basic-validation
+    uses: ./.github/workflows/pull_request_check_approval.yml
+    if: ${{ needs.check-trigger.outputs.VALIDATE_FULL && needs.check-trigger.outputs.VALIDATE_BASIC }}
 
