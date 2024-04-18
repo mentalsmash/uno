@@ -33,9 +33,17 @@
 #
 #     ci-admin pr-closed -r mentalsmash/uno -N <PR-NUMBER> [--merged]
 #
-# - list packages for an organization:
+# - list packages for an organization (only containers supported for now):
 #
-#     ci-admin select-pkgs -o mentalsmash [-f "<filter>"]
+#     ci-admin select-packages -o mentalsmash [-f "<filter>"]
+#
+# - list versions for a package (owned by an organization):
+#
+#     ci-admin select-versions -o uno -o mentalsmash [-f "<filter>"]
+#
+# - delete versions for a package (owned by an organization):
+#
+#     ci-admin delete-versions -o uno -o mentalsmash [-f "<filter>"]
 #
 ###############################################################################
 # Common arguments:
@@ -63,6 +71,11 @@ from datetime import datetime
 ScriptsDir = Path(__file__).parent
 ScriptNoninteractiveRequired = not sys.stdin.isatty() or not sys.stdout.isatty()
 ScriptNoninteractive = True
+
+# GitHub API documentation: https://docs.github.com/en/rest/reference/packages
+GitHubApiAccept = "application/vnd.github.v3+json"
+# https://docs.github.com/en/rest/overview/api-versions?apiVersion=2022-11-28
+GitHubApiVersion = "2022-11-28"
 
 ###############################################################################
 # Global hooks to produce output to stdout, and possibly tabulate it
@@ -193,6 +206,62 @@ def github_date_str(date: datetime) -> str:
 
 
 ###############################################################################
+# Mixin for data objects
+###############################################################################
+class DataObject:
+  Parsers = {}
+
+  @classmethod
+  def build(cls, obj_cls: type[NamedTuple], *args) -> NamedTuple:
+    cls.data_object(obj_cls)
+    args = list(args)
+    for i in obj_cls.DatetimeFields:
+      if not isinstance(args[i], datetime):
+        args[i] = github_date_parse(args[i])
+    return obj_cls(*args)
+
+  @classmethod
+  def parse(cls, obj_cls: type[NamedTuple], package_line: str) -> object | None:
+    cls.data_object(obj_cls)
+    try:
+      parse_re = cls.Parsers[obj_cls]
+      fields = parse_re.findall(package_line)[0]
+      return cls.build(obj_cls, *fields)
+    except Exception:
+      log.error("failed to parse {}: '{}'", obj_cls.__qualname__, package_line)
+      traceback.print_exc()
+      return None
+
+  @classmethod
+  def str(cls, obj: NamedTuple) -> str:
+    fields = list(obj)
+    for i in obj.DatetimeFields:
+      fields[i] = github_date_str(fields[i])
+    return "\t".join(map(str, fields))
+
+  @classmethod
+  def parse_re(cls, obj_cls: type[NamedTuple]) -> re.Pattern:
+    # Parse a string of fields separated by tabs.
+    assert len(obj_cls._fields) >= 1
+    return re.compile(
+      "".join(("^", *(r"([^\t]+)[\t]+" for i in range(len(obj_cls._fields) - 1)), r"(.*)", "$"))
+    )
+
+  @classmethod
+  def data_object(cls, obj_cls: type[NamedTuple]) -> None:
+    if obj_cls not in cls.Parsers:
+      cls.Parsers[obj_cls] = cls.parse_re(obj_cls)
+
+
+def parse(obj_cls: type[NamedTuple], package_line) -> NamedTuple:
+  return DataObject.parse(obj_cls, package_line)
+
+
+def build(obj_cls: type[NamedTuple], *args) -> object | None:
+  return DataObject.build(obj_cls, *args)
+
+
+###############################################################################
 # GitHub Workflow Run data object (parsed from query result)
 ###############################################################################
 class WorkflowRun(NamedTuple):
@@ -202,29 +271,10 @@ class WorkflowRun(NamedTuple):
   event: str
   name: str
 
-  ParseRe = re.compile(r"^([^ \t]+)[ \t]+([^ \t]+)[ \t]+([^ \t]+)[ \t]+([^ \t]+)[ \t]+(.*)$")
-
-  @classmethod
-  def build(cls, *args) -> "WorkflowRun":
-    args = list(args)
-    if not isinstance(args[1], datetime):
-      args[1] = github_date_parse(args[1])
-    return cls(*args)
+  DatetimeFields = [1]
 
   def __str__(self) -> str:
-    fields = list(self)
-    fields[1] = github_date_str(fields[1])
-    return "\t".join(map(str, fields))
-
-  @classmethod
-  def parse(cls, run: str) -> "WorkflowRun | None":
-    try:
-      fields = cls.ParseRe.findall(run)[0]
-      return WorkflowRun.build(*fields)
-    except Exception:
-      log.error("failed to parse {}: '{}'", cls.__qualname__, run)
-      traceback.print_exc()
-      return None
+    return DataObject.str(self)
 
 
 ###############################################################################
@@ -240,33 +290,24 @@ class Package(NamedTuple):
 
   DatetimeFields = [4, 5]
 
-  ParseRe = re.compile(
-    r"^([^ \t]+)[ \t]+([^ \t]+)[ \t]+([^ \t]+)[ \t]+([^ \t]+)[ \t]+([^ \t]+)[ \t]+(.+)$"
-  )
+  def __str__(self) -> str:
+    return DataObject.str(self)
 
-  @classmethod
-  def build(cls, *args) -> "Package":
-    args = list(args)
-    for i in cls.DatetimeFields:
-      if not isinstance(args[i], datetime):
-        args[i] = github_date_parse(args[i])
-    return cls(*args)
+
+###############################################################################
+# GitHub PackageVersion data object (parsed from query result)
+###############################################################################
+class PackageVersion(NamedTuple):
+  id: str
+  name: str
+  tags: tuple[str]
+  created_at: datetime
+  updated_at: datetime
+
+  DatetimeFields = [3, 4]
 
   def __str__(self) -> str:
-    fields = list(self)
-    for i in self.DatetimeFields:
-      fields[i] = github_date_str(fields[i])
-    return "\t".join(map(str, fields))
-
-  @classmethod
-  def parse(cls, package_line: str) -> "WorkflowRun | None":
-    try:
-      fields = cls.ParseRe.findall(package_line)[0]
-      return Package.build(*fields)
-    except Exception:
-      log.error("failed to parse {}: '{}'", cls.__qualname__, package_line)
-      traceback.print_exc()
-      return None
+    return DataObject.str(self)
 
 
 ###############################################################################
@@ -434,13 +475,13 @@ def symbol:
     script_file.write_text(script)
     yield script_file
 
-  def _read_and_parse_runs(input_stream: TextIO):
+  def _read_and_parse_runs(input_stream: TextIO) -> list[WorkflowRun]:
     return [
       run
       for line in input_stream.readlines()
       for sline in [line.decode().strip()]
       if sline
-      for run in [WorkflowRun.parse(sline)]
+      for run in [parse(WorkflowRun, sline)]
       if run
     ]
 
@@ -460,7 +501,7 @@ def symbol:
       target_runs = []
       if result.stdout:
         run_entries = json.loads(result.stdout.decode())
-        target_runs.extend(WorkflowRun.build(*entry) for entry in run_entries)
+        target_runs.extend(DataObject.build(WorkflowRun, *entry) for entry in run_entries)
   if prompt is None:
     prompt = "available runs"
   sorted_runs = partial(sorted, key=lambda r: r.date)
@@ -527,7 +568,6 @@ def delete_workflow_runs(
   if prompt is None:
     prompt = "runs to delete"
   for run in select_workflow_runs(repo, filter, input, runs, prompt=prompt):
-    print("SELECTED FOR DELETION", run)
     if not noop:
       _delete_run(run)
     deleted.append(run)
@@ -541,21 +581,7 @@ def delete_workflow_runs(
 ###############################################################################
 # List available packages for the current user or an organization
 ###############################################################################
-# GitHub API documentation: https://docs.github.com/en/rest/reference/packages
-GitHubApiAccept = "application/vnd.github.v3+json"
-# https://docs.github.com/en/rest/overview/api-versions?apiVersion=2022-11-28
-GitHubApiVersion = "2022-11-28"
-
-
-def gh_ls_packages(org: str | None = None) -> Generator[Package, None, None]:
-  jq_filter = (
-    "[ (.[] | [.id, .name, .visibility, .repository.full_name , .created_at, .updated_at]) ]"
-  )
-  url = (
-    f"/orgs/{org}/packages?package_type=container"
-    if org
-    else "/user/packages?package_type=container"
-  )
+def _gh_api(url: str, jq_filter: str, default: object = None) -> dict | list | None:
   cmd = [
     "gh api "
     f"-H 'Accept: {GitHubApiAccept}' "
@@ -563,35 +589,135 @@ def gh_ls_packages(org: str | None = None) -> Generator[Package, None, None]:
     f"{url} | "
     f"jq '{jq_filter}'"
   ]
-  log.activity("listing packages for {}", org if org else "current user")
   log.command(cmd, shell=True, check=True)
   result = subprocess.run(cmd, shell=True, check=True, stdout=subprocess.PIPE)
   if not result.stdout:
-    return []
-  for pkg_entry in json.loads(result.stdout.decode()):
-    pkg = Package.build(*pkg_entry)
-    yield pkg
+    return default
+  return json.loads(result.stdout.decode())
 
 
 def select_packages(
-  org: str | None = None, filter: str | None = None, prompt: str | None = None
+  org: str | None = None,
+  filter: str | None = None,
+  package_type: str = "container",
+  prompt: str | None = None,
+  noninteractive: bool = False,
 ) -> list[Package]:
-  def _read_and_parse_package(input_stream: TextIO):
+  def _ls_packages() -> Generator[Package, None, None]:
+    jq_filter = (
+      "[ (.[] | [.id, .name, .visibility, .repository.full_name , .created_at, .updated_at]) ]"
+    )
+    url = (
+      f"/orgs/{org}/packages?package_type={package_type}"
+      if org
+      else "/user/packages?package_type={package_type}"
+    )
+    log.activity("listing packages for {}", org if org else "current user")
+    packages = _gh_api(url, jq_filter, default=[])
+    for pkg_entry in packages:
+      pkg = build(Package, *pkg_entry)
+      yield pkg
+
+  def _read_and_parse_package(input_stream: TextIO) -> list[Package]:
     return [
       pkg
       for line in input_stream.readlines()
       for sline in [line.decode().strip()]
       if sline
-      for pkg in [Package.parse(sline)]
+      for pkg in [parse(Package, sline)]
       if pkg
     ]
 
-  packages = list(gh_ls_packages(org=org))
+  packages = list(_ls_packages())
   if prompt is None:
     prompt = "available packages"
   sort_packages = partial(sorted, key=lambda p: p.updated_at)
-  fzf = fzf_filter(filter=filter, inputs=sort_packages(packages), prompt=prompt)
+  fzf = fzf_filter(
+    filter=filter, inputs=sort_packages(packages), prompt=prompt, noninteractive=noninteractive
+  )
   return sort_packages(_read_and_parse_package(fzf.stdout))
+
+
+###############################################################################
+# List package versions
+###############################################################################
+def select_package_versions(
+  package: str,
+  org: str | None = None,
+  filter: str | None = None,
+  package_type: str = "container",
+  prompt: str | None = None,
+  noninteractive: bool = False,
+) -> list[str]:
+  def _ls_versions() -> Generator[PackageVersion, None, None]:
+    jq_filter = "[ (.[] | [.id, .name, .metadata.container.tags, .created_at, .updated_at]) ]"
+    url = (
+      f"/orgs/{org}/packages/{package_type}/{package}/versions"
+      if org
+      else f"/user/packages/{package_type}/{package}/versions"
+    )
+    versions = _gh_api(url, jq_filter, default=[])
+    for version_entry in versions:
+      version = build(PackageVersion, *version_entry)
+      yield version
+
+  def _read_and_parse_versions(input_stream: TextIO) -> list[PackageVersion]:
+    return [
+      pkg
+      for line in input_stream.readlines()
+      for sline in [line.decode().strip()]
+      if sline
+      for pkg in [parse(PackageVersion, sline)]
+      if pkg
+    ]
+
+  versions = list(_ls_versions())
+  if prompt is None:
+    prompt = f"available versions for {package}"
+  sort_versions = partial(sorted, key=lambda p: p.updated_at)
+  fzf = fzf_filter(
+    filter=filter, inputs=sort_versions(versions), prompt=prompt, noninteractive=noninteractive
+  )
+  return sort_versions(_read_and_parse_versions(fzf.stdout))
+
+
+###############################################################################
+# Delete package versions
+###############################################################################
+def delete_package_versions(
+  package: str,
+  org: str | None = None,
+  filter: str | None = None,
+  package_type: str = "container",
+  prompt: str | None = None,
+  noninteractive: bool = False,
+  noop: bool = False,
+) -> list[str]:
+  def _delete_version(version: PackageVersion):
+    url = (
+      f"/orgs/{org}/packages/{package_type}/{package}/versions/{version.id}"
+      if org
+      else f"/user/packages/{package_type}/{package}/versions/{version.id}"
+    )
+    delete_cmd = ["gh", "api", "-X", "DELETE", url]
+    log.command(delete_cmd, check=True)
+    subprocess.run(delete_cmd, check=True)
+
+  deleted = []
+  if prompt is None:
+    prompt = "version to delete"
+  for version in select_package_versions(
+    package, org, filter, package_type, prompt, noninteractive
+  ):
+    if not noop:
+      _delete_version(version)
+    deleted.append(version)
+  package_label = package if not org else f"{org}/{package}"
+  if noop:
+    log.warning("[{}] {} version selected but not actually deleted", package_label, len(deleted))
+  else:
+    log.warning("[{}] {} runs DELETED", package_label, len(deleted))
+  return deleted
 
 
 ###############################################################################
@@ -667,10 +793,31 @@ def define_parser() -> argparse.ArgumentParser:
   )
 
   parser_ls_pkgs = subparsers.add_parser(
-    "select-pkgs", help="List packages for an organization (or the current user)."
+    "select-packages", help="List packages for an organization (or the current user)."
   )
   parser_ls_pkgs.add_argument("-o", "--org", help="Target GitHub organization.", default=None)
   parser_ls_pkgs.add_argument(
+    "-f", "--filter", help="Custom zfz filter to run in unattended mode.", default=None
+  )
+
+  parser_ls_versions = subparsers.add_parser(
+    "select-versions",
+    help="List versions for a package owned by an organization (or the current user).",
+  )
+  parser_ls_versions.add_argument("-p", "--package", help="Target package.", required=True)
+  parser_ls_versions.add_argument("-o", "--org", help="Target GitHub organization.", default=None)
+  parser_ls_versions.add_argument(
+    "-f", "--filter", help="Custom zfz filter to run in unattended mode.", default=None
+  )
+
+  parser_delete_versions = subparsers.add_parser(
+    "delete-versions", help="Delete all workflow runs, or a subset matching an fzf filter."
+  )
+  parser_delete_versions.add_argument("-p", "--package", help="Target package.", required=True)
+  parser_delete_versions.add_argument(
+    "-o", "--org", help="Target GitHub organization.", default=None
+  )
+  parser_delete_versions.add_argument(
     "-f", "--filter", help="Custom zfz filter to run in unattended mode.", default=None
   )
 
@@ -703,10 +850,25 @@ def dispatch_action(args: argparse.Namespace) -> None:
         repo=args.repository, filter=args.filter, noop=args.noop, input=args.input
       ):
         output(str(run))
-    elif args.action == "select-pkgs":
+    elif args.action == "select-packages":
       tabulate_columns(*Package._fields)
       for pkg in select_packages(org=args.org, filter=args.filter):
         output(str(pkg))
+    elif args.action == "select-versions":
+      tabulate_columns(*PackageVersion._fields)
+      for version in select_package_versions(
+        package=args.package, org=args.org, filter=args.filter
+      ):
+        output(str(version))
+    elif args.action == "delete-versions":
+      tabulate_columns(*PackageVersion._fields)
+      for run in delete_package_versions(
+        package=args.package,
+        org=args.org,
+        filter=args.filter,
+        noop=args.noop,
+      ):
+        output(str(run))
     else:
       raise RuntimeError("action not implemented", args.action)
   finally:
