@@ -17,8 +17,7 @@ import pytest
 import subprocess
 from typing import Generator, Callable
 
-from uno.test.integration import Experiment, Host, HostRole, Network
-from uno.core.time import Timer
+from uno.test.integration import Experiment, Host, Network
 
 
 @pytest.fixture
@@ -30,74 +29,44 @@ def experiment(experiment_loader: Callable[[], None]) -> Generator[Experiment, N
 def the_hosts(experiment: Experiment) -> list[Host]:
   if experiment is None:
     return []
-  return sorted(
-    (h for h in experiment.hosts if h.role == HostRole.HOST), key=lambda h: h.container_name
-  )
+  return experiment.host_hosts
 
 
 @pytest.fixture
 def the_routers(experiment: Experiment) -> list[Host]:
   if experiment is None:
     return []
-  return sorted(
-    (h for h in experiment.hosts if h.role == HostRole.ROUTER), key=lambda h: h.container_name
-  )
+  return experiment.router_hosts
 
 
 @pytest.fixture
 def the_cells(experiment: Experiment) -> list[Host]:
   if experiment is None:
     return []
-  return sorted(
-    (h for h in experiment.hosts if h.role == HostRole.CELL), key=lambda h: h.container_name
-  )
+  return experiment.cell_hosts
 
 
 @pytest.fixture
-def the_registry(experiment: Experiment) -> list[Host]:
+def the_registry(experiment: Experiment) -> Host:
   if experiment is None:
     return []
-  return next(h for h in experiment.hosts if h.role == HostRole.REGISTRY)
+  return experiment.registry_host
 
 
 @pytest.fixture
 def the_particles(experiment: Experiment) -> list[Host]:
   if experiment is None:
     return []
-  return sorted(
-    (h for h in experiment.hosts if h.role == HostRole.PARTICLE), key=lambda h: h.container_name
-  )
+  return experiment.particle_hosts
 
 
 @pytest.fixture
-def the_fully_routed_cell_networks(
-  experiment: Experiment, the_cells: list[Host]
-) -> Generator[set[Network], None, None]:
+def the_fully_routed_cell_networks(experiment: Experiment) -> Generator[set[Network], None, None]:
   if experiment is None:
     yield set()
-    return
-
-  def _check_all_ready() -> bool:
-    if experiment is None:
-      return
-
-    for cell in the_cells:
-      if not cell.local_router_ready:
-        return False
-    return True
-
-  timer = Timer(
-    experiment.config["uvn_fully_routed_timeout"],
-    0.5,
-    _check_all_ready,
-    experiment.log,
-    "waiting for UVN to become consistent",
-    "UVN not consistent yet",
-    "UVN fully routed",
-    "UVN failed to reach consistency",
-  )
-  timer.wait()
-  yield experiment.uvn_networks
+  else:
+    experiment.wait_for_fully_routed_networks()
+    yield experiment.uvn_networks
 
 
 @pytest.fixture
@@ -105,17 +74,7 @@ def the_agents(experiment: Experiment) -> Generator[dict[Host, subprocess.Popen]
   if experiment is None:
     yield {}
     return
-
-  import contextlib
-
-  with contextlib.ExitStack() as stack:
-    agents = {}
-    for host in experiment.hosts:
-      if host.role != HostRole.CELL:
-        continue
-      # agents.append(host.uno_agent())
-      agents[host] = stack.enter_context(host.uno_agent())
-    yield agents
+  yield from experiment.agent_processes
 
 
 @pytest.fixture
@@ -125,22 +84,5 @@ def the_fully_routed_agents(
   if experiment is None:
     yield {}
     return
-
-  def _check_all_consistent() -> bool:
-    for agent in the_agents:
-      if not agent.cell_fully_routed:
-        return False
-    return True
-
-  timer = Timer(
-    experiment.config["uvn_fully_routed_timeout"],
-    0.5,
-    _check_all_consistent,
-    experiment.log,
-    "waiting for UVN to become consistent",
-    "UVN not consistent yet",
-    "UVN fully routed",
-    "UVN failed to reach consistency",
-  )
-  timer.wait()
+  experiment.wait_for_fully_routed_agents(the_agents)
   yield the_agents

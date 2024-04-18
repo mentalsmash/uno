@@ -406,6 +406,9 @@ class UvnLogger:
       exc_info=sys.exc_info(),  # if self.level >= self.Level.info else None
     )
 
+  def cmdexec(self, cmd_args) -> None:
+    self.debug("+ " + " ".join(["{}"] * len(cmd_args)), cmd_args)
+
   def command(self, cmd_args, rc, stdout=None, stderr=None, display=False):
     if rc != 0:
       self.error("command failed: {}", " ".join(map(str, cmd_args)))
