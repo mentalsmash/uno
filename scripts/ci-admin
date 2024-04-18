@@ -328,14 +328,14 @@ def build(obj_cls: type[NamedTuple], *args) -> object | None:
 ###############################################################################
 class WorkflowRun(NamedTuple):
   id: int
-  name: str
+  created_at: datetime
+  updated_at: datetime
   event: str
   status: str
   outcome: str
-  created_at: datetime
-  updated_at: datetime
+  name: str
 
-  DatetimeFields = [5, 6]
+  DatetimeFields = [1, 2]
   SelectQuery = """\
 def symbol:
   sub(""; "")? // "NULL" |
@@ -348,12 +348,12 @@ def symbol:
 [ .workflow_runs[]
   | [
       .id,
-      .name,
+      .created_at,
+      .updated_at,
       .event,
       .status,
       (.conclusion | symbol),
-      .created_at,
-      .updated_at
+      .name
     ] 
   ]
 """
@@ -643,7 +643,7 @@ def pr_closed(
     return workflow_run_action_result(removed, preserved)
 
   log.activity("[{}][PR #{}] listing failed and skipped runs", repo, pr_no)
-  removed = list(pr_runs(repo, pr_no, "FAIL | ^SKIP | ^NULL", runs=all_runs, noninteractive=True))
+  removed = list(pr_runs(repo, pr_no, "'FAIL | 'SKIP | 'NULL", runs=all_runs, noninteractive=True))
   if not removed:
     log.info("[{}][PR #{}] no failed nor skipped runs", repo, pr_no)
   else:
@@ -653,7 +653,7 @@ def pr_closed(
 
   log.activity("[{}][PR #{}] listing good 'basic validation' runs", repo, pr_no)
   basic_validation_runs = list(
-    pr_runs(repo, pr_no, "GOOD", "updated", runs=all_runs, noninteractive=True)
+    pr_runs(repo, pr_no, "'GOOD", "updated", runs=all_runs, noninteractive=True)
   )
   if not basic_validation_runs:
     log.warning("[{}][PR #{}] no good 'basic validation' run", repo, pr_no)
@@ -674,7 +674,7 @@ def pr_closed(
 
   log.activity("[{}][PR #{}] listing good 'full validation' runs", repo, pr_no)
   full_validation_runs = list(
-    pr_runs(repo, pr_no, "GOOD", "reviewed, approved", runs=all_runs, noninteractive=True)
+    pr_runs(repo, pr_no, "'GOOD", "reviewed, 'approved", runs=all_runs, noninteractive=True)
   )
   if not full_validation_runs:
     log.error("[{}][PR #{}] no good 'full validation' run!", repo, pr_no)
@@ -730,7 +730,7 @@ def pr_runs(
   repo: str, pr_no: int, result: str | None = None, category: str | None = None, **select_args
 ) -> Generator[WorkflowRun, None, None]:
   filter = (
-    f"{'^'+result+' ' if result else ''}'PR '#{pr_no} '[{category if category is not None else ''}"
+    f"{result+' ' if result else ''}'PR '#{pr_no} '[{category if category is not None else ''}"
   )
   select_args.setdefault("prompt", f"runs for PR #{pr_no}")
   return WorkflowRun.select(repo, filter, **select_args)
