@@ -45,10 +45,15 @@ jobs:
 
       - name: "Clean up workflow runs"
         run: |
-          src/uno/scripts/cleanup_closed_pull_request.sh \
-            ${{ github.repository }} \
-            ${{ github.event_name == 'pull_request' && github.event.pull_request.number || inputs.pr-number }} \
-            ${{ github.event_name == 'pull_request' && github.event.pull_request.merged || inputs.pr-merged }}
+          docker run --rm \
+            -v $(pwd):/workspace \
+            -e GH_TOKEN=${GH_TOKEN} \
+            -w /workspace \
+            ${ADMIN_IMAGE} \
+            src/uno/scripts/ci-admin pr-closed \
+              -r ${{ github.repository }} \
+              -N ${{ github.event_name == 'pull_request' && github.event.pull_request.number || inputs.pr-number }} \
+              ${{ (github.event_name == 'pull_request' && github.event.pull_request.merged || inputs.pr-merged) && '-m' || '' }}
         env:
           GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
           ADMIN_IMAGE: ghcr.io/mentalsmash/uno-ci-admin:latest

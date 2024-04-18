@@ -1,0 +1,699 @@
+#!/usr/bin/env python3
+
+import json
+import os
+import re
+import sys
+import subprocess
+import argparse
+import tempfile
+import contextlib
+import traceback
+from functools import partial
+from pathlib import Path
+from typing import Generator, NamedTuple, TextIO, Protocol
+from datetime import datetime
+
+ScriptsDir = Path(__file__).parent
+ScriptNoninteractiveRequired = not sys.stdin.isatty() or not sys.stdout.isatty()
+ScriptNoninteractive = True
+
+###############################################################################
+# Global hooks to produce output to stdout, and possibly tabulate it
+###############################################################################
+TabulateEnabled = True
+TabulateOutput = None
+TabulateColumns = []
+
+
+def tabulate_columns(*columns: list[str]) -> None:
+  global TabulateColumns
+  TabulateColumns.clear()
+  TabulateColumns.extend(columns)
+
+
+def output(*fields):
+  global TabulateOutput
+  global TabulateEnabled
+  if TabulateEnabled and TabulateOutput is None:
+    try:
+      TabulateOutput = subprocess.Popen(
+        ["column", "-t", "-s", "\t"], stdin=subprocess.PIPE, stderr=subprocess.PIPE
+      )
+      if TabulateColumns:
+        columns = "\t".join(col.upper().replace("_", " ") for col in TabulateColumns)
+        TabulateOutput.stdin.write(columns.encode())
+        TabulateOutput.stdin.write("\n".encode())
+    except Exception:
+      # The process failed, assume column is not available
+      # and don't try to tabulate again
+      TabulateEnabled = False
+
+  line = "\t".join(fields).strip()
+  if not TabulateOutput:
+    print(line)
+  else:
+    TabulateOutput.stdin.write(line.encode())
+    TabulateOutput.stdin.write("\n".encode())
+
+
+###############################################################################
+# mini logger API
+###############################################################################
+ColorEnabled = sys.stderr.isatty() and not os.environ.get("NO_COLORS", False)
+try:
+  import termcolor
+except Exception:
+  ColorEnabled = False
+
+
+def _log_msg(lvl, fmt, *args, **print_args) -> None:
+  print_args.setdefault("file", sys.stderr)
+  line = fmt.format(*args) if args else fmt
+  line = f"[{lvl}]" + ("" if line.startswith("[") else " ") + line
+  if ColorEnabled:
+    color = {
+      "D": "magenta",
+      "A": "cyan",
+      "I": "green",
+      "W": "yellow",
+      "E": "red",
+    }[lvl]
+    line = termcolor.colored(line, color)
+  print(line, **print_args)
+
+
+def _log_debug(*args, **print_args) -> None:
+  return _log_msg("D", *args, **print_args)
+
+
+def _log_activity(*args, **print_args) -> None:
+  return _log_msg("A", *args, **print_args)
+
+
+def _log_info(*args, **print_args) -> None:
+  return _log_msg("I", *args, **print_args)
+
+
+def _log_error(*args, **print_args) -> None:
+  return _log_msg("E", *args, **print_args)
+
+
+def _log_warning(*args, **print_args) -> None:
+  return _log_msg("W", *args, **print_args)
+
+
+def _log_command(cmd: list[str], shell: bool = False, check: bool = False, **print_args) -> None:
+  import shlex
+
+  if shell:
+    cmd = ["sh", f"-{'e' if check else ''}c", *cmd]
+  _log_debug("+ " + " ".join(["{}"] * len(cmd)), *(map(shlex.quote, cmd)), **print_args)
+
+
+class LogFunction(Protocol):
+  def __call__(self, *args, **print_args) -> None:
+    pass
+
+
+class LogCommandFunction(Protocol):
+  def __call__(
+    self, cmd: list[str], shell: bool = False, check: bool = False, **print_args
+  ) -> None:
+    pass
+
+
+class Logger(NamedTuple):
+  debug: LogFunction
+  activity: LogFunction
+  info: LogFunction
+  warning: LogFunction
+  error: LogFunction
+  command: LogCommandFunction
+
+
+log = Logger(_log_debug, _log_activity, _log_info, _log_warning, _log_error, _log_command)
+
+
+###############################################################################
+# Parse/print dates in the format used by the GH API
+###############################################################################
+def github_date_parse(date: str) -> datetime:
+  return datetime.strptime(date, "%Y-%m-%dT%H:%M:%SZ")
+
+
+def github_date_str(date: datetime) -> str:
+  return date.strftime("%Y-%m-%dT%H:%M:%SZ")
+
+
+###############################################################################
+# GitHub Workflow Run data object (parsed from query result)
+###############################################################################
+class WorkflowRun(NamedTuple):
+  outcome: str
+  date: datetime
+  id: int
+  event: str
+  name: str
+
+  ParseRe = re.compile(r"^([^ \t]+)[ \t]+([^ \t]+)[ \t]+([^ \t]+)[ \t]+([^ \t]+)[ \t]+(.*)$")
+
+  @classmethod
+  def build(cls, *args) -> "WorkflowRun":
+    args = list(args)
+    if not isinstance(args[1], datetime):
+      args[1] = github_date_parse(args[1])
+    return cls(*args)
+
+  def __str__(self) -> str:
+    fields = list(self)
+    fields[1] = github_date_str(fields[1])
+    return "\t".join(map(str, fields))
+
+  @classmethod
+  def parse(cls, run: str) -> "WorkflowRun | None":
+    try:
+      fields = cls.ParseRe.findall(run)[0]
+      return WorkflowRun.build(*fields)
+    except Exception:
+      log.error("failed to parse {}: '{}'", cls.__qualname__, run)
+      traceback.print_exc()
+      return None
+
+
+###############################################################################
+# GitHub Package data object (parsed from query result)
+###############################################################################
+class Package(NamedTuple):
+  id: str
+  name: str
+  visibility: str
+  repository: str
+  created_at: datetime
+  updated_at: datetime
+
+  DatetimeFields = [4, 5]
+
+  ParseRe = re.compile(
+    r"^([^ \t]+)[ \t]+([^ \t]+)[ \t]+([^ \t]+)[ \t]+([^ \t]+)[ \t]+([^ \t]+)[ \t]+(.+)$"
+  )
+
+  @classmethod
+  def build(cls, *args) -> "Package":
+    args = list(args)
+    for i in cls.DatetimeFields:
+      if not isinstance(args[i], datetime):
+        args[i] = github_date_parse(args[i])
+    return cls(*args)
+
+  def __str__(self) -> str:
+    fields = list(self)
+    for i in self.DatetimeFields:
+      fields[i] = github_date_str(fields[i])
+    return "\t".join(map(str, fields))
+
+  @classmethod
+  def parse(cls, package_line: str) -> "WorkflowRun | None":
+    try:
+      fields = cls.ParseRe.findall(package_line)[0]
+      return Package.build(*fields)
+    except Exception:
+      log.error("failed to parse {}: '{}'", cls.__qualname__, package_line)
+      traceback.print_exc()
+      return None
+
+
+###############################################################################
+# Perform cleanup procedures after on a closed Pull Request
+###############################################################################
+def pr_closed(
+  repo: str, pr_no: int, merged: bool, noop: bool = False
+) -> list[tuple[bool, WorkflowRun]]:
+  def _result(
+    removed: list[WorkflowRun], preserved: list[WorkflowRun]
+  ) -> list[tuple[bool, WorkflowRun]]:
+    result = [*((True, run) for run in removed), *((False, run) for run in preserved)]
+    return sorted(result, key=lambda v: v[1].date)
+
+  all_runs = pr_runs(repo, pr_no, noninteractive=True)
+
+  if not all_runs:
+    log.warning("[{}][PR #{}] PR was closed without any workflow run", repo, pr_no)
+    return []
+
+  log.info("[{}][PR #{}] {} runs detected", repo, pr_no, len(all_runs))
+  for i, run in enumerate(all_runs):
+    log.info(" {}. {}", i + 1, run)
+
+  if not merged:
+    log.warning("[{}][PR #{}] deleting all {} runs for unmerged PR", pr_no, repo, len(all_runs))
+    removed = delete_workflow_runs(repo, noop=noop, runs=all_runs)
+    preserved = [run for run in all_runs if run not in removed]
+    return _result(removed, preserved)
+
+  log.activity("[{}][PR #{}] listing failed runs", repo, pr_no)
+  removed = list(
+    pr_runs(repo, pr_no, "FAIL | ^startup_FAIL | ^cancelled", runs=all_runs, noninteractive=True)
+  )
+  if not removed:
+    log.info("[{}][PR #{}] no failed runs", repo, pr_no)
+  else:
+    log.info("[{}][PR #{}] {} failed runs", repo, pr_no, len(removed))
+
+  preserved = []
+
+  log.activity("[{}][PR #{}] listing good 'basic validation' runs", repo, pr_no)
+  basic_validation_runs = list(
+    pr_runs(repo, pr_no, "GOOD", "updated", runs=all_runs, noninteractive=True)
+  )
+  if not basic_validation_runs:
+    log.warning("[{}][PR #{}] no good 'basic validation' run", repo, pr_no)
+  else:
+    basic_validation_delete = basic_validation_runs[:-1]
+    log.info(
+      "[{}][PR #{}] {} good 'basic validation' runs to delete",
+      repo,
+      pr_no,
+      len(basic_validation_delete),
+    )
+    for i, run in enumerate(basic_validation_delete):
+      log.info(" {}. {}", i, run)
+    removed.extend(basic_validation_delete)
+    basic_validation_run = basic_validation_runs[-1]
+    log.info("[{}][PR #{}] 'basic validation' run: {}", repo, pr_no, basic_validation_run)
+    preserved.append(basic_validation_run)
+
+  log.activity("[{}][PR #{}] listing good 'full validation' runs", repo, pr_no)
+  full_validation_runs = list(
+    pr_runs(repo, pr_no, "GOOD", "reviewed, approved", runs=all_runs, noninteractive=True)
+  )
+  if not full_validation_runs:
+    log.error("[{}][PR #{}] no good 'full validation' run!", repo, pr_no)
+    raise RuntimeError(f"no good 'full validation' run for PR #{pr_no} of {repo}")
+  else:
+    full_validation_delete = full_validation_runs[:-1]
+    log.info(
+      "[{}][PR #{}] {} good 'full validation' runs to delete",
+      repo,
+      pr_no,
+      len(full_validation_delete),
+    )
+    for i, run in enumerate(full_validation_delete):
+      log.info(" {}. {}", i, run)
+    removed.extend(full_validation_delete)
+    full_validation_run = full_validation_runs[-1]
+    log.info("[{}][PR #{}] 'full validation' run: {}", repo, pr_no, full_validation_run)
+    preserved.append(full_validation_run)
+
+  if preserved:
+    log.info("[{}][PR #{}] {} candidates for ARCHIVAL", repo, pr_no, len(preserved))
+    if not ScriptNoninteractive:
+      removed.extend(select_workflow_runs(repo, runs=preserved, prompt="don't archive"))
+  else:
+    log.warning("[{}][PR #{}] no runs selected for ARCHIVAL", repo, pr_no)
+
+  if removed:
+    log.info("[{}][PR #{}] {} candidates for DELETION", repo, pr_no, len(removed))
+    actually_removed = delete_workflow_runs(repo, noop=noop, runs=removed)
+  else:
+    actually_removed = []
+    log.info("[{}][PR #{}] no runs selected for DELETION", repo, pr_no)
+
+  preserved.extend(run for run in removed if run not in actually_removed)
+
+  if not actually_removed:
+    log.info("[{}][PR #{}] no runs deleted", repo, pr_no)
+  else:
+    log.warning("[{}][PR #{}] {} runs DELETED", repo, pr_no, len(actually_removed))
+
+  if not preserved:
+    log.warning("[{}][PR #{}] no runs archived", repo, pr_no)
+  else:
+    log.warning("[{}][PR #{}] {} runs ARCHIVED", repo, pr_no, len(preserved))
+
+  return _result(actually_removed, preserved)
+
+
+###############################################################################
+# Perform cleanup procedures after on a closed Pull Request
+###############################################################################
+def pr_runs(
+  repo: str, pr_no: int, result: str | None = None, category: str | None = None, **select_args
+) -> Generator[WorkflowRun, None, None]:
+  filter = (
+    f"{'^'+result+' ' if result else ''}'PR '#{pr_no} '[{category if category is not None else ''}"
+  )
+  select_args.setdefault("prompt", f"runs for PR #{pr_no}")
+  return select_workflow_runs(repo, filter, **select_args)
+
+
+###############################################################################
+# Query the list of workflow runs from a repository.
+# If no filter is specified, present the user with `fzf` to select targets.
+# Otherwise, run in unattended mode with the provided filter.
+# By default, the function will query GitHub and parse the result with jq.
+# Optionally, the list of runs can be read from a pregenerated file (or stdin),
+# or it can be passed explicitly with the `runs` parameter.
+###############################################################################
+def select_workflow_runs(
+  repo: str,
+  filter: str | None = None,
+  input: str | None = None,
+  runs: list[str] | None = None,
+  prompt: str | None = None,
+  noninteractive: bool = False,
+) -> list[WorkflowRun]:
+  @contextlib.contextmanager
+  def _jqscript() -> Generator[Path, None, None]:
+    script = """\
+def symbol:
+  sub(""; "")? // "NULL" |
+  sub("skipped"; "SKIP") |
+  sub("success"; "GOOD") |
+  sub("startup_failure"; "FAIL") |
+  sub("cancelled"; "FAIL") |
+  sub("failure"; "FAIL");
+
+[ .workflow_runs[]
+  | [
+      (.conclusion | symbol),
+      .created_at,
+      .id,
+      .event,
+      .name
+    ] 
+  ]
+"""
+
+    tmp_h = tempfile.NamedTemporaryFile()
+    script_file = Path(tmp_h.name)
+    script_file.write_text(script)
+    yield script_file
+
+  def _read_and_parse_runs(input_stream: TextIO):
+    return [
+      run
+      for line in input_stream.readlines()
+      for sline in [line.decode().strip()]
+      if sline
+      for run in [WorkflowRun.parse(sline)]
+      if run
+    ]
+
+  if runs:
+    target_runs = runs
+  elif input == "-":
+    target_runs = _read_and_parse_runs(sys.stdin)
+  elif input:
+    input_file = Path(input)
+    with input_file.open("r") as istream:
+      target_runs = _read_and_parse_runs(istream)
+  else:
+    with _jqscript() as jqscript:
+      query_cmd = [f"gh api --paginate /repos/{repo}/actions/runs" " | " f"jq -r -f {jqscript}"]
+      log.command(query_cmd, shell=True, check=True)
+      result = subprocess.run(query_cmd, shell=True, check=True, stdout=subprocess.PIPE)
+      target_runs = []
+      if result.stdout:
+        run_entries = json.loads(result.stdout.decode())
+        target_runs.extend(WorkflowRun.build(*entry) for entry in run_entries)
+  if prompt is None:
+    prompt = "available runs"
+  sorted_runs = partial(sorted, key=lambda r: r.date)
+  fzf = fzf_filter(
+    filter=filter, inputs=sorted_runs(target_runs), prompt=prompt, noninteractive=noninteractive
+  )
+  return sorted_runs(_read_and_parse_runs(fzf.stdout))
+
+
+###############################################################################
+# Filter a list using fzf
+###############################################################################
+def fzf_filter(
+  filter: str | None = None,
+  inputs: list | None = None,
+  keep_stdin_open: bool = False,
+  prompt: str | None = None,
+  noninteractive: bool = False,
+) -> subprocess.Popen:
+  noninteractive = noninteractive or ScriptNoninteractive
+  if noninteractive:
+    filter_arg = "--filter"
+  else:
+    filter_arg = "--query"
+
+  if filter is None:
+    filter = ""
+
+  if prompt is None:
+    prompt = ""
+  # if prompt[-2:] != "> ":
+  prompt += " (TAB: select, ESC: none)> "
+
+  fzf_cmd = ["fzf", "-0", "--tac", "--no-sort", "--multi", "--prompt", prompt, filter_arg, filter]
+  log.command(fzf_cmd)
+  fzf = subprocess.Popen(fzf_cmd, stdout=subprocess.PIPE, stdin=subprocess.PIPE)
+  if inputs:
+    for run in inputs:
+      line = str(run).strip()
+      fzf.stdin.write(line.encode())
+      fzf.stdin.write("\n".encode())
+    if not keep_stdin_open:
+      fzf.stdin.close()
+  return fzf
+
+
+###############################################################################
+# Delete all (or a filtered subset) of the workflow runs from a repository,
+###############################################################################
+def delete_workflow_runs(
+  repo: str,
+  filter: str | None = None,
+  noop: bool = False,
+  input: str | None = None,
+  runs: list[str] | None = None,
+  prompt: str | None = None,
+) -> list[WorkflowRun]:
+  def _delete_run(run: WorkflowRun):
+    delete_cmd = ["gh", "api", "-X", "DELETE", f"/repos/{repo}/actions/runs/{run.id}"]
+    log.command(delete_cmd, check=True)
+    subprocess.run(delete_cmd, check=True)
+
+  deleted = []
+  if prompt is None:
+    prompt = "runs to delete"
+  for run in select_workflow_runs(repo, filter, input, runs, prompt=prompt):
+    print("SELECTED FOR DELETION", run)
+    if not noop:
+      _delete_run(run)
+    deleted.append(run)
+  if noop:
+    log.warning("[{}] {} runs selected but not actually deleted", repo, len(deleted))
+  else:
+    log.warning("[{}] {} runs DELETED", repo, len(deleted))
+  return deleted
+
+
+###############################################################################
+# List available packages for the current user or an organization
+###############################################################################
+# GitHub API documentation: https://docs.github.com/en/rest/reference/packages
+GitHubApiAccept = "application/vnd.github.v3+json"
+# https://docs.github.com/en/rest/overview/api-versions?apiVersion=2022-11-28
+GitHubApiVersion = "2022-11-28"
+
+
+def gh_ls_packages(org: str | None = None) -> Generator[Package, None, None]:
+  jq_filter = (
+    "[ (.[] | [.id, .name, .visibility, .repository.full_name , .created_at, .updated_at]) ]"
+  )
+  url = (
+    f"/orgs/{org}/packages?package_type=container"
+    if org
+    else "/user/packages?package_type=container"
+  )
+  cmd = [
+    "gh api "
+    f"-H 'Accept: {GitHubApiAccept}' "
+    f"-H 'X-GitHub-Api-Version: {GitHubApiVersion}' "
+    f"{url} | "
+    f"jq '{jq_filter}'"
+  ]
+  log.activity("listing packages for {}", org if org else "current user")
+  log.command(cmd, shell=True, check=True)
+  result = subprocess.run(cmd, shell=True, check=True, stdout=subprocess.PIPE)
+  if not result.stdout:
+    return []
+  for pkg_entry in json.loads(result.stdout.decode()):
+    pkg = Package.build(*pkg_entry)
+    yield pkg
+
+
+def select_packages(
+  org: str | None = None, filter: str | None = None, prompt: str | None = None
+) -> list[Package]:
+  def _read_and_parse_package(input_stream: TextIO):
+    return [
+      pkg
+      for line in input_stream.readlines()
+      for sline in [line.decode().strip()]
+      if sline
+      for pkg in [Package.parse(sline)]
+      if pkg
+    ]
+
+  packages = list(gh_ls_packages(org=org))
+  if prompt is None:
+    prompt = "available packages"
+  sort_packages = partial(sorted, key=lambda p: p.updated_at)
+  fzf = fzf_filter(filter=filter, inputs=sort_packages(packages), prompt=prompt)
+  return sort_packages(_read_and_parse_package(fzf.stdout))
+
+
+###############################################################################
+# Command-line arguments parser
+###############################################################################
+def define_parser() -> argparse.ArgumentParser:
+  parser = argparse.ArgumentParser("ci-admin")
+  parser.set_defaults(action=None)
+
+  parser.add_argument(
+    "-n", "--noop", help="Don't make any changes if possible.", default=False, action="store_true"
+  )
+
+  parser.add_argument(
+    "-R", "--raw", help="Don't process output (e.g. tabulate)", default=False, action="store_true"
+  )
+
+  parser.add_argument(
+    "-i", "--interactive", help="Run in interactive mode.", default=False, action="store_true"
+  )
+
+  subparsers = parser.add_subparsers(dest="action")
+
+  parser_pr_closed = subparsers.add_parser(
+    "pr-closed", help="Clean up workflow runs for a closed PR."
+  )
+  parser_pr_closed.add_argument(
+    "-r", "--repository", help="Target GitHub repository (owner/repo).", required=True
+  )
+  parser_pr_closed.add_argument("-N", "--number", help="PR number.", required=True, type=int)
+  parser_pr_closed.add_argument(
+    "-m", "--merged", help="The PR was merged.", default=False, action="store_true"
+  )
+
+  parser_pr_ls_runs = subparsers.add_parser("pr-runs", help="List existing workflow runs for a PR.")
+  parser_pr_ls_runs.add_argument(
+    "-r", "--repository", help="Target GitHub repository (owner/repo).", required=True
+  )
+  parser_pr_ls_runs.add_argument("-N", "--number", help="PR number.", required=True, type=int)
+
+  parser_ls_runs = subparsers.add_parser(
+    "select-runs", help="List all workflow runs, or a subset matching an fzf filter."
+  )
+  parser_ls_runs.add_argument(
+    "-r", "--repository", help="Target GitHub repository (owner/repo).", required=True
+  )
+  parser_ls_runs.add_argument(
+    "-f", "--filter", help="Custom zfz filter to run in unattended mode.", default=None
+  )
+  parser_ls_runs.add_argument(
+    "-i",
+    "--input",
+    help="Read entries from the specified file instead of querying GitHub. "
+    "Use - to read from stdin",
+    default=None,
+  )
+
+  parser_delete_runs = subparsers.add_parser(
+    "delete-runs", help="Delete all workflow runs, or a subset matching an fzf filter."
+  )
+  parser_delete_runs.add_argument(
+    "-r", "--repository", help="Target GitHub repository (owner/repo).", required=True
+  )
+  parser_delete_runs.add_argument(
+    "-f", "--filter", help="Custom zfz filter to run in unattended mode.", default=None
+  )
+  parser_delete_runs.add_argument(
+    "-i",
+    "--input",
+    help="Read entries from the specified file instead of querying GitHub. "
+    "Use - to read from stdin",
+    default=None,
+  )
+
+  parser_ls_pkgs = subparsers.add_parser(
+    "select-pkgs", help="List packages for an organization (or the current user)."
+  )
+  parser_ls_pkgs.add_argument("-o", "--org", help="Target GitHub organization.", default=None)
+  parser_ls_pkgs.add_argument(
+    "-f", "--filter", help="Custom zfz filter to run in unattended mode.", default=None
+  )
+
+  return parser
+
+
+###############################################################################
+# Action dispatcher
+###############################################################################
+def dispatch_action(args: argparse.Namespace) -> None:
+  try:
+    if args.action == "pr-closed":
+      result = pr_closed(
+        repo=args.repository, pr_no=args.number, merged=args.merged, noop=args.noop
+      )
+      tabulate_columns("action", *WorkflowRun._fields)
+      for removed, run in result:
+        output("DEL" if removed else "KEEP", str(run))
+    elif args.action == "pr-runs":
+      tabulate_columns(*WorkflowRun._fields)
+      for run in pr_runs(repo=args.repository, pr_no=args.number):
+        output(str(run))
+    elif args.action == "select-runs":
+      tabulate_columns(*WorkflowRun._fields)
+      for run in select_workflow_runs(repo=args.repository, filter=args.filter, input=args.input):
+        output(str(run))
+    elif args.action == "delete-runs":
+      tabulate_columns(*WorkflowRun._fields)
+      for run in delete_workflow_runs(
+        repo=args.repository, filter=args.filter, noop=args.noop, input=args.input
+      ):
+        output(str(run))
+    elif args.action == "select-pkgs":
+      tabulate_columns(*Package._fields)
+      for pkg in select_packages(org=args.org, filter=args.filter):
+        output(str(pkg))
+    else:
+      raise RuntimeError("action not implemented", args.action)
+  finally:
+    if TabulateOutput:
+      TabulateOutput.stdin.close()
+
+
+###############################################################################
+# Script main()
+###############################################################################
+def main() -> None:
+  parser = define_parser()
+  args = parser.parse_args()
+
+  if args.raw:
+    global TabulateEnabled
+    TabulateEnabled = False
+
+  if args.interactive:
+    if ScriptNoninteractiveRequired:
+      raise RuntimeError("interactive requires a terminal")
+    global ScriptNoninteractive
+    ScriptNoninteractive = False
+
+  if not args.action:
+    log.error("no action specified")
+    parser.print_help()
+    sys.exit(1)
+
+  dispatch_action(args)
+
+
+if __name__ == "__main__":
+  main()
