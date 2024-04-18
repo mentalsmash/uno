@@ -55,6 +55,8 @@ jobs:
               -N ${{ github.event_name == 'pull_request' && github.event.pull_request.number || inputs.pr-number }} \
               ${{ (github.event_name == 'pull_request' && github.event.pull_request.merged || inputs.pr-merged) && '-m' || '' }}
         env:
-          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          # Changes to actions (e.g. delete workflow runs) require a PAT, and don't work with the GITHUB_TOKEN
+          # see https://docs.github.com/en/rest/actions/workflow-runs?apiVersion=2022-11-28#delete-a-workflow-run
+          GH_TOKEN: ${{ secrets.UNO_CI_ADMIN_PAT }}
           ADMIN_IMAGE: ghcr.io/mentalsmash/uno-ci-admin:latest
 

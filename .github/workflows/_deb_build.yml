@@ -86,7 +86,7 @@ jobs:
               base_image=ghcr.io/mentalsmash/uno-ci-base-tester:${deb_builder_tag}
               ;;
             false)
-              rti_license_file=${{ github.workspace }}/src/uno-ci/resource/rti/rti_license.dat
+              rti_license_file=${{ github.workspace }}/src/uno-ci/docker/base-tester/resource/rti/rti_license.dat
               base_image=${{ inputs.base-tag }}
               ;;
           esac
