@@ -91,7 +91,7 @@ jobs:
         if: inputs.install-rti-license
         run: |
           . venv/bin/activate
-          RTI_LICENSE_FILE=src/uno-ci/resource/rti/rti_license.dat \
+          RTI_LICENSE_FILE=src/uno-ci/docker/base-tester/resource/rti/rti_license.dat \
           UNO_IMAGE=${{inputs.tag}} \
           PLATFORM=${{inputs.platform}} \
           FORCE_PULL=yes \
