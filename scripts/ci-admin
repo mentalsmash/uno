@@ -238,11 +238,13 @@ def gh_api(
   default: object = None,
   noop: bool = False,
   query: bool = True,
+  method: str = "GET",
 ) -> dict | list | None:
   cmd = [
     "gh api "
     f"-H 'Accept: {GitHubApiAccept}' "
     f"-H 'X-GitHub-Api-Version: {GitHubApiVersion}' "
+    f"{('-X ' + method) if method else ''}"
     f"{url}"
   ]
   if jq_filter:
@@ -1019,6 +1021,9 @@ def main() -> None:
       raise RuntimeError("interactive requires a terminal")
     global ScriptNoninteractive
     ScriptNoninteractive = False
+
+  if args.current:
+    WorkflowRun.Current = args.current
 
   if not args.action:
     log.error("no action specified")

@@ -13,9 +13,9 @@ on:
         type: number
         required: true
       pr-merged:
-        description: "Whether the PR was merged or not"
+        description: "Merged"
         type: boolean
-        default: false
+        default: true
 
 
 concurrency:
