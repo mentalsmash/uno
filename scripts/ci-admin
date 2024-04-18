@@ -60,8 +60,6 @@ import re
 import sys
 import subprocess
 import argparse
-import tempfile
-import contextlib
 import traceback
 from functools import partial
 from pathlib import Path
@@ -269,11 +267,14 @@ class DataObject:
   @classmethod
   def build(cls, obj_cls: type[NamedTuple], *args) -> NamedTuple:
     cls.data_object(obj_cls)
-    args = list(args)
-    for i in obj_cls.DatetimeFields:
-      if not isinstance(args[i], datetime):
-        args[i] = github_date_parse(args[i])
-    return obj_cls(*args)
+    build_args = list(args)
+    for i, arg in enumerate(args):
+      if i in obj_cls.DatetimeFields:
+        if not isinstance(arg, datetime):
+          build_args[i] = github_date_parse(arg)
+      elif isinstance(arg, str):
+        build_args[i] = arg.strip()
+    return obj_cls(*build_args)
 
   @classmethod
   def parse(cls, obj_cls: type[NamedTuple], package_line: str) -> object | None:
@@ -326,13 +327,36 @@ def build(obj_cls: type[NamedTuple], *args) -> object | None:
 # GitHub Workflow Run data object (parsed from query result)
 ###############################################################################
 class WorkflowRun(NamedTuple):
-  outcome: str
-  date: datetime
   id: int
+  created_at: datetime
+  updated_at: datetime
   event: str
+  status: str
+  outcome: str
   name: str
 
-  DatetimeFields = [1]
+  DatetimeFields = [1, 2]
+  SelectQuery = """\
+def symbol:
+  sub(""; "")? // "NULL" |
+  sub("skipped"; "SKIP") |
+  sub("success"; "GOOD") |
+  sub("startup_failure"; "FAIL") |
+  sub("cancelled"; "FAIL") |
+  sub("failure"; "FAIL");
+
+[ .workflow_runs[]
+  | [
+      .id,
+      .created_at,
+      .updated_at,
+      .event,
+      .status,
+      (.conclusion | symbol),
+      .name
+    ] 
+  ]
+"""
 
   def __str__(self) -> str:
     return DataObject.str(self)
@@ -355,33 +379,6 @@ class WorkflowRun(NamedTuple):
     prompt: str | None = None,
     noninteractive: bool = False,
   ) -> list["WorkflowRun"]:
-    @contextlib.contextmanager
-    def _jqscript() -> Generator[Path, None, None]:
-      script = """\
-def symbol:
-  sub(""; "")? // "NULL" |
-  sub("skipped"; "SKIP") |
-  sub("success"; "GOOD") |
-  sub("startup_failure"; "FAIL") |
-  sub("cancelled"; "FAIL") |
-  sub("failure"; "FAIL");
-
-[ .workflow_runs[]
-  | [
-      (.conclusion | symbol),
-      .created_at,
-      .id,
-      .event,
-      .name
-    ] 
-  ]
-"""
-
-      tmp_h = tempfile.NamedTemporaryFile()
-      script_file = Path(tmp_h.name)
-      script_file.write_text(script)
-      yield script_file
-
     def _read_and_parse_runs(input_stream: TextIO) -> list[WorkflowRun]:
       return [
         run
@@ -401,17 +398,20 @@ def symbol:
       with input_file.open("r") as istream:
         target_runs = _read_and_parse_runs(istream)
     else:
-      with _jqscript() as jqscript:
-        query_cmd = [f"gh api --paginate /repos/{repo}/actions/runs" " | " f"jq -r -f {jqscript}"]
-        log.command(query_cmd, shell=True, check=True)
-        result = subprocess.run(query_cmd, shell=True, check=True, stdout=subprocess.PIPE)
-        target_runs = []
-        if result.stdout:
-          run_entries = json.loads(result.stdout.decode())
-          target_runs.extend(DataObject.build(cls, *entry) for entry in run_entries)
+      read_cmd = ["gh", "api", "--paginate", f"/repos/{repo}/actions/runs"]
+      log.command(read_cmd)
+      read_process = subprocess.Popen(read_cmd, stdout=subprocess.PIPE)
+      jq_cmd = ["jq", WorkflowRun.SelectQuery]
+      log.command(jq_cmd)
+      result = subprocess.run(jq_cmd, stdin=read_process.stdout, stdout=subprocess.PIPE, check=True)
+      target_runs = []
+      if result.stdout:
+        result = result.stdout.decode()
+        run_entries = json.loads(result)
+        target_runs.extend(DataObject.build(cls, *entry) for entry in run_entries)
     if prompt is None:
       prompt = "available runs"
-    sorted_runs = partial(sorted, key=lambda r: r.date)
+    sorted_runs = partial(sorted, key=lambda r: r.created_at)
     fzf = fzf_filter(
       filter=filter, inputs=sorted_runs(target_runs), prompt=prompt, noninteractive=noninteractive
     )
@@ -454,9 +454,9 @@ def symbol:
 ###############################################################################
 class Package(NamedTuple):
   id: str
+  repository: str
   name: str
   visibility: str
-  repository: str
   created_at: datetime
   updated_at: datetime
 
@@ -479,7 +479,7 @@ class Package(NamedTuple):
   ) -> list["Package"]:
     def _ls_packages() -> Generator[Package, None, None]:
       jq_filter = (
-        "[ (.[] | [.id, .name, .visibility, .repository.full_name , .created_at, .updated_at]) ]"
+        "[ (.[] | [.id, .repository.full_name, .name, .visibility, .created_at, .updated_at]) ]"
       )
       url = (
         f"/orgs/{org}/packages?package_type={package_type}"
@@ -611,17 +611,21 @@ class PackageVersion(NamedTuple):
 
 
 ###############################################################################
+# Combine the result arrays of an action which deletes/keeps workflow runs
+###############################################################################
+def workflow_run_action_result(
+  removed: list[WorkflowRun], preserved: list[WorkflowRun]
+) -> list[tuple[bool, WorkflowRun]]:
+  result = [*((True, run) for run in removed), *((False, run) for run in preserved)]
+  return sorted(result, key=lambda v: v[1].created_at)
+
+
+###############################################################################
 # Perform cleanup procedures after on a closed Pull Request
 ###############################################################################
 def pr_closed(
   repo: str, pr_no: int, merged: bool, noop: bool = False
 ) -> list[tuple[bool, WorkflowRun]]:
-  def _result(
-    removed: list[WorkflowRun], preserved: list[WorkflowRun]
-  ) -> list[tuple[bool, WorkflowRun]]:
-    result = [*((True, run) for run in removed), *((False, run) for run in preserved)]
-    return sorted(result, key=lambda v: v[1].date)
-
   all_runs = pr_runs(repo, pr_no, noninteractive=True)
 
   if not all_runs:
@@ -636,10 +640,10 @@ def pr_closed(
     log.warning("[{}][PR #{}] deleting all {} runs for unmerged PR", pr_no, repo, len(all_runs))
     removed = WorkflowRun.delete(repo, noop=noop, runs=all_runs)
     preserved = [run for run in all_runs if run not in removed]
-    return _result(removed, preserved)
+    return workflow_run_action_result(removed, preserved)
 
   log.activity("[{}][PR #{}] listing failed and skipped runs", repo, pr_no)
-  removed = list(pr_runs(repo, pr_no, "FAIL | ^SKIP | ^NULL", runs=all_runs, noninteractive=True))
+  removed = list(pr_runs(repo, pr_no, "'FAIL | 'SKIP | 'NULL", runs=all_runs, noninteractive=True))
   if not removed:
     log.info("[{}][PR #{}] no failed nor skipped runs", repo, pr_no)
   else:
@@ -649,7 +653,7 @@ def pr_closed(
 
   log.activity("[{}][PR #{}] listing good 'basic validation' runs", repo, pr_no)
   basic_validation_runs = list(
-    pr_runs(repo, pr_no, "GOOD", "updated", runs=all_runs, noninteractive=True)
+    pr_runs(repo, pr_no, "'GOOD", "updated", runs=all_runs, noninteractive=True)
   )
   if not basic_validation_runs:
     log.warning("[{}][PR #{}] no good 'basic validation' run", repo, pr_no)
@@ -670,7 +674,7 @@ def pr_closed(
 
   log.activity("[{}][PR #{}] listing good 'full validation' runs", repo, pr_no)
   full_validation_runs = list(
-    pr_runs(repo, pr_no, "GOOD", "reviewed, approved", runs=all_runs, noninteractive=True)
+    pr_runs(repo, pr_no, "'GOOD", "reviewed, 'approved", runs=all_runs, noninteractive=True)
   )
   if not full_validation_runs:
     log.error("[{}][PR #{}] no good 'full validation' run!", repo, pr_no)
@@ -716,7 +720,7 @@ def pr_closed(
   else:
     log.warning("[{}][PR #{}] {} runs ARCHIVED", repo, pr_no, len(preserved))
 
-  return _result(actually_removed, preserved)
+  return workflow_run_action_result(actually_removed, preserved)
 
 
 ###############################################################################
@@ -726,10 +730,77 @@ def pr_runs(
   repo: str, pr_no: int, result: str | None = None, category: str | None = None, **select_args
 ) -> Generator[WorkflowRun, None, None]:
   filter = (
-    f"{'^'+result+' ' if result else ''}'PR '#{pr_no} '[{category if category is not None else ''}"
+    f"{result+' ' if result else ''}'PR '#{pr_no} '[{category if category is not None else ''}"
   )
   select_args.setdefault("prompt", f"runs for PR #{pr_no}")
   return WorkflowRun.select(repo, filter, **select_args)
+
+
+###############################################################################
+# Nightly Release - periodic cleanup
+###############################################################################
+def nightly_cleanup(repo: str, noop: bool = False) -> None:
+  preserved = []
+  removed = []
+
+  def _pick_preserved(runs: list[WorkflowRun]) -> list[WorkflowRun]:
+    latest = runs[-1]
+    result = [latest]
+    if latest.outcome != "GOOD":
+      latest_ok = next((run for run in reversed(runs) if run.outcome == "GOOD"), None)
+      if latest_ok:
+        result.append(latest_ok)
+    return result
+
+  def _scan_runs(run_type: str, filter: str, remove_all: bool = False) -> list[WorkflowRun]:
+    runs = WorkflowRun.select(repo, filter, noninteractive=True)
+    if not runs:
+      log.warning("[{}] no {} detected", repo, run_type)
+    else:
+      log.info("[{}] {} {} runs detected", repo, run_type, len(runs))
+      for i, run in enumerate(runs):
+        log.info("[{}] {}. {}", repo, i, run)
+      if not remove_all:
+        preserved.extend(_pick_preserved(runs))
+    for run in runs:
+      if run in preserved:
+        continue
+      removed.append(run)
+    return runs
+
+  _ = _scan_runs("nighlty releases", "!'deb 'release !'cleanup '[nightly")
+  _ = _scan_runs("nighlty DEB releases", "'deb 'release '[nightly")
+  _ = _scan_runs(
+    "nighlty release cleanup jobs", "!'deb 'release 'cleanup '[nightly", remove_all=True
+  )
+
+  if preserved:
+    log.info("[{}] {} candidates for ARCHIVAL", repo, len(preserved))
+    if not ScriptNoninteractive:
+      removed.extend(WorkflowRun.select(repo, runs=preserved, prompt="don't archive"))
+  else:
+    log.warning("[{}] no candidates for ARCHIVAL", repo)
+
+  if removed:
+    log.warning("[{}] {} candidates for DELETION", repo, len(removed))
+    actually_removed = WorkflowRun.delete(repo, noop=noop, runs=removed)
+  else:
+    log.info("[{}] no candidates for DELETION", repo)
+    actually_removed = []
+
+  preserved.extend(run for run in removed if run not in actually_removed)
+
+  if not actually_removed:
+    log.info("[{}] no runs deleted", repo)
+  else:
+    log.warning("[{}] {} runs DELETED", repo, len(actually_removed))
+
+  if not preserved:
+    log.warning("[{}] no runs archived", repo)
+  else:
+    log.warning("[{}] {} runs ARCHIVED", repo, len(preserved))
+
+  return workflow_run_action_result(removed, preserved)
 
 
 ###############################################################################
@@ -833,6 +904,13 @@ def define_parser() -> argparse.ArgumentParser:
     "-f", "--filter", help="Custom zfz filter to run in unattended mode.", default=None
   )
 
+  parser_nightly_cleanup = subparsers.add_parser(
+    "nightly-cleanup", help="Clean up workflow runs for nightly releases"
+  )
+  parser_nightly_cleanup.add_argument(
+    "-r", "--repository", help="Target GitHub repository (owner/repo).", required=True
+  )
+
   return parser
 
 
@@ -879,6 +957,10 @@ def dispatch_action(args: argparse.Namespace) -> None:
         noop=args.noop,
       ):
         output(str(run))
+    elif args.action == "nightly-cleanup":
+      tabulate_columns("action", *WorkflowRun._fields)
+      for removed, run in nightly_cleanup(repo=args.repository, noop=args.noop):
+        output("DEL" if removed else "KEEP", str(run))
     else:
       raise RuntimeError("action not implemented", args.action)
   finally:
