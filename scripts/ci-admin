@@ -195,6 +195,61 @@ log = Logger(_log_debug, _log_activity, _log_info, _log_warning, _log_error, _lo
 
 
 ###############################################################################
+# Filter a list using fzf
+###############################################################################
+def fzf_filter(
+  filter: str | None = None,
+  inputs: list | None = None,
+  keep_stdin_open: bool = False,
+  prompt: str | None = None,
+  noninteractive: bool = False,
+) -> subprocess.Popen:
+  noninteractive = noninteractive or ScriptNoninteractive
+  if noninteractive:
+    filter_arg = "--filter"
+  else:
+    filter_arg = "--query"
+
+  if filter is None:
+    filter = ""
+
+  if prompt is None:
+    prompt = ""
+  # if prompt[-2:] != "> ":
+  prompt += " (TAB: select, ESC: none)> "
+
+  fzf_cmd = ["fzf", "-0", "--tac", "--no-sort", "--multi", "--prompt", prompt, filter_arg, filter]
+  log.command(fzf_cmd)
+  fzf = subprocess.Popen(fzf_cmd, stdout=subprocess.PIPE, stdin=subprocess.PIPE)
+  if inputs:
+    for run in inputs:
+      line = str(run).strip()
+      fzf.stdin.write(line.encode())
+      fzf.stdin.write("\n".encode())
+    if not keep_stdin_open:
+      fzf.stdin.close()
+  return fzf
+
+
+###############################################################################
+# Make a GH API call, filter the result with jq, and parse the resulting JSON
+###############################################################################
+def gh_api(url: str, jq_filter: str, default: object = None) -> dict | list | None:
+  cmd = [
+    "gh api "
+    f"-H 'Accept: {GitHubApiAccept}' "
+    f"-H 'X-GitHub-Api-Version: {GitHubApiVersion}' "
+    f"{url} | "
+    f"jq '{jq_filter}'"
+  ]
+  log.command(cmd, shell=True, check=True)
+  result = subprocess.run(cmd, shell=True, check=True, stdout=subprocess.PIPE)
+  if not result.stdout:
+    return default
+  return json.loads(result.stdout.decode())
+
+
+###############################################################################
 # Parse/print dates in the format used by the GH API
 ###############################################################################
 def github_date_parse(date: str) -> datetime:
@@ -206,7 +261,7 @@ def github_date_str(date: datetime) -> str:
 
 
 ###############################################################################
-# Mixin for data objects
+# Helper for data objects
 ###############################################################################
 class DataObject:
   Parsers = {}
@@ -253,10 +308,16 @@ class DataObject:
       cls.Parsers[obj_cls] = cls.parse_re(obj_cls)
 
 
+###############################################################################
+# Shorthand for DataObject.parse()
+###############################################################################
 def parse(obj_cls: type[NamedTuple], package_line) -> NamedTuple:
   return DataObject.parse(obj_cls, package_line)
 
 
+###############################################################################
+# Shorthand for DataObject.build()
+###############################################################################
 def build(obj_cls: type[NamedTuple], *args) -> object | None:
   return DataObject.build(obj_cls, *args)
 
@@ -276,6 +337,117 @@ class WorkflowRun(NamedTuple):
   def __str__(self) -> str:
     return DataObject.str(self)
 
+  ###############################################################################
+  # Query the list of workflow runs from a repository.
+  # If no filter is specified, present the user with `fzf` to select targets.
+  # Otherwise, run in unattended mode with the provided filter.
+  # By default, the function will query GitHub and parse the result with jq.
+  # Optionally, the list of runs can be read from a pregenerated file (or stdin),
+  # or it can be passed explicitly with the `runs` parameter.
+  ###############################################################################
+  @classmethod
+  def select(
+    cls,
+    repo: str,
+    filter: str | None = None,
+    input: str | None = None,
+    runs: list[str] | None = None,
+    prompt: str | None = None,
+    noninteractive: bool = False,
+  ) -> list["WorkflowRun"]:
+    @contextlib.contextmanager
+    def _jqscript() -> Generator[Path, None, None]:
+      script = """\
+def symbol:
+  sub(""; "")? // "NULL" |
+  sub("skipped"; "SKIP") |
+  sub("success"; "GOOD") |
+  sub("startup_failure"; "FAIL") |
+  sub("cancelled"; "FAIL") |
+  sub("failure"; "FAIL");
+
+[ .workflow_runs[]
+  | [
+      (.conclusion | symbol),
+      .created_at,
+      .id,
+      .event,
+      .name
+    ] 
+  ]
+"""
+
+      tmp_h = tempfile.NamedTemporaryFile()
+      script_file = Path(tmp_h.name)
+      script_file.write_text(script)
+      yield script_file
+
+    def _read_and_parse_runs(input_stream: TextIO) -> list[WorkflowRun]:
+      return [
+        run
+        for line in input_stream.readlines()
+        for sline in [line.decode().strip()]
+        if sline
+        for run in [parse(cls, sline)]
+        if run
+      ]
+
+    if runs:
+      target_runs = runs
+    elif input == "-":
+      target_runs = _read_and_parse_runs(sys.stdin)
+    elif input:
+      input_file = Path(input)
+      with input_file.open("r") as istream:
+        target_runs = _read_and_parse_runs(istream)
+    else:
+      with _jqscript() as jqscript:
+        query_cmd = [f"gh api --paginate /repos/{repo}/actions/runs" " | " f"jq -r -f {jqscript}"]
+        log.command(query_cmd, shell=True, check=True)
+        result = subprocess.run(query_cmd, shell=True, check=True, stdout=subprocess.PIPE)
+        target_runs = []
+        if result.stdout:
+          run_entries = json.loads(result.stdout.decode())
+          target_runs.extend(DataObject.build(cls, *entry) for entry in run_entries)
+    if prompt is None:
+      prompt = "available runs"
+    sorted_runs = partial(sorted, key=lambda r: r.date)
+    fzf = fzf_filter(
+      filter=filter, inputs=sorted_runs(target_runs), prompt=prompt, noninteractive=noninteractive
+    )
+    return sorted_runs(_read_and_parse_runs(fzf.stdout))
+
+  ###############################################################################
+  # Delete all (or a filtered subset) of the workflow runs from a repository,
+  ###############################################################################
+  @classmethod
+  def delete(
+    cls,
+    repo: str,
+    filter: str | None = None,
+    noop: bool = False,
+    input: str | None = None,
+    runs: list[str] | None = None,
+    prompt: str | None = None,
+  ) -> list["WorkflowRun"]:
+    def _delete_run(run: WorkflowRun):
+      delete_cmd = ["gh", "api", "-X", "DELETE", f"/repos/{repo}/actions/runs/{run.id}"]
+      log.command(delete_cmd, check=True)
+      subprocess.run(delete_cmd, check=True)
+
+    deleted = []
+    if prompt is None:
+      prompt = "runs to delete"
+    for run in cls.select(repo, filter, input, runs, prompt=prompt):
+      if not noop:
+        _delete_run(run)
+      deleted.append(run)
+    if noop:
+      log.warning("[{}] {} runs selected but not actually deleted", repo, len(deleted))
+    else:
+      log.warning("[{}] {} runs DELETED", repo, len(deleted))
+    return deleted
+
 
 ###############################################################################
 # GitHub Package data object (parsed from query result)
@@ -293,6 +465,52 @@ class Package(NamedTuple):
   def __str__(self) -> str:
     return DataObject.str(self)
 
+  ###############################################################################
+  # List available packages for the current user or an organization
+  ###############################################################################
+  @classmethod
+  def select(
+    cls,
+    org: str | None = None,
+    filter: str | None = None,
+    package_type: str = "container",
+    prompt: str | None = None,
+    noninteractive: bool = False,
+  ) -> list["Package"]:
+    def _ls_packages() -> Generator[Package, None, None]:
+      jq_filter = (
+        "[ (.[] | [.id, .name, .visibility, .repository.full_name , .created_at, .updated_at]) ]"
+      )
+      url = (
+        f"/orgs/{org}/packages?package_type={package_type}"
+        if org
+        else "/user/packages?package_type={package_type}"
+      )
+      log.activity("listing packages for {}", org if org else "current user")
+      packages = gh_api(url, jq_filter, default=[])
+      for pkg_entry in packages:
+        pkg = build(cls, *pkg_entry)
+        yield pkg
+
+    def _read_and_parse_package(input_stream: TextIO) -> list[Package]:
+      return [
+        pkg
+        for line in input_stream.readlines()
+        for sline in [line.decode().strip()]
+        if sline
+        for pkg in [parse(cls, sline)]
+        if pkg
+      ]
+
+    packages = list(_ls_packages())
+    if prompt is None:
+      prompt = "available packages"
+    sort_packages = partial(sorted, key=lambda p: p.updated_at)
+    fzf = fzf_filter(
+      filter=filter, inputs=sort_packages(packages), prompt=prompt, noninteractive=noninteractive
+    )
+    return sort_packages(_read_and_parse_package(fzf.stdout))
+
 
 ###############################################################################
 # GitHub PackageVersion data object (parsed from query result)
@@ -308,6 +526,88 @@ class PackageVersion(NamedTuple):
 
   def __str__(self) -> str:
     return DataObject.str(self)
+
+  ###############################################################################
+  # List package versions
+  ###############################################################################
+  @classmethod
+  def select(
+    cls,
+    package: str,
+    org: str | None = None,
+    filter: str | None = None,
+    package_type: str = "container",
+    prompt: str | None = None,
+    noninteractive: bool = False,
+  ) -> list[str]:
+    def _ls_versions() -> Generator[PackageVersion, None, None]:
+      jq_filter = "[ (.[] | [.id, .name, .metadata.container.tags, .created_at, .updated_at]) ]"
+      url = (
+        f"/orgs/{org}/packages/{package_type}/{package}/versions"
+        if org
+        else f"/user/packages/{package_type}/{package}/versions"
+      )
+      versions = gh_api(url, jq_filter, default=[])
+      for version_entry in versions:
+        version = build(cls, *version_entry)
+        yield version
+
+    def _read_and_parse_versions(input_stream: TextIO) -> list[PackageVersion]:
+      return [
+        pkg
+        for line in input_stream.readlines()
+        for sline in [line.decode().strip()]
+        if sline
+        for pkg in [parse(cls, sline)]
+        if pkg
+      ]
+
+    versions = list(_ls_versions())
+    if prompt is None:
+      prompt = f"available versions for {package}"
+    sort_versions = partial(sorted, key=lambda p: p.updated_at)
+    fzf = fzf_filter(
+      filter=filter, inputs=sort_versions(versions), prompt=prompt, noninteractive=noninteractive
+    )
+    return sort_versions(_read_and_parse_versions(fzf.stdout))
+
+  ###############################################################################
+  # Delete package versions
+  ###############################################################################
+  @classmethod
+  def delete(
+    cls,
+    package: str,
+    org: str | None = None,
+    filter: str | None = None,
+    package_type: str = "container",
+    prompt: str | None = None,
+    noninteractive: bool = False,
+    noop: bool = False,
+  ) -> list[str]:
+    def _delete_version(version: PackageVersion):
+      url = (
+        f"/orgs/{org}/packages/{package_type}/{package}/versions/{version.id}"
+        if org
+        else f"/user/packages/{package_type}/{package}/versions/{version.id}"
+      )
+      delete_cmd = ["gh", "api", "-X", "DELETE", url]
+      log.command(delete_cmd, check=True)
+      subprocess.run(delete_cmd, check=True)
+
+    deleted = []
+    if prompt is None:
+      prompt = "version to delete"
+    for version in cls.select(package, org, filter, package_type, prompt, noninteractive):
+      if not noop:
+        _delete_version(version)
+      deleted.append(version)
+    package_label = package if not org else f"{org}/{package}"
+    if noop:
+      log.warning("[{}] {} version selected but not actually deleted", package_label, len(deleted))
+    else:
+      log.warning("[{}] {} runs DELETED", package_label, len(deleted))
+    return deleted
 
 
 ###############################################################################
@@ -334,7 +634,7 @@ def pr_closed(
 
   if not merged:
     log.warning("[{}][PR #{}] deleting all {} runs for unmerged PR", pr_no, repo, len(all_runs))
-    removed = delete_workflow_runs(repo, noop=noop, runs=all_runs)
+    removed = WorkflowRun.delete(repo, noop=noop, runs=all_runs)
     preserved = [run for run in all_runs if run not in removed]
     return _result(removed, preserved)
 
@@ -393,13 +693,13 @@ def pr_closed(
   if preserved:
     log.info("[{}][PR #{}] {} candidates for ARCHIVAL", repo, pr_no, len(preserved))
     if not ScriptNoninteractive:
-      removed.extend(select_workflow_runs(repo, runs=preserved, prompt="don't archive"))
+      removed.extend(WorkflowRun.select(repo, runs=preserved, prompt="don't archive"))
   else:
     log.warning("[{}][PR #{}] no runs selected for ARCHIVAL", repo, pr_no)
 
   if removed:
     log.info("[{}][PR #{}] {} candidates for DELETION", repo, pr_no, len(removed))
-    actually_removed = delete_workflow_runs(repo, noop=noop, runs=removed)
+    actually_removed = WorkflowRun.delete(repo, noop=noop, runs=removed)
   else:
     actually_removed = []
     log.info("[{}][PR #{}] no runs selected for DELETION", repo, pr_no)
@@ -420,7 +720,7 @@ def pr_closed(
 
 
 ###############################################################################
-# Perform cleanup procedures after on a closed Pull Request
+# Perform cleanup procedures on a closed Pull Request
 ###############################################################################
 def pr_runs(
   repo: str, pr_no: int, result: str | None = None, category: str | None = None, **select_args
@@ -429,295 +729,7 @@ def pr_runs(
     f"{'^'+result+' ' if result else ''}'PR '#{pr_no} '[{category if category is not None else ''}"
   )
   select_args.setdefault("prompt", f"runs for PR #{pr_no}")
-  return select_workflow_runs(repo, filter, **select_args)
-
-
-###############################################################################
-# Query the list of workflow runs from a repository.
-# If no filter is specified, present the user with `fzf` to select targets.
-# Otherwise, run in unattended mode with the provided filter.
-# By default, the function will query GitHub and parse the result with jq.
-# Optionally, the list of runs can be read from a pregenerated file (or stdin),
-# or it can be passed explicitly with the `runs` parameter.
-###############################################################################
-def select_workflow_runs(
-  repo: str,
-  filter: str | None = None,
-  input: str | None = None,
-  runs: list[str] | None = None,
-  prompt: str | None = None,
-  noninteractive: bool = False,
-) -> list[WorkflowRun]:
-  @contextlib.contextmanager
-  def _jqscript() -> Generator[Path, None, None]:
-    script = """\
-def symbol:
-  sub(""; "")? // "NULL" |
-  sub("skipped"; "SKIP") |
-  sub("success"; "GOOD") |
-  sub("startup_failure"; "FAIL") |
-  sub("cancelled"; "FAIL") |
-  sub("failure"; "FAIL");
-
-[ .workflow_runs[]
-  | [
-      (.conclusion | symbol),
-      .created_at,
-      .id,
-      .event,
-      .name
-    ] 
-  ]
-"""
-
-    tmp_h = tempfile.NamedTemporaryFile()
-    script_file = Path(tmp_h.name)
-    script_file.write_text(script)
-    yield script_file
-
-  def _read_and_parse_runs(input_stream: TextIO) -> list[WorkflowRun]:
-    return [
-      run
-      for line in input_stream.readlines()
-      for sline in [line.decode().strip()]
-      if sline
-      for run in [parse(WorkflowRun, sline)]
-      if run
-    ]
-
-  if runs:
-    target_runs = runs
-  elif input == "-":
-    target_runs = _read_and_parse_runs(sys.stdin)
-  elif input:
-    input_file = Path(input)
-    with input_file.open("r") as istream:
-      target_runs = _read_and_parse_runs(istream)
-  else:
-    with _jqscript() as jqscript:
-      query_cmd = [f"gh api --paginate /repos/{repo}/actions/runs" " | " f"jq -r -f {jqscript}"]
-      log.command(query_cmd, shell=True, check=True)
-      result = subprocess.run(query_cmd, shell=True, check=True, stdout=subprocess.PIPE)
-      target_runs = []
-      if result.stdout:
-        run_entries = json.loads(result.stdout.decode())
-        target_runs.extend(DataObject.build(WorkflowRun, *entry) for entry in run_entries)
-  if prompt is None:
-    prompt = "available runs"
-  sorted_runs = partial(sorted, key=lambda r: r.date)
-  fzf = fzf_filter(
-    filter=filter, inputs=sorted_runs(target_runs), prompt=prompt, noninteractive=noninteractive
-  )
-  return sorted_runs(_read_and_parse_runs(fzf.stdout))
-
-
-###############################################################################
-# Filter a list using fzf
-###############################################################################
-def fzf_filter(
-  filter: str | None = None,
-  inputs: list | None = None,
-  keep_stdin_open: bool = False,
-  prompt: str | None = None,
-  noninteractive: bool = False,
-) -> subprocess.Popen:
-  noninteractive = noninteractive or ScriptNoninteractive
-  if noninteractive:
-    filter_arg = "--filter"
-  else:
-    filter_arg = "--query"
-
-  if filter is None:
-    filter = ""
-
-  if prompt is None:
-    prompt = ""
-  # if prompt[-2:] != "> ":
-  prompt += " (TAB: select, ESC: none)> "
-
-  fzf_cmd = ["fzf", "-0", "--tac", "--no-sort", "--multi", "--prompt", prompt, filter_arg, filter]
-  log.command(fzf_cmd)
-  fzf = subprocess.Popen(fzf_cmd, stdout=subprocess.PIPE, stdin=subprocess.PIPE)
-  if inputs:
-    for run in inputs:
-      line = str(run).strip()
-      fzf.stdin.write(line.encode())
-      fzf.stdin.write("\n".encode())
-    if not keep_stdin_open:
-      fzf.stdin.close()
-  return fzf
-
-
-###############################################################################
-# Delete all (or a filtered subset) of the workflow runs from a repository,
-###############################################################################
-def delete_workflow_runs(
-  repo: str,
-  filter: str | None = None,
-  noop: bool = False,
-  input: str | None = None,
-  runs: list[str] | None = None,
-  prompt: str | None = None,
-) -> list[WorkflowRun]:
-  def _delete_run(run: WorkflowRun):
-    delete_cmd = ["gh", "api", "-X", "DELETE", f"/repos/{repo}/actions/runs/{run.id}"]
-    log.command(delete_cmd, check=True)
-    subprocess.run(delete_cmd, check=True)
-
-  deleted = []
-  if prompt is None:
-    prompt = "runs to delete"
-  for run in select_workflow_runs(repo, filter, input, runs, prompt=prompt):
-    if not noop:
-      _delete_run(run)
-    deleted.append(run)
-  if noop:
-    log.warning("[{}] {} runs selected but not actually deleted", repo, len(deleted))
-  else:
-    log.warning("[{}] {} runs DELETED", repo, len(deleted))
-  return deleted
-
-
-###############################################################################
-# List available packages for the current user or an organization
-###############################################################################
-def _gh_api(url: str, jq_filter: str, default: object = None) -> dict | list | None:
-  cmd = [
-    "gh api "
-    f"-H 'Accept: {GitHubApiAccept}' "
-    f"-H 'X-GitHub-Api-Version: {GitHubApiVersion}' "
-    f"{url} | "
-    f"jq '{jq_filter}'"
-  ]
-  log.command(cmd, shell=True, check=True)
-  result = subprocess.run(cmd, shell=True, check=True, stdout=subprocess.PIPE)
-  if not result.stdout:
-    return default
-  return json.loads(result.stdout.decode())
-
-
-def select_packages(
-  org: str | None = None,
-  filter: str | None = None,
-  package_type: str = "container",
-  prompt: str | None = None,
-  noninteractive: bool = False,
-) -> list[Package]:
-  def _ls_packages() -> Generator[Package, None, None]:
-    jq_filter = (
-      "[ (.[] | [.id, .name, .visibility, .repository.full_name , .created_at, .updated_at]) ]"
-    )
-    url = (
-      f"/orgs/{org}/packages?package_type={package_type}"
-      if org
-      else "/user/packages?package_type={package_type}"
-    )
-    log.activity("listing packages for {}", org if org else "current user")
-    packages = _gh_api(url, jq_filter, default=[])
-    for pkg_entry in packages:
-      pkg = build(Package, *pkg_entry)
-      yield pkg
-
-  def _read_and_parse_package(input_stream: TextIO) -> list[Package]:
-    return [
-      pkg
-      for line in input_stream.readlines()
-      for sline in [line.decode().strip()]
-      if sline
-      for pkg in [parse(Package, sline)]
-      if pkg
-    ]
-
-  packages = list(_ls_packages())
-  if prompt is None:
-    prompt = "available packages"
-  sort_packages = partial(sorted, key=lambda p: p.updated_at)
-  fzf = fzf_filter(
-    filter=filter, inputs=sort_packages(packages), prompt=prompt, noninteractive=noninteractive
-  )
-  return sort_packages(_read_and_parse_package(fzf.stdout))
-
-
-###############################################################################
-# List package versions
-###############################################################################
-def select_package_versions(
-  package: str,
-  org: str | None = None,
-  filter: str | None = None,
-  package_type: str = "container",
-  prompt: str | None = None,
-  noninteractive: bool = False,
-) -> list[str]:
-  def _ls_versions() -> Generator[PackageVersion, None, None]:
-    jq_filter = "[ (.[] | [.id, .name, .metadata.container.tags, .created_at, .updated_at]) ]"
-    url = (
-      f"/orgs/{org}/packages/{package_type}/{package}/versions"
-      if org
-      else f"/user/packages/{package_type}/{package}/versions"
-    )
-    versions = _gh_api(url, jq_filter, default=[])
-    for version_entry in versions:
-      version = build(PackageVersion, *version_entry)
-      yield version
-
-  def _read_and_parse_versions(input_stream: TextIO) -> list[PackageVersion]:
-    return [
-      pkg
-      for line in input_stream.readlines()
-      for sline in [line.decode().strip()]
-      if sline
-      for pkg in [parse(PackageVersion, sline)]
-      if pkg
-    ]
-
-  versions = list(_ls_versions())
-  if prompt is None:
-    prompt = f"available versions for {package}"
-  sort_versions = partial(sorted, key=lambda p: p.updated_at)
-  fzf = fzf_filter(
-    filter=filter, inputs=sort_versions(versions), prompt=prompt, noninteractive=noninteractive
-  )
-  return sort_versions(_read_and_parse_versions(fzf.stdout))
-
-
-###############################################################################
-# Delete package versions
-###############################################################################
-def delete_package_versions(
-  package: str,
-  org: str | None = None,
-  filter: str | None = None,
-  package_type: str = "container",
-  prompt: str | None = None,
-  noninteractive: bool = False,
-  noop: bool = False,
-) -> list[str]:
-  def _delete_version(version: PackageVersion):
-    url = (
-      f"/orgs/{org}/packages/{package_type}/{package}/versions/{version.id}"
-      if org
-      else f"/user/packages/{package_type}/{package}/versions/{version.id}"
-    )
-    delete_cmd = ["gh", "api", "-X", "DELETE", url]
-    log.command(delete_cmd, check=True)
-    subprocess.run(delete_cmd, check=True)
-
-  deleted = []
-  if prompt is None:
-    prompt = "version to delete"
-  for version in select_package_versions(
-    package, org, filter, package_type, prompt, noninteractive
-  ):
-    if not noop:
-      _delete_version(version)
-    deleted.append(version)
-  package_label = package if not org else f"{org}/{package}"
-  if noop:
-    log.warning("[{}] {} version selected but not actually deleted", package_label, len(deleted))
-  else:
-    log.warning("[{}] {} runs DELETED", package_label, len(deleted))
-  return deleted
+  return WorkflowRun.select(repo, filter, **select_args)
 
 
 ###############################################################################
@@ -842,27 +854,25 @@ def dispatch_action(args: argparse.Namespace) -> None:
         output(str(run))
     elif args.action == "select-runs":
       tabulate_columns(*WorkflowRun._fields)
-      for run in select_workflow_runs(repo=args.repository, filter=args.filter, input=args.input):
+      for run in WorkflowRun.select(repo=args.repository, filter=args.filter, input=args.input):
         output(str(run))
     elif args.action == "delete-runs":
       tabulate_columns(*WorkflowRun._fields)
-      for run in delete_workflow_runs(
+      for run in WorkflowRun.delete(
         repo=args.repository, filter=args.filter, noop=args.noop, input=args.input
       ):
         output(str(run))
     elif args.action == "select-packages":
       tabulate_columns(*Package._fields)
-      for pkg in select_packages(org=args.org, filter=args.filter):
+      for pkg in Package.select(org=args.org, filter=args.filter):
         output(str(pkg))
     elif args.action == "select-versions":
       tabulate_columns(*PackageVersion._fields)
-      for version in select_package_versions(
-        package=args.package, org=args.org, filter=args.filter
-      ):
+      for version in PackageVersion.select(package=args.package, org=args.org, filter=args.filter):
         output(str(version))
     elif args.action == "delete-versions":
       tabulate_columns(*PackageVersion._fields)
-      for run in delete_package_versions(
+      for run in PackageVersion.delete(
         package=args.package,
         org=args.org,
         filter=args.filter,
