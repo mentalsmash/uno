@@ -20,12 +20,14 @@ import tempfile
 import os
 from functools import cached_property
 import contextlib
+import subprocess
 from typing import Protocol
 import pprint
 import yaml
 
 from uno.core.exec import exec_command
 from uno.core.log import Logger
+from uno.core.time import Timer
 from uno.registry.registry import Registry
 from uno.middleware import Middleware
 
@@ -220,6 +222,34 @@ class Experiment:
     self.hosts: list[Host] = []
     self.log = Logger.sublogger(name)
     self.define_networks_and_hosts()
+
+  @property
+  def host_hosts(self) -> list[Host]:
+    return sorted(
+      (h for h in self.hosts if h.role == HostRole.HOST), key=lambda h: h.container_name
+    )
+
+  @property
+  def router_hosts(self) -> list[Host]:
+    return sorted(
+      (h for h in self.hosts if h.role == HostRole.ROUTER), key=lambda h: h.container_name
+    )
+
+  @property
+  def cell_hosts(self) -> list[Host]:
+    return sorted(
+      (h for h in self.hosts if h.role == HostRole.CELL), key=lambda h: h.container_name
+    )
+
+  @property
+  def particle_hosts(self) -> list[Host]:
+    return sorted(
+      (h for h in self.hosts if h.role == HostRole.PARTICLE), key=lambda h: h.container_name
+    )
+
+  @property
+  def registry_host(self) -> Host:
+    return next((h for h in self.hosts if h.role == HostRole.REGISTRY), None)
 
   def log_configuration(self) -> None:
     self.log.info("experiment configuration: {}", pprint.pformat(self.config))
@@ -520,3 +550,49 @@ class Experiment:
     return sorted(
       (h for h in hosts if h.role == HostRole.HOST and h != host), key=lambda h: h.container_name
     )
+
+  @property
+  def agent_processes(self) -> Generator[dict[Host, subprocess.Popen], None, None]:
+    with contextlib.ExitStack() as stack:
+      agents = {}
+      for host in self.cell_hosts:
+        agents[host] = stack.enter_context(host.uno_agent())
+      yield agents
+
+  def wait_for_fully_routed_networks(self) -> None:
+    def _check_all_ready() -> bool:
+      for cell in self.cell_hosts:
+        if not cell.local_router_ready:
+          return False
+      return True
+
+    timer = Timer(
+      self.config["uvn_fully_routed_timeout"],
+      0.5,
+      _check_all_ready,
+      self.log,
+      "waiting for UVN to become consistent",
+      "UVN not consistent yet",
+      "UVN fully routed",
+      "UVN failed to reach consistency",
+    )
+    timer.wait()
+
+  def wait_for_fully_routed_agents(self, agents: dict[Host, subprocess.Popen]) -> None:
+    def _check_all_consistent() -> bool:
+      for agent in agents:
+        if not agent.cell_fully_routed:
+          return False
+      return True
+
+    timer = Timer(
+      self.config["uvn_fully_routed_timeout"],
+      0.5,
+      _check_all_consistent,
+      self.log,
+      "waiting for UVN to become consistent",
+      "UVN not consistent yet",
+      "UVN fully routed",
+      "UVN failed to reach consistency",
+    )
+    timer.wait()

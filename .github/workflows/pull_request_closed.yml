@@ -54,7 +54,9 @@ jobs:
             -e GH_TOKEN=${GH_TOKEN} \
             -w /workspace \
             ${ADMIN_IMAGE} \
-            src/uno/scripts/ci-admin pr-closed \
+            src/uno/scripts/ci-admin \
+              -c ${{ github.run_id }} \
+              pr-closed \
               -r ${{ github.repository }} \
               -N ${{ github.event_name == 'pull_request' && github.event.pull_request.number || inputs.pr-number }} \
               ${{ (github.event_name == 'pull_request' && github.event.pull_request.merged || inputs.pr-merged) && '-m' || '' }}
