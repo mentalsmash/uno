@@ -297,14 +297,12 @@ def pr_closed(
     preserved = [run for run in all_runs if run not in removed]
     return _result(removed, preserved)
 
-  log.activity("[{}][PR #{}] listing failed runs", repo, pr_no)
-  removed = list(
-    pr_runs(repo, pr_no, "FAIL | ^startup_FAIL | ^cancelled", runs=all_runs, noninteractive=True)
-  )
+  log.activity("[{}][PR #{}] listing failed and skipped runs", repo, pr_no)
+  removed = list(pr_runs(repo, pr_no, "FAIL | ^SKIP", runs=all_runs, noninteractive=True))
   if not removed:
-    log.info("[{}][PR #{}] no failed runs", repo, pr_no)
+    log.info("[{}][PR #{}] no failed nor skipped runs", repo, pr_no)
   else:
-    log.info("[{}][PR #{}] {} failed runs", repo, pr_no, len(removed))
+    log.info("[{}][PR #{}] {} failed or skipped runs", repo, pr_no, len(removed))
 
   preserved = []
 
