@@ -1,6 +1,6 @@
 name: Pull Request
 run-name: |
-  PR #${{ github.event.pull_request.number }} [${{ github.event_name == 'pull_request' && 'updated' || 'reviewed' }}, ${{ github.event.action }}${{ github.event.pull_request.draft && ', draft' || '' }}] ${{github.event.pull_request.title}}
+  PR #${{ github.event.pull_request.number }} [${{ github.event_name == 'pull_request' && 'updated' || 'reviewed' }}, ${{ github.event_name == 'pull_request' && github.event.action || github.event.review.state }}${{ github.event.pull_request.draft && ', draft' || '' }}] ${{github.event.pull_request.title}}
 
 on:
   pull_request:
@@ -110,26 +110,12 @@ jobs:
               ;;
           esac
 
-          # Fail if no test is enabled, to report a failed check and block the PR from automerging.
-          # It is ok to generate failed run, since they will be cleaned up once the PR is closed.
-          if [ -z "${basic}${full}${test_not_needed}" ]; then
-            printf -- "ERROR: PR #${{ github.event.pull_request.number }} is not ready for testing yet.\n" >&2
-            check_failed=y
-          elif [ -n "${test_not_needed}" ]; then
-            printf -- "PR #${{ github.event.pull_request.number }} doesn't need further testing.\n" >&2
-          fi
-
           (
-            echo CHECK_FAILED=${check_failed}
+            # echo CHECK_FAILED=${check_failed}
             echo VALIDATE_BASIC=${basic}
             echo VALIDATE_FULL=${full}
             echo VALIDATE_DEB=${full}
           )  >> ${GITHUB_OUTPUT}
-
-      - name: "Fail job if check failed"
-        run: |
-          exit 1
-        if: steps.config.outputs.CHECK_FAILED
 
   basic-validation:
     needs: check-trigger
@@ -187,21 +173,3 @@ jobs:
       base-tag: ${{ matrix.base-tag }}
       platform: ${{ matrix.platform }}
       pull-request: true
-
-  enable-merge:
-    needs:
-      - check-trigger
-      - full-validation
-      - deb-validation
-    uses: ./.github/workflows/pull_request_check_approval.yml
-    if: ${{ needs.check-trigger.outputs.VALIDATE_FULL && !needs.check-trigger.outputs.VALIDATE_BASIC }}
-
-  enable-merge-at-once:
-    needs:
-      - check-trigger
-      - full-validation
-      - deb-validation
-      - basic-validation
-    uses: ./.github/workflows/pull_request_check_approval.yml
-    if: ${{ needs.check-trigger.outputs.VALIDATE_FULL && needs.check-trigger.outputs.VALIDATE_BASIC }}
-

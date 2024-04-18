@@ -163,7 +163,7 @@ changelog:
 		-v $(UNO_DIR)/:/uno \
 		-w /uno \
 		$(DEB_BUILDER)  \
-		/uno/scripts/bundle/update_changelog.sh
+		/uno/scripts/debian/update_changelog.sh
 
 # Build uno's debian packages.
 # Requires the Debian Builder image.
@@ -172,7 +172,7 @@ debuild:
 		-v $(UNO_DIR)/:/uno \
 		-w /uno \
 		$(DEB_BUILDER)  \
-		/uno/scripts/debian_build.sh
+		/uno/scripts/debian/build.sh
 
 # Run integration tests using the debian package.
 # Requires the Debian Tester image
