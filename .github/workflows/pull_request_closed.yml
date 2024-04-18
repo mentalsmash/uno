@@ -32,7 +32,7 @@ jobs:
     # Run automatically only if the PR is from this repository,
     # otherwise it won't be authorized to delete workflow runs.
     # (suggested by https://github.com/orgs/community/discussions/25217)
-    if: github.event.pull_request.head.repo.full_name == github.repository
+    if: github.event_name == 'workflow_dispatch' || github.event.pull_request.head.repo.full_name == github.repository
     steps:
       - name: Clone uno
         uses: actions/checkout@v4
