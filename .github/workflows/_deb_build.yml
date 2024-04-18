@@ -82,11 +82,11 @@ jobs:
           deb_builder_tag=$(echo ${{inputs.base-tag}} | tr : - | tr / -)
           case "${{ inputs.pull-request }}" in
             true)
-              rti_license_file=${{ github.workspace }}/src/uno/rti_license.dat
+              rti_license_file=src/uno/rti_license.dat
               base_image=ghcr.io/mentalsmash/uno-ci-base-tester:${deb_builder_tag}
               ;;
             false)
-              rti_license_file=${{ github.workspace }}/src/uno-ci/docker/base-tester/resource/rti/rti_license.dat
+              rti_license_file=src/uno-ci/docker/base-tester/resource/rti/rti_license.dat
               base_image=${{ inputs.base-tag }}
               ;;
           esac
@@ -161,7 +161,7 @@ jobs:
     env:
       DEB_TESTER: ${{ needs.config.outputs.TEST_IMAGE }}
       FIX_DIR: ${{ github.workspace }}
-      RTI_LICENSE_FILE: ${{ needs.config.outputs.RTI_LICENSE_FILE }}
+      RTI_LICENSE_FILE: ${{ github.workspace }}/${{ needs.config.outputs.RTI_LICENSE_FILE }}
       TEST_DATE: ${{ needs.config.outputs.TEST_DATE }}
       TEST_ID: ${{ needs.config.outputs.TEST_ID }}
       TEST_IMAGE: ${{ needs.config.outputs.TEST_IMAGE }}
