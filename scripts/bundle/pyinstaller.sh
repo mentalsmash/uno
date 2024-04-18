@@ -9,7 +9,7 @@ FLAVOR=${1:-default}
 : "${DIST_DIR:=$(pwd)/dist/bundle/${FLAVOR}}"
 [ -n "${DIST_DIR}" ]
 
-: "${BUILD_DIR:=$(pwd)/build/pyinstaller}"
+: "${BUILD_DIR:=$(pwd)/build/bundle}"
 [ -n "${BUILD_DIR}" ]
 
 (
@@ -17,16 +17,17 @@ FLAVOR=${1:-default}
   rm -rf ${BUILD_DIR}
 )
 
-: "${SCRIPTS:=\
-  ./scripts/bundle/uno
-  ./uno/test/integration/runner.py}"
-[ -n "${SCRIPTS}" ]
-
 : "${VENV_PYINST:=${BUILD_DIR}/venv-pyinst}"
 [ -n "${VENV_PYINST}" ]
 
 : "${VENV_UNO:=${BUILD_DIR}/venv-uno}"
 [ -n "${VENV_UNO}" ]
+
+
+: "${SCRIPTS:=\
+  ${VENV_UNO}/bin/uno
+  ./uno/test/integration/runner.py}"
+[ -n "${SCRIPTS}" ]
 
 if [ ! -d "${VENV_PYINST}" ]; then
   (
