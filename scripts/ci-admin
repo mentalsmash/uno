@@ -234,19 +234,28 @@ def fzf_filter(
 ###############################################################################
 # Make a GH API call, filter the result with jq, and parse the resulting JSON
 ###############################################################################
-def gh_api(url: str, jq_filter: str, default: object = None) -> dict | list | None:
+def gh_api(
+  url: str,
+  jq_filter: str | None = None,
+  default: object = None,
+  noop: bool = False,
+  query: bool = True,
+) -> dict | list | None:
   cmd = [
     "gh api "
     f"-H 'Accept: {GitHubApiAccept}' "
     f"-H 'X-GitHub-Api-Version: {GitHubApiVersion}' "
-    f"{url} | "
-    f"jq '{jq_filter}'"
+    f"{url}"
   ]
+  if jq_filter:
+    cmd[0] += f" | jq '{jq_filter}'"
   log.command(cmd, shell=True, check=True)
-  result = subprocess.run(cmd, shell=True, check=True, stdout=subprocess.PIPE)
-  if not result.stdout:
-    return default
-  return json.loads(result.stdout.decode())
+  if not noop or query:
+    result = subprocess.run(cmd, shell=True, check=True, stdout=subprocess.PIPE)
+    if not result.stdout:
+      return default
+    return json.loads(result.stdout.decode())
+  return default
 
 
 ###############################################################################
@@ -276,14 +285,15 @@ class DataObject:
     return obj_cls(*args)
 
   @classmethod
-  def parse(cls, obj_cls: type[NamedTuple], package_line: str) -> object | None:
+  def parse(cls, obj_cls: type[NamedTuple], obj_line: str) -> object | None:
     cls.data_object(obj_cls)
     try:
       parse_re = cls.Parsers[obj_cls]
-      fields = parse_re.findall(package_line)[0]
+      fields = parse_re.findall(obj_line)
+      fields = fields[0]
       return cls.build(obj_cls, *fields)
     except Exception:
-      log.error("failed to parse {}: '{}'", obj_cls.__qualname__, package_line)
+      log.error("failed to parse {}: '{}'", obj_cls.__qualname__, obj_line)
       traceback.print_exc()
       return None
 
@@ -326,16 +336,26 @@ def build(obj_cls: type[NamedTuple], *args) -> object | None:
 # GitHub Workflow Run data object (parsed from query result)
 ###############################################################################
 class WorkflowRun(NamedTuple):
+  repo: str
+  head_repo: str
   outcome: str
   date: datetime
   id: int
   event: str
   name: str
 
-  DatetimeFields = [1]
+  DatetimeFields = [3]
+  Current = ""
 
   def __str__(self) -> str:
     return DataObject.str(self)
+
+  ###############################################################################
+  #
+  ###############################################################################
+  def cancel(self, noop: bool = False) -> None:
+    url = f"/repos/{self.repo}/actions/runs/{self.id}/cancel"
+    gh_api(url, query=False, noop=noop)
 
   ###############################################################################
   # Query the list of workflow runs from a repository.
@@ -351,7 +371,7 @@ class WorkflowRun(NamedTuple):
     repo: str,
     filter: str | None = None,
     input: str | None = None,
-    runs: list[str] | None = None,
+    runs: list["WorkflowRun"] | None = None,
     prompt: str | None = None,
     noninteractive: bool = False,
   ) -> list["WorkflowRun"]:
@@ -368,6 +388,8 @@ def symbol:
 
 [ .workflow_runs[]
   | [
+      .repository.full_name,
+      .head_repository.full_name,
       (.conclusion | symbol),
       .created_at,
       .id,
@@ -389,7 +411,7 @@ def symbol:
         for sline in [line.decode().strip()]
         if sline
         for run in [parse(cls, sline)]
-        if run
+        if run and run.id != cls.Current
       ]
 
     if runs:
@@ -408,7 +430,9 @@ def symbol:
         target_runs = []
         if result.stdout:
           run_entries = json.loads(result.stdout.decode())
-          target_runs.extend(DataObject.build(cls, *entry) for entry in run_entries)
+          target_runs.extend(
+            [build(cls, *entry) for entry in run_entries if entry[0] != cls.Current]
+          )
     if prompt is None:
       prompt = "available runs"
     sorted_runs = partial(sorted, key=lambda r: r.date)
@@ -427,20 +451,22 @@ def symbol:
     filter: str | None = None,
     noop: bool = False,
     input: str | None = None,
-    runs: list[str] | None = None,
+    runs: list["WorkflowRun"] | None = None,
     prompt: str | None = None,
   ) -> list["WorkflowRun"]:
     def _delete_run(run: WorkflowRun):
+      if run.outcome == "NULL":
+        run.cancel(noop=noop)
       delete_cmd = ["gh", "api", "-X", "DELETE", f"/repos/{repo}/actions/runs/{run.id}"]
       log.command(delete_cmd, check=True)
-      subprocess.run(delete_cmd, check=True)
+      if not noop:
+        subprocess.run(delete_cmd, check=True)
 
     deleted = []
     if prompt is None:
       prompt = "runs to delete"
     for run in cls.select(repo, filter, input, runs, prompt=prompt):
-      if not noop:
-        _delete_run(run)
+      _delete_run(run)
       deleted.append(run)
     if noop:
       log.warning("[{}] {} runs selected but not actually deleted", repo, len(deleted))
@@ -750,6 +776,8 @@ def define_parser() -> argparse.ArgumentParser:
   parser.add_argument(
     "-i", "--interactive", help="Run in interactive mode.", default=False, action="store_true"
   )
+
+  parser.add_argument("-c", "--current", help="Calling workflow id.", default=None)
 
   subparsers = parser.add_subparsers(dest="action")
 
