@@ -376,6 +376,10 @@ def symbol:
   def __str__(self) -> str:
     return DataObject.str(self)
 
+  @property
+  def incomplete(self) -> bool:
+    return self.status in ["in_progress", "queued", "requested", "waiting", "pending"]
+
   ###############################################################################
   #
   ###############################################################################
@@ -790,6 +794,9 @@ def nightly_cleanup(repo: str, noop: bool = False) -> None:
         preserved.extend(_pick_preserved(runs))
     for run in runs:
       if run in preserved:
+        continue
+      if run.incomplete:
+        log.warning("[{}] not removing incomplete run: {}", repo, run)
         continue
       removed.append(run)
     return runs

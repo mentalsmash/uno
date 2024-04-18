@@ -42,7 +42,9 @@ jobs:
             -e GH_TOKEN=${GH_TOKEN} \
             -w /workspace \
             ${ADMIN_IMAGE} \
-            src/uno/scripts/ci-admin nightly-cleanup \
+            src/uno/scripts/ci-admin \
+              -c ${{ github.run_id }} \
+              nightly-cleanup \
               -r ${{ github.repository }}
         env:
           GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
