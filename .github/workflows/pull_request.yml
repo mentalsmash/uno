@@ -92,7 +92,7 @@ jobs:
                       # So we use the GitHub API to query the state,
                       # see: https://stackoverflow.com/a/77647838
                       (cd src/uno; gh repo set-default ${{ github.repository }})
-                      review_state=$(cd src/uno; gh pr view 11 --json reviewDecision --jq '.reviewDecision')
+                      review_state=$(cd src/uno; gh pr view ${{ github.event.pull_request.number }} --json reviewDecision --jq '.reviewDecision')
                       case "${review_state}" in
                         APPROVED)
                           test_not_needed=y

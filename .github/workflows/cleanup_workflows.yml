@@ -6,7 +6,7 @@ on:
   workflow_dispatch:
     inputs:
       query:
-        description: "fzf filter to select workflows to deleted"
+        description: "fzf filter to select workflows to delete"
         type: string
         required: true
       noop:

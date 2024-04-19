@@ -133,7 +133,7 @@ jobs:
           tags: ${{ needs.config.outputs.TEST_IMAGE }}
           load: true
           context: src/uno
-          platforms: ${{ inputs.platform }}
+          platforms: linux/${{ inputs.platform }}
           build-args: |
             BASE_IMAGE=ghcr.io/${{ inputs.tag }}
     
