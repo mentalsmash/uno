@@ -1,0 +1,162 @@
+name: Build'n'Test (Debian Packages)
+run-name: |
+  build-n-test deb ((${{inputs.base-image}}, ${{inputs.build-architecture}})) [${{github.ref_name}}]
+
+on:
+  workflow_dispatch:
+    inputs:
+      base-image:
+        description: Base distribution image
+        type: string
+        required: true
+      build-architecture:
+        description: Build architecture
+        type: string
+        required: true
+
+  workflow_call:
+    inputs:
+      base-image:
+        type: string
+        required: true
+      build-architecture:
+        type: string
+        required: true
+
+concurrency:
+  group: deb-release-${{ github.ref }}-${{inputs.build-architecture}}-${{inputs.base-image}}
+  cancel-in-progress: true
+
+permissions:
+  packages: read
+  contents: read
+
+env:
+  CLONE_DIR: src/repo
+
+jobs:
+  config:
+    runs-on: ubuntu-latest
+    outputs:
+      DEB_RUNNER: ${{ steps.config.outputs.DEB_RUNNER }}
+    steps:
+      - name: Clone source repository
+        uses: actions/checkout@v4
+        with:
+          path: ${{ env.CLONE_DIR }}
+          submodules: true
+      
+      - name: Load configuration
+        uses: mentalsmash/actions/pyconfig/configuration@master
+        with:
+          clone-dir: ${{ env.CLONE_DIR }}
+          workflow: build_and_test_deb
+          inputs: ${{ toJson(inputs) }}
+
+      - name: Configure workflow
+        id: config
+        run: |
+          (
+            echo DEB_RUNNER=$(jq '.DEB_RUNNER' -r pyconfig.json)
+          ) | tee -a ${GITHUB_OUTPUT}
+
+
+  build:
+    needs: config
+    runs-on: ${{ fromJson(needs.config.outputs.DEB_RUNNER) }}
+    steps:
+    - name: Clone source repository
+      uses: actions/checkout@v4
+      with:
+        path: ${{ env.CLONE_DIR }}
+        submodules: true
+
+    - name: Load configuration
+      uses: mentalsmash/actions/pyconfig/configuration@master
+      with:
+        clone-dir: ${{ env.CLONE_DIR }}
+        workflow: build_and_test_deb
+        inputs: ${{ toJson(inputs) }}
+
+    - name: Configure workflow
+      id: config
+      run: |
+        (
+          echo DEB_ARTIFACT=$(jq '.DEB_ARTIFACT' -r pyconfig.json)
+          echo DEB_BUILDER=$(jq '.DEB_BUILDER' -r pyconfig.json)
+          echo DEB_RUNNER=$(jq '.DEB_RUNNER' -r pyconfig.json)
+          echo DEB_DIST_DIR=$(jq '.debian.artifacts.dist_dir' -r pyconfig.json)
+          echo LOCAL_TESTER_IMAGE=$(jq '.ci.images.local_tester.image' -r pyconfig.json)
+          echo LOCAL_TESTER_RESULTS=$(jq '.ci.test.results_dir' -r pyconfig.json)
+          echo LOGIN_DOCKERHUB=$(jq '.debian.builder.login.dockerhub' -r pyconfig.json)
+          echo LOGIN_GITHUB=$(jq '.debian.builder.login.github' -r pyconfig.json)
+          echo TEST_ARTIFACT=$(jq '.TEST_ARTIFACT' -r pyconfig.json)
+          echo TEST_ID=$(jq '.TEST_ID' -r pyconfig.json)
+          echo TEST_DATE=$(jq '.build.date' -r pyconfig.json)
+        ) | tee -a ${GITHUB_OUTPUT}
+
+    - name: Log in to GitHub
+      uses: docker/login-action@v3
+      if: steps.config.outputs.LOGIN_GITHUB
+      with:
+        registry: ghcr.io
+        username: ${{ github.actor }}
+        password: ${{ secrets.GITHUB_TOKEN }}
+    
+    - name: Log in to DockerHub
+      uses: docker/login-action@v3
+      if: steps.config.outputs.LOGIN_DOCKERHUB
+      with:
+        username: ${{ vars.DOCKERHUB_USERNAME }}
+        password: ${{ secrets.DOCKERHUB_TOKEN }}
+
+    - name: Build debian packages
+      run: |
+        make -C ${{ env.CLONE_DIR }} changelog
+        make -C ${{ env.CLONE_DIR }} debuild
+      env:
+        DEB_BUILDER: ${{ steps.config.outputs.DEB_BUILDER }}
+        DEB_DIST_DIR: ${{ steps.config.outputs.DEB_DIST_DIR }}
+  
+    - name: Upload debian packages
+      uses: actions/upload-artifact@v4
+      with:
+        name: ${{ steps.config.outputs.DEB_ARTIFACT }}
+        path: ${{ env.CLONE_DIR }}/${{ steps.config.outputs.DEB_DIST_DIR }}/*
+
+    - name: Fix permissions
+      run: |
+        docker run --rm \
+          -v $(pwd)/${{ env.CLONE_DIR }}:/repo \
+          ubuntu:latest \
+          chown -Rv $(id -u):$(id -g) /repo
+      if: always()
+
+    - name: Build tester image
+      uses: docker/build-push-action@v5
+      with:
+        file: ${{ env.CLONE_DIR }}/docker/debian-tester/Dockerfile
+        tags: ${{ steps.config.outputs.LOCAL_TESTER_IMAGE }}
+        load: true
+        context: ${{ env.CLONE_DIR }}
+        build-args: |
+          BASE_IMAGE=${{ inputs.base-image }}
+
+    - name: Run tests
+      run: |
+        make -C ${{ env.CLONE_DIR}} test-deb
+      env:
+        DEBUG: ${{ runner.debug }}
+        TEST_DATE: ${{ steps.config.outputs.TEST_DATE }}
+        TEST_ID: ${{ steps.config.outputs.TEST_ID }}
+        LOCAL_TESTER_IMAGE: ${{ steps.config.outputs.LOCAL_TESTER_IMAGE }}
+        LOCAL_TESTER_RESULTS: ${{ steps.config.outputs.LOCAL_TESTER_RESULTS }}
+
+    # Always collect and upload available test results
+    - name: Upload test results
+      uses: actions/upload-artifact@v4
+      with:
+        name: ${{ steps.config.outputs.TEST_ARTIFACT }}
+        path: ${{ env.CLONE_DIR }}/${{ steps.config.outputs.LOCAL_TESTER_RESULTS }}/**
+      if: always()
+

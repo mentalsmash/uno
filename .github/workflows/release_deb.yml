@@ -1,0 +1,62 @@
+name: Release (Debian Packages)
+run-name: |
+  deb release [${{github.ref_type == 'branch' && 'nightly' || 'stable'}}, ${{github.ref_name}}]
+
+on:
+  workflow_dispatch:
+
+  workflow_call:
+
+concurrency:
+  group: deb-release-${{github.ref_type == 'tag' && 'stable' || 'nightly' }}
+  cancel-in-progress: false
+
+permissions:
+  contents: write
+  packages: read
+
+env:
+  CLONE_DIR: src/repo
+
+jobs:
+  config:
+    runs-on: ubuntu-latest
+    outputs:
+      DEB_ARTIFACTS_PREFIX: ${{steps.config.outputs.DEB_ARTIFACTS_PREFIX}}
+      DEB_ENABLED: ${{steps.config.outputs.DEB_ENABLED}}
+      DEB_BASE_IMAGES_MATRIX: ${{steps.config.outputs.DEB_BASE_IMAGES_MATRIX}}
+      DEB_BUILD_ARCHITECTURES_MATRIX: ${{steps.config.outputs.DEB_BUILD_ARCHITECTURES_MATRIX}}
+    steps:
+      - name: Clone source repository
+        uses: actions/checkout@v4
+        with:
+          path: ${{ env.CLONE_DIR }}
+          submodules: true
+
+      - name: Load configuration
+        uses: mentalsmash/actions/pyconfig/configuration@master
+        with:
+          clone-dir: ${{ env.CLONE_DIR }}
+  
+      - name: Configure workflow
+        id: config
+        run: |
+          (
+            echo DEB_BASE_IMAGES_MATRIX=$(jq '.debian.builder.base_images_matrix' -r pyconfig.json)
+            echo DEB_BUILD_ARCHITECTURES_MATRIX=$(jq '.debian.builder.architectures_matrix' -r pyconfig.json)
+            echo DEB_ARTIFACTS_PREFIX=$(jq '.debian.artifacts.prefix' -r pyconfig.json)
+            echo DEB_ENABLED=$(jq '.debian.enabled' -r pyconfig.json)
+          ) | tee -a ${GITHUB_OUTPUT}
+
+  build:
+    needs: config
+    if: needs.config.outputs.DEB_ENABLED
+    strategy:
+      matrix:
+        base-image: ${{ fromJson(needs.config.outputs.DEB_BASE_IMAGES_MATRIX ) }}
+        build-architecture: ${{ fromJson(needs.config.outputs.DEB_BUILD_ARCHITECTURES_MATRIX) }}
+    uses: ./.github/workflows/build_and_test_deb.yml
+    secrets: inherit
+    with:
+      base-image: ${{ matrix.base-image }}
+      build-architecture: ${{ matrix.build-architecture }}

@@ -1,0 +1,217 @@
+name: Release (Docker Images)
+run-name: |
+  docker release [${{github.ref_type == 'tag' && 'stable' || 'nightly' }}, ${{github.ref_name}}]
+
+on:
+  workflow_dispatch:
+
+  workflow_call:
+
+concurrency:
+  group: docker-release-${{github.ref_type == 'tag' && 'stable' || 'nightly' }}
+  cancel-in-progress: false
+
+permissions:
+  contents: write
+  packages: write
+
+env:
+  CLONE_DIR: src/repo
+
+jobs:
+  build:
+    runs-on: ubuntu-latest
+    outputs:
+      TEST_RUNNERS_MATRIX: ${{ steps.config.outputs.TEST_RUNNERS_MATRIX }}
+    steps:
+      - name: Clone source repository
+        uses: actions/checkout@v4
+        with:
+          path: ${{ env.CLONE_DIR }}
+          submodules: true
+
+      - name: Load configuration
+        uses: mentalsmash/actions/pyconfig/configuration@master
+        with:
+          clone-dir: ${{ env.CLONE_DIR }}
+
+      - name: Configure workflow
+        id: config
+        run: |
+          (
+            printf -- "BUILD_SETTINGS_ARTIFACT=%s\n" "$(jq '.build.settings.artifact' -j pyconfig.json)"
+            printf -- "DOCKER_BASE_IMAGE=%s\n" "$(jq '.release.base_image' -j pyconfig.json)"
+            printf -- "%s\n" "DOCKER_TAGS_CONFIG<<EOF"
+            # printf -- "%s\n" "$(jq '.release.tags_config' -j pyconfig.json)"
+            jq '.release.tags_config' -j pyconfig.json
+            echo
+            printf -- "%s\n" EOF
+            printf -- "%s\n" "DOCKER_FLAVOR_CONFIG<<EOF"
+            # printf -- "%s\n" "$(jq '.release.flavor_config' -j pyconfig.json)"
+            jq '.release.flavor_config' -j pyconfig.json
+            echo
+            printf -- "%s\n" EOF
+            printf -- "DOCKER_BUILD_PLATFORMS=%s\n" "$(jq '.release.build_platforms_config' -j pyconfig.json)"
+            printf -- "PRERELEASE_REPO=%s\n" "$(jq '.release.prerelease_repo' -j pyconfig.json)"
+            printf -- "TEST_RUNNERS_MATRIX=%s\n" "$(jq '.release.test_runners_matrix' -j pyconfig.json)"
+
+            printf -- "ADMIN_IMAGE=%s\n" "$(jq '.ci.images.admin.image' -r pyconfig.json)"
+            printf -- "PRERELEASE_PACKAGE=%s\n" "$(jq '.release.prerelease_package' -j pyconfig.json)"
+            printf -- "PRERELEASE_PACKAGE_ORG=%s\n" "$(jq '.release.prerelease_package_org' -j pyconfig.json)"
+            printf -- "LOGIN_DOCKERHUB=%s\n" "$(jq '.ci.images.admin.login.dockerhub' -r pyconfig.json)"
+            printf -- "LOGIN_GITHUB=%s\n" "$(jq '.ci.images.admin.login.github' -r pyconfig.json)"
+          ) | tee -a ${GITHUB_OUTPUT}
+
+      - name: Upload project settings
+        uses: actions/upload-artifact@v4
+        with:
+          name: ${{ steps.config.outputs.BUILD_SETTINGS_ARTIFACT }}
+          path: pyconfig.json
+
+      - name: Delete all versions of the prerelease package
+        if: steps.config.outputs.PRERELEASE_PACKAGE
+        uses: mentalsmash/actions/ci/admin@master
+        with:
+          image: ${{ steps.config.outputs.ADMIN_IMAGE }}
+          token: ${{ secrets.PACKAGE_VERSIONS_PAT }}
+          github-token: ${{ steps.config.outputs.LOGIN_GITHUB && secrets.GITHUB_TOKEN || '' }}
+          github-user: ${{ steps.config.outputs.LOGIN_GITHUB && github.actor || '' }}
+          dockerhub-token: ${{ steps.config.outputs.LOGIN_DOCKERHUB && secrets.DOCKERHUB_TOKEN || '' }}
+          dockerhub-user: ${{ steps.config.outputs.LOGIN_DOCKERHUB && vars.DOCKERHUB_USERNAME || '' }}
+          args: |
+            -c
+            ${{ github.run_id }}
+            delete-versions
+            -o
+            ${{ steps.config.outputs.PRERELEASE_PACKAGE_ORG }}
+            -p
+            ${{ steps.config.outputs.PRERELEASE_PACKAGE }}
+            --if-package-exists
+
+      - name: Build image
+        uses: mentalsmash/actions/docker/builder@master
+        with:
+          base-image: ${{ steps.config.outputs.DOCKER_BASE_IMAGE }}
+          build-platforms: ${{ steps.config.outputs.DOCKER_BUILD_PLATFORMS }}
+          context: ${{ env.CLONE_DIR }}
+          dockerfile: ${{ env.CLONE_DIR }}/docker/Dockerfile
+          image-flavor-config: ${{ steps.config.outputs.DOCKER_FLAVOR_CONFIG }}
+          image-tags-config: ${{ steps.config.outputs.DOCKER_TAGS_CONFIG }}
+          image-repos: ${{ steps.config.outputs.PRERELEASE_REPO }}
+          github-token: ${{ secrets.GITHUB_TOKEN }}
+          github-user: ${{ github.actor }}
+          dockerhub-token: ${{ secrets.DOCKERHUB_TOKEN }}
+          dockerhub-user: ${{ vars.DOCKERHUB_USERNAME }}
+          action: push
+
+  test:
+    needs:
+      - build
+    strategy:
+      matrix:
+        runner: ${{ fromJson(needs.build.outputs.TEST_RUNNERS_MATRIX) }} 
+    runs-on: ${{ fromJson(matrix.runner) }}
+    steps:
+      - name: Clone source repository
+        uses: actions/checkout@v4
+        with:
+          path: ${{ env.CLONE_DIR }}
+          submodules: true
+
+      - name: Clone support files
+        uses: actions/checkout@v4
+        with:
+          repository: mentalsmash/uno-ci
+          token: ${{ secrets.UNO_CI_PAT }}
+          ref: master
+          path: src/uno-ci
+
+      - name: Load configuration
+        uses: mentalsmash/actions/pyconfig/configuration@master
+        with:
+          clone-dir: ${{ env.CLONE_DIR }}
+
+      - name: Configure workflow
+        id: config
+        run: |
+          (
+            printf -- "LOCAL_TESTER_IMAGE=%s\n" "$(jq '.ci.images.local_tester.image' -j pyconfig.json)"
+            printf -- "LOCAL_TESTER_RESULTS=%s\n" "$(jq '.ci.test.results_dir' -j pyconfig.json)"
+            printf -- "PRERELEASE_IMAGE=%s\n" "$(jq '.release.prerelease_image' -j pyconfig.json)"
+            printf -- "TEST_ARTIFACT=%s\n" "$(jq '.release.test_artifact' -j pyconfig.json)"
+            printf -- "TEST_DATE=%s\n" "$(jq '.build.date' -j pyconfig.json)"
+            printf -- "TEST_ID=%s\n" "$(jq '.release.test_id' -j pyconfig.json)"
+          ) | tee -a ${GITHUB_OUTPUT}
+      
+      - name: Build image
+        uses: mentalsmash/actions/docker/builder@master
+        with:
+          base-image: ${{ steps.config.outputs.PRERELEASE_IMAGE }}
+          dockerfile: ${{ env.CLONE_DIR }}/docker/test/Dockerfile
+          context: ${{ env.CLONE_DIR }}
+          image-tags: ${{ steps.config.outputs.LOCAL_TESTER_IMAGE }}
+          github-token: ${{ secrets.GITHUB_TOKEN }}
+          github-user: ${{ github.actor }}
+          dockerhub-token: ${{ secrets.DOCKERHUB_TOKEN }}
+          dockerhub-user: ${{ vars.DOCKERHUB_USERNAME }}
+          action: load
+
+      - name: Generate architecture ID
+        id: arch
+        run: |
+          (
+            case "$(uname -m)" in
+              x86_64)
+                echo ARCH=amd64
+                ;;
+              aarch64)
+                echo ARCH=arm64
+                ;;
+            esac
+          ) | tee -a ${GITHUB_OUTPUT}
+      
+      - name: Run tests
+        run: |
+          make -C ${{ env.CLONE_DIR }} test-unit
+
+          make -C ${{ env.CLONE_DIR }} test-integration
+        env:
+          DEBUG: ${{ runner.debug }}
+          FIX_DIR: ${{ github.workspace }}
+          IN_DOCKER: y
+          LOCAL_TESTER_IMAGE: ${{ steps.config.outputs.LOCAL_TESTER_IMAGE }}
+          LOCAL_TESTER_RESULTS: ${{ steps.config.outputs.LOCAL_TESTER_RESULTS }}
+          RTI_LICENSE_FILE: ${{ github.workspace }}/src/uno-ci/docker/base-tester/resource/rti/rti_license.dat
+          TEST_DATE: ${{ steps.config.outputs.TEST_DATE }}
+          TEST_ID: ${{ steps.config.outputs.TEST_ID }}__${{ steps.arch.outputs.ARCH }}
+          TEST_RELEASE: y
+      
+      - name: Run tests (without a license)
+        run: |
+          make -C ${{ env.CLONE_DIR }} test-unit
+
+          make -C ${{ env.CLONE_DIR }} test-integration
+        env:
+          DEBUG: ${{ runner.debug }}
+          FIX_DIR: ${{ github.workspace }}
+          IN_DOCKER: y
+          NO_LICENSE: y
+          LOCAL_TESTER_IMAGE: ${{ steps.config.outputs.LOCAL_TESTER_IMAGE }}
+          LOCAL_TESTER_RESULTS: ${{ steps.config.outputs.LOCAL_TESTER_RESULTS }}
+          RTI_LICENSE_FILE: ${{ github.workspace }}/src/uno-ci/docker/base-tester/resource/rti/rti_license.dat
+          TEST_DATE: ${{ steps.config.outputs.TEST_DATE }}
+          TEST_ID: ${{ steps.config.outputs.TEST_ID }}__${{ steps.arch.outputs.ARCH }}
+          TEST_RELEASE: y
+
+      - name: Restore permissions changed by tests
+        if: always()
+        run: |
+          make -C ${{ env.CLONE_DIR }} fix-file-ownership
+
+      - name: Upload test results
+        uses: actions/upload-artifact@v4
+        if: always()
+        with:
+          name: ${{ steps.config.outputs.TEST_ARTIFACT }}__${{ steps.arch.outputs.ARCH }}
+          path: ${{ env.CLONE_DIR }}/${{ steps.config.outputs.LOCAL_TESTER_RESULTS }}/**
+
